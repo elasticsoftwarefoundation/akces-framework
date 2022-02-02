@@ -1,0 +1,16 @@
+// org.elasticsoftware.akces.protocol.DomainEventRecord
+
+// Message for org.elasticsoftware.akces.protocol.DomainEventRecord
+message DomainEventRecord {
+  optional string name = 1;
+  optional int32 version = 2;
+  optional bytes payload = 3;
+  optional PayloadEncoding encoding = 4;
+  optional string aggregateId = 5;
+}
+// Enum for org.elasticsoftware.akces.protocol.PayloadEncoding
+enum PayloadEncoding {
+  JSON = 0;
+  PROTOBUF = 1;
+  AVRO = 2;
+}
