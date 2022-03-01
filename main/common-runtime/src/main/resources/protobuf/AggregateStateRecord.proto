@@ -12,5 +12,4 @@ message AggregateStateRecord {
 enum PayloadEncoding {
   JSON = 0;
   PROTOBUF = 1;
-  AVRO = 2;
 }

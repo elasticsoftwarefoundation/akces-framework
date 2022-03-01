@@ -20,7 +20,7 @@
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-parent</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>0.1.1-SNAPSHOT</version>
     </parent>
 
     <artifactId>akces-framework-main</artifactId>
@@ -39,7 +39,7 @@
         <slf4j.version>1.7.32</slf4j.version>
         <javassist.version>3.28.0-GA</javassist.version>
         <lz4.version>1.8.0</lz4.version>
-        <kafka.version>3.0.0</kafka.version>
+        <kafka.version>3.1.0</kafka.version>
         <chronicle-bom.version>2.21.247</chronicle-bom.version>
         <!-- This is the last release with ASLv2-->
         <kubernetes-client.version>5.11.2</kubernetes-client.version>
@@ -59,6 +59,8 @@
         <fast-uuid.version>0.2.0</fast-uuid.version>
         <confluent.version>7.0.1</confluent.version>
         <victools.version>4.22.0</victools.version>
+        <joda-time.version>2.10.13</joda-time.version>
+        <logback.version>1.2.10</logback.version>
     </properties>
 
     <scm>
@@ -155,6 +157,17 @@
                 <groupId>io.confluent</groupId>
                 <artifactId>kafka-json-schema-serializer</artifactId>
                 <version>${confluent.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>joda-time</groupId>
+                        <artifactId>joda-time</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>joda-time</groupId>
+                <artifactId>joda-time</artifactId>
+                <version>${joda-time.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.confluent</groupId>
@@ -247,6 +260,11 @@
                 <version>${slf4j.version}</version>
             </dependency>
             <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-classic</artifactId>
+                <version>${logback.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.javassist</groupId>
                 <artifactId>javassist</artifactId>
                 <version>${javassist.version}</version>
@@ -290,6 +308,11 @@
             <dependency>
                 <groupId>org.apache.kafka</groupId>
                 <artifactId>kafka-clients</artifactId>
+                <version>${kafka.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka-streams</artifactId>
                 <version>${kafka.version}</version>
             </dependency>
             <dependency>
@@ -345,6 +368,7 @@
     <modules>
         <module>api</module>
         <module>common-runtime</module>
+        <module>kubernetes-runtime</module>
     </modules>
 
     <build>

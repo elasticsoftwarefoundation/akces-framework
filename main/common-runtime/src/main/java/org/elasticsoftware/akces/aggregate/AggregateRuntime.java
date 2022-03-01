@@ -17,8 +17,7 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 
 public abstract class AggregateRuntime {
-    private final String name;
-    private final int version;
+    private final AggregateStateType<?> type;
     private final CreateAggregateCommandHandlerFunction<Command, DomainEvent> commandCreateHandler;
     private final CreateAggregateEventSourcingHandlerFunction<AggregateState, DomainEvent> createStateHandler;
     private final Map<Class<?>,DomainEventType<?>> domainEvents;
@@ -26,16 +25,14 @@ public abstract class AggregateRuntime {
     private final Map<CommandType<?>, CommandHandlerFunction<AggregateState, Command, DomainEvent>> commandHandlers;
     private final Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers;
 
-    public AggregateRuntime(String name,
-                            int version,
+    public AggregateRuntime(AggregateStateType<?> type,
                             CreateAggregateCommandHandlerFunction<Command, DomainEvent> commandCreateHandler,
                             CreateAggregateEventSourcingHandlerFunction<AggregateState, DomainEvent> createStateHandler,
                             Map<Class<?>, DomainEventType<?>> domainEvents,
                             Map<String, List<CommandType<?>>> commandTypes,
                             Map<CommandType<?>, CommandHandlerFunction<AggregateState, Command, DomainEvent>> commandHandlers,
                             Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers) {
-        this.name = name;
-        this.version = version;
+        this.type = type;
         this.commandCreateHandler = commandCreateHandler;
         this.createStateHandler = createStateHandler;
         this.domainEvents = domainEvents;
@@ -44,7 +41,7 @@ public abstract class AggregateRuntime {
         this.eventSourcingHandlers = eventSourcingHandlers;
     }
 
-    void handleCommandRecord(CommandRecord commandRecord) {
+    public void handleCommandRecord(CommandRecord commandRecord) {
         // determine command
         CommandType<?> commandType = commandTypes.getOrDefault(commandRecord.name(), emptyList()).stream()
                 .filter(ct -> ct.version() == commandRecord.version())
@@ -60,17 +57,17 @@ public abstract class AggregateRuntime {
 
     private void handleCreateCommand(CommandType<?> commandType, CommandRecord commandRecord) {
         // materialize command
-        Command command = materialize(commandRecord);
+        var command = materialize(commandRecord);
         // apply the command
         DomainEvent domainEvent = commandCreateHandler.apply(command);
         // create the state
         AggregateState state = createStateHandler.apply(domainEvent);
         // store the state, generation is 1 because it is the first record
         AggregateStateRecord stateRecord = new AggregateStateRecord(
-                name,
-                version,
+                type.typeName(),
+                type.version(),
                 serialize(state),
-                getEncoding(),
+                getEncoding(type),
                 state.getAggregateId(),
                 1L);
         // store the domain event
@@ -79,7 +76,7 @@ public abstract class AggregateRuntime {
                 type.typeName(),
                 type.version(),
                 serialize(domainEvent),
-                getEncoding(),
+                getEncoding(type),
                 domainEvent.getAggregateId(),
                 stateRecord.generation());
 
@@ -94,17 +91,17 @@ public abstract class AggregateRuntime {
         AggregateState nextState = eventSourcingHandlers.get(domainEventType).apply(domainEvent, currentState);
         // store the state, increasing the generation by 1
         AggregateStateRecord nextStateRecord = new AggregateStateRecord(
-                name,
-                version,
+                type.typeName(),
+                type.version(),
                 serialize(nextState),
-                getEncoding(),
+                getEncoding(type),
                 currentStateRecord.aggregateId(),
                 currentStateRecord.generation()+1L);
         DomainEventRecord eventRecord = new DomainEventRecord(
                 domainEventType.typeName(),
                 domainEventType.version(),
                 serialize(domainEvent),
-                getEncoding(),
+                getEncoding(domainEventType),
                 domainEvent.getAggregateId(),
                 nextStateRecord.generation());
     }
@@ -113,15 +110,21 @@ public abstract class AggregateRuntime {
         return domainEvents.get(domainEventClass);
     }
 
-    abstract Command materialize(CommandRecord commandRecord);
+    protected abstract Command materialize(CommandRecord commandRecord);
 
-    abstract AggregateState materialize(AggregateStateRecord stateRecord);
+    protected abstract AggregateState materialize(AggregateStateRecord stateRecord);
 
-    abstract byte[] serialize(AggregateState state);
+    protected abstract byte[] serialize(AggregateState state);
 
-    abstract byte[] serialize(DomainEvent domainEvent);
+    protected abstract byte[] serialize(DomainEvent domainEvent);
 
-    abstract PayloadEncoding getEncoding();
+    protected abstract PayloadEncoding getEncoding(CommandType<?> type);
 
-    abstract AggregateStateRecord getCurrentState(String aggregateId);
+    protected abstract PayloadEncoding getEncoding(DomainEventType<?> type);
+
+    protected abstract PayloadEncoding getEncoding(AggregateStateType<?> type);
+
+    protected abstract AggregateStateRecord getCurrentState(String aggregateId);
+
+    public abstract void start();
 }

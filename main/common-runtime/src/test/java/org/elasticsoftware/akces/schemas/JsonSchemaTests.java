@@ -3,7 +3,6 @@ package org.elasticsoftware.akces.schemas;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ser.std.CollectionSerializer;
 import com.github.victools.jsonschema.generator.*;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
@@ -12,7 +11,6 @@ import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-import java.util.Arrays;
 import java.util.List;
 
 public class JsonSchemaTests {

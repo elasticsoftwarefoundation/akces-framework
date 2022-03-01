@@ -6,18 +6,27 @@ import org.elasticsoftware.akces.events.DomainEvent;
 import java.math.BigDecimal;
 
 
-public final class Wallet {
+public final class Wallet implements Aggregate<WalletState> {
 
-    public static void main(String[] args) {
-        AggregateBuilder.aggregate("Wallet", WalletState.class)
-                .withCreateCommandHandler("CreateWallet", 1, CreateWalletCommand.class, Wallet::create)
+    @Override
+    public String getName() {
+        return "Wallet";
+    }
+
+    @Override
+    public Class<WalletState> getStateClass() {
+        return WalletState.class;
+    }
+
+    @Override
+    public AggregateBuilder<WalletState> configure(AggregateBuilder<WalletState> builder) {
+        return builder.withCreateCommandHandler("CreateWallet", 1, CreateWalletCommand.class, this::create)
                 .withCommandHandler("CreditWallet", 1, CreditWalletCommand.class, Wallet::credit)
                 .withEventSourcedCreateEventHandler("WalletCreated", 1, WalletCreatedEvent.class, Wallet::create)
                 .withEventSourcedEventHandler("WalletCredited", 1, WalletCreditedEvent.class, Wallet::credit);
-
     }
 
-    static @NotNull WalletCreatedEvent create(@NotNull CreateWalletCommand cmd) {
+    public @NotNull WalletCreatedEvent create(@NotNull CreateWalletCommand cmd) {
         return new WalletCreatedEvent(cmd.id(), cmd.currency(), BigDecimal.ZERO);
     }
 

@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: akces-test
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: akces-test
+  serviceName: akces-test
+  template:
+    metadata:
+      labels:
+        app: akces-test
+    spec:
+#      volumes:
+#        - name: private
+#          secret:
+#            secretName: wallet
+#            defaultMode: 256
+      containers:
+        - name: akces-test
+          image: registry.hub.docker.com/elasticactors/akces:0.1.1-SNAPSHOT
+          imagePullPolicy: Always
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+#          lifecycle:
+#            preStop:
+#              exec:
+#                command: [ "/bin/sh", "-c", "PID=$(pidof java) && kill $PID && while ps -p $PID > /dev/null; do sleep 1; done" ]
+          resources:
+            limits:
+              cpu: "2"
+              memory: "512Mi"
+            requests:
+              cpu: "50m"
+              memory: "512Mi"
+#          volumeMounts:
+#            - name: private
+#              mountPath: /var/private
+#              readOnly: true
+
+
+
+
