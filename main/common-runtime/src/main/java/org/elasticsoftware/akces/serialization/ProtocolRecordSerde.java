@@ -31,7 +31,8 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
           optional bytes payload = 3;
           optional PayloadEncoding encoding = 4;
           optional string aggregateId = 5;
-          optional int64 generation = 6;
+          optional string correlationId = 6;
+          optional int64 generation = 7;
         }
         // Enum for org.elasticsoftware.akces.protocol.PayloadEncoding
         enum PayloadEncoding {
@@ -49,7 +50,8 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
           optional bytes payload = 3;
           optional PayloadEncoding encoding = 4;
           optional string aggregateId = 5;
-          optional int64 generation = 6;
+          optional string correlationId = 6;
+          optional int64 generation = 7;
         }
         // Enum for org.elasticsoftware.akces.protocol.PayloadEncoding
         enum PayloadEncoding {
@@ -67,6 +69,7 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
           optional bytes payload = 3;
           optional PayloadEncoding encoding = 4;
           optional string aggregateId = 5;
+          optional string correlationId = 6;
         }
         // Enum for org.elasticsoftware.akces.protocol.PayloadEncoding
         enum PayloadEncoding {

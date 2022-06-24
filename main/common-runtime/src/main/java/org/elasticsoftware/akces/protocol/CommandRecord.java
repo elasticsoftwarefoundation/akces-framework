@@ -5,6 +5,7 @@ public record CommandRecord(
         int version,
         byte[] payload,
         PayloadEncoding encoding,
-        String aggregateId
+        String aggregateId,
+        String correlationId
 ) implements ProtocolRecord {
 }

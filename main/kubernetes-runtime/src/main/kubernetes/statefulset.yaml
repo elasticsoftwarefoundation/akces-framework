@@ -27,10 +27,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-#          lifecycle:
-#            preStop:
-#              exec:
-#                command: [ "/bin/sh", "-c", "PID=$(pidof java) && kill $PID && while ps -p $PID > /dev/null; do sleep 1; done" ]
+          lifecycle:
+            preStop:
+              exec:
+                command: [ "/bin/sh", "-c", "sleep 10" ]
           resources:
             limits:
               cpu: "2"

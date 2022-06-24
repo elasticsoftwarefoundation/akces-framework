@@ -10,4 +10,6 @@ public sealed interface ProtocolRecord permits AggregateStateRecord, CommandReco
     PayloadEncoding encoding();
 
     String aggregateId();
+
+    String correlationId();
 }

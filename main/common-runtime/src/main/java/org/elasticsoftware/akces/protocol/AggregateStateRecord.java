@@ -6,6 +6,7 @@ public record AggregateStateRecord(
         byte[] payload,
         PayloadEncoding encoding,
         String aggregateId,
+        String correlationId,
         long generation
 ) implements ProtocolRecord {
 }

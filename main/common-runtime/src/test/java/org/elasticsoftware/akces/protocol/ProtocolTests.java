@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 import static org.elasticsoftware.akces.protocol.PayloadEncoding.JSON;
 import static org.testng.Assert.assertEquals;
@@ -29,7 +30,8 @@ public class ProtocolTests {
                   optional bytes payload = 3;
                   optional PayloadEncoding encoding = 4;
                   optional string aggregateId = 5;
-                  optional int64 generation = 6;
+                  optional string correlationId = 6;
+                  optional int64 generation = 7;
                 }
                 // Enum for org.elasticsoftware.akces.protocol.PayloadEncoding
                 enum PayloadEncoding {
@@ -38,7 +40,7 @@ public class ProtocolTests {
                   AVRO = 2;
                 }
                 """;
-        DomainEventRecord testRecord = new DomainEventRecord("WalletCreated", 1, "{}".getBytes(StandardCharsets.UTF_8), JSON, "1", 1L);
+        DomainEventRecord testRecord = new DomainEventRecord("WalletCreated", 1, "{}".getBytes(StandardCharsets.UTF_8), JSON, "1", UUID.randomUUID().toString(), 1L);
         /*
         InputStream ioStream = this.getClass()
                 .getClassLoader()

@@ -55,7 +55,11 @@ public class App {
                 }
             });
             while(running.get()) {
-                mainConsumer.poll(Duration.ofMillis(100));
+                try {
+                    mainConsumer.poll(Duration.ofMillis(100));
+                } catch(Exception e) {
+                    // ignore
+                }
             }
             System.out.println("Shutdown hook ran!");
             mainConsumer.close();
@@ -68,7 +72,9 @@ public class App {
         try {
             waitLatch.await();
         } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            //Thread.currentThread().interrupt();
+            // ignore
         }
+        System.out.println("EOF");
     }
 }
