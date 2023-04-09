@@ -35,7 +35,9 @@ public class JsonSchemaTests {
 
         schema2.validate(new AccountCreatedEvent("1", "Musk", AccountTypeV1.PREMIUM));
 
-        schema2.validate(new AccountCreatedEventV2("1","Musk",AccountTypeV2.PREMIUM, "Elon"));
+        schema2.validate(new AccountCreatedEventV2("1","Musk",AccountTypeV2.PREMIUM, "Elon", "US"));
+
+        // schema2.validate(new AccountCreatedEvent("1", null, AccountTypeV1.PREMIUM));
 
         //Assert.assertEquals(schema2.isBackwardCompatible(schema1).size(), 0);
     }

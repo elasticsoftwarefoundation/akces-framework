@@ -35,12 +35,13 @@
         <protobuf.version>3.15.8</protobuf.version>
         <log4j.version>2.17.1</log4j.version>
         <guava.version>30.1.1-jre</guava.version>
-        <jackson.version>2.13.1</jackson.version>
+        <jackson.version>2.13.3</jackson.version>
         <slf4j.version>1.7.32</slf4j.version>
         <javassist.version>3.28.0-GA</javassist.version>
         <lz4.version>1.8.0</lz4.version>
-        <kafka.version>3.1.0</kafka.version>
+        <kafka.version>3.2.1</kafka.version>
         <chronicle-bom.version>2.21.247</chronicle-bom.version>
+        <micronaut.version>3.6.3</micronaut.version>
         <!-- This is the last release with ASLv2-->
         <kubernetes-client.version>5.11.2</kubernetes-client.version>
         <java-uuid-generator.version>4.0.1</java-uuid-generator.version>
@@ -57,8 +58,8 @@
         <netty.version>4.1.70.Final</netty.version>
         <micrometer.version>1.5.17</micrometer.version>
         <fast-uuid.version>0.2.0</fast-uuid.version>
-        <confluent.version>7.0.1</confluent.version>
-        <victools.version>4.22.0</victools.version>
+        <confluent.version>7.2.1</confluent.version>
+        <victools.version>4.26.0</victools.version>
         <joda-time.version>2.10.13</joda-time.version>
         <logback.version>1.2.10</logback.version>
     </properties>
@@ -120,16 +121,16 @@
                 <type>pom</type>
             </dependency>
             <dependency>
-                <groupId>io.fabric8</groupId>
-                <artifactId>kubernetes-client-bom</artifactId>
-                <version>${kubernetes-client.version}</version>
+                <groupId>io.micrometer</groupId>
+                <artifactId>micrometer-bom</artifactId>
+                <version>${micrometer.version}</version>
                 <scope>import</scope>
                 <type>pom</type>
             </dependency>
             <dependency>
-                <groupId>io.micrometer</groupId>
-                <artifactId>micrometer-bom</artifactId>
-                <version>${micrometer.version}</version>
+                <groupId>io.micronaut</groupId>
+                <artifactId>micronaut-bom</artifactId>
+                <version>${micronaut.version}</version>
                 <scope>import</scope>
                 <type>pom</type>
             </dependency>
@@ -161,6 +162,14 @@
                     <exclusion>
                         <groupId>joda-time</groupId>
                         <artifactId>joda-time</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.jetbrains.kotlin</groupId>
+                        <artifactId>kotlin-scripting-compiler-embeddable</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.jetbrains</groupId>
+                        <artifactId>annotations</artifactId>
                     </exclusion>
                 </exclusions>
             </dependency>
@@ -352,6 +361,11 @@
                 <version>${spring.version}</version>
             </dependency>
             <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>kafka</artifactId>
+                <version>1.17.5</version>
+            </dependency>
+            <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-simple</artifactId>
                 <version>${slf4j.version}</version>
@@ -398,5 +412,25 @@
                 </includes>
             </testResource>
         </testResources>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration >
+                    <annotationProcessorPaths combine.children="append">
+                        <path>
+                            <groupId>io.micronaut</groupId>
+                            <artifactId>micronaut-inject-java</artifactId>
+                            <version>${micronaut.version}</version>
+                        </path>
+                        <path>
+                            <groupId>io.micronaut</groupId>
+                            <artifactId>micronaut-validation</artifactId>
+                            <version>${micronaut.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
     </build>
 </project>

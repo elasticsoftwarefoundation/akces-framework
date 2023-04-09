@@ -1,10 +1,16 @@
 package org.elasticsoftware.akces.aggregate;
 
 import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.AggregateInfo;
+import org.elasticsoftware.akces.annotations.CommandHandler;
+import org.elasticsoftware.akces.annotations.EventHandler;
+import org.elasticsoftware.akces.annotations.EventSourcingHandler;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 import java.math.BigDecimal;
 
+
+@AggregateInfo("Wallet")
 
 public final class Wallet implements Aggregate<WalletState> {
 
@@ -18,20 +24,20 @@ public final class Wallet implements Aggregate<WalletState> {
         return WalletState.class;
     }
 
-    @Override
-    public AggregateBuilder<WalletState> configure(AggregateBuilder<WalletState> builder) {
-        return builder.withCreateCommandHandler("CreateWallet", 1, CreateWalletCommand.class, this::create)
-                .withCommandHandler("CreditWallet", 1, CreditWalletCommand.class, Wallet::credit)
-                .withEventSourcedCreateEventHandler("WalletCreated", 1, WalletCreatedEvent.class, Wallet::create)
-                .withEventSourcedEventHandler("WalletCredited", 1, WalletCreditedEvent.class, Wallet::credit);
-    }
-
-    public @NotNull WalletCreatedEvent create(@NotNull CreateWalletCommand cmd) {
+    @CommandHandler(create = true)
+    public @NotNull WalletCreatedEvent create(@NotNull CreateWalletCommand cmd, WalletState isNull) {
         return new WalletCreatedEvent(cmd.id(), cmd.currency(), BigDecimal.ZERO);
     }
 
+    @EventHandler(create = true)
+    public @NotNull WalletCreatedEvent create(@NotNull AccountCreatedEvent event, WalletState isNull) {
+        // TODO: base the currency on the country
+        return new WalletCreatedEvent(event.getAggregateId(), "EUR", BigDecimal.ZERO);
+    }
+
+    @CommandHandler
     @NotNull
-    static DomainEvent credit(@NotNull CreditWalletCommand cmd, @NotNull WalletState currentState) {
+    public DomainEvent credit(@NotNull CreditWalletCommand cmd, @NotNull WalletState currentState) {
         if (!cmd.currency().equals(currentState.currency())) {
             // TODO: add more detail to the error event
             return new InvalidCurrencyErrorEvent(cmd.id());
@@ -43,11 +49,13 @@ public final class Wallet implements Aggregate<WalletState> {
         return new WalletCreditedEvent(currentState.id(), cmd.amount(), currentState.balance().add(cmd.amount()));
     }
 
-    static @NotNull WalletState create(@NotNull WalletCreatedEvent event) {
+    @EventSourcingHandler(create = true)
+    public @NotNull WalletState create(@NotNull WalletCreatedEvent event, WalletState isNull) {
         return new WalletState(event.id(), event.currency(), event.balance());
     }
 
-    static @NotNull WalletState credit(@NotNull WalletCreditedEvent event, @NotNull WalletState state) {
+    @EventSourcingHandler
+    public @NotNull WalletState credit(@NotNull WalletCreditedEvent event, @NotNull WalletState state) {
         return new WalletState(state.id(), state.currency(), state.balance().add(event.amount()));
     }
 

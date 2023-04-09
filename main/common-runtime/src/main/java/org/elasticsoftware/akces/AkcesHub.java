@@ -5,11 +5,9 @@ import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.elasticsoftware.akces.aggregate.Aggregate;
-import org.elasticsoftware.akces.aggregate.AggregateBuilder;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.kafka.AggregatePartition;
-import org.elasticsoftware.akces.kafka.KafkaAggregateBuilder;
 import org.elasticsoftware.akces.kafka.PartitionUtils;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
@@ -31,8 +29,6 @@ public class AkcesHub<S extends AggregateState> extends Thread implements AutoCl
                     String bootstrapServers) {
         this.bootstrapServers = bootstrapServers;
         this.aggregate = aggregate;
-        AggregateBuilder<S> builder = new KafkaAggregateBuilder<>(aggregate.getName(), aggregate.getStateClass());
-        aggregate.configure(builder);
         ProtocolRecordSerde serde = new ProtocolRecordSerde();
         final Map<String, Object> consumerConfig = new HashMap<>();
         consumerConfig.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "2000");

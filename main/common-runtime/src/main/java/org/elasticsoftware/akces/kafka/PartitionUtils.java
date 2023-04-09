@@ -29,7 +29,7 @@ public final class PartitionUtils {
                         topicPartition.topic().endsWith(DOMAINEVENTS_SUFFIX)).findFirst().orElseThrow();
                 TopicPartition aggregateState = aggregatePartition.stream().filter(topicPartition ->
                         topicPartition.topic().endsWith(AGGREGRATESTATE_SUFFIX)).findFirst().orElseThrow();
-                aggregatePartitions.put(partition, new AggregatePartition(partition, command, domainEvent, aggregateState));
+                //aggregatePartitions.put(partition, new AggregatePartition(consumer, producer, partition, command, domainEvent, aggregateState));
             } else {
                 throw new NoSuchElementException("Partition "+partition+" is incomplete, found "+aggregatePartition);
             }

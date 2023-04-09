@@ -162,7 +162,6 @@
                     <compilerArgs>
                         <arg>-parameters</arg>
                     </compilerArgs>
-                    <!--<release>${java.version}</release>-->
                 </configuration>
             </plugin>
             <plugin>
