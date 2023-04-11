@@ -8,10 +8,11 @@ import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidatio
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
 import io.confluent.kafka.schemaregistry.CompatibilityLevel;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
-import org.testng.Assert;
-import org.testng.annotations.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class JsonSchemaTests {
     @Test
@@ -31,7 +32,7 @@ public class JsonSchemaTests {
         JsonSchema schema1 = new JsonSchema(schemaV1);
         JsonSchema schema2 = new JsonSchema(schemaV2);
 
-        Assert.assertEquals(schema2.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE, List.of(schema1)).size(), 0);
+        assertEquals(schema2.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE, List.of(schema1)).size(), 0);
 
         schema2.validate(new AccountCreatedEvent("1", "Musk", AccountTypeV1.PREMIUM));
 

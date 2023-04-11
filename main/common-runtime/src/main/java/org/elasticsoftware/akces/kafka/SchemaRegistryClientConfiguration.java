@@ -3,23 +3,19 @@ package org.elasticsoftware.akces.kafka;
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.MockSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
-import io.micronaut.context.annotation.Bean;
-import io.micronaut.context.annotation.Factory;
-import io.micronaut.context.annotation.Requires;
-import io.micronaut.context.annotation.Value;
-import jakarta.inject.Singleton;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
 
-@Factory
-public class SchemaRegistryClientFactory {
+//@Configuration
+public class SchemaRegistryClientConfiguration {
     @Bean
-    @Singleton
-    @Requires(missingProperty = "kafka.schemaregistry.url")
+    @ConditionalOnProperty(name = "kafka.schemaregistry.url", matchIfMissing = true)
     public SchemaRegistryClient createMockSchemaRegistryClient() {
         return new MockSchemaRegistryClient();
     }
     @Bean
-    @Singleton
-    @Requires(property = "kafka.schemaregistry.url")
+    @ConditionalOnProperty(name = "kafka.schemaregistry.url", havingValue = "", matchIfMissing = false)
     public SchemaRegistryClient createSchemaRegistryClient(@Value("${kafka.schemaregistry.url}") String url) {
         return new CachedSchemaRegistryClient(url, 1000);
     }

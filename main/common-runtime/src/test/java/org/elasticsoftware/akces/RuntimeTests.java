@@ -1,16 +1,21 @@
 package org.elasticsoftware.akces;
 
-import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
-import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
-import io.micronaut.test.support.TestPropertyProvider;
 import jakarta.inject.Inject;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.CreateTopicsResult;
-import org.apache.kafka.clients.admin.ListTopicsOptions;
+import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
-import org.junit.jupiter.api.*;
+import org.apache.kafka.clients.admin.TopicDescription;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContextInitializer;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.kafka.core.KafkaAdmin;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.support.TestPropertySourceUtils;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.Network;
@@ -19,17 +24,18 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @Testcontainers
+@SpringBootTest(classes = RuntimeConfiguration.class)
+@ContextConfiguration(initializers = RuntimeTests.DataSourceInitializer.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@MicronautTest
-public class RuntimeTests implements TestPropertyProvider {
+public class RuntimeTests  {
 
-    private static Network network = Network.newNetwork();
+    private static final Network network = Network.newNetwork();
 
     @Container
     private static final KafkaContainer kafka =
@@ -48,40 +54,57 @@ public class RuntimeTests implements TestPropertyProvider {
                     .dependsOn(kafka);
 
     @Inject
-    AdminClient adminClient;
+    KafkaAdmin adminClient;
 
     @Inject
     SchemaRegistryClient schemaRegistryClient;
 
-    @Test
-    @Order(1)
-    public void createTopics() throws ExecutionException, InterruptedException {
-        List<NewTopic> topics = List.of(
+    public static class DataSourceInitializer
+            implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+
+        @Override
+        public void initialize(ConfigurableApplicationContext applicationContext) {
+            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
+                    applicationContext,
+                    "kafka.enabled=true",
+                    "kafka.bootstrap.servers="+kafka.getBootstrapServers(),
+                    "kafka.schemaregistry.url=http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081)
+            );
+            // initialize kafka topics
+            prepareKafka(kafka.getBootstrapServers());
+        }
+    }
+
+    public static void prepareKafka(String bootstrapServers) {
+        KafkaAdmin kafkaAdmin = new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
+        kafkaAdmin.createOrModifyTopics(
                 createCompactedTopic("Akces-Control", 3),
                 createTopic("Wallet-Commands", 3),
                 createTopic("Wallet-DomainEvents", 3),
                 createCompactedTopic("Wallet-AggregateState", 3));
-        CreateTopicsResult result = adminClient.createTopics(topics);
-        result.all().get();
-        System.out.println(adminClient.listTopics(new ListTopicsOptions().listInternal(true)).listings().get());
+    }
+
+    @Test
+    @Order(1)
+    public void testKafkaAdminClient() {
+        assertNotNull(adminClient);
+        Map<String,TopicDescription> topics =
+                adminClient.describeTopics(
+                        "Akces-Control",
+                        "Wallet-Commands",
+                        "Wallet-DomainEvents",
+                        "Wallet-AggregateState");
+        assertNotNull(topics);
+        assertFalse(topics.isEmpty());
     }
 
     @Test
     @Order(2)
-    public void createSchemas() throws RestClientException, IOException {
+    public void createSchemas() throws RestClientException, IOException, InterruptedException {
         System.out.println(schemaRegistryClient.getAllSubjects());
     }
 
-    @Override
-    public Map<String, String> getProperties() {
-        return Map.of(
-                    "kafka.enabled", "true",
-                "kafka.bootstrap.servers", kafka.getBootstrapServers(),
-                "kafka.schemaregistry.url", "http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081)
-        );
-    }
-
-    private NewTopic createTopic(String name, int numPartitions) {
+    private static NewTopic createTopic(String name, int numPartitions) {
         NewTopic topic = new NewTopic(name, numPartitions , Short.parseShort("1"));
         return topic.configs(Map.of(
                 "cleanup.policy","delete",
@@ -90,7 +113,7 @@ public class RuntimeTests implements TestPropertyProvider {
                 "segment.ms","604800000"));
     }
 
-    private NewTopic createCompactedTopic(String name, int numPartitions) {
+    private static NewTopic createCompactedTopic(String name, int numPartitions) {
         NewTopic topic = new NewTopic(name, numPartitions , Short.parseShort("1"));
         return topic.configs(Map.of(
                 "cleanup.policy","compact",

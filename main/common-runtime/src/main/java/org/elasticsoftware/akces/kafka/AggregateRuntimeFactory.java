@@ -2,24 +2,16 @@ package org.elasticsoftware.akces.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
-import io.micronaut.context.ApplicationContext;
-import io.micronaut.context.annotation.EachBean;
-import io.micronaut.context.annotation.Factory;
-import io.micronaut.core.beans.BeanIntrospection;
-import io.micronaut.core.beans.BeanIntrospector;
-import io.micronaut.inject.BeanDefinition;
-import jakarta.inject.Singleton;
 import org.elasticsoftware.akces.aggregate.*;
-import org.elasticsoftware.akces.annotations.*;
-import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftware.akces.annotations.AggregateInfo;
 import org.elasticsoftware.akces.commands.CommandHandlerFunction;
-import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.events.EventHandlerFunction;
 import org.elasticsoftware.akces.events.EventSourcingHandlerFunction;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
-import static java.lang.Boolean.FALSE;
-
-@Factory
+@Configuration
 public class AggregateRuntimeFactory {
     private final ApplicationContext applicationContext;
     private final ObjectMapper objectMapper;
@@ -33,107 +25,65 @@ public class AggregateRuntimeFactory {
         this.schemaRegistryClient = schemaRegistryClient;
     }
 
-    @EachBean(Aggregate.class)
-    @Singleton
+    @Bean
     <S extends AggregateState> KafkaAggregateRuntime createRuntime(Aggregate<S> aggregate) {
         KafkaAggregateRuntime.Builder runtimeBuilder = new KafkaAggregateRuntime.Builder();
 
-        BeanIntrospection<?> aggregateState = BeanIntrospector.SHARED.findIntrospection(aggregate.getStateClass())
-                .orElseThrow(() -> new IllegalStateException("Class implementing AggregateState must be annotated with @AggregateStateInfo"));
+        AggregateInfo aggregateInfo = aggregate.getClass().getAnnotation(AggregateInfo.class);
 
-        runtimeBuilder.setStateType(new AggregateStateType<>(
-            aggregateState.getAnnotation(AggregateStateInfo.class).stringValue("type").orElseThrow(),
-            aggregateState.getAnnotation(AggregateStateInfo.class).intValue("version").orElse(1),
-            aggregate.getStateClass()
-        ));
+        if (aggregateInfo != null) {
+            runtimeBuilder.setStateType(new AggregateStateType<>(
+                    aggregateInfo.value(),
+                    aggregateInfo.version(),
+                    aggregate.getStateClass()
+            ));
+        } else {
+            throw new IllegalStateException("Class implementing Aggregate must be annotated with @AggregateInfo");
+        }
 
         runtimeBuilder.setObjectMapper(objectMapper);
 
-        applicationContext.getBeanDefinitions(CommandHandlerFunction.class).stream()
-                // TODO: we should filter only for methods contained in the current aggregateBeanDefinition class
-                //.filter(beanDefinition -> beanDefinition.getDeclaringType().get().equals(aggregate.getClass()))
-                .forEach(beanDefinition -> {
-                    // see if this is a create handler
-                    beanDefinition.findAnnotation(CommandHandler.class)
-                            .ifPresent(av -> {
-                                if (av.booleanValue("create").orElse(FALSE)) {
-                                    runtimeBuilder.setCommandCreateHandler(applicationContext.getBean(beanDefinition));
-                                    runtimeBuilder.addCommand(resolveCommandType(beanDefinition, true));
-                                } else {
-                                    CommandType<?> type = resolveCommandType(beanDefinition, false);
-                                    runtimeBuilder.addCommandHandler(type , applicationContext.getBean(beanDefinition));
-                                    runtimeBuilder.addCommand(type);
-                                }
-                            });
+        applicationContext.getBeansOfType(CommandHandlerFunction.class).values().stream()
+                // we only want the adapters for this Aggregate
+                .filter(adapter -> adapter.getAggregate().equals(aggregate))
+                .forEach(adapter -> {
+                    CommandType<?> type = adapter.getCommandType();
+                    if (adapter.isCreate()) {
+                        runtimeBuilder.setCommandCreateHandler(adapter);
+                        runtimeBuilder.addCommand(type);
+                    } else {
+                        runtimeBuilder.addCommandHandler(type, adapter);
+                        runtimeBuilder.addCommand(type);
+                    }
                 });
         // get ExternalEventHandlers for this Aggregate
-        applicationContext.getBeanDefinitions(EventHandlerFunction.class).stream()
-                //.filter
-                .forEach(beanDefinition -> {
-                    beanDefinition.findAnnotation(EventHandler.class)
-                            .ifPresent(av -> {
-                                if (av.booleanValue("create").orElse(FALSE)) {
-                                    runtimeBuilder.setEventCreateHandler(applicationContext.getBean(beanDefinition));
-                                    runtimeBuilder.addDomainEvent(resolveExternalDomainEventType(beanDefinition, true));
-                                } else {
-                                    DomainEventType<?> type = resolveExternalDomainEventType(beanDefinition, false);
-                                    runtimeBuilder.addExternalEventHandler(type, applicationContext.getBean(beanDefinition));
-                                    runtimeBuilder.addDomainEvent(type);
-                                }
-                            });
+        applicationContext.getBeansOfType(EventHandlerFunction.class).values().stream()
+                // we only want the adapters for this Aggregate
+                .filter(adapter -> adapter.getAggregate().equals(aggregate))
+                .forEach(adapter -> {
+                    DomainEventType<?> type = adapter.getEventType();
+                    if (adapter.isCreate()) {
+                        runtimeBuilder.setEventCreateHandler(adapter);
+                        runtimeBuilder.addDomainEvent(type);
+                    } else {
+                        runtimeBuilder.addExternalEventHandler(type, adapter);
+                        runtimeBuilder.addDomainEvent(type);
+                    }
                 });
         // EventSourcingHandlers
-        applicationContext.getBeanDefinitions(EventSourcingHandlerFunction.class).stream()
-                //.filter
-                .forEach(beanDefinition -> {
-                    beanDefinition.findAnnotation(EventSourcingHandler.class)
-                            .ifPresent(av -> {
-                                if (av.booleanValue("create").orElse(FALSE)) {
-                                    runtimeBuilder.setEventSourcingCreateHandler(applicationContext.getBean(beanDefinition));
-                                    runtimeBuilder.addDomainEvent(resolveInternalDomainEventType(beanDefinition, true));
-                                } else {
-                                    DomainEventType<?> type = resolveInternalDomainEventType(beanDefinition, false);
-                                    runtimeBuilder.addEventSourcingHandler(type, applicationContext.getBean(beanDefinition));
-                                    runtimeBuilder.addDomainEvent(type);
-                                }
-                            });
+        applicationContext.getBeansOfType(EventSourcingHandlerFunction.class).values().stream()
+                .filter(adapter -> adapter.getAggregate().equals(aggregate))
+                .forEach(adapter -> {
+                    DomainEventType<?> type = adapter.getEventType();
+                    if (adapter.isCreate()) {
+                        runtimeBuilder.setEventSourcingCreateHandler(adapter);
+                        runtimeBuilder.addDomainEvent(type);
+                    } else {
+                        runtimeBuilder.addEventSourcingHandler(type, adapter);
+                        runtimeBuilder.addDomainEvent(type);
+                    }
                 });
 
         return runtimeBuilder.setSchemaRegistryClient(schemaRegistryClient).build();
-    }
-
-    private <C extends Command> CommandType<C> resolveCommandType(BeanDefinition<CommandHandlerFunction> beanDefinition, boolean create) {
-        Class<C> commandClass = (Class<C>) beanDefinition.getTypeArguments(CommandHandlerFunction.class.getName()).get(0).getType();
-        BeanIntrospection<?> commandInfo = BeanIntrospector.SHARED.findIntrospection(commandClass)
-                .orElseThrow(() -> new IllegalStateException("Command class not annotated with CommandInfo"));
-        return new CommandType<>(
-                commandInfo.getAnnotation(CommandInfo.class).stringValue("type").orElseThrow(),
-                commandInfo.getAnnotation(CommandInfo.class).intValue("version").orElse(1),
-                commandClass,
-                create);
-    }
-
-    private <E extends DomainEvent> DomainEventType<E> resolveExternalDomainEventType(BeanDefinition<EventHandlerFunction> beanDefinition, boolean create) {
-        Class<E> eventClass = (Class<E>) beanDefinition.getTypeArguments(EventHandlerFunction.class.getName()).get(0).getType();
-        BeanIntrospection<?> domainEventInfo = BeanIntrospector.SHARED.findIntrospection(eventClass)
-                .orElseThrow(() -> new IllegalStateException("DomainEvent class not annotated with DomainEventInfo"));
-        return new DomainEventType<>(
-                domainEventInfo.getAnnotation(DomainEventInfo.class).stringValue("type").orElseThrow(),
-                domainEventInfo.getAnnotation(DomainEventInfo.class).intValue("version").orElse(1),
-                eventClass,
-                create,
-                true);
-    }
-
-    private <E extends DomainEvent> DomainEventType<E> resolveInternalDomainEventType(BeanDefinition<EventSourcingHandlerFunction> beanDefinition, boolean create) {
-        Class<E> eventClass = (Class<E>) beanDefinition.getTypeArguments(EventSourcingHandlerFunction.class.getName()).get(0).getType();
-        BeanIntrospection<?> domainEventInfo = BeanIntrospector.SHARED.findIntrospection(eventClass)
-                .orElseThrow(() -> new IllegalStateException("DomainEvent class not annotated with DomainEventInfo"));
-        return new DomainEventType<>(
-                domainEventInfo.getAnnotation(DomainEventInfo.class).stringValue("type").orElseThrow(),
-                domainEventInfo.getAnnotation(DomainEventInfo.class).intValue("version").orElse(1),
-                eventClass,
-                create,
-                false);
     }
 }

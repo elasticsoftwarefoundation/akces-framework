@@ -1,5 +1,6 @@
 package org.elasticsoftware.akces.aggregate;
 
+import jakarta.inject.Named;
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateInfo;
 import org.elasticsoftware.akces.annotations.CommandHandler;
@@ -11,7 +12,7 @@ import java.math.BigDecimal;
 
 
 @AggregateInfo("Wallet")
-
+@Named("Wallet")
 public final class Wallet implements Aggregate<WalletState> {
 
     @Override
