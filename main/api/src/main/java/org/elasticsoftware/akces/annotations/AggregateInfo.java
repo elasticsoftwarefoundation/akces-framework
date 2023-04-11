@@ -1,14 +1,17 @@
 package org.elasticsoftware.akces.annotations;
 
-import io.micronaut.context.annotation.Factory;
-import jakarta.inject.Qualifier;
+import jakarta.inject.Named;
 
 import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+@Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE})
-@Factory
-@Qualifier
+@Named
 public @interface AggregateInfo {
     String value();
+
+    int version() default 1;
 }

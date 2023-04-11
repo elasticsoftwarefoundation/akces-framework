@@ -2,17 +2,16 @@ package org.elasticsoftware.akces.aggregate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
-import io.micronaut.context.ApplicationContext;
-import io.micronaut.core.annotation.AnnotationValue;
-import io.micronaut.core.convert.ConversionContext;
-import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
-import org.elasticsoftware.akces.annotations.*;
 import org.elasticsoftware.akces.commands.CommandHandlerFunction;
+import org.elasticsoftware.akces.events.EventHandlerFunction;
+import org.elasticsoftware.akces.events.EventSourcingHandlerFunction;
 import org.elasticsoftware.akces.kafka.KafkaAggregateRuntime;
 import org.elasticsoftware.akces.protocol.*;
 import org.elasticsoftware.akces.schemas.AccountCreatedEventV2;
 import org.junit.jupiter.api.*;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -22,7 +21,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 
-@MicronautTest
+@SpringBootTest(classes = WalletConfiguration.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class WalletTests {
     @Inject
@@ -34,15 +33,14 @@ public class WalletTests {
 
     @Test
     public void testFindBeans() {
-        Assertions.assertTrue(!applicationContext.getBeansOfType(CommandHandlerFunction.class).isEmpty());
-        applicationContext.getBeansOfType(CommandHandlerFunction.class).forEach(commandHandlerFunction -> System.out.println(commandHandlerFunction.getClass()));
-        applicationContext.getBeanDefinitions(CommandHandlerFunction.class).forEach(beanDefinition -> {
-            System.out.println(beanDefinition.toString());
-            AnnotationValue<CommandHandler> annotationValue = beanDefinition.findAnnotation(CommandHandler.class).orElse(null);
-            Boolean create = annotationValue.booleanValue("create").orElse(annotationValue.get("create", ConversionContext.of(Boolean.class)).orElse(null));
-            System.out.println("Create = "+create.toString());
-        });
-        applicationContext.getBeanDefinitions(Aggregate.class).forEach(beanDefinition -> System.out.println(beanDefinition.toString()));
+        assertEquals(2, applicationContext.getBeansOfType(CommandHandlerFunction.class).size());
+        assertEquals(1, applicationContext.getBeansOfType(EventHandlerFunction.class).size());
+        assertEquals(2, applicationContext.getBeansOfType(EventSourcingHandlerFunction.class).size());
+        Assertions.assertNotNull(applicationContext.getBean("Wallet_ch_create_CreateWallet_1"));
+        Assertions.assertNotNull(applicationContext.getBean("Wallet_ch_credit_CreditWallet_1"));
+        Assertions.assertNotNull(applicationContext.getBean("Wallet_eh_create_AccountCreated_1"));
+        Assertions.assertNotNull(applicationContext.getBean("Wallet_esh_create_WalletCreated_1"));
+        Assertions.assertNotNull(applicationContext.getBean("Wallet_esh_credit_WalletCredited_1"));
     }
 
     @Test

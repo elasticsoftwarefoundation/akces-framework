@@ -6,16 +6,16 @@ import com.fasterxml.jackson.dataformat.protobuf.ProtobufMapper;
 import com.fasterxml.jackson.dataformat.protobuf.schema.NativeProtobufSchema;
 import com.fasterxml.jackson.dataformat.protobuf.schema.ProtobufSchema;
 import com.fasterxml.jackson.dataformat.protobuf.schema.ProtobufSchemaLoader;
-import org.testng.annotations.Test;
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 import static org.elasticsoftware.akces.protocol.PayloadEncoding.JSON;
-import static org.testng.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class ProtocolTests {
     @Test
@@ -54,7 +54,7 @@ public class ProtocolTests {
 
         assertEquals(deserializedTestRecord.name(), testRecord.name());
         assertEquals(deserializedTestRecord.version(), testRecord.version());
-        assertEquals(deserializedTestRecord.payload(), testRecord.payload());
+        assertArrayEquals(deserializedTestRecord.payload(), testRecord.payload());
         assertEquals(deserializedTestRecord.encoding(), testRecord.encoding());
         assertEquals(deserializedTestRecord.aggregateId(), testRecord.aggregateId());
     }

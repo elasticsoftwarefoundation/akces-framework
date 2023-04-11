@@ -1,8 +1,9 @@
 package org.elasticsoftware.akces.annotations;
 
-import io.micronaut.core.annotation.Introspected;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 
-@Introspected
+@Retention(RetentionPolicy.RUNTIME)
 public @interface CommandInfo {
     String type();
 
