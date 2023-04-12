@@ -6,7 +6,6 @@ import jakarta.inject.Inject;
 import org.elasticsoftware.akces.commands.CommandHandlerFunction;
 import org.elasticsoftware.akces.events.EventHandlerFunction;
 import org.elasticsoftware.akces.events.EventSourcingHandlerFunction;
-import org.elasticsoftware.akces.kafka.KafkaAggregateRuntime;
 import org.elasticsoftware.akces.protocol.*;
 import org.elasticsoftware.akces.schemas.AccountCreatedEventV2;
 import org.junit.jupiter.api.*;
@@ -46,7 +45,7 @@ public class WalletTests {
     @Test
     @Order(1)
     public void testValidateDomainEventsWithMissingExternalDomainEventSchema() throws Exception {
-        KafkaAggregateRuntime walletAggregate = applicationContext.getBean(KafkaAggregateRuntime.class);
+        AggregateRuntime walletAggregate = applicationContext.getBean(AggregateRuntime.class);
         assertThrows(IllegalStateException.class, () -> {
             for (DomainEventType<?> domainEventType : walletAggregate.getDomainEventTypes()) {
                 walletAggregate.registerAndValidate(domainEventType);
@@ -57,7 +56,7 @@ public class WalletTests {
 
     @Test
     public void testValidateDomainEvents() throws Exception {
-        KafkaAggregateRuntime walletAggregate = applicationContext.getBean(KafkaAggregateRuntime.class);
+        AggregateRuntime walletAggregate = applicationContext.getBean(AggregateRuntime.class);
         // need to register the external domainevent
         schemaRegistryClient.register("AccountCreated",
                 walletAggregate.generateJsonSchema(new DomainEventType<>("AccountCreated", 1, AccountCreatedEventV2.class, true, true)),
@@ -71,7 +70,7 @@ public class WalletTests {
 
     @Test
     public void testValidateDomainEventsWithExistingSchemas() throws Exception {
-        KafkaAggregateRuntime walletAggregate = applicationContext.getBean(KafkaAggregateRuntime.class);
+        AggregateRuntime walletAggregate = applicationContext.getBean(AggregateRuntime.class);
         // need to register the external domainevent
         schemaRegistryClient.register("AccountCreated",
                 walletAggregate.generateJsonSchema(new DomainEventType<>("AccountCreated", 1, AccountCreatedEventV2.class, true, true)),
@@ -93,12 +92,15 @@ public class WalletTests {
 
     @Test
     public void testCreateWalletByCommand() throws IOException {
-        KafkaAggregateRuntime walletAggregate = applicationContext.getBean(KafkaAggregateRuntime.class);
+        AggregateRuntime walletAggregate = applicationContext.getBean(AggregateRuntime.class);
+        String tenantId = "tenant1";
         String aggregateId = "d43a3afc-3e5a-11ed-b878-0242ac120002";
         String correlationId = "01e04622-3e5b-11ed-b878-0242ac120002";
         List<ProtocolRecord> producedRecords = new ArrayList<>();
         walletAggregate.handleCommandRecord(
-                new CommandRecord("CreateWallet",
+                new CommandRecord(
+                        tenantId,
+                        "CreateWallet",
                         1,
                         objectMapper.writeValueAsBytes(
                                 new CreateWalletCommand(aggregateId, "EUR")),
@@ -110,7 +112,9 @@ public class WalletTests {
         );
         assertEquals(2, producedRecords.size());
         AggregateStateRecord actualRecord = (AggregateStateRecord) producedRecords.get(0);
-        AggregateStateRecord expectedRecord = new AggregateStateRecord("Wallet",
+        AggregateStateRecord expectedRecord = new AggregateStateRecord(
+                tenantId,
+                "Wallet",
                 1,
                 objectMapper.writeValueAsBytes(new WalletState(aggregateId, "EUR", BigDecimal.ZERO)),
                 PayloadEncoding.JSON,
@@ -138,12 +142,15 @@ public class WalletTests {
 
     @Test
     public void testCreateWalletByExternalDomainEvent() throws IOException {
-        KafkaAggregateRuntime walletAggregate = applicationContext.getBean(KafkaAggregateRuntime.class);
+        AggregateRuntime walletAggregate = applicationContext.getBean(AggregateRuntime.class);
+        String tenantId = "tenant1";
         String aggregateId = "d43a3afc-3e5a-11ed-b878-0242ac120002";
         String correlationId = "01e04622-3e5b-11ed-b878-0242ac120002";
         List<ProtocolRecord> producedRecords = new ArrayList<>();
         walletAggregate.handleExternalDomainEventRecord(
-                new DomainEventRecord("AccountCreated",
+                new DomainEventRecord(
+                        tenantId,
+                        "AccountCreated",
                         1,
                         objectMapper.writeValueAsBytes(
                                 new AccountCreatedEvent(aggregateId, "NL")),
@@ -156,7 +163,9 @@ public class WalletTests {
         );
         assertEquals(2, producedRecords.size());
         AggregateStateRecord actualRecord = (AggregateStateRecord) producedRecords.get(0);
-        AggregateStateRecord expectedRecord = new AggregateStateRecord("Wallet",
+        AggregateStateRecord expectedRecord = new AggregateStateRecord(
+                tenantId,
+                "Wallet",
                 1,
                 objectMapper.writeValueAsBytes(new WalletState(aggregateId, "EUR", BigDecimal.ZERO)),
                 PayloadEncoding.JSON,

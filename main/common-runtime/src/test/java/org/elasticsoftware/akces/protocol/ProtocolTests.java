@@ -22,7 +22,7 @@ public class ProtocolTests {
     public void testJacksonProtobuf() throws IOException {
         String protobuf = """
                 // org.elasticsoftware.akces.protocol.DomainEventRecord
-                                
+                        
                 // Message for org.elasticsoftware.akces.protocol.DomainEventRecord
                 message DomainEventRecord {
                   optional string name = 1;
@@ -32,6 +32,7 @@ public class ProtocolTests {
                   optional string aggregateId = 5;
                   optional string correlationId = 6;
                   optional int64 generation = 7;
+                  optional string tenantId = 8;
                 }
                 // Enum for org.elasticsoftware.akces.protocol.PayloadEncoding
                 enum PayloadEncoding {
@@ -40,7 +41,7 @@ public class ProtocolTests {
                   AVRO = 2;
                 }
                 """;
-        DomainEventRecord testRecord = new DomainEventRecord("WalletCreated", 1, "{}".getBytes(StandardCharsets.UTF_8), JSON, "1", UUID.randomUUID().toString(), 1L);
+        DomainEventRecord testRecord = new DomainEventRecord("tenant1", "WalletCreated", 1, "{}".getBytes(StandardCharsets.UTF_8), JSON, "1", UUID.randomUUID().toString(), 1L);
         /*
         InputStream ioStream = this.getClass()
                 .getClassLoader()

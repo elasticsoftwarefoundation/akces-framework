@@ -1,6 +1,7 @@
 package org.elasticsoftware.akces.protocol;
 
 public record DomainEventRecord(
+        String tenantId,
         String name,
         int version,
         byte[] payload,

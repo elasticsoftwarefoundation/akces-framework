@@ -7,6 +7,9 @@ message AggregateStateRecord {
   optional bytes payload = 3;
   optional PayloadEncoding encoding = 4;
   optional string aggregateId = 5;
+  optional string correlationId = 6;
+  optional int64 generation = 7;
+  optional string tenantId = 8;
 }
 // Enum for org.elasticsoftware.akces.protocol.PayloadEncoding
 enum PayloadEncoding {

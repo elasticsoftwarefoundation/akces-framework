@@ -7,26 +7,37 @@ import org.elasticsoftware.akces.annotations.AggregateInfo;
 import org.elasticsoftware.akces.commands.CommandHandlerFunction;
 import org.elasticsoftware.akces.events.EventHandlerFunction;
 import org.elasticsoftware.akces.events.EventSourcingHandlerFunction;
+import org.springframework.beans.factory.FactoryBean;
+import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
-@Configuration
-public class AggregateRuntimeFactory {
-    private final ApplicationContext applicationContext;
+public class AggregateRuntimeFactory<S extends AggregateState> implements FactoryBean<AggregateRuntime> {
+    private final ListableBeanFactory applicationContext;
     private final ObjectMapper objectMapper;
     private final SchemaRegistryClient schemaRegistryClient;
+    private final Aggregate<S> aggregate;
 
-    public AggregateRuntimeFactory(ApplicationContext applicationContext,
+    public AggregateRuntimeFactory(ListableBeanFactory applicationContext,
                                    ObjectMapper objectMapper,
-                                   SchemaRegistryClient schemaRegistryClient) {
+                                   SchemaRegistryClient schemaRegistryClient,
+                                   Aggregate<S> aggregate) {
         this.applicationContext = applicationContext;
         this.objectMapper = objectMapper;
         this.schemaRegistryClient = schemaRegistryClient;
+        this.aggregate = aggregate;
     }
 
-    @Bean
-    <S extends AggregateState> KafkaAggregateRuntime createRuntime(Aggregate<S> aggregate) {
+    @Override
+    public AggregateRuntime getObject() throws Exception {
+        return createRuntime(aggregate);
+    }
+
+    @Override
+    public Class<?> getObjectType() {
+        return AggregateRuntime.class;
+    }
+
+    private KafkaAggregateRuntime createRuntime(Aggregate<S> aggregate) {
         KafkaAggregateRuntime.Builder runtimeBuilder = new KafkaAggregateRuntime.Builder();
 
         AggregateInfo aggregateInfo = aggregate.getClass().getAnnotation(AggregateInfo.class);

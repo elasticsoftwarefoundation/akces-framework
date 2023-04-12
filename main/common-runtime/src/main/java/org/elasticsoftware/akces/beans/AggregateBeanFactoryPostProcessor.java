@@ -1,9 +1,12 @@
 package org.elasticsoftware.akces.beans;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.annotations.*;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.kafka.AggregateRuntimeFactory;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
@@ -41,6 +44,14 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                 } catch (ClassNotFoundException e) {
                     throw new ApplicationContextException("Unable to load class for bean " + beanName, e);
                 }
+                // now we need to add a bean definition for the AggregateRuntimeFactory
+                bdr.registerBeanDefinition(beanName + "AggregateRuntimeFactory",
+                        BeanDefinitionBuilder.genericBeanDefinition(AggregateRuntimeFactory.class)
+                                .addConstructorArgValue(beanFactory)
+                                .addConstructorArgReference(beanFactory.getBeanNamesForType(ObjectMapper.class)[0])
+                                .addConstructorArgReference(beanFactory.getBeanNamesForType(SchemaRegistryClient.class)[0])
+                                .addConstructorArgReference(beanName)
+                                .getBeanDefinition());
             });
         } else {
             throw new ApplicationContextException("BeanFactory is not a BeanDefinitionRegistry");

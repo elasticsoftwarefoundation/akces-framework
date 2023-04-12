@@ -50,10 +50,12 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
         this.objectMapper = objectMapper;
     }
 
+    @Override
     public JsonSchema generateJsonSchema(DomainEventType<?> domainEventType) {
         return new JsonSchema(jsonSchemaGenerator.generateSchema(domainEventType.typeClass()), List.of(), Map.of(), domainEventType.version());
     }
 
+    @Override
     public void registerAndValidate(DomainEventType<?> domainEventType) throws Exception {
         // generate the local schema version
         JsonSchema localSchema = generateJsonSchema(domainEventType);

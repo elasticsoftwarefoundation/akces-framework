@@ -16,7 +16,6 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.enumeration;
 
 public abstract class AggregateRuntimeBase implements AggregateRuntime {
     private final AggregateStateType<?> type;
@@ -82,6 +81,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         AggregateState state = createStateHandler.apply(domainEvent, null);
         // store the state, generation is 1 because it is the first record
         AggregateStateRecord stateRecord = new AggregateStateRecord(
+                commandRecord.tenantId(),
                 type.typeName(),
                 type.version(),
                 serialize(state),
@@ -93,6 +93,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         // store the domain event
         DomainEventType<?> type = getDomainEventType(domainEvent.getClass());
         DomainEventRecord eventRecord = new DomainEventRecord(
+                commandRecord.tenantId(),
                 type.typeName(),
                 type.version(),
                 serialize(domainEvent),
@@ -115,6 +116,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         AggregateState nextState = eventSourcingHandlers.get(domainEventType).apply(domainEvent, currentState);
         // store the state, increasing the generation by 1
         AggregateStateRecord nextStateRecord = new AggregateStateRecord(
+                currentStateRecord.tenantId(),
                 type.typeName(),
                 type.version(),
                 serialize(nextState),
@@ -124,6 +126,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                 currentStateRecord.generation()+1L);
         protocolRecordConsumer.accept(nextStateRecord);
         DomainEventRecord eventRecord = new DomainEventRecord(
+                currentStateRecord.tenantId(),
                 domainEventType.typeName(),
                 domainEventType.version(),
                 serialize(domainEvent),
@@ -145,6 +148,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         AggregateState state = createStateHandler.apply(domainEvent, null);
         // store the state, generation is 1 because it is the first record
         AggregateStateRecord stateRecord = new AggregateStateRecord(
+                domainEventRecord.tenantId(),
                 type.typeName(),
                 type.version(),
                 serialize(state),
@@ -156,6 +160,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         // store the domain event
         DomainEventType<?> type = getDomainEventType(domainEvent.getClass());
         DomainEventRecord eventRecord = new DomainEventRecord(
+                domainEventRecord.tenantId(),
                 type.typeName(),
                 type.version(),
                 serialize(domainEvent),
@@ -179,6 +184,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         AggregateState nextState = eventSourcingHandlers.get(domainEventType).apply(domainEvent, currentState);
         // store the state, increasing the generation by 1
         AggregateStateRecord nextStateRecord = new AggregateStateRecord(
+                currentStateRecord.tenantId(),
                 type.typeName(),
                 type.version(),
                 serialize(nextState),
@@ -188,6 +194,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                 currentStateRecord.generation()+1L);
         protocolRecordConsumer.accept(nextStateRecord);
         DomainEventRecord eventRecord = new DomainEventRecord(
+                currentStateRecord.tenantId(),
                 domainEventType.typeName(),
                 domainEventType.version(),
                 serialize(domainEvent),
@@ -215,6 +222,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         }
     }
 
+    @Override
     public Collection<DomainEventType<?>> getDomainEventTypes() {
         return this.domainEvents.values();
     }

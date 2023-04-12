@@ -1,6 +1,7 @@
 package org.elasticsoftware.akces.protocol;
 
 public record AggregateStateRecord(
+        String tenantId,
         String name,
         int version,
         byte[] payload,
