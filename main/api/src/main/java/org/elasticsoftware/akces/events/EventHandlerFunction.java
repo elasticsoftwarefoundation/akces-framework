@@ -10,14 +10,14 @@ public interface EventHandlerFunction<S extends AggregateState,InputEvent extend
     @NotNull E apply(@NotNull InputEvent event, S state);
 
     default DomainEventType<InputEvent> getEventType() {
-        return null;
+        throw new UnsupportedOperationException("When implementing EventHandlerFunction directly, you must override getEventType()");
     }
 
     default Aggregate<S> getAggregate() {
-        return null;
+        throw new UnsupportedOperationException("When implementing EventHandlerFunction directly, you must override getAggregate()");
     }
 
     default boolean isCreate() {
-        return false;
+        throw new UnsupportedOperationException("When implementing EventHandlerFunction directly, you must override isCreate()");
     }
 }

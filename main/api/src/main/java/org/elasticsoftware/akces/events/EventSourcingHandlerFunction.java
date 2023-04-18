@@ -10,14 +10,14 @@ public interface EventSourcingHandlerFunction<S extends AggregateState,E extends
     @NotNull S apply(@NotNull E event, S state);
 
     default DomainEventType<E> getEventType() {
-        return null;
+        throw new UnsupportedOperationException("When implementing EventSourcingHandlerFunction directly, you must override getEventType()");
     }
 
     default Aggregate<S> getAggregate() {
-        return null;
+        throw new UnsupportedOperationException("When implementing EventSourcingHandlerFunction directly, you must override getAggregate()");
     }
 
     default boolean isCreate() {
-        return false;
+        throw new UnsupportedOperationException("When implementing EventSourcingHandlerFunction directly, you must override isCreate()");
     }
 }

@@ -51,7 +51,7 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
         } else {
             throw new IllegalStateException("Class implementing Aggregate must be annotated with @AggregateInfo");
         }
-
+        runtimeBuilder.setAggregateClass(aggregate.getClass());
         runtimeBuilder.setObjectMapper(objectMapper);
 
         applicationContext.getBeansOfType(CommandHandlerFunction.class).values().stream()

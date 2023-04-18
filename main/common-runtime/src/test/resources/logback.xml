@@ -9,7 +9,19 @@
         </layout>
     </appender>
 
-    <logger name="org.apache.kafka" level="info" additivity="false">
+    <logger name="org.apache.kafka" level="warn" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
+    <logger name="org.apache.kafka.clients.producer" level="warn" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
+    <logger name="org.apache.kafka.clients.consumer" level="warn" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
+    <logger name="org.elasticsoftware.akces.kafka" level="trace" additivity="false">
         <appender-ref ref="CONSOLE"/>
     </logger>
 

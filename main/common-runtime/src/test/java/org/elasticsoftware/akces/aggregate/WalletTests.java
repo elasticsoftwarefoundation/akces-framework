@@ -7,7 +7,6 @@ import org.elasticsoftware.akces.commands.CommandHandlerFunction;
 import org.elasticsoftware.akces.events.EventHandlerFunction;
 import org.elasticsoftware.akces.events.EventSourcingHandlerFunction;
 import org.elasticsoftware.akces.protocol.*;
-import org.elasticsoftware.akces.schemas.AccountCreatedEventV2;
 import org.junit.jupiter.api.*;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
@@ -59,7 +58,7 @@ public class WalletTests {
         AggregateRuntime walletAggregate = applicationContext.getBean(AggregateRuntime.class);
         // need to register the external domainevent
         schemaRegistryClient.register("AccountCreated",
-                walletAggregate.generateJsonSchema(new DomainEventType<>("AccountCreated", 1, AccountCreatedEventV2.class, true, true)),
+                walletAggregate.generateJsonSchema(new DomainEventType<>("AccountCreated", 1, AccountCreatedEvent.class, true, true)),
                 1,
                 -1);
         for (DomainEventType<?> domainEventType : walletAggregate.getDomainEventTypes()) {
@@ -73,7 +72,7 @@ public class WalletTests {
         AggregateRuntime walletAggregate = applicationContext.getBean(AggregateRuntime.class);
         // need to register the external domainevent
         schemaRegistryClient.register("AccountCreated",
-                walletAggregate.generateJsonSchema(new DomainEventType<>("AccountCreated", 1, AccountCreatedEventV2.class, true, true)),
+                walletAggregate.generateJsonSchema(new DomainEventType<>("AccountCreated", 1, AccountCreatedEvent.class, true, true)),
                 1,
                 -1);
         schemaRegistryClient.register("WalletCreated",

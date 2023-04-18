@@ -32,6 +32,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
     private KafkaAggregateRuntime(SchemaRegistryClient schemaRegistryClient,
                                  ObjectMapper objectMapper,
                                  AggregateStateType<?> stateType,
+                                 Class<? extends Aggregate> aggregateClass,
                                  CommandHandlerFunction<AggregateState, Command, DomainEvent> commandCreateHandler,
                                  EventHandlerFunction<AggregateState, DomainEvent, DomainEvent> eventCreateHandler,
                                  EventSourcingHandlerFunction<AggregateState, DomainEvent> createStateHandler,
@@ -40,7 +41,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                                  Map<CommandType<?>, CommandHandlerFunction<AggregateState, Command, DomainEvent>> commandHandlers,
                                  Map<DomainEventType<?>, EventHandlerFunction<AggregateState, DomainEvent, DomainEvent>> eventHandlers,
                                  Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers) {
-        super(stateType, commandCreateHandler, eventCreateHandler, createStateHandler, domainEvents, commandTypes, commandHandlers, eventHandlers, eventSourcingHandlers);
+        super(stateType, aggregateClass, commandCreateHandler, eventCreateHandler, createStateHandler, domainEvents, commandTypes, commandHandlers, eventHandlers, eventSourcingHandlers);
         this.schemaRegistryClient = schemaRegistryClient;
         SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(SchemaVersion.DRAFT_7, OptionPreset.PLAIN_JSON);
         configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS, JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
@@ -76,7 +77,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
             }).findFirst().orElseThrow();
             // we need to make sure that the schemas are compatible
             if(domainEventType.external()) {
-                // localSchema has to be a subset of registeredSchemar
+                // localSchema has to be a subset of registeredSchema
                 // TODO: this needs to be implemented to make sure we
                 // TODO: need to check a range of schema's here
             } else {
@@ -90,7 +91,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
     }
 
     @Override
-    protected Command materialize(CommandType<?> type, CommandRecord commandRecord) throws IOException {
+    public Command materialize(CommandType<?> type, CommandRecord commandRecord) throws IOException {
         return objectMapper.readValue(commandRecord.payload(), type.typeClass());
     }
 
@@ -115,6 +116,11 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
     }
 
     @Override
+    public byte[] serialize(Command command) throws IOException {
+        return objectMapper.writeValueAsBytes(command);
+    }
+
+    @Override
     protected PayloadEncoding getEncoding(CommandType<?> type) {
         return PayloadEncoding.JSON;
     }
@@ -133,6 +139,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
         private SchemaRegistryClient schemaRegistryClient;
         private ObjectMapper objectMapper;
         private AggregateStateType<?> stateType;
+        private Class<? extends Aggregate> aggregateClass;
         private CommandHandlerFunction<AggregateState, Command, DomainEvent> commandCreateHandler;
         private EventHandlerFunction<AggregateState, DomainEvent, DomainEvent> eventCreateHandler;
         private EventSourcingHandlerFunction<AggregateState, DomainEvent> createStateHandler;
@@ -154,6 +161,11 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
 
         public Builder setStateType(AggregateStateType<?> stateType) {
             this.stateType = stateType;
+            return this;
+        }
+
+        public Builder setAggregateClass(Class<? extends Aggregate> aggregateClass) {
+            this.aggregateClass = aggregateClass;
             return this;
         }
 
@@ -201,6 +213,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
             return new KafkaAggregateRuntime(schemaRegistryClient,
                     objectMapper,
                     stateType,
+                    aggregateClass,
                     commandCreateHandler,
                     eventCreateHandler,
                     createStateHandler,

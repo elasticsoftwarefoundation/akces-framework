@@ -11,14 +11,14 @@ public interface CommandHandlerFunction<S extends AggregateState,C extends Comma
     @NotNull E apply(@NotNull C command, S state);
 
     default boolean isCreate() {
-        return false;
+        throw new UnsupportedOperationException("When implementing CommandHandlerFunction directly, you must override isCreate()");
     }
 
     default CommandType<C> getCommandType() {
-        return null;
+        throw new UnsupportedOperationException("When implementing CommandHandlerFunction directly, you must override getCommandType()");
     }
 
     default Aggregate<S> getAggregate() {
-        return null;
+        throw new UnsupportedOperationException("When implementing CommandHandlerFunction directly, you must override getAggregate()");
     }
 }

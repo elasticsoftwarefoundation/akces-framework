@@ -144,7 +144,7 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
                 } else if(data instanceof CommandRecord r) {
                     return commandRecordWriter.writeValueAsBytes(r);
                 } else {
-                    throw new SerializationException("Unsupported ProtocolRecoding type " + data.getClass().getSimpleName());
+                    throw new SerializationException("Unsupported ProtocolRecord type " + data.getClass().getSimpleName());
                 }
             } catch(JsonProcessingException e) {
                 throw new SerializationException(e);
@@ -172,7 +172,7 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
                     return null;
                 } else if (topic.endsWith("DomainEvents")) {
                     return domainEventRecordReader.readValue(data);
-                } else if (topic.endsWith("AggregateStateRepository")) {
+                } else if (topic.endsWith("AggregateState")) {
                     return aggregateStateRecordReader.readValue(data);
                 } else if(topic.endsWith("Commands")) {
                     return commandRecordReader.readValue(data);

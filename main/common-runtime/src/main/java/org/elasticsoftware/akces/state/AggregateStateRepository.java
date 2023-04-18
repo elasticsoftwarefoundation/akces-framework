@@ -9,11 +9,13 @@ public interface AggregateStateRepository {
 
     void prepare(AggregateStateRecord record);
 
-    void commit(AggregateStateRecord record, long offset);
+    void commit();
+
+    void rollback();
 
     void add(AggregateStateRecord record, long offset);
 
-    void remove(AggregateStateRecord record, long offset);
+    void remove(String aggregateId, long offset);
 
     AggregateStateRecord get(String aggregateId);
 }

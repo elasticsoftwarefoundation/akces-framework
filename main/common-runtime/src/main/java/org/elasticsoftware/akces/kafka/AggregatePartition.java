@@ -7,26 +7,36 @@ import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.*;
 import org.elasticsoftware.akces.aggregate.AggregateRuntime;
-import org.elasticsoftware.akces.protocol.AggregateStateRecord;
-import org.elasticsoftware.akces.protocol.CommandRecord;
-import org.elasticsoftware.akces.protocol.DomainEventRecord;
-import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.aggregate.CommandType;
+import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftware.akces.commands.CommandBus;
+import org.elasticsoftware.akces.control.AkcesRegistry;
+import org.elasticsoftware.akces.protocol.*;
 import org.elasticsoftware.akces.state.AggregateStateRepository;
+import org.elasticsoftware.akces.util.KafkaSender;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.kafka.core.ProducerFactory;
 
 import java.io.IOException;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsoftware.akces.kafka.AggregatePartitionState.*;
 
-public class AggregatePartition {
-    private final Consumer<String, ProtocolRecord> consumer;
-    private final Producer<String, ProtocolRecord> producer;
+public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
+    private static final Logger logger = LoggerFactory.getLogger(AggregatePartition.class);
+    private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
+    private Consumer<String, ProtocolRecord> consumer;
+    private final ProducerFactory<String, ProtocolRecord> producerFactory;
+    private Producer<String, ProtocolRecord> producer;
     private final AggregateRuntime runtime;
     private final AggregateStateRepository stateRepository;
     private final Integer id;
@@ -34,21 +44,25 @@ public class AggregatePartition {
     private final TopicPartition domainEventPartition;
     private final TopicPartition statePartition;
     private final List<TopicPartition> externalEventPartitions;
-
-    private AggregatePartitionState processState;
+    private final AkcesRegistry ackesRegistry;
+    private volatile AggregatePartitionState processState;
     private Long initializedEndOffset = null;
+    private final CountDownLatch shutdownLatch = new CountDownLatch(1);
 
-    public AggregatePartition(Consumer<String, ProtocolRecord> consumer,
-                              Producer<String, ProtocolRecord> producer,
+
+    public AggregatePartition(ConsumerFactory<String, ProtocolRecord> consumerFactory,
+                              ProducerFactory<String, ProtocolRecord> producerFactory,
                               AggregateRuntime runtime,
                               AggregateStateRepository stateRepository,
                               Integer id,
                               TopicPartition commandPartition,
                               TopicPartition domainEventPartition,
                               TopicPartition statePartition,
-                              List<TopicPartition> externalEventPartitions) {
-        this.consumer = consumer;
-        this.producer = producer;
+                              List<TopicPartition> externalEventPartitions,
+                              AkcesRegistry ackesRegistry) {
+        this.ackesRegistry = ackesRegistry;
+        this.consumerFactory = consumerFactory;
+        this.producerFactory = producerFactory;
         this.runtime = runtime;
         this.stateRepository = stateRepository;
         this.id = id;
@@ -59,14 +73,68 @@ public class AggregatePartition {
         this.processState = INITIALIZING;
     }
 
+    public Integer getId() {
+        return id;
+    }
+
+    @Override
+    public void run() {
+        logger.info("Starting Aggregate Partition {} for {}", id, runtime.getName());
+        this.consumer = consumerFactory.createConsumer(runtime.getName(), "Aggregate-partition-" + id, null);
+        this.producer = producerFactory.createProducer(runtime.getName() + "Aggregate-partition-" + id);
+        // make a hard assignment
+        consumer.assign(List.of(commandPartition, domainEventPartition, statePartition));
+        while(processState != SHUTTING_DOWN) {
+            process();
+        }
+        try {
+            consumer.close();
+            producer.close();
+        } catch(KafkaException e) {
+            // ignore
+        }
+        logger.info("Shutting down Aggregate Partition {} for {}", id, runtime.getName());
+        shutdownLatch.countDown();
+    }
+
+    @Override
+    public void close() throws InterruptedException {
+        processState = SHUTTING_DOWN;
+        shutdownLatch.await();
+    }
+
+    @Override
+    public void send(Command command) throws IOException {
+        // we need to resolve the command type
+        CommandType<?> commandType = ackesRegistry.resolveType(command.getClass());
+        if(commandType != null) {
+            // now we need to find the topic
+            String topic = ackesRegistry.resolveTopic(commandType);
+            // and send the command to the topic: TODO propagate tenantId and correlationId
+            CommandRecord commandRecord = new CommandRecord(
+                    null,
+                    commandType.typeName(),
+                    commandType.version(),
+                    runtime.serialize(command),
+                    PayloadEncoding.JSON,
+                    command.getAggregateId(),
+                    null);
+            // we should not use the local partition id but that of the aggregate
+            Integer partition = ackesRegistry.resolvePartition(command.getAggregateId());
+            KafkaSender.send(producer, new ProducerRecord<>(topic, partition, commandRecord.aggregateId(), commandRecord));
+        }
+    }
+
     private void send(ProtocolRecord protocolRecord) {
         if(protocolRecord instanceof AggregateStateRecord asr) {
+            logger.trace("Sending AggregateStateRecord with id {} to {}", asr.aggregateId(), statePartition);
             // send to topic
-            producer.send(new ProducerRecord<>(statePartition.topic(), statePartition.partition(), asr.aggregateId(), asr));
+            KafkaSender.send(producer, new ProducerRecord<>(statePartition.topic(), statePartition.partition(), asr.aggregateId(), asr));
             // prepare (cache) for commit
             stateRepository.prepare(asr);
         } else if(protocolRecord instanceof DomainEventRecord der) {
-            producer.send(new ProducerRecord<>(domainEventPartition.topic(), domainEventPartition.partition(), der.aggregateId(), der));
+            logger.trace("Sending DomainEventRecord with id {} to {}", der.aggregateId(), domainEventPartition);
+            KafkaSender.send(producer, new ProducerRecord<>(domainEventPartition.topic(), domainEventPartition.partition(), der.aggregateId(), der));
         } else if(protocolRecord instanceof CommandRecord cr) {
             // commands should be sent via the CommandBus since it needs to figure out the topic
             // producer.send(new ProducerRecord<>(commandPartition.topic(), commandPartition.partition(), cr.aggregateId(), cr));
@@ -78,7 +146,7 @@ public class AggregatePartition {
     }
 
     private void send(CommandRecord cr, TopicPartition commandPartition) {
-        producer.send(new ProducerRecord<>(commandPartition.topic(), commandPartition.partition(), cr.aggregateId(), cr));
+        KafkaSender.send(producer, new ProducerRecord<>(commandPartition.topic(), commandPartition.partition(), cr.aggregateId(), cr));
     }
 
     private void handleCommand(CommandRecord commandRecord) {
@@ -115,10 +183,11 @@ public class AggregatePartition {
             ConsumerRecords<String, ProtocolRecord> stateRecords = consumer.poll(Duration.ZERO);
             stateRecords.iterator().forEachRemaining(stateRecord -> {
                 if(stateRecord.value() != null) {
+                    logger.trace("Loading AggregateStateRecord with id {} from {}", stateRecord.key(), stateRecord.offset());
                     stateRepository.add((AggregateStateRecord) stateRecord.value(), stateRecord.offset());
                 } else {
                     // remove from repository
-                    stateRepository.remove((AggregateStateRecord) stateRecord.value(), stateRecord.offset());
+                    stateRepository.remove(stateRecord.key(), stateRecord.offset());
                 }
             });
             // stop condition
@@ -129,6 +198,7 @@ public class AggregatePartition {
                 processState = PROCESSING;
             }
         } else if(processState == INITIALIZING) {
+            logger.info("Initializing Aggregate Partition {} for {}", id, runtime.getName());
             // find the right offset to start reading the state from
             long repositoryOffset = stateRepository.getOffset();
             if(repositoryOffset >= 0) {
@@ -140,9 +210,11 @@ public class AggregatePartition {
             initializedEndOffset = consumer.endOffsets(singletonList(statePartition)).values().stream().findFirst().orElse(0L);
             // special case, there is no data yet so no need to load anything
             if(initializedEndOffset == 0L) {
+                logger.info("No state found for Aggregate Partition {} for {}", id, runtime.getName());
                 // go immediately to processing
                 processState = PROCESSING;
             } else {
+                logger.info("Loading state for Aggregate Partition {} for {}", id, runtime.getName());
                 // we need to load the state first, so pause the other topics
                 consumer.pause(Stream.concat(Stream.of(commandPartition, domainEventPartition), externalEventPartitions.stream()).toList());
                 processState = LOADING_STATE;
@@ -152,6 +224,16 @@ public class AggregatePartition {
 
     private void processRecords(ConsumerRecords<String, ProtocolRecord> allRecords) {
         try {
+            if(logger.isTraceEnabled()) {
+                logger.trace("Processing {} records in a single transaction", allRecords.count());
+                logger.trace("Processing {} command records", allRecords.records(commandPartition).size());
+                if(externalEventPartitions.size() > 0) {
+                    logger.trace("Processing {} external event records", externalEventPartitions.stream().map(externalEventPartition -> allRecords.records(externalEventPartition).size())
+                            .reduce(0, Integer::sum));
+                }
+                logger.trace("Processing {} state records", allRecords.records(statePartition).size());
+                logger.trace("Processing {} internal event records", allRecords.records(domainEventPartition).size());
+            }
             // start a transaction
             producer.beginTransaction();
             Map<TopicPartition, Long> offsets = new HashMap<>();
@@ -169,10 +251,14 @@ public class AggregatePartition {
                                 offsets.put(externalEventPartition, eventRecord.offset());
                             }));
             // then state (ignore?)
+
             allRecords.records(statePartition)
                     .forEach(stateRecord -> {
-                        // commit the record to the repository
-                        stateRepository.commit((AggregateStateRecord) stateRecord.value(), stateRecord.offset());
+                        // this overrides the previously committed record but this should be fine. It will set the correct offset
+                        if(stateRecord.value() != null)
+                            stateRepository.add((AggregateStateRecord) stateRecord.value(), stateRecord.offset());
+                        else
+                            stateRepository.remove(stateRecord.key(), stateRecord.offset());
                         // commit the offset (TODO: not really necessary because we search for offset at startup)
                         offsets.put(statePartition, stateRecord.offset());
                     });
@@ -184,12 +270,14 @@ public class AggregatePartition {
                             .collect(Collectors.toMap(Map.Entry::getKey, e -> new OffsetAndMetadata(e.getValue()+1))),
                     consumer.groupMetadata());
             producer.commitTransaction();
+            stateRepository.commit();
         } catch(InvalidProducerEpochException e) {
             // When encountering this exception, user should abort the ongoing transaction by calling
             // KafkaProducer#abortTransaction which would try to send initPidRequest and reinitialize the producer
             // under the hood
             producer.abortTransaction();
             rollbackConsumer(allRecords);
+            stateRepository.rollback();
         }
     }
 

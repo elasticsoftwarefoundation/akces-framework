@@ -2,6 +2,7 @@ package org.elasticsoftware.akces.beans;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
+import org.elasticsoftware.akces.AkcesControl;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.annotations.*;
 import org.elasticsoftware.akces.commands.Command;
@@ -14,6 +15,7 @@ import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionBuilder;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.context.ApplicationContextException;
+import org.springframework.kafka.core.KafkaAdminOperations;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
@@ -52,6 +54,23 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                                 .addConstructorArgReference(beanFactory.getBeanNamesForType(SchemaRegistryClient.class)[0])
                                 .addConstructorArgReference(beanName)
                                 .getBeanDefinition());
+                // and create a AckesControl bean to kickstart kafka (if kafka is configured)
+                // TODO: this is a bit crude, but it works for now
+                if(beanFactory.containsBeanDefinition("consumerFactory") &&
+                        beanFactory.containsBeanDefinition("producerFactory") &&
+                        beanFactory.containsBeanDefinition("controlConsumerFactory") &&
+                        beanFactory.containsBeanDefinition("controlProducerFactory")) {
+                    bdr.registerBeanDefinition(beanName + "AkcesControl",
+                            BeanDefinitionBuilder.genericBeanDefinition(AkcesControl.class)
+                                    .addConstructorArgReference("consumerFactory")
+                                    .addConstructorArgReference("producerFactory")
+                                    .addConstructorArgReference("controlConsumerFactory")
+                                    .addConstructorArgReference("controlProducerFactory")
+                                    .addConstructorArgReference(beanName + "AggregateRuntimeFactory")
+                                    .addConstructorArgReference(beanFactory.getBeanNamesForType(KafkaAdminOperations.class)[0])
+                                    .setInitMethodName("start")
+                                    .getBeanDefinition());
+                }
             });
         } else {
             throw new ApplicationContextException("BeanFactory is not a BeanDefinitionRegistry");

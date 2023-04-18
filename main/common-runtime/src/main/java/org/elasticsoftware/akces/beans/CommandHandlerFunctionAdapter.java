@@ -70,7 +70,7 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState,C extends Co
 
     @Override
     public CommandType<C> getCommandType() {
-        return new CommandType<>(commandInfo.type(), commandInfo.version(), commandClass, create);
+        return new CommandType<>(commandInfo.type(), commandInfo.version(), commandClass, create, false);
     }
 
     @Override

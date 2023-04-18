@@ -8,10 +8,7 @@ import org.elasticsoftware.akces.events.EventSourcingHandlerFunction;
 import org.elasticsoftware.akces.protocol.*;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -19,6 +16,7 @@ import static java.util.Collections.emptyList;
 
 public abstract class AggregateRuntimeBase implements AggregateRuntime {
     private final AggregateStateType<?> type;
+    private final Class<? extends Aggregate> aggregateClass;
     private final CommandHandlerFunction<AggregateState, Command, DomainEvent> commandCreateHandler;
     private final EventHandlerFunction<AggregateState, DomainEvent, DomainEvent> eventCreateHandler;
     private final EventSourcingHandlerFunction<AggregateState, DomainEvent> createStateHandler;
@@ -29,6 +27,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     private final Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers;
 
     public AggregateRuntimeBase(AggregateStateType<?> type,
+                                Class<? extends Aggregate> aggregateClass,
                                 CommandHandlerFunction<AggregateState, Command, DomainEvent> commandCreateHandler,
                                 EventHandlerFunction<AggregateState, DomainEvent, DomainEvent> eventCreateHandler,
                                 EventSourcingHandlerFunction<AggregateState, DomainEvent> createStateHandler,
@@ -38,6 +37,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                                 Map<DomainEventType<?>, EventHandlerFunction<AggregateState, DomainEvent, DomainEvent>> eventHandlers,
                                 Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers) {
         this.type = type;
+        this.aggregateClass = aggregateClass;
         this.commandCreateHandler = commandCreateHandler;
         this.eventCreateHandler = eventCreateHandler;
         this.createStateHandler = createStateHandler;
@@ -51,6 +51,11 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     @Override
     public String getName() {
         return type.typeName();
+    }
+
+    @Override
+    public Class<? extends Aggregate> getAggregateClass() {
+        return aggregateClass;
     }
 
     @Override
@@ -227,11 +232,27 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         return this.domainEvents.values();
     }
 
+    @Override
+    public Collection<DomainEventType<?>> getExternalDomainEventTypes() {
+        return this.domainEvents.values().stream().filter(DomainEventType::external).toList();
+    }
+
+    @Override
+    public Collection<CommandType<?>> getCommandTypes() {
+        return this.commandTypes.values().stream().flatMap(Collection::stream).toList();
+    }
+
     private DomainEventType<?> getDomainEventType(Class<?> domainEventClass) {
         return domainEvents.get(domainEventClass);
     }
 
-    protected abstract Command materialize(CommandType<?> commandType, CommandRecord commandRecord) throws IOException;
+    @Override
+    public CommandType<?> getLocalCommandType(String type, int version) {
+        return commandTypes.getOrDefault(type, Collections.emptyList()).stream()
+                .filter(commandType -> commandType.version() == version)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("No CommandType found for type " + type + " and version " + version));
+    }
 
     protected abstract DomainEvent materialize(DomainEventType<?> domainEventType, DomainEventRecord eventRecord) throws IOException;
 

@@ -1,6 +1,7 @@
 package org.elasticsoftware.akces.kafka;
 
 import org.apache.kafka.common.TopicPartition;
+import org.elasticsoftware.akces.aggregate.AggregateRuntime;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -35,5 +36,22 @@ public final class PartitionUtils {
             }
         });
         return aggregatePartitions;
+    }
+
+    public static TopicPartition toCommandTopicPartition(AggregateRuntime aggregate, int partition) {
+        return new TopicPartition(aggregate.getName()+COMMANDS_SUFFIX, partition);
+    }
+
+    public static TopicPartition toDomainEventTopicPartition(AggregateRuntime aggregate, int partition) {
+        return new TopicPartition(aggregate.getName()+DOMAINEVENTS_SUFFIX, partition);
+    }
+
+    public static TopicPartition toAggregateStateTopicPartition(AggregateRuntime aggregate, int partition) {
+        return new TopicPartition(aggregate.getName()+AGGREGRATESTATE_SUFFIX, partition);
+    }
+
+    public static List<TopicPartition> toExternalDomainEventTopicPartitions(AggregateRuntime aggregate, int partition) {
+        return aggregate.getExternalDomainEventTypes().stream().map(externalDomainEvent ->
+                new TopicPartition(externalDomainEvent.typeName()+DOMAINEVENTS_SUFFIX, partition)).collect(Collectors.toList());
     }
 }
