@@ -1,12 +1,17 @@
 package org.elasticsoftware.akces.kafka;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.victools.jsonschema.generator.*;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
+import io.confluent.kafka.schemaregistry.CompatibilityLevel;
 import io.confluent.kafka.schemaregistry.ParsedSchema;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
+import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import io.confluent.kafka.schemaregistry.json.diff.Difference;
+import io.confluent.kafka.schemaregistry.json.diff.SchemaDiff;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.commands.CommandHandlerFunction;
@@ -17,17 +22,18 @@ import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.CommandRecord;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
 import org.elasticsoftware.akces.protocol.PayloadEncoding;
+import org.everit.json.schema.Schema;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
+import static java.lang.String.format;
 
 public class KafkaAggregateRuntime extends AggregateRuntimeBase {
-    private  final SchemaRegistryClient schemaRegistryClient;
+    private final SchemaRegistryClient schemaRegistryClient;
     private final SchemaGenerator jsonSchemaGenerator;
     private final ObjectMapper objectMapper;
+    private final Map<Class<? extends DomainEvent>, JsonSchema> domainEventSchemas = new HashMap<>();
 
     private KafkaAggregateRuntime(SchemaRegistryClient schemaRegistryClient,
                                  ObjectMapper objectMapper,
@@ -64,29 +70,72 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
         List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas(domainEventType.typeName(), false, false);
         if(registeredSchemas.isEmpty()) {
             if(!domainEventType.external()) {
-                // we need to create the schema and register it (not external ones as they are owned by another aggregate)
-                schemaRegistryClient.register(domainEventType.typeName(), localSchema, domainEventType.version(), -1);
+                if(domainEventType.version() == 1) {
+                    // we need to create the schema and register it (not external ones as they are owned by another aggregate)
+                    schemaRegistryClient.register(domainEventType.typeName(), localSchema, domainEventType.version(), -1);
+                } else {
+                    // we are missing schema(s) for the previous version(s)
+                    throw new IllegalStateException(format("Missing schema(s) for previous version(s) for DomainEvent [%s:%d]", domainEventType.typeName(), domainEventType.version()));
+                }
             } else {
-                // TODO: this is an error since we cannot find a registered schema for an external event
-                throw new IllegalStateException(String.format("No Schemas found for External DomainEvent [%s:%d]", domainEventType.typeName(), domainEventType.version()));
+                // this is an error since we cannot find a registered schema for an external event
+                throw new IllegalStateException(format("No Schemas found for External DomainEvent [%s:%d]", domainEventType.typeName(), domainEventType.version()));
             }
         } else {
-            ParsedSchema registeredSchema = registeredSchemas.stream().filter(parsedSchema -> {
-                    // TODO: need a helper function to support protobuf
-                    return ((JsonSchema)parsedSchema).version() == domainEventType.version();
-            }).findFirst().orElseThrow();
-            // we need to make sure that the schemas are compatible
-            if(domainEventType.external()) {
-                // localSchema has to be a subset of registeredSchema
-                // TODO: this needs to be implemented to make sure we
-                // TODO: need to check a range of schema's here
+            // see if it is an existing schema
+            ParsedSchema registeredSchema = registeredSchemas.stream()
+                    .filter(parsedSchema -> getSchemaVersion(domainEventType, parsedSchema) == domainEventType.version())
+                    .findFirst().orElse(null);
+            if(registeredSchema != null) {
+                // we need to make sure that the schemas are compatible
+                if(domainEventType.external()) {
+                    // localSchema has to be a subset of registeredSchema
+                    // TODO: this needs to be implemented to make sure we
+                    // TODO: need to check a range of schema's here
+                    List<Difference> differences = SchemaDiff.compare(((JsonSchema)registeredSchema).rawSchema(), localSchema.rawSchema());
+                    if(!differences.isEmpty()) {
+                        // we need to check if any properties were removed, removed properties are allowed
+                        // adding properties is not allowed, as well as chaning the type etc
+                        for(Difference difference : differences) {
+                            // TODO: see if we need to ignore other types
+                            if(!difference.getType().equals(Difference.Type.PROPERTY_REMOVED_FROM_CLOSED_CONTENT_MODEL)) {
+                                throw new IllegalStateException(format("Schema is not compatible with Registered Schema for External DomainEvent [%s:%d]", domainEventType.typeName(), domainEventType.version()));
+                            }
+                        }
+                    }
+                } else {
+                    // it has to be exactly the same
+                    if(!registeredSchema.deepEquals(localSchema)) {
+                        throw new IllegalStateException("Registered Schema does not match Local Schema");
+                    }
+                }
+            } else if(domainEventType.external()) {
+                throw new IllegalStateException(format("No Schema found for External DomainEvent [%s:%d]", domainEventType.typeName(), domainEventType.version()));
             } else {
-                // TODO: need to find the ParsedSchema that corresponds to the local schema
-                // it has to be exactly the same
-                if(!registeredSchema.deepEquals(localSchema)) {
-                    throw new IllegalStateException("Registered Schema does not match Local Schema");
+                // ensure we have an ordered list of schemas
+                registeredSchemas.sort(Comparator.comparingInt(parsedSchema -> ((JsonSchema)parsedSchema).version()));
+                // see if the new version is exactly one higher than the last version
+                if(domainEventType.version() != ((JsonSchema)registeredSchemas.get(registeredSchemas.size() - 1)).version() + 1) {
+                    throw new IllegalStateException(format("New Schema version is not exactly one higher than the last version for DomainEvent [%s:%d]", domainEventType.typeName(), domainEventType.version()));
+                }
+                // see if the new schema is backwards compatible with the previous ones
+                if(localSchema.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE, registeredSchemas).isEmpty()) {
+                    // register the new schema
+                    schemaRegistryClient.register(domainEventType.typeName(), localSchema, domainEventType.version(), -1);
+                } else {
+                    throw new IllegalStateException(format("New Schema is not backwards compatible with previous versions for DomainEvent [%s:%d]", domainEventType.typeName(), domainEventType.version()));
                 }
             }
+        }
+        // schema is fine, add to map
+        domainEventSchemas.put(domainEventType.typeClass(), localSchema);
+    }
+
+    private int getSchemaVersion(DomainEventType<?> domainEventType, ParsedSchema parsedSchema) {
+        try {
+            return schemaRegistryClient.getVersion(domainEventType.typeName(), parsedSchema);
+        } catch (IOException | RestClientException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -112,7 +161,9 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
 
     @Override
     protected byte[] serialize(DomainEvent domainEvent) throws IOException {
-        return objectMapper.writeValueAsBytes(domainEvent);
+        JsonNode jsonNode = objectMapper.convertValue(domainEvent, JsonNode.class);
+        domainEventSchemas.get(domainEvent.getClass()).validate(jsonNode);
+        return objectMapper.writeValueAsBytes(jsonNode);
     }
 
     @Override

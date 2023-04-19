@@ -2,7 +2,7 @@ package org.elasticsoftware.akces.beans;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
-import org.elasticsoftware.akces.AkcesControl;
+import org.elasticsoftware.akces.AkcesController;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.annotations.*;
 import org.elasticsoftware.akces.commands.Command;
@@ -61,7 +61,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                         beanFactory.containsBeanDefinition("controlConsumerFactory") &&
                         beanFactory.containsBeanDefinition("controlProducerFactory")) {
                     bdr.registerBeanDefinition(beanName + "AkcesControl",
-                            BeanDefinitionBuilder.genericBeanDefinition(AkcesControl.class)
+                            BeanDefinitionBuilder.genericBeanDefinition(AkcesController.class)
                                     .addConstructorArgReference("consumerFactory")
                                     .addConstructorArgReference("producerFactory")
                                     .addConstructorArgReference("controlConsumerFactory")

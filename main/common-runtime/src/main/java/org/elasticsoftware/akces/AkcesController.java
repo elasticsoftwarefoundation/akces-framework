@@ -3,7 +3,6 @@ package org.elasticsoftware.akces;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import jakarta.annotation.Nonnull;
-import jakarta.annotation.Nullable;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -15,6 +14,7 @@ import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.WakeupException;
 import org.elasticsoftware.akces.aggregate.AggregateRuntime;
 import org.elasticsoftware.akces.aggregate.CommandType;
+import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.control.*;
@@ -38,8 +38,8 @@ import java.util.concurrent.Executors;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsoftware.akces.kafka.PartitionUtils.*;
 
-public class AkcesControl extends Thread implements AutoCloseable, ConsumerRebalanceListener, AkcesRegistry {
-    private static final Logger logger = LoggerFactory.getLogger(AkcesControl.class);
+public class AkcesController extends Thread implements AutoCloseable, ConsumerRebalanceListener, AkcesRegistry {
+    private static final Logger logger = LoggerFactory.getLogger(AkcesController.class);
     private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
     private final ProducerFactory<String, AkcesControlRecord> controlProducerFactory;
@@ -52,15 +52,15 @@ public class AkcesControl extends Thread implements AutoCloseable, ConsumerRebal
     private final HashFunction hashFunction = Hashing.murmur3_32_fixed();
     private Integer partitions = null;
     private final Map<String, CommandServiceRecord> commandServices = new ConcurrentHashMap<>();
-    Consumer<String, AkcesControlRecord> controlConsumer;
+    private Consumer<String, AkcesControlRecord> controlConsumer;
 
-    public AkcesControl(ConsumerFactory<String, ProtocolRecord> consumerFactory,
-                        ProducerFactory<String, ProtocolRecord> producerFactory,
-                        ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory,
-                        ProducerFactory<String, AkcesControlRecord> controlProducerFactory,
-                        AggregateRuntime aggregateRuntime,
-                        KafkaAdminOperations kafkaAdmin) {
-        super(aggregateRuntime.getName()+"-AkcesControl");
+    public AkcesController(ConsumerFactory<String, ProtocolRecord> consumerFactory,
+                           ProducerFactory<String, ProtocolRecord> producerFactory,
+                           ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory,
+                           ProducerFactory<String, AkcesControlRecord> controlProducerFactory,
+                           AggregateRuntime aggregateRuntime,
+                           KafkaAdminOperations kafkaAdmin) {
+        super(aggregateRuntime.getName()+"-AkcesController");
         this.consumerFactory = consumerFactory;
         this.producerFactory = producerFactory;
         this.controlProducerFactory = controlProducerFactory;
@@ -72,16 +72,21 @@ public class AkcesControl extends Thread implements AutoCloseable, ConsumerRebal
 
     @Override
     public void run() {
-        // find out about the cluster
-        partitions = kafkaAdmin.describeTopics("Akces-Control").get("Akces-Control").partitions().size();
-        // publish out own record
-        publishControlRecord(partitions);
-        // and start consuming
-        controlConsumer =
-                controlRecordConsumerFactory.createConsumer(
-                        aggregateRuntime.getName(),
-                        aggregateRuntime.getName() + "-" + HostUtils.getHostName() + "-control",
-                        null);
+        // make sure all our events are registered and validated
+        try {
+            for (DomainEventType<?> domainEventType : aggregateRuntime.getDomainEventTypes()) {
+                aggregateRuntime.registerAndValidate(domainEventType);
+            }
+            // find out about the cluster
+            partitions = kafkaAdmin.describeTopics("Akces-Control").get("Akces-Control").partitions().size();
+            // publish out own record
+            publishControlRecord(partitions);
+            // and start consuming
+            controlConsumer =
+                    controlRecordConsumerFactory.createConsumer(
+                            aggregateRuntime.getName(),
+                            aggregateRuntime.getName() + "-" + HostUtils.getHostName() + "-control",
+                            null);
             controlConsumer.subscribe(List.of("Akces-Control"), this);
             //controlConsumer.enforceRebalance();
             while (running) {
@@ -103,25 +108,28 @@ public class AkcesControl extends Thread implements AutoCloseable, ConsumerRebal
                     }
                 } catch (WakeupException | InterruptException e) {
                     // ignore
-                } catch(KafkaException e) {
+                } catch (KafkaException e) {
                     // this is an unrecoverable exception
                     logger.error("Unrecoverable exception in AkcesControl", e);
                     // drop out of the control loop, this will shut down all resources
                     running = false;
                 }
             }
-        controlConsumer.close();
-        // close all aggregate partitions
-        aggregatePartitions.keySet().forEach(partition -> {
-            AggregatePartition aggregatePartition = aggregatePartitions.remove(partition);
-            if (aggregatePartition != null) {
-                try {
-                    aggregatePartition.close();
-                } catch (Exception e) {
-                    logger.error("Error closing AggregatePartition "+aggregatePartition.getId(), e);
+            controlConsumer.close();
+            // close all aggregate partitions
+            aggregatePartitions.keySet().forEach(partition -> {
+                AggregatePartition aggregatePartition = aggregatePartitions.remove(partition);
+                if (aggregatePartition != null) {
+                    try {
+                        aggregatePartition.close();
+                    } catch (Exception e) {
+                        logger.error("Error closing AggregatePartition " + aggregatePartition.getId(), e);
+                    }
                 }
-            }
-        });
+            });
+        } catch (Exception e) {
+            logger.error("Error in AkcesController", e);
+        }
     }
 
     private void publishControlRecord(int partitions) {

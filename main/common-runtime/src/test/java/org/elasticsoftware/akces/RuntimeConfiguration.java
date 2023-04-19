@@ -3,6 +3,7 @@ package org.elasticsoftware.akces;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
+import io.confluent.kafka.schemaregistry.json.JsonSchemaProvider;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -24,6 +25,7 @@ import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.ProducerFactory;
 
+import java.util.List;
 import java.util.Map;
 
 @Configuration
@@ -45,7 +47,7 @@ public class RuntimeConfiguration {
     }
     @Bean
     public SchemaRegistryClient createSchemaRegistryClient(@Value("${kafka.schemaregistry.url}") String url) {
-        return new CachedSchemaRegistryClient(url, 1000);
+        return new CachedSchemaRegistryClient(url, 1000, List.of(new JsonSchemaProvider()), null);
     }
 
     @Bean

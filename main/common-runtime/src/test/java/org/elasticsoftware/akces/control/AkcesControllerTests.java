@@ -14,7 +14,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 
-public class AkcesControlTests {
+public class AkcesControllerTests {
     @Test
     public void testSerialization() throws IOException {
         ObjectMapper objectMapper = new ObjectMapper();

@@ -83,7 +83,7 @@ public class RuntimeTests  {
     SchemaRegistryClient schemaRegistryClient;
 
     @Inject
-    AkcesControl akcesControl;
+    AkcesController akcesController;
 
     @Inject
     ConsumerFactory<String, ProtocolRecord> consumerFactory;
@@ -102,15 +102,15 @@ public class RuntimeTests  {
 
         @Override
         public void initialize(ConfigurableApplicationContext applicationContext) {
+            // initialize kafka topics
+            prepareKafka(kafka.getBootstrapServers());
+            prepareExternalSchemas("http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081));
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
                     applicationContext,
                     "spring.kafka.enabled=true",
                     "spring.kafka.bootstrapServers="+kafka.getBootstrapServers(),
                     "kafka.schemaregistry.url=http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081)
             );
-            // initialize kafka topics
-            prepareKafka(kafka.getBootstrapServers());
-            prepareExternalSchemas("http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081));
         }
     }
 
@@ -184,7 +184,7 @@ public class RuntimeTests  {
     @Test
     @Order(3)
     public void testAckesControl() throws JsonProcessingException, InterruptedException {
-        assertNotNull(akcesControl);
+        assertNotNull(akcesController);
         Producer<String, ProtocolRecord> testProducer = producerFactory.createProducer("test");
         Consumer<String, ProtocolRecord> testConsumer = consumerFactory.createConsumer("Test", "test");
         Consumer<String, AkcesControlRecord> controlConsumer = controlConsumerFactory.createConsumer("Test","test");
@@ -201,8 +201,8 @@ public class RuntimeTests  {
         String userId = "47db2418-dd10-11ed-afa1-0242ac120002";
         CreateWalletCommand command = new CreateWalletCommand(userId,"USD");
         CommandRecord commandRecord = new CommandRecord(null,"CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null);
-        String topicName = akcesControl.resolveTopic(command.getClass());
-        int partition = akcesControl.resolvePartition(command.getAggregateId());
+        String topicName = akcesController.resolveTopic(command.getClass());
+        int partition = akcesController.resolvePartition(command.getAggregateId());
         // produce a command to create a Wallet
         testProducer.beginTransaction();
         testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));
