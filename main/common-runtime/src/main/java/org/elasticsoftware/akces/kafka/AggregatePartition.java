@@ -3,6 +3,7 @@ package org.elasticsoftware.akces.kafka;
 import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.*;
@@ -13,6 +14,7 @@ import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.control.AkcesRegistry;
 import org.elasticsoftware.akces.protocol.*;
 import org.elasticsoftware.akces.state.AggregateStateRepository;
+import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.util.KafkaSender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -48,12 +51,13 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     private volatile AggregatePartitionState processState;
     private Long initializedEndOffset = null;
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
+    private volatile Thread aggregatePartitionThread = null;
 
 
     public AggregatePartition(ConsumerFactory<String, ProtocolRecord> consumerFactory,
                               ProducerFactory<String, ProtocolRecord> producerFactory,
                               AggregateRuntime runtime,
-                              AggregateStateRepository stateRepository,
+                              AggregateStateRepositoryFactory stateRepositoryFactory,
                               Integer id,
                               TopicPartition commandPartition,
                               TopicPartition domainEventPartition,
@@ -64,7 +68,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         this.consumerFactory = consumerFactory;
         this.producerFactory = producerFactory;
         this.runtime = runtime;
-        this.stateRepository = stateRepository;
+        this.stateRepository = stateRepositoryFactory.create(runtime, id);
         this.id = id;
         this.commandPartition = commandPartition;
         this.domainEventPartition = domainEventPartition;
@@ -79,6 +83,10 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
 
     @Override
     public void run() {
+        // store the thread so we can check if we are on the correct thread
+        this.aggregatePartitionThread = Thread.currentThread();
+        // register the CommandBus
+        AggregatePartionCommandBus.registerCommandBus(this);
         logger.info("Starting Aggregate Partition {} for {}", id, runtime.getName());
         this.consumer = consumerFactory.createConsumer(runtime.getName(), "Aggregate-partition-" + id, null);
         this.producer = producerFactory.createProducer(runtime.getName() + "Aggregate-partition-" + id);
@@ -91,9 +99,15 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             consumer.close();
             producer.close();
         } catch(KafkaException e) {
-            // ignore
+            logger.error("Error closing consumer/producer", e);
+        }
+        try {
+            stateRepository.close();
+        } catch (IOException e) {
+            logger.error("Error closing state repository", e);
         }
         logger.info("Shutting down Aggregate Partition {} for {}", id, runtime.getName());
+        AggregatePartionCommandBus.registerCommandBus(null);
         shutdownLatch.countDown();
     }
 
@@ -105,6 +119,10 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
 
     @Override
     public void send(Command command) throws IOException {
+        // this implementation is only meant to be called from the AggregatePartition thread
+        if(Thread.currentThread() != aggregatePartitionThread) {
+            throw new IllegalStateException("send() can only be called from the AggregatePartition thread");
+        }
         // we need to resolve the command type
         CommandType<?> commandType = ackesRegistry.resolveType(command.getClass());
         if(commandType != null) {
@@ -129,9 +147,9 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         if(protocolRecord instanceof AggregateStateRecord asr) {
             logger.trace("Sending AggregateStateRecord with id {} to {}", asr.aggregateId(), statePartition);
             // send to topic
-            KafkaSender.send(producer, new ProducerRecord<>(statePartition.topic(), statePartition.partition(), asr.aggregateId(), asr));
+            Future<RecordMetadata> result = KafkaSender.send(producer, new ProducerRecord<>(statePartition.topic(), statePartition.partition(), asr.aggregateId(), asr));
             // prepare (cache) for commit
-            stateRepository.prepare(asr);
+            stateRepository.prepare(asr, result);
         } else if(protocolRecord instanceof DomainEventRecord der) {
             logger.trace("Sending DomainEventRecord with id {} to {}", der.aggregateId(), domainEventPartition);
             KafkaSender.send(producer, new ProducerRecord<>(domainEventPartition.topic(), domainEventPartition.partition(), der.aggregateId(), der));
@@ -145,15 +163,12 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         }
     }
 
-    private void send(CommandRecord cr, TopicPartition commandPartition) {
-        KafkaSender.send(producer, new ProducerRecord<>(commandPartition.topic(), commandPartition.partition(), cr.aggregateId(), cr));
-    }
-
     private void handleCommand(CommandRecord commandRecord) {
         try {
             runtime.handleCommandRecord(commandRecord, this::send, () -> stateRepository.get(commandRecord.aggregateId()));
         } catch (IOException e) {
             // TODO need to raise a (built-in) ErrorEvent here
+            logger.error("Error handling command", e);
         }
     }
 
@@ -162,6 +177,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             runtime.handleExternalDomainEventRecord(eventRecord, this::send, () -> stateRepository.get(eventRecord.aggregateId()));
         } catch (IOException e) {
             // TODO need to raise a (built-in) ErrorEvent here
+            logger.error("Error handling external event", e);
         }
     }
 
@@ -175,21 +191,17 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             } catch(WakeupException | InterruptException ignore) {
                 // non-fatal. ignore
             }  catch(ProducerFencedException | OutOfOrderSequenceException | AuthorizationException e) {
-                // For transactional producers, this is a fatal error and you should close the producer.   
+                // For transactional producers, this is a fatal error and you should close the producer.
+                logger.error("Fatal error, shutting down AggregatePartition", e);
+                processState = SHUTTING_DOWN;
             } catch(KafkaException e) {
                 // fatal
+                logger.error("Fatal error, shutting down AggregatePartition", e);
+                processState = SHUTTING_DOWN;
             }
         } else if(processState == LOADING_STATE) {
             ConsumerRecords<String, ProtocolRecord> stateRecords = consumer.poll(Duration.ZERO);
-            stateRecords.iterator().forEachRemaining(stateRecord -> {
-                if(stateRecord.value() != null) {
-                    logger.trace("Loading AggregateStateRecord with id {} from {}", stateRecord.key(), stateRecord.offset());
-                    stateRepository.add((AggregateStateRecord) stateRecord.value(), stateRecord.offset());
-                } else {
-                    // remove from repository
-                    stateRepository.remove(stateRecord.key(), stateRecord.offset());
-                }
-            });
+            stateRepository.process(stateRecords.records(statePartition));
             // stop condition
             if(stateRecords.isEmpty() && initializedEndOffset <= consumer.position(statePartition)) {
                 // done loading the state, enable the other topics
@@ -202,6 +214,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             // find the right offset to start reading the state from
             long repositoryOffset = stateRepository.getOffset();
             if(repositoryOffset >= 0) {
+                logger.info("Resuming from offset {} for Aggregate Partition {} for {}", repositoryOffset, id, runtime.getName());
                 consumer.seek(statePartition, stateRepository.getOffset() + 1);
             } else {
                 consumer.seekToBeginning(singletonList(statePartition));
@@ -210,7 +223,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             initializedEndOffset = consumer.endOffsets(singletonList(statePartition)).values().stream().findFirst().orElse(0L);
             // special case, there is no data yet so no need to load anything
             if(initializedEndOffset == 0L) {
-                logger.info("No state found for Aggregate Partition {} for {}", id, runtime.getName());
+                logger.info("No state found in Kafka for Aggregate Partition {} for {}", id, runtime.getName());
                 // go immediately to processing
                 processState = PROCESSING;
             } else {
@@ -251,17 +264,11 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                                 offsets.put(externalEventPartition, eventRecord.offset());
                             }));
             // then state (ignore?)
-
-            allRecords.records(statePartition)
-                    .forEach(stateRecord -> {
-                        // this overrides the previously committed record but this should be fine. It will set the correct offset
-                        if(stateRecord.value() != null)
-                            stateRepository.add((AggregateStateRecord) stateRecord.value(), stateRecord.offset());
-                        else
-                            stateRepository.remove(stateRecord.key(), stateRecord.offset());
-                        // commit the offset (TODO: not really necessary because we search for offset at startup)
-                        offsets.put(statePartition, stateRecord.offset());
-                    });
+            List<ConsumerRecord<String,ProtocolRecord>> stateRecords = allRecords.records(statePartition);
+            if(!stateRecords.isEmpty()) {
+                stateRepository.process(stateRecords);
+                offsets.put(statePartition, stateRecords.get(stateRecords.size()-1).offset());
+            }
             // then internal events (ignore?)
             allRecords.records(domainEventPartition)
                     .forEach(domainEventRecord -> offsets.put(domainEventPartition, domainEventRecord.offset()));
@@ -270,6 +277,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                             .collect(Collectors.toMap(Map.Entry::getKey, e -> new OffsetAndMetadata(e.getValue()+1))),
                     consumer.groupMetadata());
             producer.commitTransaction();
+            // commit the state repository
             stateRepository.commit();
         } catch(InvalidProducerEpochException e) {
             // When encountering this exception, user should abort the ongoing transaction by calling

@@ -6,13 +6,13 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
-class CommandBusHolder {
-    protected static Map<Class<? extends Aggregate>, CommandBus> commandBusMap = new ConcurrentHashMap<>();
+public class CommandBusHolder {
+    protected static final ThreadLocal<CommandBus> commandBusThreadLocal = new ThreadLocal<>();
 
     protected CommandBusHolder() {
     }
 
     public static CommandBus getCommandBus(Class<? extends Aggregate> aggregateClass) {
-        return commandBusMap.get(aggregateClass);
+        return commandBusThreadLocal.get();
     }
 }

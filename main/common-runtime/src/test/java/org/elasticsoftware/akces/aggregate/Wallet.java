@@ -43,7 +43,7 @@ public final class Wallet implements Aggregate<WalletState> {
             // TODO: add more detail to the error event
             return new InvalidCurrencyErrorEvent(cmd.id());
         }
-        if (cmd.amount().compareTo(BigDecimal.ZERO) > 0) {
+        if (cmd.amount().compareTo(BigDecimal.ZERO) < 0) {
             // TODO: add more detail to the error event
             return new InvalidAmountErrorEvent(cmd.id());
         }

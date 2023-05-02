@@ -12,6 +12,9 @@ import org.elasticsoftware.akces.kafka.KafkaProducerFactory;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
+import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
+import org.elasticsoftware.akces.state.InMemoryAggregateStateRepositoryFactory;
+import org.elasticsoftware.akces.state.RocksDBAggregateStateRepositoryFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
@@ -68,5 +71,11 @@ public class RuntimeConfiguration {
     @Bean
     public ProducerFactory<String, AkcesControlRecord> controlProducerFactory(KafkaProperties properties) {
         return new KafkaProducerFactory<>(properties.buildProducerProperties(), new StringSerializer(), controlSerde.serializer());
+    }
+
+    @Bean
+    public AggregateStateRepositoryFactory aggregateStateRepositoryFactory() {
+        //return new InMemoryAggregateStateRepositoryFactory();
+        return new RocksDBAggregateStateRepositoryFactory(serde, "/tmp/akces");
     }
 }

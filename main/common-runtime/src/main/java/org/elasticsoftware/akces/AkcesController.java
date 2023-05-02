@@ -20,6 +20,7 @@ import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.control.*;
 import org.elasticsoftware.akces.kafka.AggregatePartition;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.state.InMemoryAggregateStateRepository;
 import org.elasticsoftware.akces.util.HostUtils;
 import org.slf4j.Logger;
@@ -53,11 +54,13 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
     private Integer partitions = null;
     private final Map<String, CommandServiceRecord> commandServices = new ConcurrentHashMap<>();
     private Consumer<String, AkcesControlRecord> controlConsumer;
+    private final AggregateStateRepositoryFactory aggregateStateRepositoryFactory;
 
     public AkcesController(ConsumerFactory<String, ProtocolRecord> consumerFactory,
                            ProducerFactory<String, ProtocolRecord> producerFactory,
                            ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory,
                            ProducerFactory<String, AkcesControlRecord> controlProducerFactory,
+                           AggregateStateRepositoryFactory aggregateStateRepositoryFactory,
                            AggregateRuntime aggregateRuntime,
                            KafkaAdminOperations kafkaAdmin) {
         super(aggregateRuntime.getName()+"-AkcesController");
@@ -65,6 +68,7 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
         this.producerFactory = producerFactory;
         this.controlProducerFactory = controlProducerFactory;
         this.controlRecordConsumerFactory = controlConsumerFactory;
+        this.aggregateStateRepositoryFactory = aggregateStateRepositoryFactory;
         this.aggregateRuntime = aggregateRuntime;
         this.kafkaAdmin = kafkaAdmin;
         this.executorService = Executors.newCachedThreadPool(new CustomizableThreadFactory(aggregateRuntime.getName()+"AggregatePartitionThread-"));
@@ -197,7 +201,7 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
                     consumerFactory,
                     producerFactory,
                     aggregateRuntime,
-                    new InMemoryAggregateStateRepository(), //TODO: create this from a factory to support different implementations
+                    aggregateStateRepositoryFactory, //TODO: create this from a factory to support different implementations
                     topicPartition.partition(),
                     toCommandTopicPartition(aggregateRuntime, topicPartition.partition()),
                     toDomainEventTopicPartition(aggregateRuntime, topicPartition.partition()),

@@ -17,16 +17,15 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.TopicPartition;
 import org.elasticsoftware.akces.aggregate.AccountCreatedEvent;
 import org.elasticsoftware.akces.aggregate.CreateWalletCommand;
+import org.elasticsoftware.akces.aggregate.CreditWalletCommand;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.protocol.CommandRecord;
 import org.elasticsoftware.akces.protocol.PayloadEncoding;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.*;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContextException;
 import org.springframework.context.ApplicationContextInitializer;
@@ -44,10 +43,17 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.Path;
+import java.io.File;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -161,6 +167,15 @@ public class RuntimeTests  {
         }
     }
 
+    @AfterAll
+    public static void cleanUp() throws IOException {
+        // clean up the rocksdb directory
+        Files.walk(Paths.get("/tmp/akces"))
+                .sorted(Comparator.reverseOrder())
+                .map(Path::toFile)
+                .forEach(File::delete);
+    }
+
     @Test
     @Order(1)
     public void testKafkaAdminClient() {
@@ -208,13 +223,32 @@ public class RuntimeTests  {
         testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));
         testProducer.commitTransaction();
 
+        TopicPartition aggregateStatePartition = new TopicPartition("Wallet-AggregateState", partition);
+        TopicPartition domainEventsPartition = new TopicPartition("Wallet-DomainEvents", partition);
+
         // now we should have an entry in the Wallet-AggregateState topic and in the Wallet-DomainEvents topic
-        testConsumer.subscribe(List.of("Wallet-AggregateState", "Wallet-DomainEvents"));
-        while(testConsumer.assignment().isEmpty()) {
-            testConsumer.poll(Duration.ofMillis(1000));
-        }
-        testConsumer.seekToBeginning(testConsumer.assignment());
+        testConsumer.assign(List.of(aggregateStatePartition, domainEventsPartition));
         ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(250));
+        while(records.isEmpty()) {
+            // wait for the event to be produced
+            records = testConsumer.poll(Duration.ofMillis(250));
+        }
+
+        assertFalse(records.isEmpty());
+
+        CreditWalletCommand creditCommand = new CreditWalletCommand(userId, "USD", new BigDecimal("100.00"));
+        CommandRecord creditCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(creditCommand), PayloadEncoding.JSON, creditCommand.getAggregateId(), null);
+
+        testProducer.beginTransaction();
+        testProducer.send(new ProducerRecord<>(topicName, partition, creditCommandRecord.aggregateId(), creditCommandRecord));
+        testProducer.commitTransaction();
+
+        records = testConsumer.poll(Duration.ofMillis(250));
+        while(records.isEmpty()) {
+            // wait for the event to be produced
+            records = testConsumer.poll(Duration.ofMillis(250));
+        }
+
         assertFalse(records.isEmpty());
 
         testConsumer.close();

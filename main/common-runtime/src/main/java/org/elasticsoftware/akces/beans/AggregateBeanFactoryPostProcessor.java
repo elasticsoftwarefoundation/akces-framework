@@ -66,6 +66,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                                     .addConstructorArgReference("producerFactory")
                                     .addConstructorArgReference("controlConsumerFactory")
                                     .addConstructorArgReference("controlProducerFactory")
+                                    .addConstructorArgReference("aggregateStateRepositoryFactory")
                                     .addConstructorArgReference(beanName + "AggregateRuntimeFactory")
                                     .addConstructorArgReference(beanFactory.getBeanNamesForType(KafkaAdminOperations.class)[0])
                                     .setInitMethodName("start")

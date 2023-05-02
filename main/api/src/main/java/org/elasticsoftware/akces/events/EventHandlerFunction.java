@@ -3,7 +3,9 @@ package org.elasticsoftware.akces.events;
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.aggregate.AggregateState;
+import org.elasticsoftware.akces.aggregate.CommandBusHolder;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
+import org.elasticsoftware.akces.commands.CommandBus;
 
 @FunctionalInterface
 public interface EventHandlerFunction<S extends AggregateState,InputEvent extends DomainEvent, E extends DomainEvent> {
@@ -19,5 +21,9 @@ public interface EventHandlerFunction<S extends AggregateState,InputEvent extend
 
     default boolean isCreate() {
         throw new UnsupportedOperationException("When implementing EventHandlerFunction directly, you must override isCreate()");
+    }
+
+    default CommandBus getCommandBus() {
+        return CommandBusHolder.getCommandBus(getAggregate().getClass());
     }
 }

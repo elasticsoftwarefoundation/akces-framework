@@ -12,11 +12,11 @@ public class KafkaSender {
         // Utility class
     }
 
-    public static <K,V> void send(Producer<K, V> producer, ProducerRecord<K, V> producerRecord) {
-        send(producer, producerRecord, null);
+    public static <K,V> Future<RecordMetadata> send(Producer<K, V> producer, ProducerRecord<K, V> producerRecord) {
+        return send(producer, producerRecord, null);
     }
 
-    public static <K,V> void send(Producer<K, V> producer, ProducerRecord<K, V> producerRecord, Callback callback) {
+    public static <K,V> Future<RecordMetadata> send(Producer<K, V> producer, ProducerRecord<K, V> producerRecord, Callback callback) {
         Future<RecordMetadata> future = producer.send(producerRecord, callback);
         if (future.isDone()) {
             try {
@@ -33,6 +33,7 @@ public class KafkaSender {
                 }
             }
         }
+        return future;
     }
 
 }

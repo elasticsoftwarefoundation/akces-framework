@@ -20,6 +20,7 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState,C extends Co
     private Method adapterMethod;
     private final boolean create;
     private final CommandInfo commandInfo;
+    private final CommandType<C> commandType;
 
     public CommandHandlerFunctionAdapter(Aggregate<S> aggregate,
                                          String adapterMethodName,
@@ -33,6 +34,7 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState,C extends Co
         this.stateClass = stateClass;
         this.create = create;
         this.commandInfo = commandInfo;
+        this.commandType = new CommandType<>(commandInfo.type(), commandInfo.version(), commandClass, create, false);
     }
 
     @SuppressWarnings("unused")
@@ -70,7 +72,7 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState,C extends Co
 
     @Override
     public CommandType<C> getCommandType() {
-        return new CommandType<>(commandInfo.type(), commandInfo.version(), commandClass, create, false);
+        return commandType;
     }
 
     @Override
