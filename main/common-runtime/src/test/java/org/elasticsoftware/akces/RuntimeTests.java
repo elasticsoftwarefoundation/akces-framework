@@ -23,6 +23,7 @@ import org.elasticsoftware.akces.aggregate.CreateWalletCommand;
 import org.elasticsoftware.akces.aggregate.CreditWalletCommand;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.protocol.CommandRecord;
+import org.elasticsoftware.akces.protocol.DomainEventRecord;
 import org.elasticsoftware.akces.protocol.PayloadEncoding;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.junit.jupiter.api.*;
@@ -54,9 +55,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
-
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 @Testcontainers
 @SpringBootTest(classes = RuntimeConfiguration.class, properties = "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration")
@@ -213,6 +212,8 @@ public class RuntimeTests  {
             controlRecords = controlConsumer.poll(Duration.ofMillis(1000));
         }
 
+        // TODO: ensure that we see the Wallet command service
+
         String userId = "47db2418-dd10-11ed-afa1-0242ac120002";
         CreateWalletCommand command = new CreateWalletCommand(userId,"USD");
         CommandRecord commandRecord = new CommandRecord(null,"CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null);
@@ -250,6 +251,28 @@ public class RuntimeTests  {
         }
 
         assertFalse(records.isEmpty());
+
+        // now create a command that will cause an error
+        CreditWalletCommand invalidCommand = new CreditWalletCommand(userId,"USD", new BigDecimal("-100.00"));
+        CommandRecord invalidCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(invalidCommand), PayloadEncoding.JSON, invalidCommand.getAggregateId(), null);
+
+        testProducer.beginTransaction();
+        testProducer.send(new ProducerRecord<>(topicName, partition, invalidCommandRecord.aggregateId(), invalidCommandRecord));
+        testProducer.commitTransaction();
+
+        records = testConsumer.poll(Duration.ofMillis(250));
+        while(records.isEmpty()) {
+            // wait for the event to be produced
+            records = testConsumer.poll(Duration.ofMillis(250));
+        }
+
+        // we should have no records in the state topic
+        assertTrue(records.records(aggregateStatePartition).isEmpty());
+        // and we should have a error event in the domain events
+        assertEquals(1, records.records(domainEventsPartition).size());
+
+        DomainEventRecord protocolRecord = (DomainEventRecord) records.records(domainEventsPartition).get(0).value();
+        assertEquals("InvalidAmountError", protocolRecord.name());
 
         testConsumer.close();
         testProducer.close();

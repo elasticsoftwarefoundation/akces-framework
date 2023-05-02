@@ -3,6 +3,7 @@ package org.elasticsoftware.akces.aggregate;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.commands.CommandHandlerFunction;
 import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.events.ErrorEvent;
 import org.elasticsoftware.akces.events.EventHandlerFunction;
 import org.elasticsoftware.akces.events.EventSourcingHandlerFunction;
 import org.elasticsoftware.akces.protocol.*;
@@ -118,28 +119,43 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         AggregateState currentState = materialize(currentStateRecord);
         DomainEvent domainEvent = commandHandlers.get(commandType).apply(command, currentState);
         DomainEventType<?> domainEventType = getDomainEventType(domainEvent.getClass());
-        AggregateState nextState = eventSourcingHandlers.get(domainEventType).apply(domainEvent, currentState);
-        // store the state, increasing the generation by 1
-        AggregateStateRecord nextStateRecord = new AggregateStateRecord(
-                currentStateRecord.tenantId(),
-                type.typeName(),
-                type.version(),
-                serialize(nextState),
-                getEncoding(type),
-                currentStateRecord.aggregateId(),
-                commandRecord.correlationId(),
-                currentStateRecord.generation()+1L);
-        protocolRecordConsumer.accept(nextStateRecord);
-        DomainEventRecord eventRecord = new DomainEventRecord(
-                currentStateRecord.tenantId(),
-                domainEventType.typeName(),
-                domainEventType.version(),
-                serialize(domainEvent),
-                getEncoding(domainEventType),
-                domainEvent.getAggregateId(),
-                commandRecord.correlationId(),
-                nextStateRecord.generation());
-        protocolRecordConsumer.accept(eventRecord);
+        // error events don't change the state
+        if(!(domainEvent instanceof ErrorEvent)) {
+            AggregateState nextState = eventSourcingHandlers.get(domainEventType).apply(domainEvent, currentState);
+            // store the state, increasing the generation by 1
+            AggregateStateRecord nextStateRecord = new AggregateStateRecord(
+                    currentStateRecord.tenantId(),
+                    type.typeName(),
+                    type.version(),
+                    serialize(nextState),
+                    getEncoding(type),
+                    currentStateRecord.aggregateId(),
+                    commandRecord.correlationId(),
+                    currentStateRecord.generation() + 1L);
+            protocolRecordConsumer.accept(nextStateRecord);
+            DomainEventRecord eventRecord = new DomainEventRecord(
+                    currentStateRecord.tenantId(),
+                    domainEventType.typeName(),
+                    domainEventType.version(),
+                    serialize(domainEvent),
+                    getEncoding(domainEventType),
+                    domainEvent.getAggregateId(),
+                    commandRecord.correlationId(),
+                    nextStateRecord.generation());
+            protocolRecordConsumer.accept(eventRecord);
+        } else {
+            // this is an ErrorEvent, this doesn't alter the state but needs to be produced
+            DomainEventRecord eventRecord = new DomainEventRecord(
+                    currentStateRecord.tenantId(),
+                    domainEventType.typeName(),
+                    domainEventType.version(),
+                    serialize(domainEvent),
+                    getEncoding(domainEventType),
+                    domainEvent.getAggregateId(),
+                    commandRecord.correlationId(),
+                    -1L);  // ErrorEvents have no generation number because they don't alter the state
+            protocolRecordConsumer.accept(eventRecord);
+        }
     }
 
     private void handleCreateEvent(DomainEventType<?> eventType,

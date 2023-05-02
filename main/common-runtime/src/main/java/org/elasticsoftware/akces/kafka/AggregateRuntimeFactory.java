@@ -66,6 +66,9 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
                         runtimeBuilder.addCommandHandler(type, adapter);
                         runtimeBuilder.addCommand(type);
                     }
+                    for (Object errorEventType : adapter.getErrorEventTypes()) {
+                        runtimeBuilder.addDomainEvent((DomainEventType<?>) errorEventType);
+                    }
                 });
         // get ExternalEventHandlers for this Aggregate
         applicationContext.getBeansOfType(EventHandlerFunction.class).values().stream()

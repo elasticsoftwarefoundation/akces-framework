@@ -151,7 +151,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             // prepare (cache) for commit
             stateRepository.prepare(asr, result);
         } else if(protocolRecord instanceof DomainEventRecord der) {
-            logger.trace("Sending DomainEventRecord with id {} to {}", der.aggregateId(), domainEventPartition);
+            logger.trace("Sending DomainEventRecord {}:{} with id {} to {}", der.name(), der.version(), der.aggregateId(), domainEventPartition);
             KafkaSender.send(producer, new ProducerRecord<>(domainEventPartition.topic(), domainEventPartition.partition(), der.aggregateId(), der));
         } else if(protocolRecord instanceof CommandRecord cr) {
             // commands should be sent via the CommandBus since it needs to figure out the topic

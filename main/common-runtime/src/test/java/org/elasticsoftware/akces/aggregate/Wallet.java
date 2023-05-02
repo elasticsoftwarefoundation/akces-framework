@@ -25,18 +25,18 @@ public final class Wallet implements Aggregate<WalletState> {
         return WalletState.class;
     }
 
-    @CommandHandler(create = true)
+    @CommandHandler(create = true, produces = WalletCreatedEvent.class, errors = {})
     public @NotNull WalletCreatedEvent create(@NotNull CreateWalletCommand cmd, WalletState isNull) {
         return new WalletCreatedEvent(cmd.id(), cmd.currency(), BigDecimal.ZERO);
     }
 
-    @EventHandler(create = true)
+    @EventHandler(create = true, produces = WalletCreatedEvent.class)
     public @NotNull WalletCreatedEvent create(@NotNull AccountCreatedEvent event, WalletState isNull) {
         // TODO: base the currency on the country
         return new WalletCreatedEvent(event.getAggregateId(), "EUR", BigDecimal.ZERO);
     }
 
-    @CommandHandler
+    @CommandHandler(produces = WalletCreditedEvent.class, errors = {InvalidCurrencyErrorEvent.class, InvalidAmountErrorEvent.class})
     @NotNull
     public DomainEvent credit(@NotNull CreditWalletCommand cmd, @NotNull WalletState currentState) {
         if (!cmd.currency().equals(currentState.currency())) {

@@ -63,7 +63,7 @@ public class EventSourcingHandlerFunctionAdapter<S extends AggregateState, E ext
 
     @Override
     public DomainEventType<E> getEventType() {
-        return new DomainEventType<>(domainEventInfo.type(), domainEventInfo.version(), domainEventClass, create, false);
+        return new DomainEventType<>(domainEventInfo.type(), domainEventInfo.version(), domainEventClass, create, false,false);
     }
 
     @Override

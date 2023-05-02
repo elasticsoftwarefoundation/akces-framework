@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import org.elasticsoftware.akces.AkcesController;
 import org.elasticsoftware.akces.aggregate.AggregateState;
+import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.annotations.*;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Component;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Component
 public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcessor {
@@ -143,11 +145,19 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .addConstructorArgValue(commandHandlerMethod.getParameterTypes()[0])
                             .addConstructorArgValue(commandHandlerMethod.getParameterTypes()[1])
                             .addConstructorArgValue(commandHandler.create())
+                            .addConstructorArgValue(generateErrorEventTypes(commandHandler))
                             .addConstructorArgValue(commandInfo)
                             .setInitMethodName("init").getBeanDefinition()
             );
         } else {
             throw new ApplicationContextException("Invalid CommandHandler method signature: " + commandHandlerMethod);
         }
+    }
+
+    private List<DomainEventType<?>> generateErrorEventTypes(CommandHandler commandHandler) {
+        return Arrays.stream(commandHandler.errors()).map(eventClass -> {
+            DomainEventInfo eventInfo = eventClass.getAnnotation(DomainEventInfo.class);
+            return new DomainEventType<>(eventInfo.type(), eventInfo.version(), eventClass, false, false, true);
+        }).collect(Collectors.toList());
     }
 }

@@ -5,6 +5,7 @@ import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.events.ErrorEvent;
 import org.elasticsoftware.akces.events.EventHandlerFunction;
 
 import java.lang.reflect.InvocationTargetException;
@@ -63,7 +64,13 @@ public class EventHandlerFunctionAdapter<S extends AggregateState,InputEvent ext
 
     @Override
     public DomainEventType<InputEvent> getEventType() {
-        return new DomainEventType<>(domainEventInfo.type(), domainEventInfo.version(), inputEventClass, create, true);
+        return new DomainEventType<>(
+                domainEventInfo.type(),
+                domainEventInfo.version(),
+                inputEventClass,
+                create,
+                true,
+                ErrorEvent.class.isAssignableFrom(inputEventClass));
     }
 
     @Override

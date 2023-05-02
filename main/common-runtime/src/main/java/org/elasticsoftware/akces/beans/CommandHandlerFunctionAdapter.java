@@ -3,6 +3,7 @@ package org.elasticsoftware.akces.beans;
 import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.aggregate.CommandType;
+import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.commands.CommandHandlerFunction;
@@ -10,6 +11,8 @@ import org.elasticsoftware.akces.events.DomainEvent;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Collections;
+import java.util.List;
 
 public class CommandHandlerFunctionAdapter<S extends AggregateState,C extends Command, E extends DomainEvent>
         implements CommandHandlerFunction<S, C, E> {
@@ -21,12 +24,14 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState,C extends Co
     private final boolean create;
     private final CommandInfo commandInfo;
     private final CommandType<C> commandType;
+    private final List<DomainEventType<?>> errorEventTypes;
 
     public CommandHandlerFunctionAdapter(Aggregate<S> aggregate,
                                          String adapterMethodName,
                                          Class<C> commandClass,
                                          Class<S> stateClass,
                                          boolean create,
+                                         List<DomainEventType<?>> errorEventTypes,
                                          CommandInfo commandInfo) {
         this.aggregate = aggregate;
         this.adapterMethodName = adapterMethodName;
@@ -34,6 +39,7 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState,C extends Co
         this.stateClass = stateClass;
         this.create = create;
         this.commandInfo = commandInfo;
+        this.errorEventTypes = errorEventTypes;
         this.commandType = new CommandType<>(commandInfo.type(), commandInfo.version(), commandClass, create, false);
     }
 
@@ -78,5 +84,10 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState,C extends Co
     @Override
     public Aggregate<S> getAggregate() {
         return aggregate;
+    }
+
+    @Override
+    public List<DomainEventType<?>> getErrorEventTypes() {
+        return errorEventTypes;
     }
 }

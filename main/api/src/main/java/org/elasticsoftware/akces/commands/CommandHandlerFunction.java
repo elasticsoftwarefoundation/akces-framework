@@ -1,11 +1,10 @@
 package org.elasticsoftware.akces.commands;
 
 import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.akces.aggregate.Aggregate;
-import org.elasticsoftware.akces.aggregate.AggregateState;
-import org.elasticsoftware.akces.aggregate.CommandBusHolder;
-import org.elasticsoftware.akces.aggregate.CommandType;
+import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.events.DomainEvent;
+
+import java.util.List;
 
 @FunctionalInterface
 public interface CommandHandlerFunction<S extends AggregateState,C extends Command, E extends DomainEvent> {
@@ -21,6 +20,10 @@ public interface CommandHandlerFunction<S extends AggregateState,C extends Comma
 
     default Aggregate<S> getAggregate() {
         throw new UnsupportedOperationException("When implementing CommandHandlerFunction directly, you must override getAggregate()");
+    }
+
+    default List<DomainEventType<?>> getErrorEventTypes() {
+        throw new UnsupportedOperationException("When implementing CommandHandlerFunction directly, you must override getErrorEventTypes()");
     }
 
     default CommandBus getCommandBus() {
