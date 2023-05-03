@@ -435,7 +435,7 @@
 
     <modules>
         <module>api</module>
-        <module>common-runtime</module>
+        <module>runtime</module>
         <module>kubernetes-runtime</module>
     </modules>
 

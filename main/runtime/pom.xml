@@ -22,10 +22,10 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>akces-common-runtime</artifactId>
+    <artifactId>akces-runtime</artifactId>
     <packaging>jar</packaging>
 
-    <name>Elastic Software Foundation :: Akces :: Common Runtime</name>
+    <name>Elastic Software Foundation :: Akces :: Runtime</name>
     <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
 
     <properties>
