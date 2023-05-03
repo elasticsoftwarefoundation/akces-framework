@@ -7,8 +7,10 @@ spring:
       isolation-level: read_committed
       max-poll-records: 500
       heartbeat-interval: 2000
+      auto-offset-reset: latest
       properties:
         max.poll.interval.ms: "10000"
+        session.timeout.ms: "30000"
     producer:
       acks: all
       retries: 2147483647

@@ -26,7 +26,9 @@ public interface AggregateRuntime {
                                          Consumer<ProtocolRecord> protocolRecordConsumer,
                                          Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException;
 
-    Collection<DomainEventType<?>> getDomainEventTypes();
+    Collection<DomainEventType<?>> getAllDomainEventTypes();
+
+    Collection<DomainEventType<?>> getProducedDomainEventTypes();
 
     Collection<DomainEventType<?>> getExternalDomainEventTypes();
 

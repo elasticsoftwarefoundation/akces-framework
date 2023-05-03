@@ -15,17 +15,24 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.elasticsoftware.akces.aggregate.AccountCreatedEvent;
 import org.elasticsoftware.akces.aggregate.CreateWalletCommand;
 import org.elasticsoftware.akces.aggregate.CreditWalletCommand;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
+import org.elasticsoftware.akces.control.CommandServiceCommandType;
+import org.elasticsoftware.akces.control.CommandServiceDomainEventType;
+import org.elasticsoftware.akces.control.CommandServiceRecord;
 import org.elasticsoftware.akces.protocol.CommandRecord;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
 import org.elasticsoftware.akces.protocol.PayloadEncoding;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.junit.jupiter.api.*;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContextException;
@@ -55,6 +62,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsoftware.akces.kafka.PartitionUtils.COMMANDS_SUFFIX;
+import static org.elasticsoftware.akces.kafka.PartitionUtils.DOMAINEVENTS_SUFFIX;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Testcontainers
@@ -110,6 +119,7 @@ public class RuntimeTests  {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
             prepareExternalSchemas("http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081));
+            prepareExternalServices(kafka.getBootstrapServers());
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
                     applicationContext,
                     "spring.kafka.enabled=true",
@@ -125,6 +135,7 @@ public class RuntimeTests  {
                 createCompactedTopic("Akces-Control", 3),
                 createTopic("Wallet-Commands", 3),
                 createTopic("Wallet-DomainEvents", 3),
+                createTopic("Account-DomainEvents", 3),
                 createCompactedTopic("Wallet-AggregateState", 3));
     }
 
@@ -166,6 +177,35 @@ public class RuntimeTests  {
         }
     }
 
+    public static void prepareExternalServices(String bootstrapServers) {
+        AkcesControlRecordSerde controlSerde = new AkcesControlRecordSerde(new ObjectMapper());
+        Map<String, Object> controlProducerProps = Map.of(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
+                ProducerConfig.ACKS_CONFIG, "all",
+                ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true",
+                ProducerConfig.LINGER_MS_CONFIG, "0",
+                ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, "1",
+                ProducerConfig.RETRIES_CONFIG, "2147483647",
+                ProducerConfig.RETRY_BACKOFF_MS_CONFIG, "0",
+                ProducerConfig.TRANSACTIONAL_ID_CONFIG, "Test-AkcesControllerProducer",
+                ProducerConfig.CLIENT_ID_CONFIG, "Test-AkcesControllerProducer");
+        try (Producer<String,AkcesControlRecord> controlProducer = new KafkaProducer<>(controlProducerProps, new StringSerializer(), controlSerde.serializer())) {
+            controlProducer.initTransactions();
+            CommandServiceRecord commandServiceRecord = new CommandServiceRecord(
+                    "Account",
+                    "Account" + COMMANDS_SUFFIX,
+                    "Account" + DOMAINEVENTS_SUFFIX,
+                    List.of(new CommandServiceCommandType<>("CreateAccount",1, true)),
+                    List.of(new CommandServiceDomainEventType<>("AccountCreated", 1, true, false)),
+                    List.of());
+            controlProducer.beginTransaction();
+            for (int partition = 0; partition < 3; partition++) {
+                controlProducer.send(new ProducerRecord<>("Akces-Control", partition, "Account", commandServiceRecord));
+            }
+            controlProducer.commitTransaction();
+        }
+    }
+
     @AfterAll
     public static void cleanUp() throws IOException {
         // clean up the rocksdb directory
@@ -184,6 +224,7 @@ public class RuntimeTests  {
                         "Akces-Control",
                         "Wallet-Commands",
                         "Wallet-DomainEvents",
+                        "Account-DomainEvents",
                         "Wallet-AggregateState");
         assertNotNull(topics);
         assertFalse(topics.isEmpty());
@@ -201,7 +242,7 @@ public class RuntimeTests  {
         assertNotNull(akcesController);
         Producer<String, ProtocolRecord> testProducer = producerFactory.createProducer("test");
         Consumer<String, ProtocolRecord> testConsumer = consumerFactory.createConsumer("Test", "test");
-        Consumer<String, AkcesControlRecord> controlConsumer = controlConsumerFactory.createConsumer("Test","test");
+        Consumer<String, AkcesControlRecord> controlConsumer = controlConsumerFactory.createConsumer("Test-AkcesControl","test-akces-control");
 
         controlConsumer.subscribe(List.of("Akces-Control"));
         controlConsumer.poll(Duration.ofMillis(1000));

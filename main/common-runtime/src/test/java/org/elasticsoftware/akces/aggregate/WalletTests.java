@@ -47,7 +47,7 @@ public class WalletTests {
     public void testValidateDomainEventsWithMissingExternalDomainEventSchema() throws Exception {
         AggregateRuntime walletAggregate = applicationContext.getBean(AggregateRuntime.class);
         assertThrows(IllegalStateException.class, () -> {
-            for (DomainEventType<?> domainEventType : walletAggregate.getDomainEventTypes()) {
+            for (DomainEventType<?> domainEventType : walletAggregate.getAllDomainEventTypes()) {
                 walletAggregate.registerAndValidate(domainEventType);
             }
         });
@@ -62,7 +62,7 @@ public class WalletTests {
                 walletAggregate.generateJsonSchema(new DomainEventType<>("AccountCreated", 1, AccountCreatedEvent.class, true, true, false)),
                 1,
                 -1);
-        for (DomainEventType<?> domainEventType : walletAggregate.getDomainEventTypes()) {
+        for (DomainEventType<?> domainEventType : walletAggregate.getAllDomainEventTypes()) {
             walletAggregate.registerAndValidate(domainEventType);
         }
         System.out.println(schemaRegistryClient.getAllSubjects());
@@ -84,7 +84,7 @@ public class WalletTests {
                 walletAggregate.generateJsonSchema(new DomainEventType<>("WalletCredited", 1, WalletCreditedEvent.class, false, false, false)),
                 1,
                 -1);
-        for (DomainEventType<?> domainEventType : walletAggregate.getDomainEventTypes()) {
+        for (DomainEventType<?> domainEventType : walletAggregate.getAllDomainEventTypes()) {
             walletAggregate.registerAndValidate(domainEventType);
         }
         System.out.println(schemaRegistryClient.getAllSubjects());
@@ -106,7 +106,7 @@ public class WalletTests {
                 walletAggregate.generateJsonSchema(new DomainEventType<>("WalletCredited", 1, WalletCreditedEvent.class, false, false, false)),
                 1,
                 -1);
-        for (DomainEventType<?> domainEventType : walletAggregate.getDomainEventTypes()) {
+        for (DomainEventType<?> domainEventType : walletAggregate.getAllDomainEventTypes()) {
             walletAggregate.registerAndValidate(domainEventType);
         }
     }
@@ -127,7 +127,7 @@ public class WalletTests {
                 walletAggregate.generateJsonSchema(new DomainEventType<>("WalletCredited", 1, WalletCreditedEvent.class, false, false, false)),
                 1,
                 -1);
-        for (DomainEventType<?> domainEventType : walletAggregate.getDomainEventTypes()) {
+        for (DomainEventType<?> domainEventType : walletAggregate.getAllDomainEventTypes()) {
             walletAggregate.registerAndValidate(domainEventType);
         }
         Assertions.assertThrows(IllegalStateException.class, () ->
@@ -172,7 +172,7 @@ public class WalletTests {
                 walletAggregate.generateJsonSchema(new DomainEventType<>("AccountCreated", 1, ExternalAccountCreatedEvent.class, true, true, false)),
                 1,
                 -1);
-        for (DomainEventType<?> domainEventType : walletAggregate.getDomainEventTypes()) {
+        for (DomainEventType<?> domainEventType : walletAggregate.getAllDomainEventTypes()) {
             walletAggregate.registerAndValidate(domainEventType);
         }
         String tenantId = "tenant1";

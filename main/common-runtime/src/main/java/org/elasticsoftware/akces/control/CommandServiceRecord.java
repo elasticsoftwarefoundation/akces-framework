@@ -8,6 +8,7 @@ import java.util.List;
 public record CommandServiceRecord(
         String aggregateName,
         String commandTopic,
+        String domainEventTopic,
         List<CommandServiceCommandType> supportedCommands,
         List<CommandServiceDomainEventType> producedEvents,
         List<CommandServiceDomainEventType> consumedEvents

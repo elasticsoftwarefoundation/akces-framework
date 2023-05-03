@@ -21,7 +21,6 @@ import org.elasticsoftware.akces.control.*;
 import org.elasticsoftware.akces.kafka.AggregatePartition;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
-import org.elasticsoftware.akces.state.InMemoryAggregateStateRepository;
 import org.elasticsoftware.akces.util.HostUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +36,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.elasticsoftware.akces.AkcesControllerState.*;
 import static org.elasticsoftware.akces.kafka.PartitionUtils.*;
 
 public class AkcesController extends Thread implements AutoCloseable, ConsumerRebalanceListener, AkcesRegistry {
@@ -47,7 +47,6 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
     private final ConsumerFactory<String, AkcesControlRecord> controlRecordConsumerFactory;
     private final AggregateRuntime aggregateRuntime;
     private final KafkaAdminOperations kafkaAdmin;
-    private volatile boolean running = true;
     private final Map<Integer,AggregatePartition> aggregatePartitions = new HashMap<>();
     private final ExecutorService executorService;
     private final HashFunction hashFunction = Hashing.murmur3_32_fixed();
@@ -55,6 +54,9 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
     private final Map<String, CommandServiceRecord> commandServices = new ConcurrentHashMap<>();
     private Consumer<String, AkcesControlRecord> controlConsumer;
     private final AggregateStateRepositoryFactory aggregateStateRepositoryFactory;
+    private volatile AkcesControllerState processState = INITIALIZING;
+    private final List<TopicPartition> partitionsToAssign = new ArrayList<>();
+    private final List<TopicPartition> partitionsToRevoke = new ArrayList<>();
 
     public AkcesController(ConsumerFactory<String, ProtocolRecord> consumerFactory,
                            ProducerFactory<String, ProtocolRecord> producerFactory,
@@ -78,7 +80,7 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
     public void run() {
         // make sure all our events are registered and validated
         try {
-            for (DomainEventType<?> domainEventType : aggregateRuntime.getDomainEventTypes()) {
+            for (DomainEventType<?> domainEventType : aggregateRuntime.getAllDomainEventTypes()) {
                 aggregateRuntime.registerAndValidate(domainEventType);
             }
             // find out about the cluster
@@ -93,31 +95,8 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
                             null);
             controlConsumer.subscribe(List.of("Akces-Control"), this);
             //controlConsumer.enforceRebalance();
-            while (running) {
-                try {
-                    // the data on the AkcesControl topics are broadcasted to all partitions
-                    // so we only need to read one partition actually
-                    // for simplicity we just read them all for now
-                    ConsumerRecords<String, AkcesControlRecord> consumerRecords = controlConsumer.poll(Duration.ofMillis(100));
-                    if (!consumerRecords.isEmpty()) {
-                        consumerRecords.forEach(record -> {
-                            AkcesControlRecord controlRecord = record.value();
-                            if (controlRecord instanceof CommandServiceRecord commandServiceRecord) {
-                                logger.info("Discovered service: {}", commandServiceRecord.aggregateName());
-                                commandServices.put(record.key(), commandServiceRecord);
-                            } else {
-                                logger.info("Received unknown AkcesControlRecord type: {}", controlRecord.getClass().getSimpleName());
-                            }
-                        });
-                    }
-                } catch (WakeupException | InterruptException e) {
-                    // ignore
-                } catch (KafkaException e) {
-                    // this is an unrecoverable exception
-                    logger.error("Unrecoverable exception in AkcesControl", e);
-                    // drop out of the control loop, this will shut down all resources
-                    running = false;
-                }
+            while (processState != SHUTTING_DOWN) {
+                process();
             }
             controlConsumer.close();
             // close all aggregate partitions
@@ -136,20 +115,113 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
         }
     }
 
+    private void process() {
+        if(processState == RUNNING || processState == INITIALIZING) {
+            try {
+                // the data on the AkcesControl topics are broadcasted to all partitions
+                // so we only need to read one partition actually
+                // for simplicity we just read them all for now
+                ConsumerRecords<String, AkcesControlRecord> consumerRecords = controlConsumer.poll(Duration.ofMillis(1000));
+                if (!consumerRecords.isEmpty()) {
+                    consumerRecords.forEach(record -> {
+                        AkcesControlRecord controlRecord = record.value();
+                        if (controlRecord instanceof CommandServiceRecord commandServiceRecord) {
+                            logger.info("Discovered service: {}", commandServiceRecord.aggregateName());
+                            commandServices.put(record.key(), commandServiceRecord);
+                        } else {
+                            logger.info("Received unknown AkcesControlRecord type: {}", controlRecord.getClass().getSimpleName());
+                        }
+                    });
+                }
+            } catch (WakeupException | InterruptException e) {
+                // ignore
+            } catch (KafkaException e) {
+                // this is an unrecoverable exception
+                logger.error("Unrecoverable exception in AkcesController", e);
+                // drop out of the control loop, this will shut down all resources
+                processState = SHUTTING_DOWN;
+            }
+        }  else if(processState == INITIAL_REBALANCING) {
+            // we need to load all the service data and then move to REBALANCING
+            try {
+                // seek to beginning to load all
+                controlConsumer.seekToBeginning(partitionsToAssign);
+                // the data on the AkcesControl topics are broadcasted to all partitions
+                // so we only need to read one partition actually
+                // for simplicity we just read them all for now
+                ConsumerRecords<String, AkcesControlRecord> consumerRecords = controlConsumer.poll(Duration.ofMillis(1000));
+                while (!consumerRecords.isEmpty()) {
+                    consumerRecords.forEach(record -> {
+                        AkcesControlRecord controlRecord = record.value();
+                        if (controlRecord instanceof CommandServiceRecord commandServiceRecord) {
+                            logger.info("Discovered service: {}", commandServiceRecord.aggregateName());
+                            commandServices.put(record.key(), commandServiceRecord);
+                        } else {
+                            logger.info("Received unknown AkcesControlRecord type: {}", controlRecord.getClass().getSimpleName());
+                        }
+                    });
+                    // poll again
+                    consumerRecords = controlConsumer.poll(Duration.ofMillis(1000));
+                }
+            } catch (WakeupException | InterruptException e) {
+                // ignore
+            } catch (KafkaException e) {
+                // this is an unrecoverable exception
+                logger.error("Unrecoverable exception in AkcesController", e);
+                // drop out of the control loop, this will shut down all resources
+                processState = SHUTTING_DOWN;
+            }
+            processState = REBALANCING;
+        } else if(processState == REBALANCING) {
+            // first revoke
+            for (TopicPartition topicPartition : partitionsToRevoke) {
+                AggregatePartition aggregatePartition = aggregatePartitions.remove(topicPartition.partition());
+                if (aggregatePartition != null) {
+                    try {
+                        aggregatePartition.close();
+                    } catch (Exception e) {
+                        logger.error("Error closing AggregatePartition", e);
+                    }
+                }
+            }
+            partitionsToRevoke.clear();
+            // then assign
+            for (TopicPartition topicPartition : partitionsToAssign) {
+                AggregatePartition aggregatePartition = new AggregatePartition(
+                        consumerFactory,
+                        producerFactory,
+                        aggregateRuntime,
+                        aggregateStateRepositoryFactory,
+                        topicPartition.partition(),
+                        toCommandTopicPartition(aggregateRuntime, topicPartition.partition()),
+                        toDomainEventTopicPartition(aggregateRuntime, topicPartition.partition()),
+                        toAggregateStateTopicPartition(aggregateRuntime, topicPartition.partition()),
+                        aggregateRuntime.getExternalDomainEventTypes(),
+                        this);
+                aggregatePartitions.put(topicPartition.partition(), aggregatePartition);
+                executorService.submit(aggregatePartition);
+            }
+            partitionsToAssign.clear();
+            // move back to running
+            processState = RUNNING;
+        }
+    }
+
     private void publishControlRecord(int partitions) {
         String transactionalId = aggregateRuntime.getName() + "-" + HostUtils.getHostName() + "-control";
         try (Producer<String,AkcesControlRecord> controlProducer = controlProducerFactory.createProducer(transactionalId)) {
             // publish the CommandServiceRecord
             CommandServiceRecord commandServiceRecord = new CommandServiceRecord(
                     aggregateRuntime.getName(),
-                    aggregateRuntime.getName() + "-Commands",
+                    aggregateRuntime.getName() + COMMANDS_SUFFIX,
+                    aggregateRuntime.getName() + DOMAINEVENTS_SUFFIX,
                     aggregateRuntime.getCommandTypes().stream()
                             .map(commandType ->
                                     new CommandServiceCommandType(
                                         commandType.typeName(),
                                         commandType.version(),
                                         commandType.create())).toList(),
-                    aggregateRuntime.getDomainEventTypes().stream().map(domainEventType ->
+                    aggregateRuntime.getProducedDomainEventTypes().stream().map(domainEventType ->
                             new CommandServiceDomainEventType(
                                     domainEventType.typeName(),
                                     domainEventType.version(),
@@ -173,43 +245,29 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
 
     @Override
     public void close() throws Exception {
-        this.running = false;
+        this.processState = SHUTTING_DOWN;
     }
 
     @Override
     public void onPartitionsRevoked(Collection<TopicPartition> collection) {
         // stop all local AggregatePartition instances
-        for (TopicPartition topicPartition : collection) {
-            AggregatePartition aggregatePartition = aggregatePartitions.remove(topicPartition.partition());
-            if (aggregatePartition != null) {
-                try {
-                    aggregatePartition.close();
-                } catch (Exception e) {
-                    logger.error("Error closing AggregatePartition", e);
-                }
-            }
+        partitionsToRevoke.addAll(collection);
+        // if we are already running, we can immediately rebalance
+        if(processState == RUNNING) {
+            processState = REBALANCING;
+        } else if(processState == INITIALIZING) { // otherwise we first have to load the services data
+            processState = INITIAL_REBALANCING;
         }
     }
 
     @Override
     public void onPartitionsAssigned(Collection<TopicPartition> collection) {
-        // seek to beginning to load all
-        controlConsumer.seekToBeginning(collection);
-        // start all local AggregatePartition instances
-        for (TopicPartition topicPartition : collection) {
-            AggregatePartition aggregatePartition = new AggregatePartition(
-                    consumerFactory,
-                    producerFactory,
-                    aggregateRuntime,
-                    aggregateStateRepositoryFactory, //TODO: create this from a factory to support different implementations
-                    topicPartition.partition(),
-                    toCommandTopicPartition(aggregateRuntime, topicPartition.partition()),
-                    toDomainEventTopicPartition(aggregateRuntime, topicPartition.partition()),
-                    toAggregateStateTopicPartition(aggregateRuntime, topicPartition.partition()),
-                    toExternalDomainEventTopicPartitions(aggregateRuntime, topicPartition.partition()),
-                    this);
-            aggregatePartitions.put(topicPartition.partition(), aggregatePartition);
-            executorService.submit(aggregatePartition);
+        partitionsToAssign.addAll(collection);
+        // if we are already running, we can immediately rebalance
+        if(processState == RUNNING) {
+            processState = REBALANCING;
+        } else if(processState == INITIALIZING) { // otherwise we first have to load the services data
+            processState = INITIAL_REBALANCING;
         }
     }
 
@@ -260,6 +318,16 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
         return false;
     }
 
+    private boolean producesDomainEvent(List<CommandServiceDomainEventType> producedEvents, DomainEventType<?> externalDomainEventType) {
+        for (CommandServiceDomainEventType<?> producedEvent : producedEvents) {
+            if (producedEvent.typeName().equals(externalDomainEventType.typeName()) &&
+                    producedEvent.version() == externalDomainEventType.version()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     @Nonnull
     public String resolveTopic(@Nonnull Class<? extends Command> commandClass) {
@@ -276,6 +344,18 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
             return services.get(0).commandTopic();
         } else {
             throw new IllegalStateException("Cannot determine where to send command " + commandType.typeName() + " v" + commandType.version());
+        }
+    }
+
+    @Override
+    public String resolveTopic(@Nonnull DomainEventType<?> externalDomainEventType) {
+        List<CommandServiceRecord> services = commandServices.values().stream()
+                .filter(commandServiceRecord -> producesDomainEvent(commandServiceRecord.producedEvents(), externalDomainEventType))
+                .toList();
+        if(services.size() == 1) {
+            return services.get(0).domainEventTopic();
+        } else {
+            throw new IllegalStateException("Cannot determine which service produces DomainEvent " + externalDomainEventType.typeName() + " v" + externalDomainEventType.version());
         }
     }
 

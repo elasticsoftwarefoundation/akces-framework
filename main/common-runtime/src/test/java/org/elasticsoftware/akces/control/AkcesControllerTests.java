@@ -21,6 +21,7 @@ public class AkcesControllerTests {
         CommandServiceRecord record = new CommandServiceRecord(
                 "Account",
                 "Account-Commands",
+                "Account-DomainEvents",
                 List.of(new CommandServiceCommandType<>("CreateAccount", 1, true)),
                 List.of(new CommandServiceDomainEventType<>("AccountCreated",1, true, false)),
                 Collections.emptyList());
@@ -63,6 +64,7 @@ public class AkcesControllerTests {
         CommandServiceRecord record = new CommandServiceRecord(
                 "Account",
                 "Account-Commands",
+                "Account-DomainEvents",
                 List.of(new CommandServiceCommandType<>("CreateAccount", 1, true)),
                 List.of(new CommandServiceDomainEventType<>("AccountCreated",1, true, false)),
                 Collections.emptyList());

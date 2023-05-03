@@ -244,8 +244,13 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     }
 
     @Override
-    public Collection<DomainEventType<?>> getDomainEventTypes() {
+    public Collection<DomainEventType<?>> getAllDomainEventTypes() {
         return this.domainEvents.values();
+    }
+
+    @Override
+    public Collection<DomainEventType<?>> getProducedDomainEventTypes() {
+        return this.domainEvents.values().stream().filter(domainEventType -> !domainEventType.external()).toList();
     }
 
     @Override
