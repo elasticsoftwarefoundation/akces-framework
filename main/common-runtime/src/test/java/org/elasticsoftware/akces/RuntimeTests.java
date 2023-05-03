@@ -255,6 +255,13 @@ public class RuntimeTests  {
 
         // TODO: ensure that we see the Wallet command service
 
+        controlConsumer.close();
+
+        // wait until the ackes controller is running
+        while(!akcesController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
         String userId = "47db2418-dd10-11ed-afa1-0242ac120002";
         CreateWalletCommand command = new CreateWalletCommand(userId,"USD");
         CommandRecord commandRecord = new CommandRecord(null,"CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null);
@@ -270,6 +277,8 @@ public class RuntimeTests  {
 
         // now we should have an entry in the Wallet-AggregateState topic and in the Wallet-DomainEvents topic
         testConsumer.assign(List.of(aggregateStatePartition, domainEventsPartition));
+        // make sure we don't miss any events due to default offset reset strategy latest
+        testConsumer.seekToBeginning(testConsumer.assignment());
         ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(250));
         while(records.isEmpty()) {
             // wait for the event to be produced

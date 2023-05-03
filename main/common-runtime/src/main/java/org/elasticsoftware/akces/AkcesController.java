@@ -154,7 +154,10 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
                     consumerRecords.forEach(record -> {
                         AkcesControlRecord controlRecord = record.value();
                         if (controlRecord instanceof CommandServiceRecord commandServiceRecord) {
-                            logger.info("Discovered service: {}", commandServiceRecord.aggregateName());
+                            // only log it once
+                            if(!commandServices.containsKey(record.key())) {
+                                logger.info("Discovered service: {}", commandServiceRecord.aggregateName());
+                            }
                             commandServices.put(record.key(), commandServiceRecord);
                         } else {
                             logger.info("Received unknown AkcesControlRecord type: {}", controlRecord.getClass().getSimpleName());
@@ -363,5 +366,9 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
     @Nonnull
     public Integer resolvePartition(@Nonnull String aggregateId) {
         return Math.abs(hashFunction.hashString(aggregateId, UTF_8).asInt()) % partitions;
+    }
+
+    public boolean isRunning() {
+        return processState == RUNNING;
     }
 }

@@ -11,6 +11,7 @@ spring:
       properties:
         max.poll.interval.ms: "10000"
         session.timeout.ms: "30000"
+        partition.assignment.strategy: "org.apache.kafka.clients.consumer.CooperativeStickyAssignor"
     producer:
       acks: all
       retries: 2147483647

@@ -9,25 +9,10 @@ import org.springframework.kafka.core.ProducerFactory;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class KafkaProducerFactory<K,V> extends DefaultKafkaProducerFactory<K,V> {
-    public KafkaProducerFactory(Map<String, Object> configs) {
-        super(configs);
-    }
+public class CustomKafkaProducerFactory<K,V> extends DefaultKafkaProducerFactory<K,V> {
 
-    public KafkaProducerFactory(Map<String, Object> configs, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
+    public CustomKafkaProducerFactory(Map<String, Object> configs, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
         super(configs, keySerializer, valueSerializer);
-    }
-
-    public KafkaProducerFactory(Map<String, Object> configs, Serializer<K> keySerializer, Serializer<V> valueSerializer, boolean configureSerializers) {
-        super(configs, keySerializer, valueSerializer, configureSerializers);
-    }
-
-    public KafkaProducerFactory(Map<String, Object> configs, Supplier<Serializer<K>> keySerializerSupplier, Supplier<Serializer<V>> valueSerializerSupplier) {
-        super(configs, keySerializerSupplier, valueSerializerSupplier);
-    }
-
-    public KafkaProducerFactory(Map<String, Object> configs, Supplier<Serializer<K>> keySerializerSupplier, Supplier<Serializer<V>> valueSerializerSupplier, boolean configureSerializers) {
-        super(configs, keySerializerSupplier, valueSerializerSupplier, configureSerializers);
     }
 
     @Override
