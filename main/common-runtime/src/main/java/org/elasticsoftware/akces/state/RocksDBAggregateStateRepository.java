@@ -84,6 +84,7 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
 
     private void updateOffset(long offset) {
         this.lastOffset = offset;
+        log.trace("Updated offset to {}", offset);
     }
 
     @Override

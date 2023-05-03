@@ -14,6 +14,7 @@ import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
@@ -57,10 +58,10 @@ import java.nio.file.Paths;
 import java.nio.file.Path;
 import java.io.File;
 import java.time.Duration;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsoftware.akces.kafka.PartitionUtils.COMMANDS_SUFFIX;
 import static org.elasticsoftware.akces.kafka.PartitionUtils.DOMAINEVENTS_SUFFIX;
@@ -238,7 +239,7 @@ public class RuntimeTests  {
 
     @Test
     @Order(3)
-    public void testAckesControl() throws JsonProcessingException, InterruptedException {
+    public void testAckesControl() throws JsonProcessingException {
         assertNotNull(akcesController);
         Producer<String, ProtocolRecord> testProducer = producerFactory.createProducer("test");
         Consumer<String, ProtocolRecord> testConsumer = consumerFactory.createConsumer("Test", "test");
@@ -326,6 +327,77 @@ public class RuntimeTests  {
 
         testConsumer.close();
         testProducer.close();
+    }
+
+    @Test
+    @Order(4)
+    public void testBatchedCommands() throws JsonProcessingException {
+        // wait until the ackes controller is running
+        while(!akcesController.isRunning()) {
+            Thread.onSpinWait();
+        }
+        List<String> userIds = List.of(
+                "47db2418-dd10-11ed-afa1-0242ac120002",
+                "47db2418-dd10-11ed-afa1-0242ac120003",
+                "47db2418-dd10-11ed-afa1-0242ac120004",
+                "47db2418-dd10-11ed-afa1-0242ac120005",
+                "47db2418-dd10-11ed-afa1-0242ac120006",
+                "47db2418-dd10-11ed-afa1-0242ac120007",
+                "47db2418-dd10-11ed-afa1-0242ac120008",
+                "47db2418-dd10-11ed-afa1-0242ac120009",
+                "47db2418-dd10-11ed-afa1-0242ac120010",
+                "47db2418-dd10-11ed-afa1-0242ac120011");
+        try (
+            Producer<String, ProtocolRecord> testProducer = producerFactory.createProducer("test");
+            Consumer<String, ProtocolRecord> testConsumer = consumerFactory.createConsumer("Test", "test")
+        ) {
+
+            // find and store the current offsets
+            Map<TopicPartition, Long> endOffsets = testConsumer.endOffsets(
+                    Stream.concat(
+                            generateTopicPartitions("Wallet-AggregateState",3),
+                            generateTopicPartitions("Wallet-DomainEvents",3))
+                            .toList());
+
+            testProducer.beginTransaction();
+            for(String userId : userIds) {
+                CreateWalletCommand command = new CreateWalletCommand(userId,"USD");
+                CommandRecord commandRecord = new CommandRecord(null,"CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null);
+                String topicName = akcesController.resolveTopic(command.getClass());
+                int partition = akcesController.resolvePartition(command.getAggregateId());
+                // produce a command to create a Wallet
+                testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));
+            }
+            testProducer.commitTransaction();
+
+            testConsumer.subscribe(List.of("Wallet-AggregateState","Wallet-DomainEvents"), new ConsumerRebalanceListener() {
+                @Override
+                public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+
+                }
+
+                @Override
+                public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+                    partitions.forEach(partition -> testConsumer.seek(partition, endOffsets.get(partition)));
+                }
+            });
+
+            ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(250));
+            List<ProtocolRecord> allRecords = new ArrayList<>();
+            while(allRecords.size() < 20) {
+                records.forEach(record -> allRecords.add(record.value()));
+                // wait for the events to be produced
+                records = testConsumer.poll(Duration.ofMillis(250));
+            }
+
+            assertEquals(20, allRecords.size());
+        }
+
+    }
+
+    public static Stream<TopicPartition> generateTopicPartitions(String topic, int partitions) {
+        return IntStream.range(0, partitions)
+                .mapToObj(i -> new TopicPartition(topic, i));
     }
 
 }
