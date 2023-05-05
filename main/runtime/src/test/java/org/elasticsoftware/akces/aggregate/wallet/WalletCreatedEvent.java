@@ -9,9 +9,7 @@ import java.math.BigDecimal;
 
 @DomainEventInfo(type = "WalletCreated")
 public record WalletCreatedEvent(
-        @AggregateIdentifier @NotNull String id,
-        String currency,
-        BigDecimal balance
+        @AggregateIdentifier @NotNull String id
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {

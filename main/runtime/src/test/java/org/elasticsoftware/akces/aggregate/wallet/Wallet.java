@@ -10,6 +10,7 @@ import org.elasticsoftware.akces.annotations.EventSourcingHandler;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Stream;
@@ -29,20 +30,21 @@ public final class Wallet implements Aggregate<WalletState> {
     }
 
     @CommandHandler(create = true, produces = WalletCreatedEvent.class, errors = {})
-    public @NotNull Stream<WalletCreatedEvent> create(@NotNull CreateWalletCommand cmd, WalletState isNull) {
-        return Stream.of(new WalletCreatedEvent(cmd.id(), cmd.currency(), BigDecimal.ZERO));
+    public @NotNull Stream<DomainEvent> create(@NotNull CreateWalletCommand cmd, WalletState isNull) {
+        return Stream.of(new WalletCreatedEvent(cmd.id()), new BalanceCreatedEvent(cmd.id(), cmd.currency()));
     }
 
     @EventHandler(create = true, produces = WalletCreatedEvent.class)
-    public @NotNull Stream<WalletCreatedEvent> create(@NotNull AccountCreatedEvent event, WalletState isNull) {
+    public @NotNull Stream<DomainEvent> create(@NotNull AccountCreatedEvent event, WalletState isNull) {
         // TODO: base the currency on the country
-        return Stream.of(new WalletCreatedEvent(event.getAggregateId(), "EUR", BigDecimal.ZERO));
+        return Stream.of(new WalletCreatedEvent(event.getAggregateId()), new BalanceCreatedEvent(event.getAggregateId(), "EUR"));
     }
 
     @CommandHandler(produces = WalletCreditedEvent.class, errors = {InvalidCurrencyErrorEvent.class, InvalidAmountErrorEvent.class})
     @NotNull
     public Stream<DomainEvent> credit(@NotNull CreditWalletCommand cmd, @NotNull WalletState currentState) {
-        if (!cmd.currency().equals(currentState.currency())) {
+        WalletState.Balance balance = currentState.balances().stream().filter(b -> b.currency().equals(cmd.currency())).findFirst().orElse(null);
+        if (balance == null ) {
             // TODO: add more detail to the error event
             return Stream.of(new InvalidCurrencyErrorEvent(cmd.id()));
         }
@@ -50,17 +52,30 @@ public final class Wallet implements Aggregate<WalletState> {
             // TODO: add more detail to the error event
             return Stream.of(new InvalidAmountErrorEvent(cmd.id()));
         }
-        return Stream.of(new WalletCreditedEvent(currentState.id(), cmd.amount(), currentState.balance().add(cmd.amount())));
+        return Stream.of(new WalletCreditedEvent(currentState.id(), cmd.currency(), cmd.amount(), balance.amount().add(cmd.amount())));
     }
 
     @EventSourcingHandler(create = true)
     public @NotNull WalletState create(@NotNull WalletCreatedEvent event, WalletState isNull) {
-        return new WalletState(event.id(), event.currency(), event.balance());
+        return new WalletState(event.id(), new ArrayList<>());
+    }
+
+    @EventSourcingHandler
+    public @NotNull WalletState createBalance(@NotNull BalanceCreatedEvent event, WalletState state) {
+        List<WalletState.Balance> balances = new ArrayList<>(state.balances());
+        balances.add(new WalletState.Balance(event.currency(), BigDecimal.ZERO));
+        return new WalletState(state.id(), balances);
     }
 
     @EventSourcingHandler
     public @NotNull WalletState credit(@NotNull WalletCreditedEvent event, @NotNull WalletState state) {
-        return new WalletState(state.id(), state.currency(), state.balance().add(event.amount()));
+        return new WalletState(state.id(), state.balances().stream().map(b -> {
+            if (b.currency().equals(event.currency())) {
+                return new WalletState.Balance(b.currency(), b.amount().add(event.amount()));
+            } else {
+                return b;
+            }
+        }).toList());
     }
 
 }

@@ -387,13 +387,13 @@ public class RuntimeTests  {
 
             ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(250));
             List<ProtocolRecord> allRecords = new ArrayList<>();
-            while(allRecords.size() < 20) {
+            while(allRecords.size() < 40) {
                 records.forEach(record -> allRecords.add(record.value()));
                 // wait for the events to be produced
                 records = testConsumer.poll(Duration.ofMillis(250));
             }
 
-            assertEquals(20, allRecords.size());
+            assertEquals(40, allRecords.size());
         }
 
     }
@@ -450,13 +450,13 @@ public class RuntimeTests  {
 
             ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(250));
             List<ProtocolRecord> allRecords = new ArrayList<>();
-            while(allRecords.size() < 2) {
+            while(allRecords.size() < 4) {
                 records.forEach(record -> allRecords.add(record.value()));
                 // wait for the events to be produced
                 records = testConsumer.poll(Duration.ofMillis(250));
             }
 
-            assertEquals(2, allRecords.size());
+            assertEquals(4, allRecords.size());
         }
     }
 

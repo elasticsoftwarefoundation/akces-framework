@@ -3,6 +3,7 @@ package org.elasticsoftware.akces.aggregate.wallet;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.kafka.schemaregistry.ParsedSchema;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
+import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
 import jakarta.inject.Inject;
 import org.elasticsoftware.akces.aggregate.AggregateRuntime;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
@@ -37,7 +38,7 @@ public class WalletTests {
     public void testFindBeans() {
         assertEquals(3, applicationContext.getBeansOfType(CommandHandlerFunction.class).size());
         assertEquals(1, applicationContext.getBeansOfType(EventHandlerFunction.class).size());
-        assertEquals(3, applicationContext.getBeansOfType(EventSourcingHandlerFunction.class).size());
+        assertEquals(4, applicationContext.getBeansOfType(EventSourcingHandlerFunction.class).size());
         Assertions.assertNotNull(applicationContext.getBean("Wallet_ch_create_CreateWallet_1"));
         Assertions.assertNotNull(applicationContext.getBean("Wallet_ch_credit_CreditWallet_1"));
         Assertions.assertNotNull(applicationContext.getBean("Wallet_eh_create_AccountCreated_1"));
@@ -197,13 +198,13 @@ public class WalletTests {
                 producedRecords::add,
                 () -> null
         );
-        assertEquals(2, producedRecords.size());
+        assertEquals(4, producedRecords.size());
         AggregateStateRecord actualRecord = (AggregateStateRecord) producedRecords.get(0);
         AggregateStateRecord expectedRecord = new AggregateStateRecord(
                 tenantId,
                 "Wallet",
                 1,
-                objectMapper.writeValueAsBytes(new WalletState(aggregateId, "EUR", BigDecimal.ZERO)),
+                objectMapper.writeValueAsBytes(new WalletState(aggregateId, new ArrayList<>())),
                 PayloadEncoding.JSON,
                 aggregateId,
                 correlationId,
@@ -221,15 +222,53 @@ public class WalletTests {
         assertEquals(1, actual.generation());
         assertEquals(aggregateId, actual.aggregateId());
         assertEquals(correlationId, actual.correlationId());
-        assertArrayEquals(objectMapper.writeValueAsBytes(new WalletCreatedEvent(aggregateId, "EUR", BigDecimal.ZERO)), actual.payload());
+        assertArrayEquals(objectMapper.writeValueAsBytes(new WalletCreatedEvent(aggregateId)), actual.payload());
         assertEquals(PayloadEncoding.JSON, actual.encoding());
         assertEquals("WalletCreated", actual.name());
         assertEquals(1, actual.version());
+
+        // now we should have added the balance
+        actualRecord = (AggregateStateRecord) producedRecords.get(2);
+        expectedRecord = new AggregateStateRecord(
+                tenantId,
+                "Wallet",
+                1,
+                objectMapper.writeValueAsBytes(new WalletState(aggregateId, List.of(new WalletState.Balance("EUR", BigDecimal.ZERO)))),
+                PayloadEncoding.JSON,
+                aggregateId,
+                correlationId,
+                2);
+        assertEquals(expectedRecord.generation(), actualRecord.generation());
+        assertEquals(expectedRecord.aggregateId(), actualRecord.aggregateId());
+        assertEquals(expectedRecord.correlationId(), actualRecord.correlationId());
+        assertArrayEquals(expectedRecord.payload(), actualRecord.payload());
+        assertEquals(expectedRecord.encoding(), actualRecord.encoding());
+        assertEquals(expectedRecord.name(), actualRecord.name());
+        assertEquals(expectedRecord.version(), actualRecord.version());
+
+        actual = (DomainEventRecord) producedRecords.get(3);
+
+        assertEquals(2, actual.generation());
+        assertEquals(aggregateId, actual.aggregateId());
+        assertEquals(correlationId, actual.correlationId());
+        assertArrayEquals(objectMapper.writeValueAsBytes(new BalanceCreatedEvent(aggregateId, "EUR")), actual.payload());
+        assertEquals(PayloadEncoding.JSON, actual.encoding());
+        assertEquals("BalanceCreated", actual.name());
+        assertEquals(1, actual.version());
+
     }
 
     @Test
-    public void testCreateWalletByExternalDomainEvent() throws IOException {
+    public void testCreateWalletByExternalDomainEvent() throws Exception {
         AggregateRuntime walletAggregate = applicationContext.getBean("WalletAggregateRuntimeFactory",AggregateRuntime.class);
+        // need to register the external domainevent
+        schemaRegistryClient.register("AccountCreated",
+                walletAggregate.generateJsonSchema(new DomainEventType<>("AccountCreated", 1, ExternalAccountCreatedEvent.class, true, true, false)),
+                1,
+                -1);
+        for (DomainEventType<?> domainEventType : walletAggregate.getAllDomainEventTypes()) {
+            walletAggregate.registerAndValidate(domainEventType);
+        }
         String tenantId = "tenant1";
         String aggregateId = "d43a3afc-3e5a-11ed-b878-0242ac120002";
         String correlationId = "01e04622-3e5b-11ed-b878-0242ac120002";
@@ -248,13 +287,13 @@ public class WalletTests {
                 producedRecords::add,
                 () -> null
         );
-        assertEquals(2, producedRecords.size());
+        assertEquals(4, producedRecords.size());
         AggregateStateRecord actualRecord = (AggregateStateRecord) producedRecords.get(0);
         AggregateStateRecord expectedRecord = new AggregateStateRecord(
                 tenantId,
                 "Wallet",
                 1,
-                objectMapper.writeValueAsBytes(new WalletState(aggregateId, "EUR", BigDecimal.ZERO)),
+                objectMapper.writeValueAsBytes(new WalletState(aggregateId, new ArrayList<>())),
                 PayloadEncoding.JSON,
                 aggregateId,
                 correlationId,
@@ -272,9 +311,39 @@ public class WalletTests {
         assertEquals(1, actual.generation());
         assertEquals(aggregateId, actual.aggregateId());
         assertEquals(correlationId, actual.correlationId());
-        assertArrayEquals(objectMapper.writeValueAsBytes(new WalletCreatedEvent(aggregateId, "EUR", BigDecimal.ZERO)), actual.payload());
+        assertArrayEquals(objectMapper.writeValueAsBytes(new WalletCreatedEvent(aggregateId)), actual.payload());
         assertEquals(PayloadEncoding.JSON, actual.encoding());
         assertEquals("WalletCreated", actual.name());
         assertEquals(1, actual.version());
+
+        // now we should have added the balance
+        actualRecord = (AggregateStateRecord) producedRecords.get(2);
+        expectedRecord = new AggregateStateRecord(
+                tenantId,
+                "Wallet",
+                1,
+                objectMapper.writeValueAsBytes(new WalletState(aggregateId, List.of(new WalletState.Balance("EUR", BigDecimal.ZERO)))),
+                PayloadEncoding.JSON,
+                aggregateId,
+                correlationId,
+                2);
+        assertEquals(expectedRecord.generation(), actualRecord.generation());
+        assertEquals(expectedRecord.aggregateId(), actualRecord.aggregateId());
+        assertEquals(expectedRecord.correlationId(), actualRecord.correlationId());
+        assertArrayEquals(expectedRecord.payload(), actualRecord.payload());
+        assertEquals(expectedRecord.encoding(), actualRecord.encoding());
+        assertEquals(expectedRecord.name(), actualRecord.name());
+        assertEquals(expectedRecord.version(), actualRecord.version());
+
+        actual = (DomainEventRecord) producedRecords.get(3);
+
+        assertEquals(2, actual.generation());
+        assertEquals(aggregateId, actual.aggregateId());
+        assertEquals(correlationId, actual.correlationId());
+        assertArrayEquals(objectMapper.writeValueAsBytes(new BalanceCreatedEvent(aggregateId, "EUR")), actual.payload());
+        assertEquals(PayloadEncoding.JSON, actual.encoding());
+        assertEquals("BalanceCreated", actual.name());
+        assertEquals(1, actual.version());
+
     }
 }

@@ -5,15 +5,8 @@ import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 
-import java.math.BigDecimal;
-
-@DomainEventInfo(type = "WalletCredited")
-public record WalletCreditedEvent(
-        @AggregateIdentifier @NotNull String id,
-        String currency,
-        BigDecimal amount,
-        BigDecimal balance
-) implements DomainEvent {
+@DomainEventInfo(type = "BalanceCreated")
+public record BalanceCreatedEvent(@AggregateIdentifier @NotNull String id, String currency) implements DomainEvent {
     @Override
     public String getAggregateId() {
         return id();

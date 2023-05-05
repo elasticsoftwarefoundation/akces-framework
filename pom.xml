@@ -23,7 +23,7 @@
 
     <packaging>pom</packaging>
 
-    <name>Elastic Software Foundation :: Apache Kafka Cqrs and Event Sourcing</name>
+    <name>Elastic Software Foundation :: Akces </name>
     <description>Event Sourcing and CQRS on top of Kafka</description>
     <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
 

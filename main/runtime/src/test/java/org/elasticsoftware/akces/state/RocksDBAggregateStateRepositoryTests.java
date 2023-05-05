@@ -13,6 +13,7 @@ import org.rocksdb.RocksDBException;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -48,7 +49,7 @@ public class RocksDBAggregateStateRepositoryTests {
                              serde.serializer(),
                              serde.deserializer())) {
             String id = "3f61ae34-0945-4d5a-89c6-ee2088a83315";
-            WalletState state = new WalletState(id, "USD", BigDecimal.ZERO);
+            WalletState state = new WalletState(id, List.of(new WalletState.Balance("USD", BigDecimal.ZERO)));
             AggregateStateRecord record = new AggregateStateRecord(
                     "AKCES",
                     "Wallet",
