@@ -10,6 +10,9 @@ import org.elasticsoftware.akces.annotations.EventSourcingHandler;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 import java.math.BigDecimal;
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Stream;
 
 
 @AggregateInfo("Wallet")
@@ -26,28 +29,28 @@ public final class Wallet implements Aggregate<WalletState> {
     }
 
     @CommandHandler(create = true, produces = WalletCreatedEvent.class, errors = {})
-    public @NotNull WalletCreatedEvent create(@NotNull CreateWalletCommand cmd, WalletState isNull) {
-        return new WalletCreatedEvent(cmd.id(), cmd.currency(), BigDecimal.ZERO);
+    public @NotNull Stream<WalletCreatedEvent> create(@NotNull CreateWalletCommand cmd, WalletState isNull) {
+        return Stream.of(new WalletCreatedEvent(cmd.id(), cmd.currency(), BigDecimal.ZERO));
     }
 
     @EventHandler(create = true, produces = WalletCreatedEvent.class)
-    public @NotNull WalletCreatedEvent create(@NotNull AccountCreatedEvent event, WalletState isNull) {
+    public @NotNull Stream<WalletCreatedEvent> create(@NotNull AccountCreatedEvent event, WalletState isNull) {
         // TODO: base the currency on the country
-        return new WalletCreatedEvent(event.getAggregateId(), "EUR", BigDecimal.ZERO);
+        return Stream.of(new WalletCreatedEvent(event.getAggregateId(), "EUR", BigDecimal.ZERO));
     }
 
     @CommandHandler(produces = WalletCreditedEvent.class, errors = {InvalidCurrencyErrorEvent.class, InvalidAmountErrorEvent.class})
     @NotNull
-    public DomainEvent credit(@NotNull CreditWalletCommand cmd, @NotNull WalletState currentState) {
+    public Stream<DomainEvent> credit(@NotNull CreditWalletCommand cmd, @NotNull WalletState currentState) {
         if (!cmd.currency().equals(currentState.currency())) {
             // TODO: add more detail to the error event
-            return new InvalidCurrencyErrorEvent(cmd.id());
+            return Stream.of(new InvalidCurrencyErrorEvent(cmd.id()));
         }
         if (cmd.amount().compareTo(BigDecimal.ZERO) < 0) {
             // TODO: add more detail to the error event
-            return new InvalidAmountErrorEvent(cmd.id());
+            return Stream.of(new InvalidAmountErrorEvent(cmd.id()));
         }
-        return new WalletCreditedEvent(currentState.id(), cmd.amount(), currentState.balance().add(cmd.amount()));
+        return Stream.of(new WalletCreditedEvent(currentState.id(), cmd.amount(), currentState.balance().add(cmd.amount())));
     }
 
     @EventSourcingHandler(create = true)

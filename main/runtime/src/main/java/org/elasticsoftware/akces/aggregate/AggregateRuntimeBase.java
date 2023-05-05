@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 
@@ -82,7 +83,10 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         // materialize command
         Command command = materialize(commandType, commandRecord);
         // apply the command
-        DomainEvent domainEvent = commandCreateHandler.apply(command, null);
+        Stream<DomainEvent> domainEvents = commandCreateHandler.apply(command, null);
+        // always treat the first event as a create event
+        Iterator<DomainEvent> itr = domainEvents.iterator();
+        DomainEvent domainEvent = itr.next();
         // create the state
         AggregateState state = createStateHandler.apply(domainEvent, null);
         // store the state, generation is 1 because it is the first record
@@ -108,6 +112,12 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                 commandRecord.correlationId(),
                 stateRecord.generation());
         protocolRecordConsumer.accept(eventRecord);
+        // if there are more events, handle them as normal events
+        AggregateStateRecord currentStateRecord = stateRecord;
+        while(itr.hasNext()) {
+            DomainEvent nextDomainEvent = itr.next();
+            currentStateRecord = processDomainEvent(commandRecord.correlationId(), protocolRecordConsumer, currentStateRecord, nextDomainEvent);
+        }
     }
 
     private void handleCommand(CommandType<?> commandType,
@@ -117,7 +127,75 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         Command command = materialize(commandType, commandRecord);
         AggregateStateRecord currentStateRecord = stateRecordSupplier.get();
         AggregateState currentState = materialize(currentStateRecord);
-        DomainEvent domainEvent = commandHandlers.get(commandType).apply(command, currentState);
+        Stream<DomainEvent> domainEvents = commandHandlers.get(commandType).apply(command, currentState);
+        for(DomainEvent domainEvent : domainEvents.toList()) {
+            currentStateRecord = processDomainEvent(commandRecord.correlationId(), protocolRecordConsumer, currentStateRecord, domainEvent);
+        }
+    }
+
+    private void handleCreateEvent(DomainEventType<?> eventType,
+                                   DomainEventRecord domainEventRecord,
+                                   Consumer<ProtocolRecord> protocolRecordConsumer) throws IOException {
+        // materialize the external event
+        DomainEvent externalEvent = materialize(eventType, domainEventRecord);
+        // apply the event(s)
+        Stream<DomainEvent> domainEvents = eventCreateHandler.apply(externalEvent, null);
+        // always treat the first event as the create event
+        Iterator<DomainEvent> itr = domainEvents.iterator();
+        DomainEvent domainEvent = itr.next();
+        // create the state
+        AggregateState state = createStateHandler.apply(domainEvent, null);
+        // store the state, generation is 1 because it is the first record
+        AggregateStateRecord stateRecord = new AggregateStateRecord(
+                domainEventRecord.tenantId(),
+                type.typeName(),
+                type.version(),
+                serialize(state),
+                getEncoding(type),
+                state.getAggregateId(),
+                domainEventRecord.correlationId(),
+                1L);
+        protocolRecordConsumer.accept(stateRecord);
+        // store the domain event
+        DomainEventType<?> type = getDomainEventType(domainEvent.getClass());
+        DomainEventRecord eventRecord = new DomainEventRecord(
+                domainEventRecord.tenantId(),
+                type.typeName(),
+                type.version(),
+                serialize(domainEvent),
+                getEncoding(type),
+                domainEvent.getAggregateId(),
+                domainEventRecord.correlationId(),
+                stateRecord.generation());
+        protocolRecordConsumer.accept(eventRecord);
+        // if there are more events, handle them as normal events
+        AggregateStateRecord currentStateRecord = stateRecord;
+        while(itr.hasNext()) {
+            DomainEvent nextDomainEvent = itr.next();
+            currentStateRecord = processDomainEvent(domainEventRecord.correlationId(), protocolRecordConsumer, currentStateRecord, nextDomainEvent);
+        }
+    }
+
+    private void handleEvent(DomainEventType<?> eventType,
+                             DomainEventRecord domainEventRecord,
+                             Consumer<ProtocolRecord> protocolRecordConsumer,
+                             Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
+        // materialize the event
+        DomainEvent externalEvent = materialize(eventType, domainEventRecord);
+        AggregateStateRecord currentStateRecord = stateRecordSupplier.get();
+        AggregateState currentState = materialize(currentStateRecord);
+        Stream<DomainEvent> domainEvents = eventHandlers.get(eventType).apply(externalEvent, currentState);
+        for(DomainEvent domainEvent : domainEvents.toList()) {
+            currentStateRecord = processDomainEvent(domainEventRecord.correlationId(), protocolRecordConsumer, currentStateRecord, domainEvent);
+        }
+
+    }
+
+    private AggregateStateRecord processDomainEvent(String correlationId,
+                                                    Consumer<ProtocolRecord> protocolRecordConsumer,
+                                                    AggregateStateRecord currentStateRecord,
+                                                    DomainEvent domainEvent) throws IOException {
+        AggregateState currentState = materialize(currentStateRecord);
         DomainEventType<?> domainEventType = getDomainEventType(domainEvent.getClass());
         // error events don't change the state
         if(!(domainEvent instanceof ErrorEvent)) {
@@ -130,7 +208,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                     serialize(nextState),
                     getEncoding(type),
                     currentStateRecord.aggregateId(),
-                    commandRecord.correlationId(),
+                    correlationId,
                     currentStateRecord.generation() + 1L);
             protocolRecordConsumer.accept(nextStateRecord);
             DomainEventRecord eventRecord = new DomainEventRecord(
@@ -140,9 +218,10 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                     serialize(domainEvent),
                     getEncoding(domainEventType),
                     domainEvent.getAggregateId(),
-                    commandRecord.correlationId(),
+                    correlationId,
                     nextStateRecord.generation());
             protocolRecordConsumer.accept(eventRecord);
+            return nextStateRecord;
         } else {
             // this is an ErrorEvent, this doesn't alter the state but needs to be produced
             DomainEventRecord eventRecord = new DomainEventRecord(
@@ -152,78 +231,12 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                     serialize(domainEvent),
                     getEncoding(domainEventType),
                     domainEvent.getAggregateId(),
-                    commandRecord.correlationId(),
+                    correlationId,
                     -1L);  // ErrorEvents have no generation number because they don't alter the state
             protocolRecordConsumer.accept(eventRecord);
+            // return the current state record since nothing was changed
+            return currentStateRecord;
         }
-    }
-
-    private void handleCreateEvent(DomainEventType<?> eventType,
-                                   DomainEventRecord domainEventRecord,
-                                   Consumer<ProtocolRecord> protocolRecordConsumer) throws IOException {
-        // materialize the event
-        DomainEvent externalEvent = materialize(eventType, domainEventRecord);
-        // apply the event
-        DomainEvent domainEvent = eventCreateHandler.apply(externalEvent, null);
-        // create the state
-        AggregateState state = createStateHandler.apply(domainEvent, null);
-        // store the state, generation is 1 because it is the first record
-        AggregateStateRecord stateRecord = new AggregateStateRecord(
-                domainEventRecord.tenantId(),
-                type.typeName(),
-                type.version(),
-                serialize(state),
-                getEncoding(type),
-                state.getAggregateId(),
-                domainEventRecord.correlationId(),
-                1L);
-        protocolRecordConsumer.accept(stateRecord);
-        // store the domain event
-        DomainEventType<?> type = getDomainEventType(domainEvent.getClass());
-        DomainEventRecord eventRecord = new DomainEventRecord(
-                domainEventRecord.tenantId(),
-                type.typeName(),
-                type.version(),
-                serialize(domainEvent),
-                getEncoding(type),
-                domainEvent.getAggregateId(),
-                domainEventRecord.correlationId(),
-                stateRecord.generation());
-        protocolRecordConsumer.accept(eventRecord);
-    }
-
-    private void handleEvent(DomainEventType<?> eventType,
-                             DomainEventRecord domainEventRecord,
-                             Consumer<ProtocolRecord> protocolRecordConsumer,
-                             Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
-        // materialize the event
-        DomainEvent externalEvent = materialize(eventType, domainEventRecord);
-        AggregateStateRecord currentStateRecord = stateRecordSupplier.get();
-        AggregateState currentState = materialize(currentStateRecord);
-        DomainEvent domainEvent = eventHandlers.get(eventType).apply(externalEvent, currentState);
-        DomainEventType<?> domainEventType = getDomainEventType(domainEvent.getClass());
-        AggregateState nextState = eventSourcingHandlers.get(domainEventType).apply(domainEvent, currentState);
-        // store the state, increasing the generation by 1
-        AggregateStateRecord nextStateRecord = new AggregateStateRecord(
-                currentStateRecord.tenantId(),
-                type.typeName(),
-                type.version(),
-                serialize(nextState),
-                getEncoding(type),
-                currentStateRecord.aggregateId(),
-                domainEventRecord.correlationId(),
-                currentStateRecord.generation()+1L);
-        protocolRecordConsumer.accept(nextStateRecord);
-        DomainEventRecord eventRecord = new DomainEventRecord(
-                currentStateRecord.tenantId(),
-                domainEventType.typeName(),
-                domainEventType.version(),
-                serialize(domainEvent),
-                getEncoding(domainEventType),
-                domainEvent.getAggregateId(),
-                domainEventRecord.correlationId(),
-                nextStateRecord.generation());
-        protocolRecordConsumer.accept(eventRecord);
     }
 
     @Override

@@ -6,6 +6,8 @@ import org.elasticsoftware.akces.annotations.AggregateInfo;
 import org.elasticsoftware.akces.annotations.CommandHandler;
 import org.elasticsoftware.akces.annotations.EventSourcingHandler;
 
+import java.util.stream.Stream;
+
 @AggregateInfo("Account")
 @SuppressWarnings("unused")
 public final class Account implements Aggregate<AccountState> {
@@ -20,8 +22,8 @@ public final class Account implements Aggregate<AccountState> {
     }
 
     @CommandHandler(create = true, produces = AccountCreatedEvent.class, errors = {})
-    public AccountCreatedEvent create(CreateAccountCommand cmd, AccountState isNull) {
-        return new AccountCreatedEvent(cmd.userId(), cmd.country());
+    public Stream<AccountCreatedEvent> create(CreateAccountCommand cmd, AccountState isNull) {
+        return Stream.of(new AccountCreatedEvent(cmd.userId(), cmd.country()));
     }
 
     @EventSourcingHandler(create = true)

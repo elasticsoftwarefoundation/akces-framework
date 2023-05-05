@@ -10,6 +10,8 @@ import org.elasticsoftware.akces.events.EventHandlerFunction;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Collection;
+import java.util.stream.Stream;
 
 public class EventHandlerFunctionAdapter<S extends AggregateState,InputEvent extends DomainEvent, E extends DomainEvent> implements EventHandlerFunction<S,InputEvent,E> {
     private final Aggregate<S> aggregate;
@@ -44,9 +46,9 @@ public class EventHandlerFunctionAdapter<S extends AggregateState,InputEvent ext
     }
 
     @Override
-    public E apply(InputEvent event, S state) {
+    public Stream<E> apply(InputEvent event, S state) {
         try {
-            return (E) adapterMethod.invoke(aggregate, event, state);
+            return (Stream<E>) adapterMethod.invoke(aggregate, event, state);
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         } catch (InvocationTargetException e) {

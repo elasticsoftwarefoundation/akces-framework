@@ -13,6 +13,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
 
 public class CommandHandlerFunctionAdapter<S extends AggregateState,C extends Command, E extends DomainEvent>
         implements CommandHandlerFunction<S, C, E> {
@@ -53,9 +54,9 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState,C extends Co
     }
 
     @Override
-    public E apply(C command, S state) {
+    public Stream<E> apply(C command, S state) {
         try {
-            return (E) adapterMethod.invoke(aggregate, command, state);
+            return (Stream<E>) adapterMethod.invoke(aggregate, command, state);
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         } catch (InvocationTargetException e) {

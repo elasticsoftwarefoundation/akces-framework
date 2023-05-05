@@ -120,7 +120,7 @@ public class RuntimeTests  {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
-            //prepareExternalSchemas("http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081));
+            prepareExternalSchemas("http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081));
             //prepareExternalServices(kafka.getBootstrapServers());
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
                     applicationContext,

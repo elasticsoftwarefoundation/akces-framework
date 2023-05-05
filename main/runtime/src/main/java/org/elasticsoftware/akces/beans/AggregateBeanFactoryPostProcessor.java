@@ -21,8 +21,10 @@ import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Component
 public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcessor {
@@ -109,7 +111,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
         if(eventHandlerMethod.getParameterCount() == 2 &&
                 DomainEvent.class.isAssignableFrom(eventHandlerMethod.getParameterTypes()[0]) &&
                 AggregateState.class.isAssignableFrom(eventHandlerMethod.getParameterTypes()[1]) &&
-                DomainEvent.class.isAssignableFrom(eventHandlerMethod.getReturnType())) {
+                Stream.class.isAssignableFrom(eventHandlerMethod.getReturnType())) {
             DomainEventInfo eventInfo = eventHandlerMethod.getParameterTypes()[0].getAnnotation(DomainEventInfo.class);
             // need to generate a bean name for this based on the method name and params
             String beanName = aggregateBeanName + "_eh_" + eventHandlerMethod.getName() + "_" + eventInfo.type() + "_" + eventInfo.version();
@@ -134,7 +136,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
         if(commandHandlerMethod.getParameterCount() == 2 &&
                 Command.class.isAssignableFrom(commandHandlerMethod.getParameterTypes()[0]) &&
                 AggregateState.class.isAssignableFrom(commandHandlerMethod.getParameterTypes()[1]) &&
-                DomainEvent.class.isAssignableFrom(commandHandlerMethod.getReturnType())) {
+                Stream.class.isAssignableFrom(commandHandlerMethod.getReturnType())) {
             CommandInfo commandInfo = commandHandlerMethod.getParameterTypes()[0].getAnnotation(CommandInfo.class);
             // need to generate a bean name for this based on the method name and params
             String beanName = aggregateBeanName + "_ch_" + commandHandlerMethod.getName() + "_" + commandInfo.type() + "_" + commandInfo.version();
