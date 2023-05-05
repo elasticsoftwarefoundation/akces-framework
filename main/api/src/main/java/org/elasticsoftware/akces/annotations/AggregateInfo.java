@@ -1,16 +1,15 @@
 package org.elasticsoftware.akces.annotations;
 
-import jakarta.inject.Named;
+import org.springframework.core.annotation.AliasFor;
+import org.springframework.stereotype.Component;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.lang.annotation.*;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE})
-@Named
+@Component
 public @interface AggregateInfo {
+    @AliasFor(annotation = Component.class)
     String value();
 
     int version() default 1;

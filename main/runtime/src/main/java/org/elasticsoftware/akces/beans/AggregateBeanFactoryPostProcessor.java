@@ -62,7 +62,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                         beanFactory.containsBeanDefinition("producerFactory") &&
                         beanFactory.containsBeanDefinition("controlConsumerFactory") &&
                         beanFactory.containsBeanDefinition("controlProducerFactory")) {
-                    bdr.registerBeanDefinition(beanName + "AkcesControl",
+                    bdr.registerBeanDefinition(beanName + "AkcesController",
                             BeanDefinitionBuilder.genericBeanDefinition(AkcesController.class)
                                     .addConstructorArgReference("consumerFactory")
                                     .addConstructorArgReference("producerFactory")

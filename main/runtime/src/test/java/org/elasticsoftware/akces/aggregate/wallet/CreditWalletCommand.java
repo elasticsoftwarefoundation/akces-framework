@@ -1,16 +1,19 @@
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.aggregate.wallet;
 
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
-@CommandInfo(type = "CreateWallet", version = 1)
-public record CreateWalletCommand(
+import javax.annotation.Nonnull;
+import java.math.BigDecimal;
+
+@CommandInfo(type = "CreditWallet", version = 1)
+public record CreditWalletCommand(
         @AggregateIdentifier String id,
-        String currency
+        String currency,
+        BigDecimal amount
 ) implements Command {
-    @NotNull
+    @Nonnull
     @Override
     public String getAggregateId() {
         return id();

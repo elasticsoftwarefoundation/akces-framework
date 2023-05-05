@@ -1,4 +1,4 @@
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.aggregate.wallet;
 
 import org.junit.jupiter.api.Test;
 

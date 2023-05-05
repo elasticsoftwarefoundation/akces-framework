@@ -26,7 +26,7 @@
     <artifactId>akces-framework-bom</artifactId>
     <packaging>pom</packaging>
 
-    <name>Elastic Software Foundation :: AK Cqrs and Event Sourcing :: Bill Of Materials</name>
+    <name>Elastic Software Foundation :: Akces :: Bill Of Materials</name>
     <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
 
     <dependencyManagement>
@@ -38,7 +38,7 @@
             </dependency>
             <dependency>
                 <groupId>org.elasticsoftwarefoundation.akces</groupId>
-                <artifactId>akces-common-runtime</artifactId>
+                <artifactId>akces-runtime</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

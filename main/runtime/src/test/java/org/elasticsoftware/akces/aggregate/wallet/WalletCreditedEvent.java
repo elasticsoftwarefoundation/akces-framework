@@ -1,18 +1,18 @@
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.aggregate.wallet;
 
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
-import org.elasticsoftware.akces.annotations.AggregateStateInfo;
+import org.elasticsoftware.akces.annotations.DomainEventInfo;
+import org.elasticsoftware.akces.events.DomainEvent;
 
-import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 
-@AggregateStateInfo(type = "Wallet", version = 1)
-public record WalletState(
+@DomainEventInfo(type = "WalletCredited")
+public record WalletCreditedEvent(
         @AggregateIdentifier @NotNull String id,
-        String currency,
+        BigDecimal amount,
         BigDecimal balance
-) implements AggregateState {
+) implements DomainEvent {
     @Override
     public String getAggregateId() {
         return id();

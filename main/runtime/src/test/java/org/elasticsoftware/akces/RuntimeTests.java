@@ -22,9 +22,10 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.elasticsoftware.akces.aggregate.AccountCreatedEvent;
-import org.elasticsoftware.akces.aggregate.CreateWalletCommand;
-import org.elasticsoftware.akces.aggregate.CreditWalletCommand;
+import org.elasticsoftware.akces.aggregate.account.AccountCreatedEvent;
+import org.elasticsoftware.akces.aggregate.account.CreateAccountCommand;
+import org.elasticsoftware.akces.aggregate.wallet.CreateWalletCommand;
+import org.elasticsoftware.akces.aggregate.wallet.CreditWalletCommand;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.control.CommandServiceCommandType;
 import org.elasticsoftware.akces.control.CommandServiceDomainEventType;
@@ -35,6 +36,7 @@ import org.elasticsoftware.akces.protocol.PayloadEncoding;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.junit.jupiter.api.*;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContextException;
 import org.springframework.context.ApplicationContextInitializer;
@@ -59,7 +61,6 @@ import java.nio.file.Path;
 import java.io.File;
 import java.time.Duration;
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -97,7 +98,7 @@ public class RuntimeTests  {
     @Inject
     SchemaRegistryClient schemaRegistryClient;
 
-    @Inject
+    @Inject @Qualifier("WalletAkcesController")
     AkcesController akcesController;
 
     @Inject
@@ -119,8 +120,8 @@ public class RuntimeTests  {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
-            prepareExternalSchemas("http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081));
-            prepareExternalServices(kafka.getBootstrapServers());
+            //prepareExternalSchemas("http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081));
+            //prepareExternalServices(kafka.getBootstrapServers());
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
                     applicationContext,
                     "spring.kafka.enabled=true",
@@ -136,8 +137,10 @@ public class RuntimeTests  {
                 createCompactedTopic("Akces-Control", 3),
                 createTopic("Wallet-Commands", 3),
                 createTopic("Wallet-DomainEvents", 3),
+                createTopic("Account-Commands", 3),
                 createTopic("Account-DomainEvents", 3),
-                createCompactedTopic("Wallet-AggregateState", 3));
+                createCompactedTopic("Wallet-AggregateState", 3),
+                createCompactedTopic("Account-AggregateState", 3));
     }
 
     private static NewTopic createTopic(String name, int numPartitions) {
@@ -393,6 +396,68 @@ public class RuntimeTests  {
             assertEquals(20, allRecords.size());
         }
 
+    }
+
+    @Test
+    @Order(5)
+    public void testCreateViaExternalDomainEvent() throws JsonProcessingException {
+        // wait until the ackes controller is running
+        while(!akcesController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        String userId = "47db2418-dd10-11ed-afa1-0242ac120012";
+
+        try (
+                Producer<String, ProtocolRecord> testProducer = producerFactory.createProducer("test");
+                Consumer<String, ProtocolRecord> testConsumer = consumerFactory.createConsumer("Test", "test")
+        ) {
+
+            // find and store the current offsets
+            Map<TopicPartition, Long> endOffsets = testConsumer.endOffsets(
+                    Stream.concat(
+                                    generateTopicPartitions("Wallet-AggregateState", 3),
+                                    generateTopicPartitions("Wallet-DomainEvents", 3))
+                            .toList());
+
+            testProducer.beginTransaction();
+            CreateAccountCommand command = new CreateAccountCommand(userId,"NL");
+            CommandRecord commandRecord = new CommandRecord(
+                    null,
+                    "CreateAccount",
+                    1,
+                    objectMapper.writeValueAsBytes(command),
+                    PayloadEncoding.JSON,
+                    command.getAggregateId(),
+                    null);
+            String topicName = akcesController.resolveTopic(command.getClass());
+            int partition = akcesController.resolvePartition(command.getAggregateId());
+            // produce a command to create an Account
+            testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));
+            testProducer.commitTransaction();
+
+            testConsumer.subscribe(List.of("Wallet-AggregateState","Wallet-DomainEvents"), new ConsumerRebalanceListener() {
+                @Override
+                public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+
+                }
+
+                @Override
+                public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+                    partitions.forEach(partition -> testConsumer.seek(partition, endOffsets.get(partition)));
+                }
+            });
+
+            ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(250));
+            List<ProtocolRecord> allRecords = new ArrayList<>();
+            while(allRecords.size() < 2) {
+                records.forEach(record -> allRecords.add(record.value()));
+                // wait for the events to be produced
+                records = testConsumer.poll(Duration.ofMillis(250));
+            }
+
+            assertEquals(2, allRecords.size());
+        }
     }
 
     public static Stream<TopicPartition> generateTopicPartitions(String topic, int partitions) {

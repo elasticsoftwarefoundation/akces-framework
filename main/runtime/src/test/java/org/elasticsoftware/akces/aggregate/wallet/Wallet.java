@@ -1,7 +1,8 @@
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.aggregate.wallet;
 
-import jakarta.inject.Named;
 import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.aggregate.Aggregate;
+import org.elasticsoftware.akces.aggregate.account.AccountCreatedEvent;
 import org.elasticsoftware.akces.annotations.AggregateInfo;
 import org.elasticsoftware.akces.annotations.CommandHandler;
 import org.elasticsoftware.akces.annotations.EventHandler;
@@ -12,9 +13,8 @@ import java.math.BigDecimal;
 
 
 @AggregateInfo("Wallet")
-@Named("Wallet")
+@SuppressWarnings("unused")
 public final class Wallet implements Aggregate<WalletState> {
-
     @Override
     public String getName() {
         return "Wallet";

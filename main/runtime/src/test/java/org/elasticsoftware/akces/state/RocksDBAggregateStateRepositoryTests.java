@@ -3,13 +3,12 @@ package org.elasticsoftware.akces.state;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
-import org.elasticsoftware.akces.aggregate.WalletState;
+import org.elasticsoftware.akces.aggregate.wallet.WalletState;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.PayloadEncoding;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
 import org.rocksdb.RocksDBException;
 
 import java.io.IOException;
