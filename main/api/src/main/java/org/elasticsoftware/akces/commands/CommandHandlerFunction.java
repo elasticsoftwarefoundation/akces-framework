@@ -23,6 +23,10 @@ public interface CommandHandlerFunction<S extends AggregateState,C extends Comma
         throw new UnsupportedOperationException("When implementing CommandHandlerFunction directly, you must override getAggregate()");
     }
 
+    default List<DomainEventType<?>> getProducedDomainEventTypes() {
+        throw new UnsupportedOperationException("When implementing CommandHandlerFunction directly, you must override getProducedDomainEventTypes()");
+    }
+
     default List<DomainEventType<?>> getErrorEventTypes() {
         throw new UnsupportedOperationException("When implementing CommandHandlerFunction directly, you must override getErrorEventTypes()");
     }

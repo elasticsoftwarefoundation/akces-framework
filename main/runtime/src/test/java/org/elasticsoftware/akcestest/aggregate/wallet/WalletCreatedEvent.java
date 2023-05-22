@@ -1,0 +1,18 @@
+package org.elasticsoftware.akcestest.aggregate.wallet;
+
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.AggregateIdentifier;
+import org.elasticsoftware.akces.annotations.DomainEventInfo;
+import org.elasticsoftware.akces.events.DomainEvent;
+
+import java.math.BigDecimal;
+
+@DomainEventInfo(type = "WalletCreated")
+public record WalletCreatedEvent(
+        @AggregateIdentifier @NotNull String id
+) implements DomainEvent {
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
+}

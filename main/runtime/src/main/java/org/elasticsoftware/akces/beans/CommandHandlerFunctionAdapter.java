@@ -11,7 +11,6 @@ import org.elasticsoftware.akces.events.DomainEvent;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -25,6 +24,7 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState,C extends Co
     private final boolean create;
     private final CommandInfo commandInfo;
     private final CommandType<C> commandType;
+    private final List<DomainEventType<?>> producedDomainEventTypes;
     private final List<DomainEventType<?>> errorEventTypes;
 
     public CommandHandlerFunctionAdapter(Aggregate<S> aggregate,
@@ -32,6 +32,7 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState,C extends Co
                                          Class<C> commandClass,
                                          Class<S> stateClass,
                                          boolean create,
+                                         List<DomainEventType<?>> producedDomainEventTypes,
                                          List<DomainEventType<?>> errorEventTypes,
                                          CommandInfo commandInfo) {
         this.aggregate = aggregate;
@@ -40,6 +41,7 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState,C extends Co
         this.stateClass = stateClass;
         this.create = create;
         this.commandInfo = commandInfo;
+        this.producedDomainEventTypes = producedDomainEventTypes;
         this.errorEventTypes = errorEventTypes;
         this.commandType = new CommandType<>(commandInfo.type(), commandInfo.version(), commandClass, create, false);
     }
@@ -85,6 +87,11 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState,C extends Co
     @Override
     public Aggregate<S> getAggregate() {
         return aggregate;
+    }
+
+    @Override
+    public List<DomainEventType<?>> getProducedDomainEventTypes() {
+        return producedDomainEventTypes;
     }
 
     @Override

@@ -248,12 +248,14 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                 .filter(entry -> entry.getValue().typeName().equals(eventRecord.name()))
                 .filter(entry -> entry.getValue().version() <= eventRecord.version())
                 .max(Comparator.comparingInt(entry -> entry.getValue().version()))
-                .orElseThrow(RuntimeException::new).getValue(); // TODO replace with specific exception
-        if(domainEventType.create()) {
-            handleCreateEvent(domainEventType, eventRecord, protocolRecordConsumer);
-        } else {
-            handleEvent(domainEventType, eventRecord, protocolRecordConsumer, stateRecordSupplier);
-        }
+                .map(Map.Entry::getValue).orElse(null);
+        if(domainEventType != null) {
+            if (domainEventType.create()) {
+                handleCreateEvent(domainEventType, eventRecord, protocolRecordConsumer);
+            } else {
+                handleEvent(domainEventType, eventRecord, protocolRecordConsumer, stateRecordSupplier);
+            }
+        } // ignore if we don't have an external domainevent registered
     }
 
     @Override

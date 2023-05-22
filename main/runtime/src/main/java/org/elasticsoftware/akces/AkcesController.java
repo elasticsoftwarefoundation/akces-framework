@@ -80,12 +80,13 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
     public void run() {
         // make sure all our events are registered and validated
         try {
-            for (DomainEventType<?> domainEventType : aggregateRuntime.getAllDomainEventTypes()) {
+            // first register and validate all local (= owned) domain events
+            for (DomainEventType<?> domainEventType : aggregateRuntime.getProducedDomainEventTypes()) {
                 aggregateRuntime.registerAndValidate(domainEventType);
             }
             // find out about the cluster
             partitions = kafkaAdmin.describeTopics("Akces-Control").get("Akces-Control").partitions().size();
-            // publish out own record
+            // publish our own record
             publishControlRecord(partitions);
             // and start consuming
             controlConsumer =
@@ -174,6 +175,17 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
                 // drop out of the control loop, this will shut down all resources
                 processState = SHUTTING_DOWN;
             }
+            // register external domain event types
+            // TODO: maybe this needs it's own state
+            for (DomainEventType<?> domainEventType : aggregateRuntime.getExternalDomainEventTypes()) {
+                try {
+                    aggregateRuntime.registerAndValidate(domainEventType);
+                } catch (Exception e) {
+                    logger.error("Error registering external domain event type: {}:{}", domainEventType.typeName(),domainEventType.version(), e);
+                    processState = SHUTTING_DOWN;
+                }
+            }
+            // now we can move to REBALANCING
             processState = REBALANCING;
         } else if(processState == REBALANCING) {
             // first revoke

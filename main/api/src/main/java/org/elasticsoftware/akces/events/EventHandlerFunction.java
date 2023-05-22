@@ -8,7 +8,7 @@ import org.elasticsoftware.akces.aggregate.CommandBusHolder;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.commands.CommandBus;
 
-import java.util.Collection;
+import java.util.List;
 import java.util.stream.Stream;
 
 @FunctionalInterface
@@ -25,6 +25,14 @@ public interface EventHandlerFunction<S extends AggregateState,InputEvent extend
 
     default boolean isCreate() {
         throw new UnsupportedOperationException("When implementing EventHandlerFunction directly, you must override isCreate()");
+    }
+
+    default List<DomainEventType<?>> getProducedDomainEventTypes() {
+        throw new UnsupportedOperationException("When implementing EventHandlerFunction directly, you must override getProducedDomainEventTypes()");
+    }
+
+    default List<DomainEventType<?>> getErrorEventTypes() {
+        throw new UnsupportedOperationException("When implementing EventHandlerFunction directly, you must override getErrorEventTypes()");
     }
 
     default CommandBus getCommandBus() {

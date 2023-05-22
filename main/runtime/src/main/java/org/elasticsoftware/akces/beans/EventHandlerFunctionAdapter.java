@@ -10,7 +10,7 @@ import org.elasticsoftware.akces.events.EventHandlerFunction;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Collection;
+import java.util.List;
 import java.util.stream.Stream;
 
 public class EventHandlerFunctionAdapter<S extends AggregateState,InputEvent extends DomainEvent, E extends DomainEvent> implements EventHandlerFunction<S,InputEvent,E> {
@@ -20,6 +20,8 @@ public class EventHandlerFunctionAdapter<S extends AggregateState,InputEvent ext
     private final Class<S> stateClass;
     private Method adapterMethod;
     private final boolean create;
+    private final List<DomainEventType<?>> producedDomainEventTypes;
+    private final List<DomainEventType<?>> errorEventTypes;
     private final DomainEventInfo domainEventInfo;
 
     public EventHandlerFunctionAdapter(Aggregate<S> aggregate,
@@ -27,12 +29,16 @@ public class EventHandlerFunctionAdapter<S extends AggregateState,InputEvent ext
                                        Class<InputEvent> inputEventClass,
                                        Class<S> stateClass,
                                        boolean create,
+                                       List<DomainEventType<?>> producedDomainEventTypes,
+                                       List<DomainEventType<?>> errorEventTypes,
                                        DomainEventInfo domainEventInfo) {
         this.aggregate = aggregate;
         this.adapterMethodName = adapterMethodName;
         this.inputEventClass = inputEventClass;
         this.stateClass = stateClass;
         this.create = create;
+        this.producedDomainEventTypes = producedDomainEventTypes;
+        this.errorEventTypes = errorEventTypes;
         this.domainEventInfo = domainEventInfo;
     }
 
@@ -83,5 +89,15 @@ public class EventHandlerFunctionAdapter<S extends AggregateState,InputEvent ext
     @Override
     public boolean isCreate() {
         return create;
+    }
+
+    @Override
+    public List<DomainEventType<?>> getProducedDomainEventTypes() {
+        return producedDomainEventTypes;
+    }
+
+    @Override
+    public List<DomainEventType<?>> getErrorEventTypes() {
+        return errorEventTypes;
     }
 }

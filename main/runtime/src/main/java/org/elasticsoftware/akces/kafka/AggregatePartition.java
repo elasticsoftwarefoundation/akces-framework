@@ -129,7 +129,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     }
 
     @Override
-    public void send(Command command) throws IOException {
+    public void send(Command command) {
         // this implementation is only meant to be called from the AggregatePartition thread
         if (Thread.currentThread() != aggregatePartitionThread) {
             throw new IllegalStateException("send() can only be called from the AggregatePartition thread");

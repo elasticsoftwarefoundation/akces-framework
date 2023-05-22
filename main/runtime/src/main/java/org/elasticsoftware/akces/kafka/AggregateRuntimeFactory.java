@@ -9,7 +9,6 @@ import org.elasticsoftware.akces.events.EventHandlerFunction;
 import org.elasticsoftware.akces.events.EventSourcingHandlerFunction;
 import org.springframework.beans.factory.FactoryBean;
 import org.springframework.beans.factory.ListableBeanFactory;
-import org.springframework.context.ApplicationContext;
 
 public class AggregateRuntimeFactory<S extends AggregateState> implements FactoryBean<AggregateRuntime> {
     private final ListableBeanFactory applicationContext;
@@ -66,6 +65,9 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
                         runtimeBuilder.addCommandHandler(type, adapter);
                         runtimeBuilder.addCommand(type);
                     }
+                    for(Object producedDomainEventType : adapter.getProducedDomainEventTypes()) {
+                        runtimeBuilder.addDomainEvent((DomainEventType<?>) producedDomainEventType);
+                    }
                     for (Object errorEventType : adapter.getErrorEventTypes()) {
                         runtimeBuilder.addDomainEvent((DomainEventType<?>) errorEventType);
                     }
@@ -82,6 +84,12 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
                     } else {
                         runtimeBuilder.addExternalEventHandler(type, adapter);
                         runtimeBuilder.addDomainEvent(type);
+                    }
+                    for(Object producedDomainEventType : adapter.getProducedDomainEventTypes()) {
+                        runtimeBuilder.addDomainEvent((DomainEventType<?>) producedDomainEventType);
+                    }
+                    for (Object errorEventType : adapter.getErrorEventTypes()) {
+                        runtimeBuilder.addDomainEvent((DomainEventType<?>) errorEventType);
                     }
                 });
         // EventSourcingHandlers

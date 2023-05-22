@@ -42,5 +42,5 @@ public interface AggregateRuntime {
 
     Command materialize(CommandType<?> commandType, CommandRecord commandRecord) throws IOException;
 
-    byte[] serialize(Command command) throws IOException;
+    byte[] serialize(Command command);
 }

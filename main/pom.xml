@@ -30,13 +30,13 @@
     <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
 
     <properties>
-        <spring.version>6.0.8</spring.version>
-        <spring-boot.version>3.0.6</spring-boot.version>
+        <spring.version>6.0.9</spring.version>
+        <spring-boot.version>3.0.7</spring-boot.version>
         <aspectj.version>1.9.7</aspectj.version>
         <protobuf.version>3.22.2</protobuf.version>
         <log4j.version>2.20.0</log4j.version>
         <guava.version>31.1-jre</guava.version>
-        <jackson.version>2.14.2</jackson.version>
+        <jackson.version>2.15.1</jackson.version>
         <slf4j.version>2.0.7</slf4j.version>
         <javassist.version>3.29.2-GA</javassist.version>
         <lz4.version>1.8.0</lz4.version>
@@ -60,7 +60,7 @@
         <micrometer.version>1.10.6</micrometer.version>
         <fast-uuid.version>0.2.0</fast-uuid.version>
         <confluent.version>7.3.3</confluent.version>
-        <victools.version>4.29.0</victools.version>
+        <victools.version>4.31.1</victools.version>
         <joda-time.version>2.12.5</joda-time.version>
         <logback.version>1.4.6</logback.version>
         <testcontainers.version>1.18.0</testcontainers.version>
@@ -147,6 +147,11 @@
             <dependency>
                 <groupId>com.github.victools</groupId>
                 <artifactId>jsonschema-module-jakarta-validation</artifactId>
+                <version>${victools.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.victools</groupId>
+                <artifactId>jsonschema-module-jackson</artifactId>
                 <version>${victools.version}</version>
             </dependency>
             <dependency>

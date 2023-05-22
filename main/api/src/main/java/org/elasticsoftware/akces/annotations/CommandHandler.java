@@ -13,7 +13,7 @@ import java.lang.annotation.Target;
 public @interface CommandHandler {
     boolean create() default false;
 
-    Class<? extends DomainEvent> produces();
+    Class<? extends DomainEvent>[] produces();
 
     Class<? extends ErrorEvent>[] errors();
 }

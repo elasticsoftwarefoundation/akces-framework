@@ -1,8 +1,10 @@
 package org.elasticsoftware.akces.kafka;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.victools.jsonschema.generator.*;
+import com.github.victools.jsonschema.module.jackson.JacksonModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
 import io.confluent.kafka.schemaregistry.CompatibilityLevel;
@@ -12,6 +14,7 @@ import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientExcept
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import io.confluent.kafka.schemaregistry.json.diff.Difference;
 import io.confluent.kafka.schemaregistry.json.diff.SchemaDiff;
+import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.commands.CommandHandlerFunction;
@@ -22,7 +25,7 @@ import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.CommandRecord;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
 import org.elasticsoftware.akces.protocol.PayloadEncoding;
-import org.everit.json.schema.Schema;
+import org.everit.json.schema.ValidationException;
 
 import java.io.IOException;
 import java.util.*;
@@ -51,7 +54,10 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
         this.schemaRegistryClient = schemaRegistryClient;
         SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(SchemaVersion.DRAFT_7, OptionPreset.PLAIN_JSON);
         configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS, JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
+        configBuilder.with(new JacksonModule());
         configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
+        configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
+        configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
         SchemaGeneratorConfig config = configBuilder.build();
         this.jsonSchemaGenerator = new SchemaGenerator(config);
         this.objectMapper = objectMapper;
@@ -162,13 +168,21 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
     @Override
     protected byte[] serialize(DomainEvent domainEvent) throws IOException {
         JsonNode jsonNode = objectMapper.convertValue(domainEvent, JsonNode.class);
-        domainEventSchemas.get(domainEvent.getClass()).validate(jsonNode);
+        try {
+            domainEventSchemas.get(domainEvent.getClass()).validate(jsonNode);
+        } catch(ValidationException e) {
+            throw new SerializationException("Validation Failed while Serializing DomainEventClass "+domainEvent.getClass().getName() ,e);
+        }
         return objectMapper.writeValueAsBytes(jsonNode);
     }
 
     @Override
-    public byte[] serialize(Command command) throws IOException {
-        return objectMapper.writeValueAsBytes(command);
+    public byte[] serialize(Command command) {
+        try {
+            return objectMapper.writeValueAsBytes(command);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("Problem Serializing CommandClass "+command.getClass().getName() ,e);
+        }
     }
 
     @Override

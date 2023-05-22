@@ -171,6 +171,7 @@
                         <log4j2.is.webapp>false</log4j2.is.webapp>
                         <log4j2.garbagefree.threadContextMap>true</log4j2.garbagefree.threadContextMap>
                     </systemProperties>
+                    <reuseForks>false</reuseForks>
                     <threadCount>1</threadCount>
                     <reportFormat>plain</reportFormat>
                 </configuration>
