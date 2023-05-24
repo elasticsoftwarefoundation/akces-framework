@@ -87,7 +87,7 @@ public class TestUtils {
         try {
             for(Class<E> eventClass : externalDomainEvents) {
                 DomainEventInfo info = eventClass.getAnnotation(DomainEventInfo.class);
-                src.register(info.type(),
+                src.register("domainevents."+info.type(),
                         new JsonSchema(jsonSchemaGenerator.generateSchema(AccountCreatedEvent.class), List.of(), Map.of(), info.version()),
                         info.version(),
                         -1);

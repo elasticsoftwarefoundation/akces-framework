@@ -95,11 +95,15 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
 
     @Override
     public void run() {
-        // make sure all our events are registered and validated
+        // make sure all our events and commands are registered and validated
         try {
             // first register and validate all local (= owned) domain events
             for (DomainEventType<?> domainEventType : aggregateRuntime.getProducedDomainEventTypes()) {
                 aggregateRuntime.registerAndValidate(domainEventType);
+            }
+            // register and validate all local commands
+            for(CommandType<?> commandType : aggregateRuntime.getLocalCommandTypes()) {
+                aggregateRuntime.registerAndValidate(commandType);
             }
             // find out about the cluster
             partitions = kafkaAdmin.describeTopics("Akces-Control").get("Akces-Control").partitions().size();
@@ -192,13 +196,22 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
                 // drop out of the control loop, this will shut down all resources
                 processState = SHUTTING_DOWN;
             }
-            // register external domain event types
             // TODO: maybe this needs it's own state
+            // register external domain event types
             for (DomainEventType<?> domainEventType : aggregateRuntime.getExternalDomainEventTypes()) {
                 try {
                     aggregateRuntime.registerAndValidate(domainEventType);
                 } catch (Exception e) {
                     logger.error("Error registering external domain event type: {}:{}", domainEventType.typeName(),domainEventType.version(), e);
+                    processState = SHUTTING_DOWN;
+                }
+            }
+            // register external command types
+            for (CommandType<?> commandType : aggregateRuntime.getExternalCommandTypes()) {
+                try {
+                    aggregateRuntime.registerAndValidate(commandType);
+                } catch (Exception e) {
+                    logger.error("Error registering external command type: {}:{}", commandType.typeName(),commandType.version(), e);
                     processState = SHUTTING_DOWN;
                 }
             }
@@ -247,7 +260,7 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
                     aggregateRuntime.getName(),
                     aggregateRuntime.getName() + COMMANDS_SUFFIX,
                     aggregateRuntime.getName() + DOMAINEVENTS_SUFFIX,
-                    aggregateRuntime.getCommandTypes().stream()
+                    aggregateRuntime.getAllCommandTypes().stream()
                             .map(commandType ->
                                     new CommandServiceCommandType(
                                         commandType.typeName(),

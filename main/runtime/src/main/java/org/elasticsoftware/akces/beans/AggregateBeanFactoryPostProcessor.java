@@ -138,8 +138,8 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .addConstructorArgValue(eventHandlerMethod.getParameterTypes()[0])
                             .addConstructorArgValue(eventHandlerMethod.getParameterTypes()[1])
                             .addConstructorArgValue(eventHandler.create())
-                            .addConstructorArgValue(generateDomainEventTypes(eventHandler.produces()))
-                            .addConstructorArgValue(generateDomainEventTypes(eventHandler.errors()))
+                            .addConstructorArgValue(generateDomainEventTypes(eventHandler.produces(), false))
+                            .addConstructorArgValue(generateDomainEventTypes(eventHandler.errors(), true))
                             .addConstructorArgValue(eventInfo)
                             .setInitMethodName("init")
                             .getBeanDefinition());
@@ -165,8 +165,8 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .addConstructorArgValue(commandHandlerMethod.getParameterTypes()[0])
                             .addConstructorArgValue(commandHandlerMethod.getParameterTypes()[1])
                             .addConstructorArgValue(commandHandler.create())
-                            .addConstructorArgValue(generateDomainEventTypes(commandHandler.produces()))
-                            .addConstructorArgValue(generateDomainEventTypes(commandHandler.errors()))
+                            .addConstructorArgValue(generateDomainEventTypes(commandHandler.produces(), false))
+                            .addConstructorArgValue(generateDomainEventTypes(commandHandler.errors(), true))
                             .addConstructorArgValue(commandInfo)
                             .setInitMethodName("init").getBeanDefinition()
             );
@@ -175,10 +175,10 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
         }
     }
 
-    private List<DomainEventType<?>> generateDomainEventTypes(Class<? extends DomainEvent>[] domainEventClasses) {
+    private List<DomainEventType<?>> generateDomainEventTypes(Class<? extends DomainEvent>[] domainEventClasses, boolean isError) {
         return Arrays.stream(domainEventClasses).map(eventClass -> {
             DomainEventInfo eventInfo = eventClass.getAnnotation(DomainEventInfo.class);
-            return new DomainEventType<>(eventInfo.type(), eventInfo.version(), eventClass, false, false, true);
+            return new DomainEventType<>(eventInfo.type(), eventInfo.version(), eventClass, false, false, isError);
         }).collect(Collectors.toList());
     }
 

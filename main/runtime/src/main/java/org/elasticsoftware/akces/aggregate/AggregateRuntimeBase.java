@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces.aggregate;
 
+import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.commands.CommandHandlerFunction;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -291,8 +292,18 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     }
 
     @Override
-    public Collection<CommandType<?>> getCommandTypes() {
+    public Collection<CommandType<?>> getAllCommandTypes() {
         return this.commandTypes.values().stream().flatMap(Collection::stream).toList();
+    }
+
+    @Override
+    public Collection<CommandType<?>> getLocalCommandTypes() {
+        return this.commandTypes.values().stream().flatMap(Collection::stream).filter(commandType -> !commandType.external()).toList();
+    }
+
+    @Override
+    public Collection<CommandType<?>> getExternalCommandTypes() {
+        return this.commandTypes.values().stream().flatMap(Collection::stream).filter(CommandType::external).toList();
     }
 
     private DomainEventType<?> getDomainEventType(Class<?> domainEventClass) {
@@ -313,7 +324,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
 
     protected abstract byte[] serialize(AggregateState state) throws IOException;
 
-    protected abstract byte[] serialize(DomainEvent domainEvent) throws IOException;
+    protected abstract byte[] serialize(DomainEvent domainEvent) throws SerializationException;
 
     protected abstract PayloadEncoding getEncoding(CommandType<?> type);
 

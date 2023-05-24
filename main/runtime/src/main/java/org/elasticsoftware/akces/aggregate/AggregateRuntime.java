@@ -18,6 +18,7 @@
 package org.elasticsoftware.akces.aggregate;
 
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.CommandRecord;
@@ -49,15 +50,23 @@ public interface AggregateRuntime {
 
     Collection<DomainEventType<?>> getExternalDomainEventTypes();
 
-    Collection<CommandType<?>> getCommandTypes();
+    Collection<CommandType<?>> getAllCommandTypes();
+
+    Collection<CommandType<?>> getLocalCommandTypes();
+
+    Collection<CommandType<?>> getExternalCommandTypes();
 
     CommandType<?> getLocalCommandType(String type, int version);
 
     JsonSchema generateJsonSchema(DomainEventType<?> domainEventType);
 
+    JsonSchema generateJsonSchema(CommandType<?> commandType);
+
     void registerAndValidate(DomainEventType<?> domainEventType) throws Exception;
+
+    void registerAndValidate(CommandType<?> commandType) throws Exception;
 
     Command materialize(CommandType<?> commandType, CommandRecord commandRecord) throws IOException;
 
-    byte[] serialize(Command command);
+    byte[] serialize(Command command) throws SerializationException;
 }

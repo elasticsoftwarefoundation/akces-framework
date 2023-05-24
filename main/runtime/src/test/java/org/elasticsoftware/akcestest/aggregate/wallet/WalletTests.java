@@ -83,7 +83,7 @@ public class WalletTests {
     public void testValidateDomainEvents() throws Exception {
         AggregateRuntime walletAggregate = applicationContext.getBean("WalletAggregateRuntimeFactory",AggregateRuntime.class);
         // need to register the external domainevent
-        schemaRegistryClient.register("AccountCreated",
+        schemaRegistryClient.register("domainevents.AccountCreated",
                 walletAggregate.generateJsonSchema(new DomainEventType<>("AccountCreated", 1, AccountCreatedEvent.class, true, true, false)),
                 1,
                 -1);
@@ -97,15 +97,15 @@ public class WalletTests {
     public void testValidateDomainEventsWithExistingSchemas() throws Exception {
         AggregateRuntime walletAggregate = applicationContext.getBean("WalletAggregateRuntimeFactory",AggregateRuntime.class);
         // need to register the external domainevent
-        schemaRegistryClient.register("AccountCreated",
+        schemaRegistryClient.register("domainevents.AccountCreated",
                 walletAggregate.generateJsonSchema(new DomainEventType<>("AccountCreated", 1, AccountCreatedEvent.class, true, true, false)),
                 1,
                 -1);
-        schemaRegistryClient.register("WalletCreated",
+        schemaRegistryClient.register("domainevents.WalletCreated",
                 walletAggregate.generateJsonSchema(new DomainEventType<>("WalletCreated", 1, WalletCreatedEvent.class, true, false, false)),
                 1,
                 -1);
-        schemaRegistryClient.register("WalletCredited",
+        schemaRegistryClient.register("domainevents.WalletCredited",
                 walletAggregate.generateJsonSchema(new DomainEventType<>("WalletCredited", 1, WalletCreditedEvent.class, false, false, false)),
                 1,
                 -1);
@@ -119,15 +119,15 @@ public class WalletTests {
     public void testValidateDomainEventsWithExistingSchemasAndExternalEventSubset() throws Exception {
         AggregateRuntime walletAggregate = applicationContext.getBean("WalletAggregateRuntimeFactory",AggregateRuntime.class);
         // need to register the external domainevent
-        schemaRegistryClient.register("AccountCreated",
+        schemaRegistryClient.register("domainevents.AccountCreated",
                 walletAggregate.generateJsonSchema(new DomainEventType<>("AccountCreated", 1, ExternalAccountCreatedEvent.class, true, true, false)),
                 1,
                 -1);
-        schemaRegistryClient.register("WalletCreated",
+        schemaRegistryClient.register("domainevents.WalletCreated",
                 walletAggregate.generateJsonSchema(new DomainEventType<>("WalletCreated", 1, WalletCreatedEvent.class, true, false, false)),
                 1,
                 -1);
-        schemaRegistryClient.register("WalletCredited",
+        schemaRegistryClient.register("domainevents.WalletCredited",
                 walletAggregate.generateJsonSchema(new DomainEventType<>("WalletCredited", 1, WalletCreditedEvent.class, false, false, false)),
                 1,
                 -1);
@@ -140,15 +140,15 @@ public class WalletTests {
     public void testValidateDomainEventsWithExistingSchemasAndInvalidExternalEvent() throws Exception {
         AggregateRuntime walletAggregate = applicationContext.getBean("WalletAggregateRuntimeFactory",AggregateRuntime.class);
         // need to register the external domainevent
-        schemaRegistryClient.register("AccountCreated",
+        schemaRegistryClient.register("domainevents.AccountCreated",
                 walletAggregate.generateJsonSchema(new DomainEventType<>("AccountCreated", 1, ExternalAccountCreatedEvent.class, true, true, false)),
                 1,
                 -1);
-        schemaRegistryClient.register("WalletCreated",
+        schemaRegistryClient.register("domainevents.WalletCreated",
                 walletAggregate.generateJsonSchema(new DomainEventType<>("WalletCreated", 1, WalletCreatedEvent.class, true, false, false)),
                 1,
                 -1);
-        schemaRegistryClient.register("WalletCredited",
+        schemaRegistryClient.register("domainevents.WalletCredited",
                 walletAggregate.generateJsonSchema(new DomainEventType<>("WalletCredited", 1, WalletCreditedEvent.class, false, false, false)),
                 1,
                 -1);
@@ -165,7 +165,7 @@ public class WalletTests {
         walletAggregate.registerAndValidate(new DomainEventType<>("TestAccountCreated", 1, org.elasticsoftware.akcestest.schemas.AccountCreatedEvent.class, true, false, false));
         walletAggregate.registerAndValidate(new DomainEventType<>("TestAccountCreated", 2, AccountCreatedEventV2.class, true, false, false));
         walletAggregate.registerAndValidate(new DomainEventType<>("TestAccountCreated", 3, AccountCreatedEventV3.class, true, false, false));
-        List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas("TestAccountCreated",false, false);
+        List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas("domainevents.TestAccountCreated",false, false);
         assertEquals(3, registeredSchemas.size());
     }
 
@@ -193,7 +193,7 @@ public class WalletTests {
     public void testCreateWalletByCommand() throws Exception {
         AggregateRuntime walletAggregate = applicationContext.getBean("WalletAggregateRuntimeFactory",AggregateRuntime.class);
         // need to register the external domainevent
-        schemaRegistryClient.register("AccountCreated",
+        schemaRegistryClient.register("domainevents.AccountCreated",
                 walletAggregate.generateJsonSchema(new DomainEventType<>("AccountCreated", 1, ExternalAccountCreatedEvent.class, true, true, false)),
                 1,
                 -1);
@@ -281,7 +281,7 @@ public class WalletTests {
     public void testCreateWalletByExternalDomainEvent() throws Exception {
         AggregateRuntime walletAggregate = applicationContext.getBean("WalletAggregateRuntimeFactory",AggregateRuntime.class);
         // need to register the external domainevent
-        schemaRegistryClient.register("AccountCreated",
+        schemaRegistryClient.register("domainevents.AccountCreated",
                 walletAggregate.generateJsonSchema(new DomainEventType<>("AccountCreated", 1, ExternalAccountCreatedEvent.class, true, true, false)),
                 1,
                 -1);
