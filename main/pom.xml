@@ -47,6 +47,8 @@
         <kubernetes-client.version>6.5.1</kubernetes-client.version>
         <java-uuid-generator.version>4.1.0</java-uuid-generator.version>
         <rocksdb.version>8.0.0</rocksdb.version>
+        <caffeine.version>3.1.6</caffeine.version>
+        <semver4j.version>4.3.0</semver4j.version>
         <!-- testing -->
         <testng-version>7.7.1</testng-version>
         <mockito.version>5.3.0</mockito.version>
@@ -204,6 +206,10 @@
                     <exclusion>
                         <groupId>org.apache.commons</groupId>
                         <artifactId>commons-compress</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.checkerframework</groupId>
+                        <artifactId>checker-qual</artifactId>
                     </exclusion>
                 </exclusions>
             </dependency>
@@ -371,6 +377,16 @@
                 <version>${testcontainers.version}</version>
             </dependency>
             <dependency>
+                <groupId>com.github.ben-manes.caffeine</groupId>
+                <artifactId>caffeine</artifactId>
+                <version>${caffeine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.semver4j</groupId>
+                <artifactId>semver4j</artifactId>
+                <version>${semver4j.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-simple</artifactId>
                 <version>${slf4j.version}</version>
@@ -389,33 +405,6 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            <!--
-            <dependency>
-                <groupId>org.apache.kafka</groupId>
-                <artifactId>kafka_2.13</artifactId>
-                <version>${kafka.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.kafka</groupId>
-                <artifactId>kafka-metadata</artifactId>
-                <version>${kafka.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.kafka</groupId>
-                <artifactId>kafka-raft</artifactId>
-                <version>${kafka.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.kafka</groupId>
-                <artifactId>kafka-server-common</artifactId>
-                <version>${kafka.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.scala-lang</groupId>
-                <artifactId>scala-library</artifactId>
-                <version>${scala.version}</version>
-            </dependency>
-            -->
             <dependency>
                 <groupId>org.springframework.kafka</groupId>
                 <artifactId>spring-kafka-test</artifactId>

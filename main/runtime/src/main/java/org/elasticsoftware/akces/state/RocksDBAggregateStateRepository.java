@@ -25,6 +25,7 @@ import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.requests.ProduceResponse;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serializer;
+import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.rocksdb.*;
@@ -44,7 +45,7 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
     private final File baseDir;
     // special key to store the kafka offset (long)
     private static final byte[] OFFSET = new byte[]{0x4f, 0x46, 0x46, 0x53, 0x45, 0x54};
-    private final Map<String, RecordAndMetadata> transactionStateRecordMap = new HashMap<>();
+    private final Map<String, RecordAndMetadata<AggregateStateRecord>> transactionStateRecordMap = new HashMap<>();
     private final String topicName;
     private final Serializer<ProtocolRecord> serializer;
     private final Deserializer<ProtocolRecord> deserializer;

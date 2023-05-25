@@ -19,6 +19,7 @@ package org.elasticsoftware.akces.kafka;
 
 public enum AggregatePartitionState {
     INITIALIZING,
+    LOADING_GDPR_KEYS,
     LOADING_STATE,
     PROCESSING,
     SHUTTING_DOWN

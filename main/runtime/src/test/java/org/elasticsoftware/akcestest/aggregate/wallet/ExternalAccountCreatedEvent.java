@@ -27,6 +27,9 @@ import org.elasticsoftware.akces.events.DomainEvent;
 public record ExternalAccountCreatedEvent(
         @AggregateIdentifier @NotNull String userId,
         String country,
+        String firstName,
+        String lastName,
+        String email,
         String currency
 ) implements DomainEvent {
     @Override

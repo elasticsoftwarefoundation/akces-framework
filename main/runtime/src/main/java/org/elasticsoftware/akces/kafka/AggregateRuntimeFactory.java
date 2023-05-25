@@ -69,6 +69,7 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
         }
         runtimeBuilder.setAggregateClass(aggregate.getClass());
         runtimeBuilder.setObjectMapper(objectMapper);
+        runtimeBuilder.setGenerateGDPRKeyOnCreate(aggregateInfo.generateGDPRKeyOnCreate());
 
         applicationContext.getBeansOfType(CommandHandlerFunction.class).values().stream()
                 // we only want the adapters for this Aggregate

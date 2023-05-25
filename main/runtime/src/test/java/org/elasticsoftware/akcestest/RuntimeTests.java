@@ -33,7 +33,9 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.elasticsoftware.akces.AkcesController;
+import org.elasticsoftware.akces.protocol.*;
 import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
+import org.elasticsoftware.akcestest.aggregate.account.AccountState;
 import org.elasticsoftware.akcestest.aggregate.account.CreateAccountCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.CreateWalletCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.CreditWalletCommand;
@@ -41,10 +43,6 @@ import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.control.CommandServiceCommandType;
 import org.elasticsoftware.akces.control.CommandServiceDomainEventType;
 import org.elasticsoftware.akces.control.CommandServiceRecord;
-import org.elasticsoftware.akces.protocol.CommandRecord;
-import org.elasticsoftware.akces.protocol.DomainEventRecord;
-import org.elasticsoftware.akces.protocol.PayloadEncoding;
-import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -386,7 +384,7 @@ public class RuntimeTests  {
                             .toList());
 
             testProducer.beginTransaction();
-            CreateAccountCommand command = new CreateAccountCommand(userId,"NL");
+            CreateAccountCommand command = new CreateAccountCommand(userId,"NL", "Fahim","Zuijderwijk", "FahimZuijderwijk@jourrapide.com");
             CommandRecord commandRecord = new CommandRecord(
                     null,
                     "CreateAccount",
@@ -422,6 +420,80 @@ public class RuntimeTests  {
             }
 
             assertEquals(4, allRecords.size());
+        }
+    }
+
+    @Test
+    @Order(6)
+    public void testGDPREncryption() throws IOException {
+        // wait until the ackes controller is running
+        while(!akcesController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        String userId = "ca7c8e7f-d1a3-46ba-b400-f543d0c04bc6";
+
+        try (
+                Producer<String, ProtocolRecord> testProducer = producerFactory.createProducer("test");
+                Consumer<String, ProtocolRecord> testConsumer = consumerFactory.createConsumer("Test", "test")
+        ) {
+
+            // find and store the current offsets
+            Map<TopicPartition, Long> endOffsets = testConsumer.endOffsets(
+                    Stream.concat(
+                                    generateTopicPartitions("Account-AggregateState", 3),
+                                    generateTopicPartitions("Account-DomainEvents", 3))
+                            .toList());
+
+            testProducer.beginTransaction();
+            CreateAccountCommand command = new CreateAccountCommand(userId,"NL", "Fahim","Zuijderwijk", "FahimZuijderwijk@jourrapide.com");
+            CommandRecord commandRecord = new CommandRecord(
+                    null,
+                    "CreateAccount",
+                    1,
+                    objectMapper.writeValueAsBytes(command),
+                    PayloadEncoding.JSON,
+                    command.getAggregateId(),
+                    null);
+            String topicName = akcesController.resolveTopic(command.getClass());
+            int partition = akcesController.resolvePartition(command.getAggregateId());
+            // produce a command to create an Account
+            testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));
+            testProducer.commitTransaction();
+
+            testConsumer.subscribe(List.of("Account-AggregateState","Account-DomainEvents"), new ConsumerRebalanceListener() {
+                @Override
+                public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+
+                }
+
+                @Override
+                public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+                    partitions.forEach(partition -> testConsumer.seek(partition, endOffsets.get(partition)));
+                }
+            });
+
+            ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(250));
+            List<ProtocolRecord> allRecords = new ArrayList<>();
+            while(allRecords.size() < 2) {
+                records.forEach(record -> allRecords.add(record.value()));
+                // wait for the events to be produced
+                records = testConsumer.poll(Duration.ofMillis(250));
+            }
+
+            assertEquals(2, allRecords.size());
+            // now see if the domain event and state are encrypted
+            assertTrue(allRecords.get(1) instanceof DomainEventRecord);
+            DomainEventRecord domainEventRecord = (DomainEventRecord) allRecords.get(1);
+            AccountCreatedEvent accountCreatedEvent = objectMapper.readValue(domainEventRecord.payload(), AccountCreatedEvent.class);
+            assertNotEquals("Fahim", accountCreatedEvent.firstName());
+            assertNotEquals("Zuijderwijk", accountCreatedEvent.lastName());
+            assertNotEquals("FahimZuijderwijk@jourrapide.com", accountCreatedEvent.email());
+            AggregateStateRecord stateRecord = (AggregateStateRecord) allRecords.get(0);
+            AccountState accountState = objectMapper.readValue(stateRecord.payload(), AccountState.class);
+            assertNotEquals("Fahim", accountState.firstName());
+            assertNotEquals("Zuijderwijk", accountState.lastName());
+            assertNotEquals("FahimZuijderwijk@jourrapide.com", accountState.email());
         }
     }
 

@@ -74,7 +74,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                                 .addConstructorArgReference(beanFactory.getBeanNamesForType(SchemaRegistryClient.class)[0])
                                 .addConstructorArgReference(beanName)
                                 .getBeanDefinition());
-                // and create a AckesControl bean to kickstart kafka (if kafka is configured)
+                // and create a AkcesController bean to kickstart kafka (if kafka is configured)
                 // TODO: this is a bit crude, but it works for now
                 if(beanFactory.containsBeanDefinition("consumerFactory") &&
                         beanFactory.containsBeanDefinition("producerFactory") &&

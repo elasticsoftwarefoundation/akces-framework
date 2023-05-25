@@ -28,10 +28,7 @@ import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serializer;
-import org.elasticsoftware.akces.protocol.AggregateStateRecord;
-import org.elasticsoftware.akces.protocol.CommandRecord;
-import org.elasticsoftware.akces.protocol.DomainEventRecord;
-import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.protocol.*;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -56,6 +53,7 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
         enum PayloadEncoding {
           JSON = 0;
           PROTOBUF = 1;
+          BYTES = 2;
         }
         """;
     private static final String aggregateStateRecordProto = """
@@ -76,6 +74,7 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
         enum PayloadEncoding {
           JSON = 0;
           PROTOBUF = 1;
+          BYTES = 2;
         }
         """;
     private static final String commandRecordProto = """
@@ -95,6 +94,27 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
         enum PayloadEncoding {
           JSON = 0;
           PROTOBUF = 1;
+          BYTES = 2;
+        }
+        """;
+    private static final String gdprKeyRecordProto = """
+        // org.elasticsoftware.akces.protocol.GDPRKeyRecord
+                    
+        // Message for org.elasticsoftware.akces.protocol.GDPRKeyRecord
+        message GDPRKeyRecord {
+          optional string name = 1;
+          optional int32 version = 2;
+          optional bytes payload = 3;
+          optional PayloadEncoding encoding = 4;
+          optional string aggregateId = 5;
+          optional string correlationId = 6;
+          optional string tenantId = 7;
+        }
+        // Enum for org.elasticsoftware.akces.protocol.PayloadEncoding
+        enum PayloadEncoding {
+          JSON = 0;
+          PROTOBUF = 1;
+          BYTES = 2;
         }
         """;
     private final ObjectMapper objectMapper = new ProtobufMapper();
@@ -106,12 +126,15 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
             ProtobufSchema domainEventRecordSchema = ProtobufSchemaLoader.std.load(new StringReader(domainEventRecordProto));
             ProtobufSchema aggregateStateRecordSchema = ProtobufSchemaLoader.std.load(new StringReader(aggregateStateRecordProto));
             ProtobufSchema commandRecordSchema = ProtobufSchemaLoader.std.load(new StringReader(commandRecordProto));
+            ProtobufSchema gdprKeyRecordSchema = ProtobufSchemaLoader.std.load(new StringReader(gdprKeyRecordProto));
             serializer = new SerializerImpl(objectMapper.writer(domainEventRecordSchema),
                     objectMapper.writer(aggregateStateRecordSchema),
-                    objectMapper.writer(commandRecordSchema));
+                    objectMapper.writer(commandRecordSchema),
+                    objectMapper.writer(gdprKeyRecordSchema));
             deserializer = new DeserializerImpl(objectMapper.readerFor(DomainEventRecord.class).with(domainEventRecordSchema),
                     objectMapper.readerFor(AggregateStateRecord.class).with(aggregateStateRecordSchema),
-                    objectMapper.readerFor(CommandRecord.class).with(commandRecordSchema));
+                    objectMapper.readerFor(CommandRecord.class).with(commandRecordSchema),
+                    objectMapper.readerFor(GDPRKeyRecord.class).with(gdprKeyRecordSchema));
         } catch (IOException e) {
             throw new SerializationException(e);
         }
@@ -141,13 +164,16 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
         private final ObjectWriter domainEventRecordWriter;
         private final ObjectWriter aggregateStateRecordWriter;
         private final ObjectWriter commandRecordWriter;
+        private final ObjectWriter gdprKeyRecordWriter;
 
         private SerializerImpl(ObjectWriter domainEventRecordWriter,
                                ObjectWriter aggregateStateRecordWriter,
-                               ObjectWriter commandRecordWriter) {
+                               ObjectWriter commandRecordWriter,
+                               ObjectWriter gdprKeyRecordWriter) {
             this.domainEventRecordWriter = domainEventRecordWriter;
             this.aggregateStateRecordWriter = aggregateStateRecordWriter;
             this.commandRecordWriter = commandRecordWriter;
+            this.gdprKeyRecordWriter = gdprKeyRecordWriter;
         }
 
 
@@ -160,6 +186,8 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
                     return aggregateStateRecordWriter.writeValueAsBytes(r);
                 } else if(data instanceof CommandRecord r) {
                     return commandRecordWriter.writeValueAsBytes(r);
+                } else if(data instanceof GDPRKeyRecord r) {
+                    return gdprKeyRecordWriter.writeValueAsBytes(r);
                 } else {
                     throw new SerializationException("Unsupported ProtocolRecord type " + data.getClass().getSimpleName());
                 }
@@ -173,13 +201,16 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
         private final ObjectReader domainEventRecordReader;
         private final ObjectReader aggregateStateRecordReader;
         private final ObjectReader commandRecordReader;
+        private final ObjectReader gdprKeyRecordReader;
 
         public DeserializerImpl(ObjectReader domainEventRecordReader,
                                 ObjectReader aggregateStateRecordReader,
-                                ObjectReader commandRecordReader) {
+                                ObjectReader commandRecordReader,
+                                ObjectReader gdprKeyRecordReader) {
             this.domainEventRecordReader = domainEventRecordReader;
             this.aggregateStateRecordReader = aggregateStateRecordReader;
             this.commandRecordReader = commandRecordReader;
+            this.gdprKeyRecordReader = gdprKeyRecordReader;
         }
 
         @Override
@@ -193,6 +224,8 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
                     return aggregateStateRecordReader.readValue(data);
                 } else if(topic.endsWith("Commands")) {
                     return commandRecordReader.readValue(data);
+                } else if(topic.endsWith("GDPRKeys")) {
+                    return gdprKeyRecordReader.readValue(data);
                 } else {
                     throw new SerializationException("Unsupported topic name " + topic + " cannot determine ProtocolRecordType");
                 }
