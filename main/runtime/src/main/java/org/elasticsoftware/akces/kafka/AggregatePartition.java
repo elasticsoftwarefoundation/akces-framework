@@ -215,7 +215,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             send(gdprKeyRecord);
         }
         // setup the context, this will either be a DefaultGDPRContext or a NoopGDPRContext
-        GDPRContextHolder.setCurrentPrivacyContext(gdprContextRepository.get(aggregateId));
+        GDPRContextHolder.setCurrentGDPRContext(gdprContextRepository.get(aggregateId));
     }
 
     private void tearDownGDPRContext() {

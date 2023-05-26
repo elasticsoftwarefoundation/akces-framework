@@ -230,7 +230,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
             AggregateState nextState = eventSourcingHandlers.get(domainEventType).apply(domainEvent, currentState);
             // store the state, increasing the generation by 1
             AggregateStateRecord nextStateRecord = new AggregateStateRecord(
-                    currentStateRecord.tenantId(),
+                    currentStateRecord.tenantId(), // inherit tenantId from the state record
                     type.typeName(),
                     type.version(),
                     serialize(nextState),
@@ -240,7 +240,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                     currentStateRecord.generation() + 1L);
             protocolRecordConsumer.accept(nextStateRecord);
             DomainEventRecord eventRecord = new DomainEventRecord(
-                    currentStateRecord.tenantId(),
+                    currentStateRecord.tenantId(), // inherit tenantId from the state record
                     domainEventType.typeName(),
                     domainEventType.version(),
                     serialize(domainEvent),

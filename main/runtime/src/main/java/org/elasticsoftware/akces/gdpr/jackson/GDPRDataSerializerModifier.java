@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class GDPRDataSerializerModifier extends BeanSerializerModifier {
-    private static final Logger logger = LoggerFactory.getLogger(GDPRDataSerializerModifier.class);
     private final GDPRDataJsonSerializer instance = new GDPRDataJsonSerializer();
 
     @Override

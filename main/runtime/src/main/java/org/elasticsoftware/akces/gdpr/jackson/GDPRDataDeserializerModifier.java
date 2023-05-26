@@ -13,7 +13,6 @@ import org.slf4j.LoggerFactory;
 import java.util.Iterator;
 
 public class GDPRDataDeserializerModifier extends BeanDeserializerModifier {
-    private static final Logger logger = LoggerFactory.getLogger(GDPRDataDeserializerModifier.class);
     private final GDPRDataJsonDeserializer instance = new GDPRDataJsonDeserializer();
 
     @Override

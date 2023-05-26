@@ -22,7 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class GDPRContextHolder {
-    private static final Logger logger = LoggerFactory.getLogger(GDPRContextHolder.class);
+
     private static final ThreadLocal<GDPRContext> currentContext = new ThreadLocal<>();
 
     private GDPRContextHolder() {
@@ -32,7 +32,7 @@ public final class GDPRContextHolder {
         return currentContext.get();
     }
 
-    public static GDPRContext setCurrentPrivacyContext(@Nullable GDPRContext gdprContext) {
+    public static GDPRContext setCurrentGDPRContext(@Nullable GDPRContext gdprContext) {
         final GDPRContext ctx = currentContext.get();
         currentContext.set(gdprContext);
         return ctx;
