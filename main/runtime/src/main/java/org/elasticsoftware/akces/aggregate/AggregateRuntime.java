@@ -69,4 +69,8 @@ public interface AggregateRuntime {
     Command materialize(CommandType<?> commandType, CommandRecord commandRecord) throws IOException;
 
     byte[] serialize(Command command) throws SerializationException;
+
+    boolean shouldGenerateGPRKey(CommandRecord commandRecord);
+
+    boolean shouldGenerateGPRKey(DomainEventRecord eventRecord);
 }

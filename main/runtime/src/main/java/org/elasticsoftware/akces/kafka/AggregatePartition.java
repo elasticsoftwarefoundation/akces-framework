@@ -30,6 +30,7 @@ import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.control.AkcesRegistry;
+import org.elasticsoftware.akces.gdpr.*;
 import org.elasticsoftware.akces.protocol.*;
 import org.elasticsoftware.akces.state.AggregateStateRepository;
 import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
@@ -58,15 +59,17 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     private Producer<String, ProtocolRecord> producer;
     private final AggregateRuntime runtime;
     private final AggregateStateRepository stateRepository;
+    private final GDPRContextRepository gdprContextRepository;
     private final Integer id;
     private final TopicPartition commandPartition;
     private final TopicPartition domainEventPartition;
     private final TopicPartition statePartition;
-    private final List<TopicPartition> externalEventPartitions = new ArrayList<>();
+    private final TopicPartition gdprKeyPartition;
+    private final Set<TopicPartition> externalEventPartitions = new HashSet<>();
     private final Collection<DomainEventType<?>> externalDomainEventTypes;
     private final AkcesRegistry ackesRegistry;
     private volatile AggregatePartitionState processState;
-    private Long initializedEndOffset = null;
+    private Map<TopicPartition,Long> initializedEndOffsets = Collections.emptyMap();
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
     private volatile Thread aggregatePartitionThread = null;
 
@@ -79,8 +82,10 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                               TopicPartition commandPartition,
                               TopicPartition domainEventPartition,
                               TopicPartition statePartition,
+                              TopicPartition gdprKeyPartition,
                               Collection<DomainEventType<?>> externalDomainEventTypes,
                               AkcesRegistry ackesRegistry) {
+        this.gdprKeyPartition = gdprKeyPartition;
         this.ackesRegistry = ackesRegistry;
         this.consumerFactory = consumerFactory;
         this.producerFactory = producerFactory;
@@ -92,6 +97,8 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         this.statePartition = statePartition;
         this.externalDomainEventTypes = externalDomainEventTypes;
         this.processState = INITIALIZING;
+        // TODO: create this via a factory
+        this.gdprContextRepository = new InMemoryGDPRContextRepository();
     }
 
     public Integer getId() {
@@ -114,7 +121,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                 externalEventPartitions.add(new TopicPartition(topic, id));
             });
             // make a hard assignment
-            consumer.assign(Stream.concat(Stream.of(commandPartition, domainEventPartition, statePartition), externalEventPartitions.stream()).toList());
+            consumer.assign(Stream.concat(Stream.of(commandPartition, domainEventPartition, statePartition, gdprKeyPartition), externalEventPartitions.stream()).toList());
             logger.info("Assigned partitions {} for AggregatePartition {} of {}Aggregate", consumer.assignment(), id, runtime.getName());
             while (processState != SHUTTING_DOWN) {
                 process();
@@ -181,6 +188,10 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         } else if (protocolRecord instanceof DomainEventRecord der) {
             logger.trace("Sending DomainEventRecord {}:{} with id {} to {}", der.name(), der.version(), der.aggregateId(), domainEventPartition);
             KafkaSender.send(producer, new ProducerRecord<>(domainEventPartition.topic(), domainEventPartition.partition(), der.aggregateId(), der));
+        } else if(protocolRecord instanceof GDPRKeyRecord gkr) {
+            logger.trace("Sending GDPRKeyRecord with id {} to {}", gkr.aggregateId(), gdprKeyPartition);
+            Future<RecordMetadata> result = KafkaSender.send(producer, new ProducerRecord<>(gdprKeyPartition.topic(), gdprKeyPartition.partition(), gkr.aggregateId(), gkr));
+            gdprContextRepository.prepare(gkr, result);
         } else if (protocolRecord instanceof CommandRecord cr) {
             // commands should be sent via the CommandBus since it needs to figure out the topic
             // producer.send(new ProducerRecord<>(commandPartition.topic(), commandPartition.partition(), cr.aggregateId(), cr));
@@ -191,21 +202,47 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         }
     }
 
+    private void setupGDPRContext(String tenantId, String aggregateId, boolean createIfMissing) {
+        // avoid accidentally overwriting an existing gdpr key
+        if(!gdprContextRepository.exists(aggregateId) && createIfMissing) {
+            logger.trace("Generating GDPR key for aggregate {}", aggregateId);
+            // generate a new key record
+            GDPRKeyRecord gdprKeyRecord = new GDPRKeyRecord(
+                    tenantId,
+                    aggregateId,
+                    GDPRKeyUtils.createKey().getEncoded());
+            // send to kafka (and update gdprContextRepository)
+            send(gdprKeyRecord);
+        }
+        // setup the context, this will either be a DefaultGDPRContext or a NoopGDPRContext
+        GDPRContextHolder.setCurrentGDPRContext(gdprContextRepository.get(aggregateId));
+    }
+
+    private void tearDownGDPRContext() {
+        GDPRContextHolder.resetCurrentGDPRContext();
+    }
+
     private void handleCommand(CommandRecord commandRecord) {
         try {
+            setupGDPRContext(commandRecord.tenantId(), commandRecord.aggregateId(), runtime.shouldGenerateGPRKey(commandRecord));
             runtime.handleCommandRecord(commandRecord, this::send, () -> stateRepository.get(commandRecord.aggregateId()));
         } catch (IOException e) {
             // TODO need to raise a (built-in) ErrorEvent here
             logger.error("Error handling command", e);
+        } finally {
+            tearDownGDPRContext();
         }
     }
 
     private void handleExternalEvent(DomainEventRecord eventRecord) {
         try {
+            setupGDPRContext(eventRecord.tenantId(), eventRecord.aggregateId(), runtime.shouldGenerateGPRKey(eventRecord));
             runtime.handleExternalDomainEventRecord(eventRecord, this::send, () -> stateRepository.get(eventRecord.aggregateId()));
         } catch (IOException e) {
             // TODO need to raise a (built-in) ErrorEvent here
             logger.error("Error handling external event", e);
+        } finally {
+            tearDownGDPRContext();
         }
     }
 
@@ -216,42 +253,64 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                 if (!allRecords.isEmpty()) {
                     processRecords(allRecords);
                 }
+            } else if(processState == LOADING_GDPR_KEYS) {
+                ConsumerRecords<String, ProtocolRecord> gdprKeyRecords = consumer.poll(Duration.ZERO);
+                gdprContextRepository.process(gdprKeyRecords.records(gdprKeyPartition));
+                // stop condition
+                if (gdprKeyRecords.isEmpty() && initializedEndOffsets.getOrDefault(gdprKeyPartition, 0L) <= consumer.position(gdprKeyPartition)) {
+                    // special case, there is no data yet so no need to load anything
+                    if (initializedEndOffsets.getOrDefault(statePartition, 0L) == 0L) {
+                        // we need to ensure we are not missing any commands or external events in this case
+                        // see if we need to commit the initial offsets
+                        commitInitialOffsetsIfNecessary();
+                        logger.info("No state found in Kafka for AggregatePartition {} of {}Aggregate", id, runtime.getName());
+                        // resume the other topics
+                        consumer.resume(Stream.concat(Stream.of(statePartition, commandPartition, domainEventPartition), externalEventPartitions.stream()).toList());
+                        // go immediately to processing
+                        processState = PROCESSING;
+                    } else {
+                        logger.info("Loading state for AggregatePartition {} of {}Aggregate", id, runtime.getName());
+                        // resume the state topic
+                        consumer.resume(singletonList(statePartition));
+                        // pause the gdpr key topic for now to avoid reading past it
+                        consumer.pause(singletonList(gdprKeyPartition));
+                        processState = LOADING_STATE;
+                    }
+                }
             } else if (processState == LOADING_STATE) {
                 ConsumerRecords<String, ProtocolRecord> stateRecords = consumer.poll(Duration.ZERO);
                 stateRepository.process(stateRecords.records(statePartition));
                 // stop condition
-                if (stateRecords.isEmpty() && initializedEndOffset <= consumer.position(statePartition)) {
+                if (stateRecords.isEmpty() && initializedEndOffsets.getOrDefault(statePartition, 0L) <= consumer.position(statePartition)) {
                     // done loading the state, enable the other topics
-                    consumer.resume(Stream.concat(Stream.of(commandPartition, domainEventPartition), externalEventPartitions.stream()).toList());
+                    consumer.resume(Stream.concat(Stream.of(gdprKeyPartition, commandPartition, domainEventPartition), externalEventPartitions.stream()).toList());
                     // and move to processing state
                     processState = PROCESSING;
                 }
             } else if (processState == INITIALIZING) {
                 logger.info("Initializing AggregatePartition {} of {}Aggregate", id, runtime.getName());
                 // find the right offset to start reading the state from
-                long repositoryOffset = stateRepository.getOffset();
-                if (repositoryOffset >= 0) {
-                    logger.info("Resuming from offset {} for AggregatePartition {} of {}Aggregate", repositoryOffset, id, runtime.getName());
+                long stateRepositoryOffset = stateRepository.getOffset();
+                if (stateRepositoryOffset >= 0) {
+                    logger.info("Resuming State from offset {} for AggregatePartition {} of {}Aggregate", stateRepositoryOffset, id, runtime.getName());
                     consumer.seek(statePartition, stateRepository.getOffset() + 1);
                 } else {
                     consumer.seekToBeginning(singletonList(statePartition));
                 }
-                // find the end offset so we know when to stop
-                initializedEndOffset = consumer.endOffsets(singletonList(statePartition)).values().stream().findFirst().orElse(0L);
-                // special case, there is no data yet so no need to load anything
-                if (initializedEndOffset == 0L) {
-                    // we need to ensure we are not missing any commands or external events in this case
-                    // see if we need to commit the initial offsets
-                    commitInitialOffsetsIfNecessary();
-                    logger.info("No state found in Kafka for AggregatePartition {} of {}Aggregate", id, runtime.getName());
-                    // go immediately to processing
-                    processState = PROCESSING;
+                // find the right offset to start reading the gdpr keys from
+                long gdprKeyRepositoryOffset = gdprContextRepository.getOffset();
+                if (gdprKeyRepositoryOffset >= 0) {
+                    logger.info("Resuming GDPRKeys from offset {} for AggregatePartition {} of {}Aggregate", gdprKeyRepositoryOffset, id, runtime.getName());
+                    consumer.seek(gdprKeyPartition, gdprContextRepository.getOffset() + 1);
                 } else {
-                    logger.info("Loading state for AggregatePartition {} of {}Aggregate", id, runtime.getName());
-                    // we need to load the state first, so pause the other topics
-                    consumer.pause(Stream.concat(Stream.of(commandPartition, domainEventPartition), externalEventPartitions.stream()).toList());
-                    processState = LOADING_STATE;
+                    consumer.seekToBeginning(singletonList(gdprKeyPartition));
                 }
+                // find the end offsets so we know when to stop
+                initializedEndOffsets = consumer.endOffsets(List.of(gdprKeyPartition,statePartition));
+                logger.info("Loading GDPR Keys for AggregatePartition {} of {}Aggregate", id, runtime.getName());
+                // pause the other topics
+                consumer.pause(Stream.concat(Stream.of(statePartition, commandPartition, domainEventPartition), externalEventPartitions.stream()).toList());
+                processState = LOADING_GDPR_KEYS;
             }
         } catch (WakeupException | InterruptException ignore) {
             // non-fatal. ignore
@@ -294,10 +353,12 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         try {
             if (logger.isTraceEnabled()) {
                 logger.trace("Processing {} records in a single transaction", allRecords.count());
+                logger.trace("Processing {} gdpr key records", allRecords.records(gdprKeyPartition).size());
                 logger.trace("Processing {} command records", allRecords.records(commandPartition).size());
                 if (externalEventPartitions.size() > 0) {
-                    logger.trace("Processing {} external event records", externalEventPartitions.stream().map(externalEventPartition -> allRecords.records(externalEventPartition).size())
-                            .reduce(0, Integer::sum));
+                    logger.trace("Processing {} external event records", externalEventPartitions.stream()
+                            .map(externalEventPartition -> allRecords.records(externalEventPartition).size())
+                            .mapToInt(Integer::intValue).sum());
                 }
                 logger.trace("Processing {} state records", allRecords.records(statePartition).size());
                 logger.trace("Processing {} internal event records", allRecords.records(domainEventPartition).size());
@@ -305,7 +366,13 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             // start a transaction
             producer.beginTransaction();
             Map<TopicPartition, Long> offsets = new HashMap<>();
-            // first handle commands
+            // first handle gdpr keys
+            List<ConsumerRecord<String, ProtocolRecord>> gdprKeyRecords = allRecords.records(gdprKeyPartition);
+            if (!gdprKeyRecords.isEmpty()) {
+                gdprContextRepository.process(gdprKeyRecords);
+                offsets.put(gdprKeyPartition, gdprKeyRecords.get(gdprKeyRecords.size() - 1).offset());
+            }
+            // second handle commands
             allRecords.records(commandPartition)
                     .forEach(commandRecord -> {
                         handleCommand((CommandRecord) commandRecord.value());
@@ -334,6 +401,8 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             producer.commitTransaction();
             // commit the state repository
             stateRepository.commit();
+            // commit the gdpr key repository
+            gdprContextRepository.commit();
         } catch (InvalidProducerEpochException e) {
             // When encountering this exception, user should abort the ongoing transaction by calling
             // KafkaProducer#abortTransaction which would try to send initPidRequest and reinitialize the producer
@@ -341,6 +410,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             producer.abortTransaction();
             rollbackConsumer(allRecords);
             stateRepository.rollback();
+            gdprContextRepository.rollback();
         }
     }
 

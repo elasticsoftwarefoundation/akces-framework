@@ -15,13 +15,18 @@
  *
  */
 
-package org.elasticsoftware.akces.state;
+package org.elasticsoftware.akces.protocol;
 
-import org.apache.kafka.clients.producer.RecordMetadata;
-import org.elasticsoftware.akces.protocol.AggregateStateRecord;
-import org.elasticsoftware.akces.protocol.ProtocolRecord;
-
-import java.util.concurrent.Future;
-
-public record RecordAndMetadata<PR extends ProtocolRecord>(PR record, Future<RecordMetadata> metadata) {
+public record GDPRKeyRecord(
+        String tenantId,
+        String name,
+        int version,
+        byte[] payload,
+        PayloadEncoding encoding,
+        String aggregateId,
+        String correlationId
+) implements ProtocolRecord {
+    public GDPRKeyRecord(String tenantId, String aggregateId, byte[] payload) {
+        this(tenantId, "GDPRKey", 1, payload, PayloadEncoding.BYTES, aggregateId, null);
+    }
 }

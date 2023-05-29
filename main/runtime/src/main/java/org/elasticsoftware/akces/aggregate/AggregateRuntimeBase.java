@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces.aggregate;
 
+import jakarta.annotation.Nullable;
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.commands.CommandHandlerFunction;
@@ -30,6 +31,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
@@ -45,6 +47,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     private final Map<CommandType<?>, CommandHandlerFunction<AggregateState, Command, DomainEvent>> commandHandlers;
     private final Map<DomainEventType<?>, EventHandlerFunction<AggregateState, DomainEvent, DomainEvent>> eventHandlers;
     private final Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers;
+    private final boolean generateGDPRKeyOnCreate;
 
     public AggregateRuntimeBase(AggregateStateType<?> type,
                                 Class<? extends Aggregate> aggregateClass,
@@ -55,7 +58,8 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                                 Map<String, List<CommandType<?>>> commandTypes,
                                 Map<CommandType<?>, CommandHandlerFunction<AggregateState, Command, DomainEvent>> commandHandlers,
                                 Map<DomainEventType<?>, EventHandlerFunction<AggregateState, DomainEvent, DomainEvent>> eventHandlers,
-                                Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers) {
+                                Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers,
+                                boolean generateGDPRKeyOnCreate) {
         this.type = type;
         this.aggregateClass = aggregateClass;
         this.commandCreateHandler = commandCreateHandler;
@@ -66,6 +70,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         this.commandHandlers = commandHandlers;
         this.eventHandlers = eventHandlers;
         this.eventSourcingHandlers = eventSourcingHandlers;
+        this.generateGDPRKeyOnCreate = generateGDPRKeyOnCreate;
     }
 
     @Override
@@ -83,9 +88,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                                     Consumer<ProtocolRecord> protocolRecordConsumer,
                                     Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
         // determine command
-        CommandType<?> commandType = commandTypes.getOrDefault(commandRecord.name(), emptyList()).stream()
-                .filter(ct -> ct.version() == commandRecord.version())
-                .findFirst().orElseThrow(RuntimeException::new); // TODO: replace with specific exception
+        CommandType<?> commandType = getCommandType(commandRecord);
         // TODO: need to raise an ErrorEvent in case of exception
         // find handler
         if(commandType.create()) {
@@ -93,6 +96,13 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         } else {
             handleCommand(commandType, commandRecord, protocolRecordConsumer, stateRecordSupplier);
         }
+    }
+
+    private CommandType<?> getCommandType(CommandRecord commandRecord) {
+        CommandType<?> commandType = commandTypes.getOrDefault(commandRecord.name(), emptyList()).stream()
+                .filter(ct -> ct.version() == commandRecord.version())
+                .findFirst().orElseThrow(RuntimeException::new); // TODO: replace with specific exception
+        return commandType;
     }
 
     private void handleCreateCommand(CommandType<?> commandType,
@@ -220,7 +230,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
             AggregateState nextState = eventSourcingHandlers.get(domainEventType).apply(domainEvent, currentState);
             // store the state, increasing the generation by 1
             AggregateStateRecord nextStateRecord = new AggregateStateRecord(
-                    currentStateRecord.tenantId(),
+                    currentStateRecord.tenantId(), // inherit tenantId from the state record
                     type.typeName(),
                     type.version(),
                     serialize(nextState),
@@ -230,7 +240,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                     currentStateRecord.generation() + 1L);
             protocolRecordConsumer.accept(nextStateRecord);
             DomainEventRecord eventRecord = new DomainEventRecord(
-                    currentStateRecord.tenantId(),
+                    currentStateRecord.tenantId(), // inherit tenantId from the state record
                     domainEventType.typeName(),
                     domainEventType.version(),
                     serialize(domainEvent),
@@ -260,13 +270,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     @Override
     public void handleExternalDomainEventRecord(DomainEventRecord eventRecord, Consumer<ProtocolRecord> protocolRecordConsumer, Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
         // determine the type to use for the external event
-        // because it is an external event we need to find the highest version that is smaller than the eventRecord version
-        DomainEventType<?> domainEventType = domainEvents.entrySet().stream()
-                .filter(entry -> entry.getValue().external())
-                .filter(entry -> entry.getValue().typeName().equals(eventRecord.name()))
-                .filter(entry -> entry.getValue().version() <= eventRecord.version())
-                .max(Comparator.comparingInt(entry -> entry.getValue().version()))
-                .map(Map.Entry::getValue).orElse(null);
+        DomainEventType<?> domainEventType = getDomainEventType(eventRecord);
         if(domainEventType != null) {
             if (domainEventType.create()) {
                 handleCreateEvent(domainEventType, eventRecord, protocolRecordConsumer);
@@ -276,6 +280,17 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         } // ignore if we don't have an external domainevent registered
     }
 
+    @Nullable
+    private DomainEventType<?> getDomainEventType(DomainEventRecord eventRecord) {
+        // because it is an external event we need to find the highest version that is smaller than the eventRecord version
+        return domainEvents.entrySet().stream()
+                .filter(entry -> entry.getValue().external())
+                .filter(entry -> entry.getValue().typeName().equals(eventRecord.name()))
+                .filter(entry -> entry.getValue().version() <= eventRecord.version())
+                .max(Comparator.comparingInt(entry -> entry.getValue().version()))
+                .map(Map.Entry::getValue).orElse(null);
+    }
+
     @Override
     public Collection<DomainEventType<?>> getAllDomainEventTypes() {
         return this.domainEvents.values();
@@ -283,27 +298,27 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
 
     @Override
     public Collection<DomainEventType<?>> getProducedDomainEventTypes() {
-        return this.domainEvents.values().stream().filter(domainEventType -> !domainEventType.external()).toList();
+        return this.domainEvents.values().stream().filter(domainEventType -> !domainEventType.external()).collect(Collectors.toSet());
     }
 
     @Override
     public Collection<DomainEventType<?>> getExternalDomainEventTypes() {
-        return this.domainEvents.values().stream().filter(DomainEventType::external).toList();
+        return this.domainEvents.values().stream().filter(DomainEventType::external).collect(Collectors.toSet());
     }
 
     @Override
     public Collection<CommandType<?>> getAllCommandTypes() {
-        return this.commandTypes.values().stream().flatMap(Collection::stream).toList();
+        return this.commandTypes.values().stream().flatMap(Collection::stream).collect(Collectors.toSet());
     }
 
     @Override
     public Collection<CommandType<?>> getLocalCommandTypes() {
-        return this.commandTypes.values().stream().flatMap(Collection::stream).filter(commandType -> !commandType.external()).toList();
+        return this.commandTypes.values().stream().flatMap(Collection::stream).filter(commandType -> !commandType.external()).collect(Collectors.toSet());
     }
 
     @Override
     public Collection<CommandType<?>> getExternalCommandTypes() {
-        return this.commandTypes.values().stream().flatMap(Collection::stream).filter(CommandType::external).toList();
+        return this.commandTypes.values().stream().flatMap(Collection::stream).filter(CommandType::external).collect(Collectors.toSet());
     }
 
     private DomainEventType<?> getDomainEventType(Class<?> domainEventClass) {
@@ -316,6 +331,17 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                 .filter(commandType -> commandType.version() == version)
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("No CommandType found for type " + type + " and version " + version));
+    }
+
+    @Override
+    public boolean shouldGenerateGPRKey(CommandRecord commandRecord) {
+        return getCommandType(commandRecord).create() && generateGDPRKeyOnCreate;
+    }
+
+    @Override
+    public boolean shouldGenerateGPRKey(DomainEventRecord eventRecord) {
+        return Optional.ofNullable(getDomainEventType(eventRecord))
+                .map(domainEventType -> domainEventType.create() && generateGDPRKeyOnCreate).orElse(false);
     }
 
     protected abstract DomainEvent materialize(DomainEventType<?> domainEventType, DomainEventRecord eventRecord) throws IOException;

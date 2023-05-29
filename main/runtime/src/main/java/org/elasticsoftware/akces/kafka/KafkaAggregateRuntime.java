@@ -67,8 +67,19 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                                  Map<String, List<CommandType<?>>> commandTypes,
                                  Map<CommandType<?>, CommandHandlerFunction<AggregateState, Command, DomainEvent>> commandHandlers,
                                  Map<DomainEventType<?>, EventHandlerFunction<AggregateState, DomainEvent, DomainEvent>> eventHandlers,
-                                 Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers) {
-        super(stateType, aggregateClass, commandCreateHandler, eventCreateHandler, createStateHandler, domainEvents, commandTypes, commandHandlers, eventHandlers, eventSourcingHandlers);
+                                 Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers,
+                                  boolean generateGDPRKeyOnCreate) {
+        super(stateType,
+                aggregateClass,
+                commandCreateHandler,
+                eventCreateHandler,
+                createStateHandler,
+                domainEvents,
+                commandTypes,
+                commandHandlers,
+                eventHandlers,
+                eventSourcingHandlers,
+                generateGDPRKeyOnCreate);
         this.schemaRegistryClient = schemaRegistryClient;
         SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(SchemaVersion.DRAFT_7, OptionPreset.PLAIN_JSON);
         configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS, JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
@@ -124,7 +135,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                     List<Difference> differences = SchemaDiff.compare(((JsonSchema)registeredSchema).rawSchema(), localSchema.rawSchema());
                     if(!differences.isEmpty()) {
                         // we need to check if any properties were removed, removed properties are allowed
-                        // adding properties is not allowed, as well as chaning the type etc
+                        // adding properties is not allowed, as well as changing the type etc
                         for(Difference difference : differences) {
                             // TODO: see if we need to ignore other types
                             if(!difference.getType().equals(Difference.Type.PROPERTY_REMOVED_FROM_CLOSED_CONTENT_MODEL)) {
@@ -292,6 +303,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
         private Map<CommandType<?>, CommandHandlerFunction<AggregateState, Command, DomainEvent>> commandHandlers = new HashMap<>();
         private Map<DomainEventType<?>, EventHandlerFunction<AggregateState, DomainEvent, DomainEvent>> eventHandlers = new HashMap<>();
         private Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers = new HashMap<>();
+        private boolean generateGDPRKeyOnCreate = false;
 
         public Builder setSchemaRegistryClient(SchemaRegistryClient schemaRegistryClient) {
             this.schemaRegistryClient = schemaRegistryClient;
@@ -353,6 +365,11 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
             return this;
         }
 
+        public Builder setGenerateGDPRKeyOnCreate(boolean generateGDPRKeyOnCreate) {
+            this.generateGDPRKeyOnCreate = generateGDPRKeyOnCreate;
+            return this;
+        }
+
         public KafkaAggregateRuntime build() {
             return new KafkaAggregateRuntime(schemaRegistryClient,
                     objectMapper,
@@ -365,7 +382,8 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                     commandTypes,
                     commandHandlers,
                     eventHandlers,
-                    eventSourcingHandlers);
+                    eventSourcingHandlers,
+                    generateGDPRKeyOnCreate);
         }
     }
 }

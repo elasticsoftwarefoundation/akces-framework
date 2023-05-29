@@ -15,13 +15,17 @@
  *
  */
 
-package org.elasticsoftware.akces.state;
+package org.elasticsoftware.akces.annotations;
 
-import org.apache.kafka.clients.producer.RecordMetadata;
-import org.elasticsoftware.akces.protocol.AggregateStateRecord;
-import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import com.fasterxml.jackson.annotation.JacksonAnnotation;
 
-import java.util.concurrent.Future;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-public record RecordAndMetadata<PR extends ProtocolRecord>(PR record, Future<RecordMetadata> metadata) {
+@JacksonAnnotation
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER})
+public @interface GDPRData {
 }

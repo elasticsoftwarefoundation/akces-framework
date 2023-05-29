@@ -15,13 +15,33 @@
  *
  */
 
-package org.elasticsoftware.akces.state;
+package org.elasticsoftware.akces.gdpr;
 
-import org.apache.kafka.clients.producer.RecordMetadata;
-import org.elasticsoftware.akces.protocol.AggregateStateRecord;
-import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import jakarta.annotation.Nonnull;
+import jakarta.annotation.Nullable;
 
-import java.util.concurrent.Future;
+public final class NoopGDPRContext implements GDPRContext {
+    private final String aggregateId;
 
-public record RecordAndMetadata<PR extends ProtocolRecord>(PR record, Future<RecordMetadata> metadata) {
+    public NoopGDPRContext(@Nonnull String aggregateId) {
+        this.aggregateId = aggregateId;
+    }
+
+    @Nullable
+    @Override
+    public String encrypt(@Nullable String data) {
+        return data;
+    }
+
+    @Nullable
+    @Override
+    public String decrypt(@Nullable String encryptedData) {
+        return encryptedData;
+    }
+
+    @Nonnull
+    @Override
+    public String getAggregateId() {
+        return aggregateId;
+    }
 }

@@ -42,6 +42,7 @@ public class TestUtils {
         KafkaAdmin kafkaAdmin = new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
         kafkaAdmin.createOrModifyTopics(
                 createCompactedTopic("Akces-Control", 3),
+                createCompactedTopic("Akces-GDPRKeys", 3),
                 createTopic("Wallet-Commands", 3),
                 createTopic("Wallet-DomainEvents", 3),
                 createTopic("Account-Commands", 3),

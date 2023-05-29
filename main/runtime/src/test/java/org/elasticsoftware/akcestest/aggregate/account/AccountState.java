@@ -20,9 +20,14 @@ package org.elasticsoftware.akcestest.aggregate.account;
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.annotations.AggregateStateInfo;
+import org.elasticsoftware.akces.annotations.GDPRData;
 
 @AggregateStateInfo(type = "Account", version = 1)
-public record AccountState(@NotNull String userId,@NotNull String country) implements AggregateState {
+public record AccountState(@NotNull String userId,
+                           @NotNull String country,
+                           @NotNull @GDPRData String firstName,
+                           @NotNull @GDPRData String lastName,
+                           @NotNull @GDPRData String email) implements AggregateState {
     @Override
     public String getAggregateId() {
         return userId();

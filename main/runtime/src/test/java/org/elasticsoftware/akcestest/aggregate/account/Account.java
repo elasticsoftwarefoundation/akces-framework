@@ -25,7 +25,7 @@ import org.elasticsoftware.akces.annotations.EventSourcingHandler;
 
 import java.util.stream.Stream;
 
-@AggregateInfo("Account")
+@AggregateInfo(value = "Account",generateGDPRKeyOnCreate = true)
 @SuppressWarnings("unused")
 public final class Account implements Aggregate<AccountState> {
     @Override
@@ -40,12 +40,12 @@ public final class Account implements Aggregate<AccountState> {
 
     @CommandHandler(create = true, produces = AccountCreatedEvent.class, errors = {})
     public Stream<AccountCreatedEvent> create(CreateAccountCommand cmd, AccountState isNull) {
-        return Stream.of(new AccountCreatedEvent(cmd.userId(), cmd.country()));
+        return Stream.of(new AccountCreatedEvent(cmd.userId(), cmd.country(), cmd.firstName(), cmd.lastName(), cmd.email()));
     }
 
     @EventSourcingHandler(create = true)
     @NotNull
     public AccountState create(@NotNull AccountCreatedEvent event, AccountState isNull) {
-        return new AccountState(event.userId(), event.country());
+        return new AccountState(event.userId(), event.country(), event.firstName(), event.lastName(), event.email());
     }
 }

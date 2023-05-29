@@ -241,6 +241,7 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
                         toCommandTopicPartition(aggregateRuntime, topicPartition.partition()),
                         toDomainEventTopicPartition(aggregateRuntime, topicPartition.partition()),
                         toAggregateStateTopicPartition(aggregateRuntime, topicPartition.partition()),
+                        toGDPRKeysTopicPartition(aggregateRuntime, topicPartition.partition()),
                         aggregateRuntime.getExternalDomainEventTypes(),
                         this);
                 aggregatePartitions.put(topicPartition.partition(), aggregatePartition);
