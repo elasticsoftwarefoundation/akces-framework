@@ -18,7 +18,6 @@
 package org.elasticsoftware.akces.util;
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 
 public class HostUtils {
     private HostUtils() {

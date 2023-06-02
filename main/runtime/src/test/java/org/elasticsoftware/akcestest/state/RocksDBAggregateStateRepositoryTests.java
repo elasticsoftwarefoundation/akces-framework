@@ -20,17 +20,23 @@ package org.elasticsoftware.akcestest.state;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
-import org.elasticsoftware.akcestest.aggregate.wallet.WalletState;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.PayloadEncoding;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
 import org.elasticsoftware.akces.state.RocksDBAggregateStateRepository;
+import org.elasticsoftware.akcestest.aggregate.wallet.WalletState;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.rocksdb.RocksDBException;
 
+import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -44,6 +50,15 @@ public class RocksDBAggregateStateRepositoryTests {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final Future<RecordMetadata> producerResponse = mock(Future.class);
+
+    @AfterAll
+    public static void cleanUp() throws IOException {
+        // clean up the rocksdb directory
+        Files.walk(Paths.get("/tmp/rocksdb"))
+                .sorted(Comparator.reverseOrder())
+                .map(Path::toFile)
+                .forEach(File::delete);
+    }
 
     @Test
     public void testCreate() throws RocksDBException, IOException {

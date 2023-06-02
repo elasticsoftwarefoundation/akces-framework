@@ -15,14 +15,16 @@
  *
  */
 
-package org.elasticsoftware.akces.control;
+package org.elasticsoftware.akces.client.commands;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
-public record CommandServiceCommandType<C extends Command>(
-        String typeName,
-        int version,
-        boolean create
-) {
+@CommandInfo(type = "Unrouteable")
+public record UnroutableCommand(String id) implements Command {
+    @Override
+    public @NotNull String getAggregateId() {
+        return id();
+    }
 }

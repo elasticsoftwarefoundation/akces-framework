@@ -15,14 +15,14 @@
  *
  */
 
-package org.elasticsoftware.akces.control;
+package org.elasticsoftware.akces.client.commands;
 
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.commands.Command;
 
-@JsonTypeInfo(use = JsonTypeInfo.Id.DEDUCTION)
-@JsonSubTypes(
-        @JsonSubTypes.Type(CommandServiceRecord.class)
-)
-public sealed interface AkcesControlRecord permits CommandServiceRecord {
+public record InvalidCommand(String id) implements Command {
+    @Override
+    public @NotNull String getAggregateId() {
+        return id();
+    }
 }

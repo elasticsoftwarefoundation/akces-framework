@@ -68,7 +68,7 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
     private final ExecutorService executorService;
     private final HashFunction hashFunction = Hashing.murmur3_32_fixed();
     private Integer partitions = null;
-    private final Map<String, CommandServiceRecord> commandServices = new ConcurrentHashMap<>();
+    private final Map<String, AggregateServiceRecord> aggregateServices = new ConcurrentHashMap<>();
     private Consumer<String, AkcesControlRecord> controlConsumer;
     private final AggregateStateRepositoryFactory aggregateStateRepositoryFactory;
     private volatile AkcesControllerState processState = INITIALIZING;
@@ -147,9 +147,9 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
                 if (!consumerRecords.isEmpty()) {
                     consumerRecords.forEach(record -> {
                         AkcesControlRecord controlRecord = record.value();
-                        if (controlRecord instanceof CommandServiceRecord commandServiceRecord) {
-                            logger.info("Discovered service: {}", commandServiceRecord.aggregateName());
-                            commandServices.put(record.key(), commandServiceRecord);
+                        if (controlRecord instanceof AggregateServiceRecord aggregateServiceRecord) {
+                            logger.info("Discovered service: {}", aggregateServiceRecord.aggregateName());
+                            aggregateServices.put(record.key(), aggregateServiceRecord);
                         } else {
                             logger.info("Received unknown AkcesControlRecord type: {}", controlRecord.getClass().getSimpleName());
                         }
@@ -175,12 +175,12 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
                 while (!consumerRecords.isEmpty()) {
                     consumerRecords.forEach(record -> {
                         AkcesControlRecord controlRecord = record.value();
-                        if (controlRecord instanceof CommandServiceRecord commandServiceRecord) {
+                        if (controlRecord instanceof AggregateServiceRecord aggregateServiceRecord) {
                             // only log it once
-                            if(!commandServices.containsKey(record.key())) {
-                                logger.info("Discovered service: {}", commandServiceRecord.aggregateName());
+                            if(!aggregateServices.containsKey(record.key())) {
+                                logger.info("Discovered service: {}", aggregateServiceRecord.aggregateName());
                             }
-                            commandServices.put(record.key(), commandServiceRecord);
+                            aggregateServices.put(record.key(), aggregateServiceRecord);
                         } else {
                             logger.info("Received unknown AkcesControlRecord type: {}", controlRecord.getClass().getSimpleName());
                         }
@@ -196,7 +196,7 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
                 // drop out of the control loop, this will shut down all resources
                 processState = SHUTTING_DOWN;
             }
-            // TODO: maybe this needs it's own state
+            // TODO: maybe this needs it's own process state
             // register external domain event types
             for (DomainEventType<?> domainEventType : aggregateRuntime.getExternalDomainEventTypes()) {
                 try {
@@ -257,31 +257,34 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
         String transactionalId = aggregateRuntime.getName() + "-" + HostUtils.getHostName() + "-control";
         try (Producer<String,AkcesControlRecord> controlProducer = controlProducerFactory.createProducer(transactionalId)) {
             // publish the CommandServiceRecord
-            CommandServiceRecord commandServiceRecord = new CommandServiceRecord(
+            AggregateServiceRecord aggregateServiceRecord = new AggregateServiceRecord(
                     aggregateRuntime.getName(),
                     aggregateRuntime.getName() + COMMANDS_SUFFIX,
                     aggregateRuntime.getName() + DOMAINEVENTS_SUFFIX,
                     aggregateRuntime.getAllCommandTypes().stream()
                             .map(commandType ->
-                                    new CommandServiceCommandType(
+                                    new AggregateServiceCommandType(
                                         commandType.typeName(),
                                         commandType.version(),
-                                        commandType.create())).toList(),
+                                        commandType.create(),
+                                        "commands."+commandType.typeName())).toList(),
                     aggregateRuntime.getProducedDomainEventTypes().stream().map(domainEventType ->
-                            new CommandServiceDomainEventType(
+                            new AggregateServiceDomainEventType(
                                     domainEventType.typeName(),
                                     domainEventType.version(),
                                     domainEventType.create(),
-                                    domainEventType.external())).toList(),
+                                    domainEventType.external(),
+                                    "domainevents."+domainEventType.typeName())).toList(),
                     aggregateRuntime.getExternalDomainEventTypes().stream().map(externalDomainEventType ->
-                            new CommandServiceDomainEventType(
+                            new AggregateServiceDomainEventType(
                                     externalDomainEventType.typeName(),
                                     externalDomainEventType.version(),
                                     externalDomainEventType.create(),
-                                    externalDomainEventType.external())).toList());
+                                    externalDomainEventType.external(),
+                                    "domainevents."+externalDomainEventType.typeName())).toList());
             controlProducer.beginTransaction();
             for (int partition = 0; partition < partitions; partition++) {
-                controlProducer.send(new ProducerRecord<>("Akces-Control", partition, aggregateRuntime.getName(), commandServiceRecord));
+                controlProducer.send(new ProducerRecord<>("Akces-Control", partition, aggregateRuntime.getName(), aggregateServiceRecord));
             }
             controlProducer.commitTransaction();
         } catch (Exception e) {
@@ -322,12 +325,12 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
         // TODO: if the command class is for an external service it won't be derived from the local Aggregate
         CommandInfo commandInfo = commandClass.getAnnotation(CommandInfo.class);
         if(commandInfo != null) {
-            List<CommandServiceRecord> services = commandServices.values().stream()
+            List<AggregateServiceRecord> services = aggregateServices.values().stream()
                     .filter(commandServiceRecord -> supportsCommand(commandServiceRecord.supportedCommands(), commandInfo))
                     .toList();
             if(services.size() == 1) {
-                CommandServiceRecord commandServiceRecord = services.get(0);
-                if(aggregateRuntime.getName().equals(commandServiceRecord.aggregateName())) {
+                AggregateServiceRecord aggregateServiceRecord = services.get(0);
+                if(aggregateRuntime.getName().equals(aggregateServiceRecord.aggregateName())) {
                     // this is a local command (will be sent to self)
                     return aggregateRuntime.getLocalCommandType(commandInfo.type(), commandInfo.version());
                 } else {
@@ -344,8 +347,8 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
         }
     }
 
-    private boolean supportsCommand(List<CommandServiceCommandType> supportedCommands, CommandInfo commandInfo) {
-        for (CommandServiceCommandType<?> supportedCommand : supportedCommands) {
+    private boolean supportsCommand(List<AggregateServiceCommandType> supportedCommands, CommandInfo commandInfo) {
+        for (AggregateServiceCommandType supportedCommand : supportedCommands) {
             if (supportedCommand.typeName().equals(commandInfo.type()) &&
                     supportedCommand.version() == commandInfo.version()) {
                 return true;
@@ -354,8 +357,8 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
         return false;
     }
 
-    private boolean supportsCommand(List<CommandServiceCommandType> supportedCommands, CommandType<?> commandType) {
-        for (CommandServiceCommandType<?> supportedCommand : supportedCommands) {
+    private boolean supportsCommand(List<AggregateServiceCommandType> supportedCommands, CommandType<?> commandType) {
+        for (AggregateServiceCommandType supportedCommand : supportedCommands) {
             if (supportedCommand.typeName().equals(commandType.typeName()) &&
                     supportedCommand.version() == commandType.version()) {
                 return true;
@@ -364,8 +367,8 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
         return false;
     }
 
-    private boolean producesDomainEvent(List<CommandServiceDomainEventType> producedEvents, DomainEventType<?> externalDomainEventType) {
-        for (CommandServiceDomainEventType<?> producedEvent : producedEvents) {
+    private boolean producesDomainEvent(List<AggregateServiceDomainEventType> producedEvents, DomainEventType<?> externalDomainEventType) {
+        for (AggregateServiceDomainEventType producedEvent : producedEvents) {
             if (producedEvent.typeName().equals(externalDomainEventType.typeName()) &&
                     producedEvent.version() == externalDomainEventType.version()) {
                 return true;
@@ -383,7 +386,7 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
     @Override
     @Nonnull
     public String resolveTopic(@Nonnull CommandType<?> commandType) {
-        List<CommandServiceRecord> services = commandServices.values().stream()
+        List<AggregateServiceRecord> services = aggregateServices.values().stream()
                 .filter(commandServiceRecord -> supportsCommand(commandServiceRecord.supportedCommands(), commandType))
                 .toList();
         if(services.size() == 1) {
@@ -395,7 +398,7 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
 
     @Override
     public String resolveTopic(@Nonnull DomainEventType<?> externalDomainEventType) {
-        List<CommandServiceRecord> services = commandServices.values().stream()
+        List<AggregateServiceRecord> services = aggregateServices.values().stream()
                 .filter(commandServiceRecord -> producesDomainEvent(commandServiceRecord.producedEvents(), externalDomainEventType))
                 .toList();
         if(services.size() == 1) {

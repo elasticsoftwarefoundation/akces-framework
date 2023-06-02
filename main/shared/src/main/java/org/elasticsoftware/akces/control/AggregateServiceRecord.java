@@ -17,17 +17,14 @@
 
 package org.elasticsoftware.akces.control;
 
-import org.elasticsoftware.akces.aggregate.CommandType;
-import org.elasticsoftware.akces.aggregate.DomainEventType;
-
 import java.util.List;
 
-public record CommandServiceRecord(
+public record AggregateServiceRecord(
         String aggregateName,
         String commandTopic,
         String domainEventTopic,
-        List<CommandServiceCommandType> supportedCommands,
-        List<CommandServiceDomainEventType> producedEvents,
-        List<CommandServiceDomainEventType> consumedEvents
+        List<AggregateServiceCommandType> supportedCommands,
+        List<AggregateServiceDomainEventType> producedEvents,
+        List<AggregateServiceDomainEventType> consumedEvents
 ) implements AkcesControlRecord {
 }

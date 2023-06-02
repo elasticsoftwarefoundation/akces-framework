@@ -33,17 +33,17 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.elasticsoftware.akces.AkcesController;
+import org.elasticsoftware.akces.control.AggregateServiceCommandType;
+import org.elasticsoftware.akces.control.AggregateServiceDomainEventType;
+import org.elasticsoftware.akces.control.AggregateServiceRecord;
+import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.protocol.*;
+import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
 import org.elasticsoftware.akcestest.aggregate.account.AccountState;
 import org.elasticsoftware.akcestest.aggregate.account.CreateAccountCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.CreateWalletCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.CreditWalletCommand;
-import org.elasticsoftware.akces.control.AkcesControlRecord;
-import org.elasticsoftware.akces.control.CommandServiceCommandType;
-import org.elasticsoftware.akces.control.CommandServiceDomainEventType;
-import org.elasticsoftware.akces.control.CommandServiceRecord;
-import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -72,10 +72,10 @@ import java.util.*;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.elasticsoftware.akcestest.TestUtils.prepareExternalSchemas;
-import static org.elasticsoftware.akcestest.TestUtils.prepareKafka;
 import static org.elasticsoftware.akces.kafka.PartitionUtils.COMMANDS_SUFFIX;
 import static org.elasticsoftware.akces.kafka.PartitionUtils.DOMAINEVENTS_SUFFIX;
+import static org.elasticsoftware.akcestest.TestUtils.prepareExternalSchemas;
+import static org.elasticsoftware.akcestest.TestUtils.prepareKafka;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Testcontainers
@@ -158,16 +158,16 @@ public class RuntimeTests  {
                 ProducerConfig.CLIENT_ID_CONFIG, "Test-AkcesControllerProducer");
         try (Producer<String,AkcesControlRecord> controlProducer = new KafkaProducer<>(controlProducerProps, new StringSerializer(), controlSerde.serializer())) {
             controlProducer.initTransactions();
-            CommandServiceRecord commandServiceRecord = new CommandServiceRecord(
+            AggregateServiceRecord aggregateServiceRecord = new AggregateServiceRecord(
                     "Account",
                     "Account" + COMMANDS_SUFFIX,
                     "Account" + DOMAINEVENTS_SUFFIX,
-                    List.of(new CommandServiceCommandType<>("CreateAccount",1, true)),
-                    List.of(new CommandServiceDomainEventType<>("AccountCreated", 1, true, false)),
+                    List.of(new AggregateServiceCommandType("CreateAccount",1, true,"commands.CreateAccount")),
+                    List.of(new AggregateServiceDomainEventType("AccountCreated", 1, true, false, "domainevents.AccountCreated")),
                     List.of());
             controlProducer.beginTransaction();
             for (int partition = 0; partition < 3; partition++) {
-                controlProducer.send(new ProducerRecord<>("Akces-Control", partition, "Account", commandServiceRecord));
+                controlProducer.send(new ProducerRecord<>("Akces-Control", partition, "Account", aggregateServiceRecord));
             }
             controlProducer.commitTransaction();
         }
