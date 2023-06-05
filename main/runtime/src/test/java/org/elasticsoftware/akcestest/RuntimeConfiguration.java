@@ -41,6 +41,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.PropertySource;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
@@ -52,7 +53,11 @@ import java.util.Map;
 @Configuration
 @EnableAutoConfiguration
 @EnableConfigurationProperties(KafkaProperties.class)
-@ComponentScan(basePackages = "org.elasticsoftware.akcestest.aggregate")
+@ComponentScan(basePackages = {
+        "org.elasticsoftware.akcestest.aggregate",
+        "org.elasticsoftware.akces.beans",
+})
+@PropertySource("classpath:akces-aggregateservice.properties")
 public class RuntimeConfiguration {
     private final ProtocolRecordSerde serde = new ProtocolRecordSerde();
 

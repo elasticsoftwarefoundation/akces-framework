@@ -446,6 +446,7 @@
                     <include>*.properties</include>
                     <include>META-INF/*</include>
                     <include>META-INF/services/*</include>
+                    <include>META-INF/spring/*</include>
                     <include>protobuf/*.proto</include>
                 </includes>
             </resource>
