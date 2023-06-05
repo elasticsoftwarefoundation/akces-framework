@@ -24,12 +24,13 @@
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-main</artifactId>
         <version>0.1.1-SNAPSHOT</version>
-        <relativePath>../../pom.xml</relativePath>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
     <name>Elastic Software Foundation :: Akces :: Client</name>
     <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
     <artifactId>akces-client</artifactId>
+    <packaging>jar</packaging>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

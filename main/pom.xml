@@ -431,7 +431,7 @@
     <modules>
         <module>api</module>
         <module>runtime</module>
-        <module>client/akces-client</module>
+        <module>client</module>
         <module>shared</module>
     </modules>
 
