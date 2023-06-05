@@ -66,6 +66,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 @Testcontainers
 @SpringBootTest(classes = AkcesClientTestConfiguration.class, properties = "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration")
@@ -236,5 +239,43 @@ public class AkcesClientTests {
         }
         // since we didn't register any services this should give a unroutable error
         Assertions.assertThrows(CommandValidationException.class, () -> akcesClient.send("TEST_TENANT",new CreateAccountCommand(UUID.randomUUID().toString(), "NL", "Aike","Christianen",null)));
+    }
+
+    @Test
+    public void testSendCommand() throws InterruptedException {
+        // make sure it's running
+        while(!akcesClient.isRunning()) {
+            Thread.onSpinWait();
+        }
+        CompletionStage<String> result = akcesClient.send("TEST_TENANT",new CreateAccountCommand(UUID.randomUUID().toString(), "NL", "Aike","Christianen","aike.christianen@gmail.com"));
+        CountDownLatch waitLatch = new CountDownLatch(1);
+        result.whenComplete((s, throwable) -> waitLatch.countDown());
+        Assertions.assertTrue(waitLatch.await(10, TimeUnit.SECONDS));
+        Assertions.assertTrue(result.toCompletableFuture().isDone());
+        Assertions.assertFalse(result.toCompletableFuture().isCompletedExceptionally());
+        Assertions.assertNotNull(result.toCompletableFuture().getNow(null));
+    }
+
+    @Test
+    public void testSendCommandWithCorrelationId() throws InterruptedException {
+        // make sure it's running
+        while(!akcesClient.isRunning()) {
+            Thread.onSpinWait();
+        }
+        String correlationId = UUID.randomUUID().toString();
+        CompletionStage<String> result = akcesClient.send("TEST_TENANT",
+                correlationId,
+                new CreateAccountCommand(
+                        UUID.randomUUID().toString(),
+                        "NL",
+                        "Aike",
+                        "Christianen",
+                        "aike.christianen@gmail.com"));
+        CountDownLatch waitLatch = new CountDownLatch(1);
+        result.whenComplete((s, throwable) -> waitLatch.countDown());
+        Assertions.assertTrue(waitLatch.await(10, TimeUnit.SECONDS));
+        Assertions.assertTrue(result.toCompletableFuture().isDone());
+        Assertions.assertFalse(result.toCompletableFuture().isCompletedExceptionally());
+        Assertions.assertEquals(correlationId, result.toCompletableFuture().getNow(null));
     }
 }
