@@ -32,7 +32,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.elasticsoftware.akces.AkcesController;
+import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.control.AggregateServiceCommandType;
 import org.elasticsoftware.akces.control.AggregateServiceDomainEventType;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
@@ -111,7 +111,7 @@ public class RuntimeTests  {
     SchemaRegistryClient schemaRegistryClient;
 
     @Inject @Qualifier("WalletAkcesController")
-    AkcesController akcesController;
+    AkcesAggregateController akcesAggregateController;
 
     @Inject
     ConsumerFactory<String, ProtocolRecord> consumerFactory;
@@ -206,7 +206,7 @@ public class RuntimeTests  {
     @Test
     @Order(3)
     public void testAckesControl() throws JsonProcessingException {
-        assertNotNull(akcesController);
+        assertNotNull(akcesAggregateController);
         Producer<String, ProtocolRecord> testProducer = producerFactory.createProducer("test");
         Consumer<String, ProtocolRecord> testConsumer = consumerFactory.createConsumer("Test", "test");
         Consumer<String, AkcesControlRecord> controlConsumer = controlConsumerFactory.createConsumer("Test-AkcesControl","test-akces-control");
@@ -225,15 +225,15 @@ public class RuntimeTests  {
         controlConsumer.close();
 
         // wait until the ackes controller is running
-        while(!akcesController.isRunning()) {
+        while(!akcesAggregateController.isRunning()) {
             Thread.onSpinWait();
         }
 
         String userId = "47db2418-dd10-11ed-afa1-0242ac120002";
         CreateWalletCommand command = new CreateWalletCommand(userId,"USD");
         CommandRecord commandRecord = new CommandRecord(null,"CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null);
-        String topicName = akcesController.resolveTopic(command.getClass());
-        int partition = akcesController.resolvePartition(command.getAggregateId());
+        String topicName = akcesAggregateController.resolveTopic(command.getClass());
+        int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
         // produce a command to create a Wallet
         testProducer.beginTransaction();
         testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));
@@ -299,7 +299,7 @@ public class RuntimeTests  {
     @Order(4)
     public void testBatchedCommands() throws JsonProcessingException {
         // wait until the ackes controller is running
-        while(!akcesController.isRunning()) {
+        while(!akcesAggregateController.isRunning()) {
             Thread.onSpinWait();
         }
         List<String> userIds = List.of(
@@ -329,8 +329,8 @@ public class RuntimeTests  {
             for(String userId : userIds) {
                 CreateWalletCommand command = new CreateWalletCommand(userId,"USD");
                 CommandRecord commandRecord = new CommandRecord(null,"CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null);
-                String topicName = akcesController.resolveTopic(command.getClass());
-                int partition = akcesController.resolvePartition(command.getAggregateId());
+                String topicName = akcesAggregateController.resolveTopic(command.getClass());
+                int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
                 // produce a command to create a Wallet
                 testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));
             }
@@ -365,7 +365,7 @@ public class RuntimeTests  {
     @Order(5)
     public void testCreateViaExternalDomainEvent() throws JsonProcessingException {
         // wait until the ackes controller is running
-        while(!akcesController.isRunning()) {
+        while(!akcesAggregateController.isRunning()) {
             Thread.onSpinWait();
         }
 
@@ -393,8 +393,8 @@ public class RuntimeTests  {
                     PayloadEncoding.JSON,
                     command.getAggregateId(),
                     null);
-            String topicName = akcesController.resolveTopic(command.getClass());
-            int partition = akcesController.resolvePartition(command.getAggregateId());
+            String topicName = akcesAggregateController.resolveTopic(command.getClass());
+            int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
             // produce a command to create an Account
             testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));
             testProducer.commitTransaction();
@@ -427,7 +427,7 @@ public class RuntimeTests  {
     @Order(6)
     public void testGDPREncryption() throws IOException {
         // wait until the ackes controller is running
-        while(!akcesController.isRunning()) {
+        while(!akcesAggregateController.isRunning()) {
             Thread.onSpinWait();
         }
 
@@ -455,8 +455,8 @@ public class RuntimeTests  {
                     PayloadEncoding.JSON,
                     command.getAggregateId(),
                     null);
-            String topicName = akcesController.resolveTopic(command.getClass());
-            int partition = akcesController.resolvePartition(command.getAggregateId());
+            String topicName = akcesAggregateController.resolveTopic(command.getClass());
+            int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
             // produce a command to create an Account
             testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));
             testProducer.commitTransaction();

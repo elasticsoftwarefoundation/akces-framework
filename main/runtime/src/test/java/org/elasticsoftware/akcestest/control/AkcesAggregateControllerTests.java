@@ -33,7 +33,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 
-public class AkcesControllerTests {
+public class AkcesAggregateControllerTests {
     @Test
     public void testSerialization() throws IOException {
         ObjectMapper objectMapper = new ObjectMapper();

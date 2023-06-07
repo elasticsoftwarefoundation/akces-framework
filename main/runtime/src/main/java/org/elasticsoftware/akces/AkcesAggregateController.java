@@ -56,8 +56,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsoftware.akces.AkcesControllerState.*;
 import static org.elasticsoftware.akces.kafka.PartitionUtils.*;
 
-public class AkcesController extends Thread implements AutoCloseable, ConsumerRebalanceListener, AkcesRegistry {
-    private static final Logger logger = LoggerFactory.getLogger(AkcesController.class);
+public class AkcesAggregateController extends Thread implements AutoCloseable, ConsumerRebalanceListener, AkcesRegistry {
+    private static final Logger logger = LoggerFactory.getLogger(AkcesAggregateController.class);
     private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
     private final ProducerFactory<String, AkcesControlRecord> controlProducerFactory;
@@ -75,13 +75,13 @@ public class AkcesController extends Thread implements AutoCloseable, ConsumerRe
     private final List<TopicPartition> partitionsToAssign = new ArrayList<>();
     private final List<TopicPartition> partitionsToRevoke = new ArrayList<>();
 
-    public AkcesController(ConsumerFactory<String, ProtocolRecord> consumerFactory,
-                           ProducerFactory<String, ProtocolRecord> producerFactory,
-                           ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory,
-                           ProducerFactory<String, AkcesControlRecord> controlProducerFactory,
-                           AggregateStateRepositoryFactory aggregateStateRepositoryFactory,
-                           AggregateRuntime aggregateRuntime,
-                           KafkaAdminOperations kafkaAdmin) {
+    public AkcesAggregateController(ConsumerFactory<String, ProtocolRecord> consumerFactory,
+                                    ProducerFactory<String, ProtocolRecord> producerFactory,
+                                    ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory,
+                                    ProducerFactory<String, AkcesControlRecord> controlProducerFactory,
+                                    AggregateStateRepositoryFactory aggregateStateRepositoryFactory,
+                                    AggregateRuntime aggregateRuntime,
+                                    KafkaAdminOperations kafkaAdmin) {
         super(aggregateRuntime.getName()+"-AkcesController");
         this.consumerFactory = consumerFactory;
         this.producerFactory = producerFactory;
