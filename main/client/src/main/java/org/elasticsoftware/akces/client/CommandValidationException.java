@@ -15,24 +15,15 @@
  *
  */
 
-package org.elasticsoftware.akcestest.aggregate.wallet;
+package org.elasticsoftware.akces.client;
 
-import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
-import java.math.BigDecimal;
+public class CommandValidationException extends AkcesClientException {
 
-@CommandInfo(type = "CreditWallet", version = 1)
-public record CreditWalletCommand(
-        @AggregateIdentifier String id,
-        String currency,
-        BigDecimal amount
-) implements Command {
-    @NotNull
-    @Override
-    public String getAggregateId() {
-        return id();
+    public CommandValidationException(Class<? extends Command> commandClass,
+                                      Throwable cause) {
+        super(commandClass, commandClass.getAnnotation(CommandInfo.class), "Validating", cause);
     }
 }

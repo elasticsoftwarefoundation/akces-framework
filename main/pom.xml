@@ -431,6 +431,8 @@
     <modules>
         <module>api</module>
         <module>runtime</module>
+        <module>client</module>
+        <module>shared</module>
     </modules>
 
     <build>
@@ -444,6 +446,7 @@
                     <include>*.properties</include>
                     <include>META-INF/*</include>
                     <include>META-INF/services/*</include>
+                    <include>META-INF/spring/*</include>
                     <include>protobuf/*.proto</include>
                 </includes>
             </resource>

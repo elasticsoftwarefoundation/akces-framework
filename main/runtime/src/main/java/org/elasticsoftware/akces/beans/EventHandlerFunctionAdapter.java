@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces.beans;
 
+import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
@@ -69,7 +70,7 @@ public class EventHandlerFunctionAdapter<S extends AggregateState,InputEvent ext
     }
 
     @Override
-    public Stream<E> apply(InputEvent event, S state) {
+    public Stream<E> apply(@NotNull InputEvent event, S state) {
         try {
             return (Stream<E>) adapterMethod.invoke(aggregate, event, state);
         } catch (IllegalAccessException e) {

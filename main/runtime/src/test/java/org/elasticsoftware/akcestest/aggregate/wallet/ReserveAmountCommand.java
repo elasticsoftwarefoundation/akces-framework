@@ -32,6 +32,7 @@ public record ReserveAmountCommand(
         @NotNull String referenceId
 ) implements Command {
     @Override
+    @NotNull
     public String getAggregateId() {
         return userId();
     }

@@ -15,24 +15,14 @@
  *
  */
 
-package org.elasticsoftware.akcestest.aggregate.wallet;
+package org.elasticsoftware.akces.control;
 
-import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.akces.annotations.AggregateIdentifier;
-import org.elasticsoftware.akces.annotations.CommandInfo;
-import org.elasticsoftware.akces.commands.Command;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
-import java.math.BigDecimal;
-
-@CommandInfo(type = "CreditWallet", version = 1)
-public record CreditWalletCommand(
-        @AggregateIdentifier String id,
-        String currency,
-        BigDecimal amount
-) implements Command {
-    @NotNull
-    @Override
-    public String getAggregateId() {
-        return id();
-    }
+@JsonTypeInfo(use = JsonTypeInfo.Id.DEDUCTION)
+@JsonSubTypes(
+        @JsonSubTypes.Type(AggregateServiceRecord.class)
+)
+public sealed interface AkcesControlRecord permits AggregateServiceRecord {
 }

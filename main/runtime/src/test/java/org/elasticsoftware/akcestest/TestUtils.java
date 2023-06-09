@@ -27,7 +27,6 @@ import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientExcept
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
-import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.springframework.context.ApplicationContextException;
@@ -89,7 +88,7 @@ public class TestUtils {
             for(Class<E> eventClass : externalDomainEvents) {
                 DomainEventInfo info = eventClass.getAnnotation(DomainEventInfo.class);
                 src.register("domainevents."+info.type(),
-                        new JsonSchema(jsonSchemaGenerator.generateSchema(AccountCreatedEvent.class), List.of(), Map.of(), info.version()),
+                        new JsonSchema(jsonSchemaGenerator.generateSchema(eventClass), List.of(), Map.of(), info.version()),
                         info.version(),
                         -1);
             }

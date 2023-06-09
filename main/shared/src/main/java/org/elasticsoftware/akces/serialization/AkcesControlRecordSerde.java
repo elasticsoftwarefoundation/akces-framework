@@ -23,11 +23,10 @@ import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serializer;
+import org.elasticsoftware.akces.control.AggregateServiceRecord;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
-import org.elasticsoftware.akces.control.CommandServiceRecord;
 
 import java.io.IOException;
-import java.util.Map;
 
 public final class AkcesControlRecordSerde implements Serde<AkcesControlRecord> {
     private final Serializer<AkcesControlRecord> serializer;
@@ -58,7 +57,7 @@ public final class AkcesControlRecordSerde implements Serde<AkcesControlRecord> 
         @Override
         public byte[] serialize(String topic, AkcesControlRecord data) {
             try {
-                if (data instanceof CommandServiceRecord csr) {
+                if (data instanceof AggregateServiceRecord csr) {
                     return objectMapper.writeValueAsBytes(csr);
                 } else {
                     throw new SerializationException("Unsupported AkcesControlRecord type " + data.getClass().getSimpleName());

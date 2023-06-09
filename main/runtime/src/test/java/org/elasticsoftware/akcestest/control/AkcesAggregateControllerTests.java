@@ -19,12 +19,10 @@ package org.elasticsoftware.akcestest.control;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.elasticsoftware.akces.aggregate.CommandType;
-import org.elasticsoftware.akces.aggregate.DomainEventType;
+import org.elasticsoftware.akces.control.AggregateServiceCommandType;
+import org.elasticsoftware.akces.control.AggregateServiceDomainEventType;
+import org.elasticsoftware.akces.control.AggregateServiceRecord;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
-import org.elasticsoftware.akces.control.CommandServiceCommandType;
-import org.elasticsoftware.akces.control.CommandServiceDomainEventType;
-import org.elasticsoftware.akces.control.CommandServiceRecord;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.junit.jupiter.api.Test;
 
@@ -35,16 +33,16 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 
-public class AkcesControllerTests {
+public class AkcesAggregateControllerTests {
     @Test
     public void testSerialization() throws IOException {
         ObjectMapper objectMapper = new ObjectMapper();
-        CommandServiceRecord record = new CommandServiceRecord(
+        AggregateServiceRecord record = new AggregateServiceRecord(
                 "Account",
                 "Account-Commands",
                 "Account-DomainEvents",
-                List.of(new CommandServiceCommandType<>("CreateAccount", 1, true)),
-                List.of(new CommandServiceDomainEventType<>("AccountCreated",1, true, false)),
+                List.of(new AggregateServiceCommandType("CreateAccount", 1, true, "commands.CreateAccount")),
+                List.of(new AggregateServiceDomainEventType("AccountCreated",1, true, false, "domainevents.AccountCreated")),
                 Collections.emptyList());
         assertNotNull(record);
         //objectMapper.writerWithDefaultPrettyPrinter().writeValue(System.out, record);
@@ -72,29 +70,29 @@ public class AkcesControllerTests {
                 """;
 
         ObjectMapper objectMapper = new ObjectMapper();
-        AkcesControlRecord deserialized = objectMapper.readValue(serializedRecord, CommandServiceRecord.class);
+        AkcesControlRecord deserialized = objectMapper.readValue(serializedRecord, AggregateServiceRecord.class);
         assertNotNull(deserialized);
-        assertTrue(deserialized instanceof CommandServiceRecord);
-        assertEquals("Account", ((CommandServiceRecord) deserialized).aggregateName());
-        assertEquals("Account-Commands", ((CommandServiceRecord) deserialized).commandTopic());
+        assertTrue(deserialized instanceof AggregateServiceRecord);
+        assertEquals("Account", ((AggregateServiceRecord) deserialized).aggregateName());
+        assertEquals("Account-Commands", ((AggregateServiceRecord) deserialized).commandTopic());
     }
 
     @Test
     public void testSerde() {
         AkcesControlRecordSerde serde = new AkcesControlRecordSerde(new ObjectMapper());
-        CommandServiceRecord record = new CommandServiceRecord(
+        AggregateServiceRecord record = new AggregateServiceRecord(
                 "Account",
                 "Account-Commands",
                 "Account-DomainEvents",
-                List.of(new CommandServiceCommandType<>("CreateAccount", 1, true)),
-                List.of(new CommandServiceDomainEventType<>("AccountCreated",1, true, false)),
+                List.of(new AggregateServiceCommandType("CreateAccount", 1, true, "commands.CreateAccount")),
+                List.of(new AggregateServiceDomainEventType("AccountCreated",1, true, false, "domainevents.AccountCreated")),
                 Collections.emptyList());
         byte[] serialized = serde.serializer().serialize("Akces-Control", record);
         assertNotNull(serialized);
 
         AkcesControlRecord deserialized = serde.deserializer().deserialize("Akces-Control", serialized);
         assertNotNull(deserialized);
-        assertTrue(deserialized instanceof CommandServiceRecord);
-        assertEquals("Account", ((CommandServiceRecord) deserialized).aggregateName());
+        assertTrue(deserialized instanceof AggregateServiceRecord);
+        assertEquals("Account", ((AggregateServiceRecord) deserialized).aggregateName());
     }
 }

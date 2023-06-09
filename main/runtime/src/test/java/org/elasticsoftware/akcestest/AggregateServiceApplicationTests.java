@@ -20,7 +20,7 @@ package org.elasticsoftware.akcestest;
 import jakarta.inject.Inject;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.elasticsoftware.akces.AkcesController;
+import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
@@ -117,7 +117,7 @@ public class AggregateServiceApplicationTests {
     ApplicationContext applicationContext;
 
     @Inject @Qualifier("AccountAkcesController")
-    AkcesController akcesController;
+    AkcesAggregateController akcesAggregateController;
 
     @Inject
     ConsumerFactory<String, ProtocolRecord> consumerFactory;
@@ -132,7 +132,7 @@ public class AggregateServiceApplicationTests {
     public void testAggregateLoading() {
         // we should have a single aggregate (Account) loaded
         Assertions.assertNotNull(applicationContext.getBean("AccountAggregateRuntimeFactory"));
-        Assertions.assertNotNull(akcesController);
+        Assertions.assertNotNull(akcesAggregateController);
         Assertions.assertNotNull(consumerFactory);
         Assertions.assertNotNull(producerFactory);
         Assertions.assertNotNull(controlConsumerFactory);
@@ -155,7 +155,7 @@ public class AggregateServiceApplicationTests {
         controlConsumer.close();
 
         // wait until the ackes controller is running
-        while(!akcesController.isRunning()) {
+        while(!akcesAggregateController.isRunning()) {
             Thread.onSpinWait();
         }
     }

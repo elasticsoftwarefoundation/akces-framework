@@ -15,14 +15,16 @@
  *
  */
 
-package org.elasticsoftware.akces.control;
+package org.elasticsoftware.akces.client;
 
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
 
-@JsonTypeInfo(use = JsonTypeInfo.Id.DEDUCTION)
-@JsonSubTypes(
-        @JsonSubTypes.Type(CommandServiceRecord.class)
-)
-public sealed interface AkcesControlRecord permits CommandServiceRecord {
+@Configuration
+@EnableAutoConfiguration
+@EnableConfigurationProperties(KafkaProperties.class)
+public class AkcesClientTestConfiguration {
+
 }

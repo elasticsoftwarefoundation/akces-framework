@@ -21,7 +21,6 @@ import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
-import org.mockito.internal.matchers.Not;
 
 @CommandInfo(type = "CreateAccount")
 public record CreateAccountCommand(
@@ -31,7 +30,7 @@ public record CreateAccountCommand(
         @NotNull String lastName,
         @NotNull String email
 ) implements Command {
-    @Override
+    @Override @NotNull
     public String getAggregateId() {
         return userId();
     }

@@ -15,24 +15,20 @@
  *
  */
 
-package org.elasticsoftware.akcestest.aggregate.wallet;
+package org.elasticsoftware.akces.client;
 
-import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.akces.annotations.AggregateIdentifier;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
-import java.math.BigDecimal;
+public class UnknownSchemaException extends AkcesClientException {
+    private final String schemaIdentifier;
+    public UnknownSchemaException(@Nonnull Class<? extends Command> commandClass, String schemaIdentifier) {
+        super(commandClass, commandClass.getAnnotation(CommandInfo.class), "Unknown Schema");
+        this.schemaIdentifier = schemaIdentifier;
+    }
 
-@CommandInfo(type = "CreditWallet", version = 1)
-public record CreditWalletCommand(
-        @AggregateIdentifier String id,
-        String currency,
-        BigDecimal amount
-) implements Command {
-    @NotNull
-    @Override
-    public String getAggregateId() {
-        return id();
+    public String getSchemaIdentifier() {
+        return schemaIdentifier;
     }
 }

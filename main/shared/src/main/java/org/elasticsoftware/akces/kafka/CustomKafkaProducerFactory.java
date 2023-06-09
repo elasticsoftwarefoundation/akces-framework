@@ -24,7 +24,6 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.ProducerFactory;
 
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class CustomKafkaProducerFactory<K,V> extends DefaultKafkaProducerFactory<K,V> {
 

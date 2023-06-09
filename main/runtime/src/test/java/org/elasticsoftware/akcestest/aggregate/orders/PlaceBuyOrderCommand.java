@@ -33,6 +33,7 @@ public record PlaceBuyOrderCommand(
         @NotNull String clientReference
 ) implements Command {
     @Override
+    @NotNull
     public String getAggregateId() {
         return userId();
     }

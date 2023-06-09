@@ -23,11 +23,11 @@ import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import jakarta.inject.Inject;
 import org.elasticsoftware.akces.aggregate.AggregateRuntime;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
-import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
 import org.elasticsoftware.akces.commands.CommandHandlerFunction;
 import org.elasticsoftware.akces.events.EventHandlerFunction;
 import org.elasticsoftware.akces.events.EventSourcingHandlerFunction;
 import org.elasticsoftware.akces.protocol.*;
+import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
 import org.elasticsoftware.akcestest.schemas.AccountCreatedEventV2;
 import org.elasticsoftware.akcestest.schemas.AccountCreatedEventV3;
 import org.elasticsoftware.akcestest.schemas.NotCompatibleAccountCreatedEventV4;
@@ -54,17 +54,16 @@ public class WalletTests {
 
     @Test
     public void testFindBeans() {
-        assertEquals(5, applicationContext.getBeansOfType(CommandHandlerFunction.class).size());
-        assertEquals(4, applicationContext.getBeansOfType(EventHandlerFunction.class).size());
-        assertEquals(6, applicationContext.getBeansOfType(EventSourcingHandlerFunction.class).size());
+        assertEquals(3, applicationContext.getBeansOfType(CommandHandlerFunction.class).size());
+        assertEquals(1, applicationContext.getBeansOfType(EventHandlerFunction.class).size());
+        assertEquals(3, applicationContext.getBeansOfType(EventSourcingHandlerFunction.class).size());
         Assertions.assertNotNull(applicationContext.getBean("Wallet_ch_create_CreateWallet_1"));
         Assertions.assertNotNull(applicationContext.getBean("Wallet_ch_credit_CreditWallet_1"));
+        Assertions.assertNotNull(applicationContext.getBean("Wallet_ch_makeReservation_ReserveAmount_1"));
         Assertions.assertNotNull(applicationContext.getBean("Wallet_eh_create_AccountCreated_1"));
         Assertions.assertNotNull(applicationContext.getBean("Wallet_esh_create_WalletCreated_1"));
+        Assertions.assertNotNull(applicationContext.getBean("Wallet_esh_createBalance_BalanceCreated_1"));
         Assertions.assertNotNull(applicationContext.getBean("Wallet_esh_credit_WalletCredited_1"));
-        Assertions.assertNotNull(applicationContext.getBean("Account_ch_create_CreateAccount_1"));
-        Assertions.assertNotNull(applicationContext.getBean("Account_esh_create_AccountCreated_1"));
-        Assertions.assertNotNull(applicationContext.getBean("OrderProcessManager_ch_placeBuyOrder_PlaceBuyOrder_1"));
     }
 
     @Test
