@@ -17,8 +17,8 @@
 
 package org.elasticsoftware.akcestest.aggregate.orders;
 
-import org.elasticsoftware.akcestest.aggregate.wallet.InsufficientFundsErrorEvent;
 import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akcestest.aggregate.wallet.InsufficientFundsErrorEvent;
 
 import java.math.BigDecimal;
 

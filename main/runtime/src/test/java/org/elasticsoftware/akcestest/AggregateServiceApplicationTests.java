@@ -20,8 +20,8 @@ package org.elasticsoftware.akcestest;
 import jakarta.inject.Inject;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.AggregateServiceApplication;
+import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
@@ -57,7 +57,6 @@ import java.util.List;
 
 import static org.elasticsoftware.akcestest.TestUtils.prepareExternalSchemas;
 import static org.elasticsoftware.akcestest.TestUtils.prepareKafka;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @SpringBootTest(classes = AggregateServiceApplication.class, args = "org.elasticsoftware.akcestest.aggregate.account", useMainMethod = SpringBootTest.UseMainMethod.ALWAYS)
 @ContextConfiguration(initializers = AggregateServiceApplicationTests.Initializer.class)

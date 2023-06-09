@@ -19,9 +19,9 @@ package org.elasticsoftware.akcestest.aggregate.orders;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import org.elasticsoftware.akcestest.aggregate.wallet.InsufficientFundsErrorEvent;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.processmanager.AkcesProcess;
+import org.elasticsoftware.akcestest.aggregate.wallet.InsufficientFundsErrorEvent;
 
 import java.math.BigDecimal;
 

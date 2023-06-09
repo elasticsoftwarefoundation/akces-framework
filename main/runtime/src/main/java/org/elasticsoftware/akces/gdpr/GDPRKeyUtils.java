@@ -17,13 +17,9 @@
 
 package org.elasticsoftware.akces.gdpr;
 
-import javax.crypto.Cipher;
-import javax.crypto.NoSuchPaddingException;
-import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.util.UUID;
 
 public class GDPRKeyUtils {
     private static SecureRandom secureRandom;

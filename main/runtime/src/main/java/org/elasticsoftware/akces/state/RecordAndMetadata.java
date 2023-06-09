@@ -18,7 +18,6 @@
 package org.elasticsoftware.akces.state;
 
 import org.apache.kafka.clients.producer.RecordMetadata;
-import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 
 import java.util.concurrent.Future;

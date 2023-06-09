@@ -18,7 +18,6 @@
 package org.elasticsoftware.akces.control;
 
 import jakarta.annotation.Nonnull;
-import jakarta.annotation.Nullable;
 import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.commands.Command;

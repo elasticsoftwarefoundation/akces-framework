@@ -18,15 +18,15 @@
 package org.elasticsoftware.akcestest.aggregate.orders;
 
 import org.elasticsoftware.akces.aggregate.Aggregate;
-import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
-import org.elasticsoftware.akcestest.aggregate.wallet.AmountReservedEvent;
-import org.elasticsoftware.akcestest.aggregate.wallet.InsufficientFundsErrorEvent;
-import org.elasticsoftware.akcestest.aggregate.wallet.ReserveAmountCommand;
 import org.elasticsoftware.akces.annotations.AggregateInfo;
 import org.elasticsoftware.akces.annotations.CommandHandler;
 import org.elasticsoftware.akces.annotations.EventHandler;
 import org.elasticsoftware.akces.annotations.EventSourcingHandler;
 import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
+import org.elasticsoftware.akcestest.aggregate.wallet.AmountReservedEvent;
+import org.elasticsoftware.akcestest.aggregate.wallet.InsufficientFundsErrorEvent;
+import org.elasticsoftware.akcestest.aggregate.wallet.ReserveAmountCommand;
 
 import java.util.ArrayList;
 import java.util.UUID;

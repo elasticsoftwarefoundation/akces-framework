@@ -25,7 +25,6 @@ import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.requests.ProduceResponse;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serializer;
-import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.rocksdb.*;
@@ -36,7 +35,10 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Future;
 
 public class RocksDBAggregateStateRepository implements AggregateStateRepository {
