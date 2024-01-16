@@ -31,37 +31,36 @@
     <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
 
     <properties>
-        <spring.version>6.0.9</spring.version>
-        <spring-boot.version>3.1.0</spring-boot.version>
-        <protobuf.version>3.23.2</protobuf.version>
-        <log4j.version>2.20.0</log4j.version>
-        <guava.version>31.1-jre</guava.version>
-        <jackson.version>2.15.1</jackson.version>
-        <slf4j.version>2.0.7</slf4j.version>
-        <javassist.version>3.29.2-GA</javassist.version>
+        <spring.version>6.1.2</spring.version>
+        <spring-boot.version>3.2.1</spring-boot.version>
+        <protobuf.version>3.25.2</protobuf.version>
+        <log4j.version>2.22.1</log4j.version>
+        <guava.version>33.0.0-jre</guava.version>
+        <jackson.version>2.16.1</jackson.version>
+        <slf4j.version>2.0.11</slf4j.version>
+        <javassist.version>3.30.2-GA</javassist.version>
         <lz4.version>1.8.0</lz4.version>
-        <kafka.version>3.4.0</kafka.version>
-        <scala.version>2.13.10</scala.version>
-        <java-uuid-generator.version>4.1.0</java-uuid-generator.version>
-        <rocksdb.version>8.1.1.1</rocksdb.version>
-        <caffeine.version>3.1.6</caffeine.version>
-        <semver4j.version>4.3.0</semver4j.version>
+        <kafka.version>3.6.1</kafka.version>
+        <java-uuid-generator.version>4.3.0</java-uuid-generator.version>
+        <rocksdb.version>8.9.1</rocksdb.version>
+        <caffeine.version>3.1.8</caffeine.version>
+        <semver4j.version>5.2.2</semver4j.version>
         <!-- testing -->
-        <testng-version>7.7.1</testng-version>
-        <mockito.version>5.3.0</mockito.version>
+        <testng-version>7.9.0</testng-version>
+        <mockito.version>5.9.0</mockito.version>
         <!-- java 17+ -->
         <java.version>17</java.version>
-        <awaitility.version>4.0.3</awaitility.version>
+        <awaitility.version>4.2.0</awaitility.version>
         <persistence-api.version>2.2</persistence-api.version>
-        <plexus-utils.version>3.0.24</plexus-utils.version>
-        <netty.version>4.1.91.Final</netty.version>
-        <micrometer.version>1.10.6</micrometer.version>
+        <plexus-utils.version>4.0.0</plexus-utils.version>
+        <netty.version>4.1.104.Final</netty.version>
+        <micrometer.version>1.12.2</micrometer.version>
         <fast-uuid.version>0.2.0</fast-uuid.version>
-        <confluent.version>7.4.0</confluent.version>
-        <victools.version>4.31.1</victools.version>
-        <joda-time.version>2.12.5</joda-time.version>
-        <logback.version>1.4.6</logback.version>
-        <testcontainers.version>1.18.0</testcontainers.version>
+        <confluent.version>7.5.1</confluent.version>
+        <victools.version>4.33.1</victools.version>
+        <joda-time.version>2.12.6</joda-time.version>
+        <logback.version>1.4.14</logback.version>
+        <testcontainers.version>1.19.3</testcontainers.version>
     </properties>
 
     <scm>
@@ -198,6 +197,14 @@
                     <exclusion>
                         <groupId>org.checkerframework</groupId>
                         <artifactId>checker-qual</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>com.squareup.okio</groupId>
+                        <artifactId>okio-jvm</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>com.google.j2objc</groupId>
+                        <artifactId>j2objc-annotations</artifactId>
                     </exclusion>
                 </exclusions>
             </dependency>

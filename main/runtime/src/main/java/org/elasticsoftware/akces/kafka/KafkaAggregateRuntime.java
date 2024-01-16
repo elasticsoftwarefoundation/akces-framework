@@ -26,6 +26,7 @@ import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidatio
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
 import io.confluent.kafka.schemaregistry.CompatibilityLevel;
 import io.confluent.kafka.schemaregistry.ParsedSchema;
+import io.confluent.kafka.schemaregistry.SimpleParsedSchemaHolder;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
@@ -46,6 +47,7 @@ import org.everit.json.schema.ValidationException;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 
@@ -159,7 +161,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                     throw new IllegalStateException(format("New Schema version is not exactly one higher than the last version for DomainEvent [%s:%d]", domainEventType.typeName(), domainEventType.version()));
                 }
                 // see if the new schema is backwards compatible with the previous ones
-                if(localSchema.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE, registeredSchemas).isEmpty()) {
+                if(localSchema.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE, registeredSchemas.stream().map(SimpleParsedSchemaHolder::new).collect(Collectors.toList())).isEmpty()) {
                     // register the new schema
                     schemaRegistryClient.register("domainevents."+domainEventType.typeName(), localSchema, domainEventType.version(), -1);
                 } else {
@@ -201,7 +203,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                     throw new IllegalStateException(format("New Schema version is not exactly one higher than the last version for Command [%s:%d]", commandType.typeName(), commandType.version()));
                 }
                 // see if the new schema is backwards compatible with the previous ones
-                if(localSchema.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE, registeredSchemas).isEmpty()) {
+                if(localSchema.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE, registeredSchemas.stream().map(SimpleParsedSchemaHolder::new).collect(Collectors.toList())).isEmpty()) {
                     // register the new schema
                     schemaRegistryClient.register("commands."+commandType.typeName(), localSchema, commandType.version(), -1);
                 } else {

@@ -25,6 +25,7 @@ import com.github.victools.jsonschema.module.jackson.JacksonModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
 import io.confluent.kafka.schemaregistry.CompatibilityLevel;
+import io.confluent.kafka.schemaregistry.SimpleParsedSchemaHolder;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import org.elasticsoftware.akcestest.aggregate.wallet.InvalidAmountErrorEvent;
 import org.everit.json.schema.ValidationException;
@@ -54,7 +55,7 @@ public class JsonSchemaTests {
         JsonSchema schema1 = new JsonSchema(schemaV1);
         JsonSchema schema2 = new JsonSchema(schemaV2);
 
-        assertEquals(schema2.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE, List.of(schema1)).size(), 0);
+        assertEquals(schema2.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE, List.of(new SimpleParsedSchemaHolder(schema1))).size(), 0);
 
         schema2.validate(new AccountCreatedEvent("1", "Musk", AccountTypeV1.PREMIUM));
 
