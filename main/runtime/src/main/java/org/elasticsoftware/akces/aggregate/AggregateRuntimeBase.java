@@ -20,11 +20,8 @@ package org.elasticsoftware.akces.aggregate;
 import jakarta.annotation.Nullable;
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.commands.Command;
-import org.elasticsoftware.akces.commands.CommandHandlerFunction;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.events.ErrorEvent;
-import org.elasticsoftware.akces.events.EventHandlerFunction;
-import org.elasticsoftware.akces.events.EventSourcingHandlerFunction;
 import org.elasticsoftware.akces.protocol.*;
 
 import java.io.IOException;

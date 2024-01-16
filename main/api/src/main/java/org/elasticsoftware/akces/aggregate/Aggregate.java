@@ -18,6 +18,7 @@
 package org.elasticsoftware.akces.aggregate;
 
 import org.elasticsoftware.akces.commands.CommandBus;
+import org.elasticsoftware.akces.commands.CommandBusHolder;
 
 public interface Aggregate<S extends AggregateState> {
     default String getName() {

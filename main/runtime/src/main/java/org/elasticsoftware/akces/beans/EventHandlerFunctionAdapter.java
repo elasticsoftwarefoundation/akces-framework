@@ -24,7 +24,7 @@ import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.events.ErrorEvent;
-import org.elasticsoftware.akces.events.EventHandlerFunction;
+import org.elasticsoftware.akces.aggregate.EventHandlerFunction;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
