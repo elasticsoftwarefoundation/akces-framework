@@ -42,7 +42,7 @@
         <lz4.version>1.8.0</lz4.version>
         <kafka.version>3.6.1</kafka.version>
         <java-uuid-generator.version>4.3.0</java-uuid-generator.version>
-        <rocksdb.version>8.9.1</rocksdb.version>
+        <rocksdb.version>8.10.0</rocksdb.version>
         <caffeine.version>3.1.8</caffeine.version>
         <semver4j.version>5.2.2</semver4j.version>
         <!-- testing -->
