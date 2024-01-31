@@ -60,7 +60,7 @@
         <confluent.version>7.4.0</confluent.version>
         <victools.version>4.31.1</victools.version>
         <joda-time.version>2.12.5</joda-time.version>
-        <logback.version>1.4.6</logback.version>
+        <logback.version>1.4.12</logback.version>
         <testcontainers.version>1.18.0</testcontainers.version>
     </properties>
 
