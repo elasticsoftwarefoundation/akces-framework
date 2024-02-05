@@ -57,7 +57,7 @@
         <netty.version>4.1.91.Final</netty.version>
         <micrometer.version>1.10.6</micrometer.version>
         <fast-uuid.version>0.2.0</fast-uuid.version>
-        <confluent.version>7.4.0</confluent.version>
+        <confluent.version>7.5.3</confluent.version>
         <victools.version>4.31.1</victools.version>
         <joda-time.version>2.12.5</joda-time.version>
         <logback.version>1.4.14</logback.version>
