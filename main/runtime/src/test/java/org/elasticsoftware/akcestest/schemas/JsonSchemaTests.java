@@ -18,7 +18,6 @@
 package org.elasticsoftware.akcestest.schemas;
 
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.victools.jsonschema.generator.*;
 import com.github.victools.jsonschema.module.jackson.JacksonModule;
@@ -32,6 +31,7 @@ import org.everit.json.schema.ValidationException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class JsonSchemaTests {
     @Test
-    public void testSchemaCompatibility() throws JsonProcessingException {
+    public void testSchemaCompatibility() throws IOException {
         SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(SchemaVersion.DRAFT_7, OptionPreset.PLAIN_JSON);
         configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS, JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
         configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
@@ -57,9 +57,9 @@ public class JsonSchemaTests {
 
         assertEquals(schema2.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE, List.of(new SimpleParsedSchemaHolder(schema1))).size(), 0);
 
-        schema2.validate(new AccountCreatedEvent("1", "Musk", AccountTypeV1.PREMIUM));
+        schema2.validate(schema2.toJson(new AccountCreatedEvent("1", "Musk", AccountTypeV1.PREMIUM)));
 
-        schema2.validate(new AccountCreatedEventV2("1","Musk",AccountTypeV2.PREMIUM, "Elon", "US"));
+        schema2.validate(schema2.toJson(new AccountCreatedEventV2("1","Musk",AccountTypeV2.PREMIUM, "Elon", "US")));
 
         // schema2.validate(new AccountCreatedEvent("1", null, AccountTypeV1.PREMIUM));
 
@@ -67,7 +67,7 @@ public class JsonSchemaTests {
     }
 
     @Test
-    public void testNullableString() throws JsonProcessingException {
+    public void testNullableString() throws IOException {
         SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(SchemaVersion.DRAFT_7, OptionPreset.PLAIN_JSON);
         configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS, JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
         configBuilder.with(new JacksonModule());
@@ -80,7 +80,7 @@ public class JsonSchemaTests {
         JsonNode schema = generator.generateSchema(InvalidAmountErrorEvent.class);
         JsonSchema jsonSchema = new JsonSchema(schema);
 
-        jsonSchema.validate(new InvalidAmountErrorEvent(UUID.randomUUID().toString(), "USD"));
+        jsonSchema.validate(jsonSchema.toJson(new InvalidAmountErrorEvent(UUID.randomUUID().toString(), "USD")));
     }
 
     @Test
@@ -98,7 +98,7 @@ public class JsonSchemaTests {
         JsonSchema jsonSchema = new JsonSchema(schema);
 
         ValidationException exception = Assertions.assertThrows(ValidationException.class, () -> {
-            jsonSchema.validate(new InvalidAmountErrorEvent(UUID.randomUUID().toString(), null));
+            jsonSchema.validate(jsonSchema.toJson(new InvalidAmountErrorEvent(UUID.randomUUID().toString(), null)));
         });
 
         assertEquals("#/currency", exception.getPointerToViolation());

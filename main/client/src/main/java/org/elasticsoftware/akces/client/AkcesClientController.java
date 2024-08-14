@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.client;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
@@ -356,10 +356,13 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
             // get the schema
             ParsedSchema schema = commandSchemasLookup.get(command.getClass());
             if(schema instanceof JsonSchema jsonSchema) {
-                jsonSchema.validate(command);
+                JsonNode jsonNode = objectMapper.valueToTree(command);
+                jsonSchema.validate(jsonNode);
+                return objectMapper.writeValueAsBytes(jsonNode);
+            } else {
+                return objectMapper.writeValueAsBytes(command);
             }
-            return objectMapper.writeValueAsBytes(command);
-        } catch (JsonProcessingException e) {
+        } catch (IOException e) {
             throw new CommandSerializationException(command.getClass(), e);
         } catch (ValidationException e) {
             throw new CommandValidationException(command.getClass(), e);
