@@ -84,7 +84,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class RuntimeTests  {
 
-    private static final String CONFLUENT_PLATFORM_VERSION = "7.5.1";
+    private static final String CONFLUENT_PLATFORM_VERSION = "7.7.1";
 
     private static final Network network = Network.newNetwork();
 

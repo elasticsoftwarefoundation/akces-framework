@@ -62,7 +62,7 @@ import static org.elasticsoftware.akcestest.TestUtils.prepareKafka;
 @ContextConfiguration(initializers = AggregateServiceApplicationTests.Initializer.class)
 @Testcontainers
 public class AggregateServiceApplicationTests {
-    private static final String CONFLUENT_PLATFORM_VERSION = "7.5.1";
+    private static final String CONFLUENT_PLATFORM_VERSION = "7.7.1";
 
     private static final Network network = Network.newNetwork();
 
