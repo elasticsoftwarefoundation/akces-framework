@@ -15,8 +15,9 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.commands;
 
+import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.commands.CommandBus;
 
 public class CommandBusHolder {

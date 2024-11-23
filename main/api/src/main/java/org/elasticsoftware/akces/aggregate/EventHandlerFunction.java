@@ -15,15 +15,13 @@
  *
  */
 
-package org.elasticsoftware.akces.events;
+package org.elasticsoftware.akces.aggregate;
 
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.akces.aggregate.Aggregate;
-import org.elasticsoftware.akces.aggregate.AggregateState;
-import org.elasticsoftware.akces.aggregate.CommandBusHolder;
-import org.elasticsoftware.akces.aggregate.DomainEventType;
+import org.elasticsoftware.akces.commands.CommandBusHolder;
 import org.elasticsoftware.akces.commands.CommandBus;
+import org.elasticsoftware.akces.events.DomainEvent;
 
 import java.util.List;
 import java.util.stream.Stream;

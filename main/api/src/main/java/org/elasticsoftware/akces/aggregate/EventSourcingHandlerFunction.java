@@ -15,12 +15,13 @@
  *
  */
 
-package org.elasticsoftware.akces.events;
+package org.elasticsoftware.akces.aggregate;
 
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
+import org.elasticsoftware.akces.events.DomainEvent;
 
 @FunctionalInterface
 public interface EventSourcingHandlerFunction<S extends AggregateState,E extends DomainEvent> {

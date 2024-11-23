@@ -17,12 +17,13 @@
 
 package org.elasticsoftware.akces.beans;
 
+import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
-import org.elasticsoftware.akces.events.EventSourcingHandlerFunction;
+import org.elasticsoftware.akces.aggregate.EventSourcingHandlerFunction;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -60,7 +61,7 @@ public class EventSourcingHandlerFunctionAdapter<S extends AggregateState, E ext
     }
 
     @Override
-    public S apply(E event, S state) {
+    public @NotNull S apply(@NotNull E event, S state) {
         try {
             return (S) adapterMethod.invoke(aggregate, event, state);
         } catch (IllegalAccessException e) {

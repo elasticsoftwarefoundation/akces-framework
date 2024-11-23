@@ -63,12 +63,12 @@ public class AkcesClientAutoConfiguration {
 
     @Bean
     public ProducerFactory<String, ProtocolRecord> producerFactory(KafkaProperties properties) {
-        return new CustomKafkaProducerFactory<>(properties.buildProducerProperties(), new StringSerializer(), serde.serializer());
+        return new CustomKafkaProducerFactory<>(properties.buildProducerProperties(null), new StringSerializer(), serde.serializer());
     }
 
     @Bean
     public ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory(KafkaProperties properties, AkcesControlRecordSerde controlSerde) {
-        return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(), new StringDeserializer(), controlSerde.deserializer());
+        return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), controlSerde.deserializer());
     }
 
     @Bean(initMethod = "start")

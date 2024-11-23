@@ -17,8 +17,8 @@
 
 package org.elasticsoftware.akces.kafka;
 
-import org.elasticsoftware.akces.aggregate.CommandBusHolder;
-class AggregatePartionCommandBus extends CommandBusHolder {
+import org.elasticsoftware.akces.commands.CommandBusHolder;
+class AggregatePartitionCommandBus extends CommandBusHolder {
     static void registerCommandBus(AggregatePartition aggregatePartition) {
         commandBusThreadLocal.set(aggregatePartition);
     }

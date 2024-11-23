@@ -23,7 +23,7 @@ import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
-import org.elasticsoftware.akces.commands.CommandHandlerFunction;
+import org.elasticsoftware.akces.aggregate.CommandHandlerFunction;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 import java.lang.reflect.InvocationTargetException;

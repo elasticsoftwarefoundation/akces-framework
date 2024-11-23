@@ -21,9 +21,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.annotations.AggregateInfo;
-import org.elasticsoftware.akces.commands.CommandHandlerFunction;
-import org.elasticsoftware.akces.events.EventHandlerFunction;
-import org.elasticsoftware.akces.events.EventSourcingHandlerFunction;
+import org.elasticsoftware.akces.aggregate.CommandHandlerFunction;
+import org.elasticsoftware.akces.aggregate.EventHandlerFunction;
+import org.elasticsoftware.akces.aggregate.EventSourcingHandlerFunction;
 import org.springframework.beans.factory.FactoryBean;
 import org.springframework.beans.factory.ListableBeanFactory;
 
