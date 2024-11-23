@@ -114,7 +114,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             // store the thread so we can check if we are on the correct thread
             this.aggregatePartitionThread = Thread.currentThread();
             // register the CommandBus
-            AggregatePartionCommandBus.registerCommandBus(this);
+            AggregatePartitionCommandBus.registerCommandBus(this);
             logger.info("Starting AggregatePartition {} of {}Aggregate", id, runtime.getName());
             this.consumer = consumerFactory.createConsumer(runtime.getName(), runtime.getName() +"Aggregate-partition-" + id, null);
             this.producer = producerFactory.createProducer(runtime.getName() + "Aggregate-partition-" + id);
@@ -143,7 +143,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             } catch (IOException e) {
                 logger.error("Error closing state repository", e);
             }
-            AggregatePartionCommandBus.registerCommandBus(null);
+            AggregatePartitionCommandBus.registerCommandBus(null);
             logger.info("Finished Shutting down AggregatePartition {} of {}Aggregate", id, runtime.getName());
             shutdownLatch.countDown();
         }
@@ -373,7 +373,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             List<ConsumerRecord<String, ProtocolRecord>> gdprKeyRecords = allRecords.records(gdprKeyPartition);
             if (!gdprKeyRecords.isEmpty()) {
                 gdprContextRepository.process(gdprKeyRecords);
-                offsets.put(gdprKeyPartition, gdprKeyRecords.get(gdprKeyRecords.size() - 1).offset());
+                offsets.put(gdprKeyPartition, gdprKeyRecords.getLast().offset());
             }
             // second handle commands
             allRecords.records(commandPartition)

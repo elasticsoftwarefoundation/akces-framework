@@ -45,7 +45,6 @@ public class InMemoryGDPRContextRepository implements GDPRContextRepository {
     private boolean aggregateIdIsUUID = false;
     private boolean aggregateIdTypeCheckDone = false;
 
-
     private long offset = -1L;
 
     @Override

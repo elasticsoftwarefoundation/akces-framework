@@ -390,7 +390,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                 .filter(commandServiceRecord -> supportsCommand(commandServiceRecord.supportedCommands(), commandType))
                 .toList();
         if(services.size() == 1) {
-            return services.get(0).commandTopic();
+            return services.getFirst().commandTopic();
         } else {
             throw new IllegalStateException("Cannot determine where to send command " + commandType.typeName() + " v" + commandType.version());
         }
@@ -402,7 +402,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                 .filter(commandServiceRecord -> producesDomainEvent(commandServiceRecord.producedEvents(), externalDomainEventType))
                 .toList();
         if(services.size() == 1) {
-            return services.get(0).domainEventTopic();
+            return services.getFirst().domainEventTopic();
         } else {
             throw new IllegalStateException("Cannot determine which service produces DomainEvent " + externalDomainEventType.typeName() + " v" + externalDomainEventType.version());
         }
