@@ -9,6 +9,7 @@ message CommandRecord {
   optional string aggregateId = 5;
   optional string correlationId = 6;
   optional string tenantId = 7;
+  optional string id = 8;
 }
 // Enum for org.elasticsoftware.akces.protocol.PayloadEncoding
 enum PayloadEncoding {

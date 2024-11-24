@@ -26,6 +26,7 @@ import org.elasticsoftware.akces.protocol.*;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -83,15 +84,16 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     @Override
     public void handleCommandRecord(CommandRecord commandRecord,
                                     Consumer<ProtocolRecord> protocolRecordConsumer,
+                                    BiConsumer<DomainEventRecord,String> domainEventIndexer,
                                     Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
         // determine command
         CommandType<?> commandType = getCommandType(commandRecord);
         // TODO: need to raise an ErrorEvent in case of exception
         // find handler
         if(commandType.create()) {
-            handleCreateCommand(commandType, commandRecord, protocolRecordConsumer);
+            handleCreateCommand(commandType, commandRecord, protocolRecordConsumer, domainEventIndexer);
         } else {
-            handleCommand(commandType, commandRecord, protocolRecordConsumer, stateRecordSupplier);
+            handleCommand(commandType, commandRecord, protocolRecordConsumer, domainEventIndexer, stateRecordSupplier);
         }
     }
 
@@ -102,9 +104,17 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         return commandType;
     }
 
+    private void indexDomainEventIfRequired(DomainEventRecord domainEventRecord,
+                                            BiConsumer<DomainEventRecord, String> domainEventIndexer) {
+//        if(type.indexed()) {
+//            domainEventIndexer.accept(domainEventRecord, type.indexName());
+//        }
+    }
+
     private void handleCreateCommand(CommandType<?> commandType,
                                      CommandRecord commandRecord,
-                                     Consumer<ProtocolRecord> protocolRecordConsumer) throws IOException {
+                                     Consumer<ProtocolRecord> protocolRecordConsumer,
+                                     BiConsumer<DomainEventRecord, String> domainEventIndexer) throws IOException {
         // materialize command
         Command command = materialize(commandType, commandRecord);
         // apply the command
@@ -137,30 +147,41 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                 commandRecord.correlationId(),
                 stateRecord.generation());
         protocolRecordConsumer.accept(eventRecord);
+        indexDomainEventIfRequired(eventRecord, domainEventIndexer);
         // if there are more events, handle them as normal events
         AggregateStateRecord currentStateRecord = stateRecord;
         while(itr.hasNext()) {
             DomainEvent nextDomainEvent = itr.next();
-            currentStateRecord = processDomainEvent(commandRecord.correlationId(), protocolRecordConsumer, currentStateRecord, nextDomainEvent);
+            currentStateRecord = processDomainEvent(
+                    commandRecord.correlationId(),
+                    protocolRecordConsumer,
+                    domainEventIndexer,
+                    currentStateRecord,
+                    nextDomainEvent);
         }
     }
 
     private void handleCommand(CommandType<?> commandType,
                                CommandRecord commandRecord,
                                Consumer<ProtocolRecord> protocolRecordConsumer,
+                               BiConsumer<DomainEventRecord, String> domainEventIndexer,
                                Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
         Command command = materialize(commandType, commandRecord);
         AggregateStateRecord currentStateRecord = stateRecordSupplier.get();
         AggregateState currentState = materialize(currentStateRecord);
         Stream<DomainEvent> domainEvents = commandHandlers.get(commandType).apply(command, currentState);
-        for(DomainEvent domainEvent : domainEvents.toList()) {
-            currentStateRecord = processDomainEvent(commandRecord.correlationId(), protocolRecordConsumer, currentStateRecord, domainEvent);
-        }
+        for(DomainEvent domainEvent : domainEvents.toList())
+            currentStateRecord = processDomainEvent(commandRecord.correlationId(),
+                    protocolRecordConsumer,
+                    domainEventIndexer,
+                    currentStateRecord,
+                    domainEvent);
     }
 
     private void handleCreateEvent(DomainEventType<?> eventType,
                                    DomainEventRecord domainEventRecord,
-                                   Consumer<ProtocolRecord> protocolRecordConsumer) throws IOException {
+                                   Consumer<ProtocolRecord> protocolRecordConsumer,
+                                   BiConsumer<DomainEventRecord, String> domainEventIndexer) throws IOException {
         // materialize the external event
         DomainEvent externalEvent = materialize(eventType, domainEventRecord);
         // apply the event(s)
@@ -193,31 +214,43 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                 domainEventRecord.correlationId(),
                 stateRecord.generation());
         protocolRecordConsumer.accept(eventRecord);
+        indexDomainEventIfRequired(eventRecord, domainEventIndexer);
         // if there are more events, handle them as normal events
         AggregateStateRecord currentStateRecord = stateRecord;
         while(itr.hasNext()) {
             DomainEvent nextDomainEvent = itr.next();
-            currentStateRecord = processDomainEvent(domainEventRecord.correlationId(), protocolRecordConsumer, currentStateRecord, nextDomainEvent);
+            currentStateRecord = processDomainEvent(
+                    domainEventRecord.correlationId(),
+                    protocolRecordConsumer,
+                    domainEventIndexer,
+                    currentStateRecord,
+                    nextDomainEvent);
         }
     }
 
     private void handleEvent(DomainEventType<?> eventType,
                              DomainEventRecord domainEventRecord,
                              Consumer<ProtocolRecord> protocolRecordConsumer,
+                             BiConsumer<DomainEventRecord, String> domainEventIndexer,
                              Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
         // materialize the event
         DomainEvent externalEvent = materialize(eventType, domainEventRecord);
         AggregateStateRecord currentStateRecord = stateRecordSupplier.get();
         AggregateState currentState = materialize(currentStateRecord);
         Stream<DomainEvent> domainEvents = eventHandlers.get(eventType).apply(externalEvent, currentState);
-        for(DomainEvent domainEvent : domainEvents.toList()) {
-            currentStateRecord = processDomainEvent(domainEventRecord.correlationId(), protocolRecordConsumer, currentStateRecord, domainEvent);
-        }
+        for(DomainEvent domainEvent : domainEvents.toList())
+            currentStateRecord = processDomainEvent(
+                    domainEventRecord.correlationId(),
+                    protocolRecordConsumer,
+                    domainEventIndexer,
+                    currentStateRecord,
+                    domainEvent);
 
     }
 
     private AggregateStateRecord processDomainEvent(String correlationId,
                                                     Consumer<ProtocolRecord> protocolRecordConsumer,
+                                                    BiConsumer<DomainEventRecord, String> domainEventIndexer,
                                                     AggregateStateRecord currentStateRecord,
                                                     DomainEvent domainEvent) throws IOException {
         AggregateState currentState = materialize(currentStateRecord);
@@ -246,6 +279,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                     correlationId,
                     nextStateRecord.generation());
             protocolRecordConsumer.accept(eventRecord);
+            indexDomainEventIfRequired(eventRecord, domainEventIndexer);
             return nextStateRecord;
         } else {
             // this is an ErrorEvent, this doesn't alter the state but needs to be produced
@@ -259,20 +293,24 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                     correlationId,
                     -1L);  // ErrorEvents have no generation number because they don't alter the state
             protocolRecordConsumer.accept(eventRecord);
+            // NOTE: we don't need to index the ErrorEvent since it does not change any state
             // return the current state record since nothing was changed
             return currentStateRecord;
         }
     }
 
     @Override
-    public void handleExternalDomainEventRecord(DomainEventRecord eventRecord, Consumer<ProtocolRecord> protocolRecordConsumer, Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
+    public void handleExternalDomainEventRecord(DomainEventRecord eventRecord,
+                                                Consumer<ProtocolRecord> protocolRecordConsumer,
+                                                BiConsumer<DomainEventRecord, String> domainEventIndexer,
+                                                Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
         // determine the type to use for the external event
         DomainEventType<?> domainEventType = getDomainEventType(eventRecord);
         if(domainEventType != null) {
             if (domainEventType.create()) {
-                handleCreateEvent(domainEventType, eventRecord, protocolRecordConsumer);
+                handleCreateEvent(domainEventType, eventRecord, protocolRecordConsumer, domainEventIndexer);
             } else {
-                handleEvent(domainEventType, eventRecord, protocolRecordConsumer, stateRecordSupplier);
+                handleEvent(domainEventType, eventRecord, protocolRecordConsumer, domainEventIndexer, stateRecordSupplier);
             }
         } // ignore if we don't have an external domainevent registered
     }

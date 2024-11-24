@@ -203,6 +203,7 @@ public class WalletTests {
         String aggregateId = "d43a3afc-3e5a-11ed-b878-0242ac120002";
         String correlationId = "01e04622-3e5b-11ed-b878-0242ac120002";
         List<ProtocolRecord> producedRecords = new ArrayList<>();
+        List<DomainEventRecord> indexedEvents = new ArrayList<>();
         walletAggregate.handleCommandRecord(
                 new CommandRecord(
                         tenantId,
@@ -214,6 +215,7 @@ public class WalletTests {
                         aggregateId,
                         correlationId),
                 producedRecords::add,
+                (eventRecord, index) -> indexedEvents.add(eventRecord),
                 () -> null
         );
         assertEquals(4, producedRecords.size());
@@ -291,6 +293,7 @@ public class WalletTests {
         String aggregateId = "d43a3afc-3e5a-11ed-b878-0242ac120002";
         String correlationId = "01e04622-3e5b-11ed-b878-0242ac120002";
         List<ProtocolRecord> producedRecords = new ArrayList<>();
+        List<DomainEventRecord> indexedEvents = new ArrayList<>();
         walletAggregate.handleExternalDomainEventRecord(
                 new DomainEventRecord(
                         tenantId,
@@ -303,6 +306,7 @@ public class WalletTests {
                         correlationId,
                         1),
                 producedRecords::add,
+                (eventRecord, index) -> indexedEvents.add(eventRecord),
                 () -> null
         );
         assertEquals(4, producedRecords.size());

@@ -177,7 +177,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                     null);
             // we should not use the local partition id but that of the aggregate
             Integer partition = ackesRegistry.resolvePartition(command.getAggregateId());
-            KafkaSender.send(producer, new ProducerRecord<>(topic, partition, commandRecord.aggregateId(), commandRecord));
+            KafkaSender.send(producer, new ProducerRecord<>(topic, partition, commandRecord.id(), commandRecord));
         }
     }
 
@@ -189,8 +189,8 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             // prepare (cache) for commit
             stateRepository.prepare(asr, result);
         } else if (protocolRecord instanceof DomainEventRecord der) {
-            logger.trace("Sending DomainEventRecord {}:{} with id {} to {}", der.name(), der.version(), der.aggregateId(), domainEventPartition);
-            KafkaSender.send(producer, new ProducerRecord<>(domainEventPartition.topic(), domainEventPartition.partition(), der.aggregateId(), der));
+            logger.trace("Sending DomainEventRecord {}:{} with id {} to {}", der.name(), der.version(), der.id(), domainEventPartition);
+            KafkaSender.send(producer, new ProducerRecord<>(domainEventPartition.topic(), domainEventPartition.partition(), der.id(), der));
         } else if(protocolRecord instanceof GDPRKeyRecord gkr) {
             logger.trace("Sending GDPRKeyRecord with id {} to {}", gkr.aggregateId(), gdprKeyPartition);
             Future<RecordMetadata> result = KafkaSender.send(producer, new ProducerRecord<>(gdprKeyPartition.topic(), gdprKeyPartition.partition(), gkr.aggregateId(), gkr));
@@ -203,6 +203,15 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                     send(ProtocolRecord) should not be used for CommandRecord type.
                     Use send(commandRecord,commandPartition) instead""");
         }
+    }
+
+    private void index(DomainEventRecord der, String indexPrefix) {
+        // send to the index topic
+        // TODO: this assumes that auto.create.topics.enable is set to true on the kafka cluster
+        String topicName = indexPrefix+"-"+der.aggregateId()+"-DomainEventIndex";
+        logger.trace("Indexing DomainEventRecord {}:{} with id {} to topic {}", der.name(), der.version(), der.id(), domainEventPartition);
+        // index topics only have one partition
+        KafkaSender.send(producer, new ProducerRecord<>(topicName, 0, der.id(), der));
     }
 
     private void setupGDPRContext(String tenantId, String aggregateId, boolean createIfMissing) {
@@ -228,7 +237,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     private void handleCommand(CommandRecord commandRecord) {
         try {
             setupGDPRContext(commandRecord.tenantId(), commandRecord.aggregateId(), runtime.shouldGenerateGPRKey(commandRecord));
-            runtime.handleCommandRecord(commandRecord, this::send, () -> stateRepository.get(commandRecord.aggregateId()));
+            runtime.handleCommandRecord(commandRecord, this::send, this::index,() -> stateRepository.get(commandRecord.aggregateId()));
         } catch (IOException e) {
             // TODO need to raise a (built-in) ErrorEvent here
             logger.error("Error handling command", e);
@@ -240,7 +249,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     private void handleExternalEvent(DomainEventRecord eventRecord) {
         try {
             setupGDPRContext(eventRecord.tenantId(), eventRecord.aggregateId(), runtime.shouldGenerateGPRKey(eventRecord));
-            runtime.handleExternalDomainEventRecord(eventRecord, this::send, () -> stateRepository.get(eventRecord.aggregateId()));
+            runtime.handleExternalDomainEventRecord(eventRecord, this::send, this::index, () -> stateRepository.get(eventRecord.aggregateId()));
         } catch (IOException e) {
             // TODO need to raise a (built-in) ErrorEvent here
             logger.error("Error handling external event", e);

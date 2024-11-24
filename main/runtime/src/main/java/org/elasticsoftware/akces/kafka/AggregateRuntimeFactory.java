@@ -62,7 +62,10 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
             runtimeBuilder.setStateType(new AggregateStateType<>(
                     aggregateInfo.value(),
                     aggregateInfo.version(),
-                    aggregate.getStateClass()
+                    aggregate.getStateClass(),
+                    aggregateInfo.generateGDPRKeyOnCreate(),
+                    aggregateInfo.indexed(),
+                    aggregateInfo.indexName()
             ));
         } else {
             throw new IllegalStateException("Class implementing Aggregate must be annotated with @AggregateInfo");
