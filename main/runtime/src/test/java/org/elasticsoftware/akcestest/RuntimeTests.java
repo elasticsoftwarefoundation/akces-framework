@@ -292,7 +292,7 @@ public class RuntimeTests  {
         // and we should have a error event in the domain events
         assertEquals(1, records.records(domainEventsPartition).size());
 
-        DomainEventRecord protocolRecord = (DomainEventRecord) records.records(domainEventsPartition).get(0).value();
+        DomainEventRecord protocolRecord = (DomainEventRecord) records.records(domainEventsPartition).getFirst().value();
         assertEquals("InvalidAmountError", protocolRecord.name());
 
         testConsumer.close();
@@ -557,6 +557,71 @@ public class RuntimeTests  {
             assertEquals("AccountCreated", allRecords.getFirst().name());
             assertEquals("WalletCreated", allRecords.get(1).name());
             assertEquals("BalanceCreated", allRecords.getLast().name());
+        }
+    }
+
+    @Test
+    @Order(8)
+    public void testDomainEventIndexingWithErrorEvents() throws IOException {
+        // wait until the ackes controller is running
+        while(!akcesAggregateController.isRunning()) {
+            Thread.onSpinWait();
+        }
+        String userId = "d3bd665a-6c67-4301-a8f1-4381f8d7d567";
+        try (
+                Producer<String, ProtocolRecord> testProducer = producerFactory.createProducer("test");
+                Consumer<String, ProtocolRecord> testConsumer = consumerFactory.createConsumer("Test", "test")
+        ) {
+            CreateWalletCommand command = new CreateWalletCommand(userId, "USD");
+            CommandRecord commandRecord = new CommandRecord(null, "CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null);
+            String topicName = akcesAggregateController.resolveTopic(command.getClass());
+            int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
+            // produce a command to create a Wallet
+            testProducer.beginTransaction();
+            testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));
+            testProducer.commitTransaction();
+            // credit the wallet
+            CreditWalletCommand creditCommand = new CreditWalletCommand(userId, "USD", new BigDecimal("100.00"));
+            CommandRecord creditCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(creditCommand), PayloadEncoding.JSON, creditCommand.getAggregateId(), null);
+            testProducer.beginTransaction();
+            testProducer.send(new ProducerRecord<>(topicName, partition, creditCommandRecord.aggregateId(), creditCommandRecord));
+            testProducer.commitTransaction();
+            // now create a command that will cause an error
+            CreditWalletCommand invalidCommand = new CreditWalletCommand(userId,"USD", new BigDecimal("-100.00"));
+            CommandRecord invalidCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(invalidCommand), PayloadEncoding.JSON, invalidCommand.getAggregateId(), null);
+
+            testProducer.beginTransaction();
+            testProducer.send(new ProducerRecord<>(topicName, partition, invalidCommandRecord.aggregateId(), invalidCommandRecord));
+            testProducer.commitTransaction();
+
+            // wait for the index topic
+            TopicDescription topicDescription = getTopicDescription("Users-d3bd665a-6c67-4301-a8f1-4381f8d7d567-DomainEventIndex");
+            while (topicDescription == null) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                topicDescription = getTopicDescription("Users-d3bd665a-6c67-4301-a8f1-4381f8d7d567-DomainEventIndex");
+            }
+
+            // we should now have 3 records in the index: WalletCreated, BalanceCreated, WalletCredited
+            testConsumer.assign(generateTopicPartitions("Users-d3bd665a-6c67-4301-a8f1-4381f8d7d567-DomainEventIndex",1).toList());
+            testConsumer.seekToBeginning(testConsumer.assignment());
+            ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(250));
+            List<ProtocolRecord> allRecords = new ArrayList<>();
+            while(allRecords.size() < 3) {
+                records.forEach(record -> allRecords.add(record.value()));
+                // wait for the events to be produced
+                records = testConsumer.poll(Duration.ofMillis(250));
+            }
+
+            assertEquals(3, allRecords.size());
+            // make sure they are in the right order
+            assertEquals("WalletCreated", allRecords.getFirst().name());
+            assertEquals("BalanceCreated", allRecords.get(1).name());
+            assertEquals("WalletCredited", allRecords.getLast().name());
+
         }
     }
 
