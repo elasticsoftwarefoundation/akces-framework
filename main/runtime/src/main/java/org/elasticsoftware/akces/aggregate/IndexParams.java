@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2023 The Original Authors
+ * Copyright 2022 - 2024 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -17,15 +17,5 @@
 
 package org.elasticsoftware.akces.aggregate;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.validation.constraints.NotNull;
-
-public interface AggregateState {
-    @JsonIgnore
-    @NotNull String getAggregateId();
-
-    @JsonIgnore
-    @NotNull default String getIndexKey() {
-        return getAggregateId();
-    }
+public record IndexParams(String indexName, String indexKey) {
 }

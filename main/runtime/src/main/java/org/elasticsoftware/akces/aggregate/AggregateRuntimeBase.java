@@ -84,7 +84,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     @Override
     public void handleCommandRecord(CommandRecord commandRecord,
                                     Consumer<ProtocolRecord> protocolRecordConsumer,
-                                    BiConsumer<DomainEventRecord,String> domainEventIndexer,
+                                    BiConsumer<DomainEventRecord,IndexParams> domainEventIndexer,
                                     Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
         // determine command
         CommandType<?> commandType = getCommandType(commandRecord);
@@ -105,16 +105,17 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     }
 
     private void indexDomainEventIfRequired(DomainEventRecord domainEventRecord,
-                                            BiConsumer<DomainEventRecord, String> domainEventIndexer) {
+                                            AggregateState state,
+                                            BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer) {
         if(type.indexed()) {
-            domainEventIndexer.accept(domainEventRecord, type.indexName());
+            domainEventIndexer.accept(domainEventRecord, new IndexParams(type.indexName(),state.getIndexKey()));
         }
     }
 
     private void handleCreateCommand(CommandType<?> commandType,
                                      CommandRecord commandRecord,
                                      Consumer<ProtocolRecord> protocolRecordConsumer,
-                                     BiConsumer<DomainEventRecord, String> domainEventIndexer) throws IOException {
+                                     BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer) throws IOException {
         // materialize command
         Command command = materialize(commandType, commandRecord);
         // apply the command
@@ -147,7 +148,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                 commandRecord.correlationId(),
                 stateRecord.generation());
         protocolRecordConsumer.accept(eventRecord);
-        indexDomainEventIfRequired(eventRecord, domainEventIndexer);
+        indexDomainEventIfRequired(eventRecord, state, domainEventIndexer);
         // if there are more events, handle them as normal events
         AggregateStateRecord currentStateRecord = stateRecord;
         while(itr.hasNext()) {
@@ -164,7 +165,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     private void handleCommand(CommandType<?> commandType,
                                CommandRecord commandRecord,
                                Consumer<ProtocolRecord> protocolRecordConsumer,
-                               BiConsumer<DomainEventRecord, String> domainEventIndexer,
+                               BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer,
                                Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
         Command command = materialize(commandType, commandRecord);
         AggregateStateRecord currentStateRecord = stateRecordSupplier.get();
@@ -181,7 +182,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     private void handleCreateEvent(DomainEventType<?> eventType,
                                    DomainEventRecord domainEventRecord,
                                    Consumer<ProtocolRecord> protocolRecordConsumer,
-                                   BiConsumer<DomainEventRecord, String> domainEventIndexer) throws IOException {
+                                   BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer) throws IOException {
         // materialize the external event
         DomainEvent externalEvent = materialize(eventType, domainEventRecord);
         // apply the event(s)
@@ -214,7 +215,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                 domainEventRecord.correlationId(),
                 stateRecord.generation());
         protocolRecordConsumer.accept(eventRecord);
-        indexDomainEventIfRequired(eventRecord, domainEventIndexer);
+        indexDomainEventIfRequired(eventRecord, state, domainEventIndexer);
         // if there are more events, handle them as normal events
         AggregateStateRecord currentStateRecord = stateRecord;
         while(itr.hasNext()) {
@@ -231,7 +232,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     private void handleEvent(DomainEventType<?> eventType,
                              DomainEventRecord domainEventRecord,
                              Consumer<ProtocolRecord> protocolRecordConsumer,
-                             BiConsumer<DomainEventRecord, String> domainEventIndexer,
+                             BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer,
                              Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
         // materialize the event
         DomainEvent externalEvent = materialize(eventType, domainEventRecord);
@@ -250,7 +251,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
 
     private AggregateStateRecord processDomainEvent(String correlationId,
                                                     Consumer<ProtocolRecord> protocolRecordConsumer,
-                                                    BiConsumer<DomainEventRecord, String> domainEventIndexer,
+                                                    BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer,
                                                     AggregateStateRecord currentStateRecord,
                                                     DomainEvent domainEvent) throws IOException {
         AggregateState currentState = materialize(currentStateRecord);
@@ -279,7 +280,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                     correlationId,
                     nextStateRecord.generation());
             protocolRecordConsumer.accept(eventRecord);
-            indexDomainEventIfRequired(eventRecord, domainEventIndexer);
+            indexDomainEventIfRequired(eventRecord, nextState, domainEventIndexer);
             return nextStateRecord;
         } else {
             // this is an ErrorEvent, this doesn't alter the state but needs to be produced
@@ -302,7 +303,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     @Override
     public void handleExternalDomainEventRecord(DomainEventRecord eventRecord,
                                                 Consumer<ProtocolRecord> protocolRecordConsumer,
-                                                BiConsumer<DomainEventRecord, String> domainEventIndexer,
+                                                BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer,
                                                 Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
         // determine the type to use for the external event
         DomainEventType<?> domainEventType = getDomainEventType(eventRecord);

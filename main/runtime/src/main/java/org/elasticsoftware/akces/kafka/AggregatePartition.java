@@ -27,6 +27,7 @@ import org.apache.kafka.common.errors.*;
 import org.elasticsoftware.akces.aggregate.AggregateRuntime;
 import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
+import org.elasticsoftware.akces.aggregate.IndexParams;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.control.AkcesRegistry;
@@ -205,10 +206,10 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         }
     }
 
-    private void index(DomainEventRecord der, String indexPrefix) {
+    private void index(DomainEventRecord der, IndexParams params) {
         // send to the index topic
         // TODO: this assumes that auto.create.topics.enable is set to true on the kafka cluster
-        String topicName = indexPrefix+"-"+der.aggregateId()+"-DomainEventIndex";
+        String topicName = params.indexName()+"-"+params.indexKey()+"-DomainEventIndex";
         logger.trace("Indexing DomainEventRecord {}:{} with id {} to topic {}", der.name(), der.version(), der.id(), topicName+"-0");
         // index topics only have one partition
         KafkaSender.send(producer, new ProducerRecord<>(topicName, 0, der.id(), der));
