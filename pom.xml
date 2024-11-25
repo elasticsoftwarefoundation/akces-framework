@@ -76,6 +76,10 @@
         <pluginManagement>
             <plugins>
                 <plugin>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <version>3.8.1</version>
+                </plugin>
+                <plugin>
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>3.13.0</version>
                 </plugin>
@@ -166,8 +170,20 @@
                 </configuration>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>properties</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
+                    <argLine>-javaagent:${org.mockito:mockito-core:jar}</argLine>
                     <systemProperties>
                         <log4j2.is.webapp>false</log4j2.is.webapp>
                         <log4j2.garbagefree.threadContextMap>true</log4j2.garbagefree.threadContextMap>

@@ -106,9 +106,9 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
 
     private void indexDomainEventIfRequired(DomainEventRecord domainEventRecord,
                                             BiConsumer<DomainEventRecord, String> domainEventIndexer) {
-//        if(type.indexed()) {
-//            domainEventIndexer.accept(domainEventRecord, type.indexName());
-//        }
+        if(type.indexed()) {
+            domainEventIndexer.accept(domainEventRecord, type.indexName());
+        }
     }
 
     private void handleCreateCommand(CommandType<?> commandType,

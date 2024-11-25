@@ -220,7 +220,7 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
             try {
                 if (data == null) {
                     return null;
-                } else if (topic.endsWith("DomainEvents")) {
+                } else if (topic.endsWith("DomainEvents") || topic.endsWith("DomainEventIndex")) {
                     return domainEventRecordReader.readValue(data);
                 } else if (topic.endsWith("AggregateState")) {
                     return aggregateStateRecordReader.readValue(data);

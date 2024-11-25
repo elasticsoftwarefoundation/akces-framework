@@ -279,6 +279,59 @@ public class WalletTests {
     }
 
     @Test
+    public void testIndexWalletEventsFromCommand() throws Exception {
+        AggregateRuntime walletAggregate = applicationContext.getBean("WalletAggregateRuntimeFactory", AggregateRuntime.class);
+        // need to register the external domainevent
+        schemaRegistryClient.register("domainevents.AccountCreated",
+                walletAggregate.generateJsonSchema(new DomainEventType<>("AccountCreated", 1, ExternalAccountCreatedEvent.class, true, true, false)),
+                1,
+                -1);
+        for (DomainEventType<?> domainEventType : walletAggregate.getAllDomainEventTypes()) {
+            walletAggregate.registerAndValidate(domainEventType);
+        }
+        String tenantId = "tenant1";
+        String aggregateId = "d43a3afc-3e5a-11ed-b878-0242ac120002";
+        String correlationId = "01e04622-3e5b-11ed-b878-0242ac120002";
+        List<ProtocolRecord> producedRecords = new ArrayList<>();
+        List<DomainEventRecord> indexedEvents = new ArrayList<>();
+        walletAggregate.handleCommandRecord(
+                new CommandRecord(
+                        tenantId,
+                        "CreateWallet",
+                        1,
+                        objectMapper.writeValueAsBytes(
+                                new CreateWalletCommand(aggregateId, "EUR")),
+                        PayloadEncoding.JSON,
+                        aggregateId,
+                        correlationId),
+                producedRecords::add,
+                (eventRecord, index) -> indexedEvents.add(eventRecord),
+                () -> null
+        );
+        // we should index 2 events: WalletCreated and BalanceCreated
+        assertEquals(2, indexedEvents.size());
+        DomainEventRecord actual = indexedEvents.get(0);
+
+        assertEquals(1, actual.generation());
+        assertEquals(aggregateId, actual.aggregateId());
+        assertEquals(correlationId, actual.correlationId());
+        assertArrayEquals(objectMapper.writeValueAsBytes(new WalletCreatedEvent(aggregateId)), actual.payload());
+        assertEquals(PayloadEncoding.JSON, actual.encoding());
+        assertEquals("WalletCreated", actual.name());
+        assertEquals(1, actual.version());
+
+        actual = (DomainEventRecord) indexedEvents.get(1);
+
+        assertEquals(2, actual.generation());
+        assertEquals(aggregateId, actual.aggregateId());
+        assertEquals(correlationId, actual.correlationId());
+        assertArrayEquals(objectMapper.writeValueAsBytes(new BalanceCreatedEvent(aggregateId, "EUR")), actual.payload());
+        assertEquals(PayloadEncoding.JSON, actual.encoding());
+        assertEquals("BalanceCreated", actual.name());
+        assertEquals(1, actual.version());
+    }
+
+    @Test
     public void testCreateWalletByExternalDomainEvent() throws Exception {
         AggregateRuntime walletAggregate = applicationContext.getBean("WalletAggregateRuntimeFactory",AggregateRuntime.class);
         // need to register the external domainevent
@@ -367,5 +420,40 @@ public class WalletTests {
         assertEquals("BalanceCreated", actual.name());
         assertEquals(1, actual.version());
 
+    }
+
+    @Test
+    public void testIndexWalletEventsByExternalDomainEvent() throws Exception {
+        AggregateRuntime walletAggregate = applicationContext.getBean("WalletAggregateRuntimeFactory", AggregateRuntime.class);
+        // need to register the external domainevent
+        schemaRegistryClient.register("domainevents.AccountCreated",
+                walletAggregate.generateJsonSchema(new DomainEventType<>("AccountCreated", 1, ExternalAccountCreatedEvent.class, true, true, false)),
+                1,
+                -1);
+        for (DomainEventType<?> domainEventType : walletAggregate.getAllDomainEventTypes()) {
+            walletAggregate.registerAndValidate(domainEventType);
+        }
+        String tenantId = "tenant1";
+        String aggregateId = "d43a3afc-3e5a-11ed-b878-0242ac120002";
+        String correlationId = "01e04622-3e5b-11ed-b878-0242ac120002";
+        List<ProtocolRecord> producedRecords = new ArrayList<>();
+        List<DomainEventRecord> indexedEvents = new ArrayList<>();
+        walletAggregate.handleExternalDomainEventRecord(
+                new DomainEventRecord(
+                        tenantId,
+                        "AccountCreated",
+                        1,
+                        objectMapper.writeValueAsBytes(
+                                new AccountCreatedEvent(aggregateId, "NL", "7hdU_mfA_bvkRRgCekTZ0A==", "ioxbJd-hSLj6KNJpdYzN4g==", "6KLIDo3Ii2d-oVZtiv1h3OYNgW5lXYAnCnxPK2fprUU=")),
+                        PayloadEncoding.JSON,
+                        aggregateId,
+                        correlationId,
+                        1),
+                producedRecords::add,
+                (eventRecord, index) -> indexedEvents.add(eventRecord),
+                () -> null
+        );
+        // we should index 2 events: WalletCreated and BalanceCreated
+        assertEquals(2, indexedEvents.size());
     }
 }
