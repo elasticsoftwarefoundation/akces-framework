@@ -30,7 +30,9 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.springframework.kafka.KafkaException;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.control.AggregateServiceCommandType;
@@ -69,6 +71,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -91,6 +94,7 @@ public class RuntimeTests  {
     @Container
     private static final KafkaContainer kafka =
             new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:"+CONFLUENT_PLATFORM_VERSION))
+                    .withKraft()
                     .withNetwork(network)
                     .withNetworkAliases("kafka");
 
@@ -288,7 +292,7 @@ public class RuntimeTests  {
         // and we should have a error event in the domain events
         assertEquals(1, records.records(domainEventsPartition).size());
 
-        DomainEventRecord protocolRecord = (DomainEventRecord) records.records(domainEventsPartition).get(0).value();
+        DomainEventRecord protocolRecord = (DomainEventRecord) records.records(domainEventsPartition).getFirst().value();
         assertEquals("InvalidAmountError", protocolRecord.name());
 
         testConsumer.close();
@@ -494,6 +498,144 @@ public class RuntimeTests  {
             assertNotEquals("Fahim", accountState.firstName());
             assertNotEquals("Zuijderwijk", accountState.lastName());
             assertNotEquals("FahimZuijderwijk@jourrapide.com", accountState.email());
+        }
+    }
+
+    @Test
+    @Order(7)
+    public void testDomainEventIndexing() throws IOException {
+        // wait until the ackes controller is running
+        while(!akcesAggregateController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        String userId = "1837552e-45c4-41ff-a833-075c5a5fa49e";
+
+        try (
+                Producer<String, ProtocolRecord> testProducer = producerFactory.createProducer("test");
+                Consumer<String, ProtocolRecord> testConsumer = consumerFactory.createConsumer("Test", "test")
+        ) {
+            testProducer.beginTransaction();
+            CreateAccountCommand command = new CreateAccountCommand(userId,"NL", "Fahim","Zuijderwijk", "FahimZuijderwijk@jourrapide.com");
+            CommandRecord commandRecord = new CommandRecord(
+                    null,
+                    "CreateAccount",
+                    1,
+                    objectMapper.writeValueAsBytes(command),
+                    PayloadEncoding.JSON,
+                    command.getAggregateId(),
+                    null);
+            String topicName = akcesAggregateController.resolveTopic(command.getClass());
+            int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
+            // produce a command to create an Account
+            testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));
+            testProducer.commitTransaction();
+            // we now should have a topic named: Users-1837552e-45c4-41ff-a833-075c5a5fa49e-DomainEventIndex
+            // use the admin to verify that the topic exists
+            TopicDescription topicDescription = getTopicDescription("Users-1837552e-45c4-41ff-a833-075c5a5fa49e-DomainEventIndex");
+            while (topicDescription == null) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                topicDescription = getTopicDescription("Users-1837552e-45c4-41ff-a833-075c5a5fa49e-DomainEventIndex");
+            }
+
+            testConsumer.assign(generateTopicPartitions("Users-1837552e-45c4-41ff-a833-075c5a5fa49e-DomainEventIndex",1).toList());
+            testConsumer.seekToBeginning(testConsumer.assignment());
+            ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(250));
+            List<ProtocolRecord> allRecords = new ArrayList<>();
+            // we should have 3 records in the index: AccountCreated, WalletCreated, BalanceCreated
+            while(allRecords.size() < 3) {
+                records.forEach(record -> allRecords.add(record.value()));
+                // wait for the events to be produced
+                records = testConsumer.poll(Duration.ofMillis(250));
+            }
+            assertEquals(3, allRecords.size());
+            // make sure they are in the right order
+            assertEquals("AccountCreated", allRecords.getFirst().name());
+            assertEquals("WalletCreated", allRecords.get(1).name());
+            assertEquals("BalanceCreated", allRecords.getLast().name());
+        }
+    }
+
+    @Test
+    @Order(8)
+    public void testDomainEventIndexingWithErrorEvents() throws IOException {
+        // wait until the ackes controller is running
+        while(!akcesAggregateController.isRunning()) {
+            Thread.onSpinWait();
+        }
+        String userId = "d3bd665a-6c67-4301-a8f1-4381f8d7d567";
+        try (
+                Producer<String, ProtocolRecord> testProducer = producerFactory.createProducer("test");
+                Consumer<String, ProtocolRecord> testConsumer = consumerFactory.createConsumer("Test", "test")
+        ) {
+            CreateWalletCommand command = new CreateWalletCommand(userId, "USD");
+            CommandRecord commandRecord = new CommandRecord(null, "CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null);
+            String topicName = akcesAggregateController.resolveTopic(command.getClass());
+            int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
+            // produce a command to create a Wallet
+            testProducer.beginTransaction();
+            testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));
+            testProducer.commitTransaction();
+            // credit the wallet
+            CreditWalletCommand creditCommand = new CreditWalletCommand(userId, "USD", new BigDecimal("100.00"));
+            CommandRecord creditCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(creditCommand), PayloadEncoding.JSON, creditCommand.getAggregateId(), null);
+            testProducer.beginTransaction();
+            testProducer.send(new ProducerRecord<>(topicName, partition, creditCommandRecord.aggregateId(), creditCommandRecord));
+            testProducer.commitTransaction();
+            // now create a command that will cause an error
+            CreditWalletCommand invalidCommand = new CreditWalletCommand(userId,"USD", new BigDecimal("-100.00"));
+            CommandRecord invalidCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(invalidCommand), PayloadEncoding.JSON, invalidCommand.getAggregateId(), null);
+
+            testProducer.beginTransaction();
+            testProducer.send(new ProducerRecord<>(topicName, partition, invalidCommandRecord.aggregateId(), invalidCommandRecord));
+            testProducer.commitTransaction();
+
+            // wait for the index topic
+            TopicDescription topicDescription = getTopicDescription("Users-d3bd665a-6c67-4301-a8f1-4381f8d7d567-DomainEventIndex");
+            while (topicDescription == null) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                topicDescription = getTopicDescription("Users-d3bd665a-6c67-4301-a8f1-4381f8d7d567-DomainEventIndex");
+            }
+
+            // we should now have 3 records in the index: WalletCreated, BalanceCreated, WalletCredited
+            testConsumer.assign(generateTopicPartitions("Users-d3bd665a-6c67-4301-a8f1-4381f8d7d567-DomainEventIndex",1).toList());
+            testConsumer.seekToBeginning(testConsumer.assignment());
+            ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(250));
+            List<ProtocolRecord> allRecords = new ArrayList<>();
+            while(allRecords.size() < 3) {
+                records.forEach(record -> allRecords.add(record.value()));
+                // wait for the events to be produced
+                records = testConsumer.poll(Duration.ofMillis(250));
+            }
+
+            assertEquals(3, allRecords.size());
+            // make sure they are in the right order
+            assertEquals("WalletCreated", allRecords.getFirst().name());
+            assertEquals("BalanceCreated", allRecords.get(1).name());
+            assertEquals("WalletCredited", allRecords.getLast().name());
+
+        }
+    }
+
+    public TopicDescription getTopicDescription(String topic) {
+        try {
+            return adminClient.describeTopics(topic).get(topic);
+        } catch(KafkaException e) {
+            if(e.getCause().getClass().equals(ExecutionException.class) &&
+                    e.getCause().getCause().getClass().equals(UnknownTopicOrPartitionException.class)) {
+                return null;
+            }
+            else {
+                throw e;
+            }
         }
     }
 

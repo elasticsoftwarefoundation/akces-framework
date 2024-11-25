@@ -48,6 +48,7 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
           optional string correlationId = 6;
           optional int64 generation = 7;
           optional string tenantId = 8;
+          optional string id = 9;
         }
         // Enum for org.elasticsoftware.akces.protocol.PayloadEncoding
         enum PayloadEncoding {
@@ -89,6 +90,7 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
           optional string aggregateId = 5;
           optional string correlationId = 6;
           optional string tenantId = 7;
+          optional string id = 8;
         }
         // Enum for org.elasticsoftware.akces.protocol.PayloadEncoding
         enum PayloadEncoding {
@@ -218,7 +220,7 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
             try {
                 if (data == null) {
                     return null;
-                } else if (topic.endsWith("DomainEvents")) {
+                } else if (topic.endsWith("DomainEvents") || topic.endsWith("DomainEventIndex")) {
                     return domainEventRecordReader.readValue(data);
                 } else if (topic.endsWith("AggregateState")) {
                     return aggregateStateRecordReader.readValue(data);

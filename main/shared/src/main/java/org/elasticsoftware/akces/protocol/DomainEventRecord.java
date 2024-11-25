@@ -17,7 +17,10 @@
 
 package org.elasticsoftware.akces.protocol;
 
+import java.util.UUID;
+
 public record DomainEventRecord(
+        String id,
         String tenantId,
         String name,
         int version,
@@ -27,5 +30,7 @@ public record DomainEventRecord(
         String correlationId,
         long generation
 ) implements ProtocolRecord {
-
+    public DomainEventRecord(String tenantId, String name, int version, byte[] payload, PayloadEncoding encoding, String aggregateId, String correlationId, long generation) {
+        this(UUID.randomUUID().toString(), tenantId, name, version, payload, encoding, aggregateId, correlationId, generation);
+    }
 }

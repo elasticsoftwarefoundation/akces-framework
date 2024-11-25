@@ -17,7 +17,10 @@
 
 package org.elasticsoftware.akces.protocol;
 
+import java.util.UUID;
+
 public record CommandRecord(
+        String id,
         String tenantId,
         String name,
         int version,
@@ -26,4 +29,7 @@ public record CommandRecord(
         String aggregateId,
         String correlationId
 ) implements ProtocolRecord {
+    public CommandRecord(String tenantId, String name, int version, byte[] payload, PayloadEncoding encoding, String aggregateId, String correlationId) {
+        this(UUID.randomUUID().toString(), tenantId, name, version, payload, encoding, aggregateId, correlationId);
+    }
 }

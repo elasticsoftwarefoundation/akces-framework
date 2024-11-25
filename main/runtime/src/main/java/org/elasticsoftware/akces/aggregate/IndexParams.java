@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2023 The Original Authors
+ * Copyright 2022 - 2024 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -17,15 +17,5 @@
 
 package org.elasticsoftware.akces.aggregate;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import org.elasticsoftware.akces.events.DomainEvent;
-
-public record DomainEventType<T extends DomainEvent>(
-        String typeName,
-        int version,
-        @JsonIgnore Class<T> typeClass,
-        boolean create,
-        boolean external,
-        boolean error
-) {
+public record IndexParams(String indexName, String indexKey) {
 }

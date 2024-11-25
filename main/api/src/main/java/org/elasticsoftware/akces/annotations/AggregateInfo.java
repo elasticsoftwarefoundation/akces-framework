@@ -35,4 +35,8 @@ public @interface AggregateInfo {
     int version() default 1;
 
     boolean generateGDPRKeyOnCreate() default false;
+
+    boolean indexed() default false;
+
+    String indexName() default "UNDEFINED";
 }
