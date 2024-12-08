@@ -90,7 +90,7 @@ import java.util.concurrent.TimeUnit;
 @ContextConfiguration(initializers = AkcesClientTests.ContextInitializer.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class AkcesClientTests {
-    private static final String CONFLUENT_PLATFORM_VERSION = "7.7.1";
+    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";
 
     private static final Network network = Network.newNetwork();
 
@@ -301,7 +301,12 @@ public class AkcesClientTests {
             Thread.onSpinWait();
         }
         String userId = "deb2b2c1-847c-44f3-a2a4-c81bc5ce795d";
-        CompletionStage<List<DomainEvent>> result = akcesClient.send("TEST_TENANT",new CreateAccountCommand(userId, "NL", "Aike","Christianen","aike.christianen@gmail.com"));
+        CompletionStage<List<DomainEvent>> result = akcesClient.send("TEST_TENANT",
+                new CreateAccountCommand(userId,
+                        "NL",
+                        "Aike",
+                        "Christianen",
+                        "aike.christianen@gmail.com"));
 
         // send the command response
         try (
@@ -316,7 +321,7 @@ public class AkcesClientTests {
             ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(250));
             List<ProtocolRecord> allRecords = new ArrayList<>();
             // we should have 1 record
-            while(allRecords.size() != 1) {
+            while(allRecords.isEmpty()) {
                 records.forEach(record -> allRecords.add(record.value()));
                 // wait for the events to be produced
                 records = testConsumer.poll(Duration.ofMillis(250));
@@ -374,10 +379,11 @@ public class AkcesClientTests {
             TopicPartition commandPartition = new TopicPartition("Account-Commands", akcesClient.resolvePartition(userId));
             testConsumer.assign(List.of(commandPartition));
             testConsumer.seekToBeginning(List.of(commandPartition));
+
             ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(250));
             List<ProtocolRecord> allRecords = new ArrayList<>();
             // we should have 1 record
-            while(allRecords.size() != 1) {
+            while(allRecords.isEmpty()) {
                 records.forEach(record -> allRecords.add(record.value()));
                 // wait for the events to be produced
                 records = testConsumer.poll(Duration.ofMillis(250));
@@ -415,8 +421,13 @@ public class AkcesClientTests {
         while(!akcesClient.isRunning()) {
             Thread.onSpinWait();
         }
-        String userId = "deb2b2c1-847c-44f3-a2a4-c81bc5ce795d";
-        CompletionStage<List<DomainEvent>> result = akcesClient.send("TEST_TENANT",new CreateAccountCommand(userId, "NL", "Aike","Christianen","aike.christianen@gmail.com"));
+        String userId = "4da5341a-1f69-4995-b5dc-ecd492e940a0";
+        CompletionStage<List<DomainEvent>> result = akcesClient.send("TEST_TENANT",
+                new CreateAccountCommand(userId,
+                        "NL",
+                        "Aike",
+                        "Christianen",
+                        "aike.christianen@gmail.com"));
 
         // send the command response
         try (
@@ -428,10 +439,11 @@ public class AkcesClientTests {
             TopicPartition commandPartition = new TopicPartition("Account-Commands", akcesClient.resolvePartition(userId));
             testConsumer.assign(List.of(commandPartition));
             testConsumer.seekToBeginning(List.of(commandPartition));
+
             ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(250));
             List<ProtocolRecord> allRecords = new ArrayList<>();
             // we should have 1 record
-            while(allRecords.size() != 1) {
+            while(allRecords.isEmpty()) {
                 records.forEach(record -> allRecords.add(record.value()));
                 // wait for the events to be produced
                 records = testConsumer.poll(Duration.ofMillis(250));
