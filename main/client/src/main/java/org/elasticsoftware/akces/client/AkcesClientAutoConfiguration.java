@@ -24,17 +24,25 @@ import io.confluent.kafka.schemaregistry.json.JsonSchemaProvider;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
+import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.kafka.CustomKafkaConsumerFactory;
 import org.elasticsoftware.akces.kafka.CustomKafkaProducerFactory;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
+import org.springframework.core.PriorityOrdered;
+import org.springframework.core.env.Environment;
+import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaAdminOperations;
@@ -47,9 +55,18 @@ import java.util.Map;
 @PropertySource("classpath:akces-client.properties")
 public class AkcesClientAutoConfiguration {
     private final ProtocolRecordSerde serde = new ProtocolRecordSerde();
+
+    public AkcesClientAutoConfiguration() {
+    }
+
     @Bean
     public AkcesControlRecordSerde controlSerde(ObjectMapper objectMapper) {
         return new AkcesControlRecordSerde(objectMapper);
+    }
+
+    @Bean
+    public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
+        return builder -> builder.modulesToInstall(new AkcesGDPRModule());
     }
 
     @Bean
@@ -71,12 +88,35 @@ public class AkcesClientAutoConfiguration {
         return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), controlSerde.deserializer());
     }
 
+    @Bean
+    public ConsumerFactory<String, ProtocolRecord> commandResponseConsumerFactory(KafkaProperties properties) {
+        return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), serde.deserializer());
+    }
+
+    @Bean(name = "domainEventScanner")
+    public ClassPathScanningCandidateComponentProvider domainEventScanner(Environment environment) {
+        ClassPathScanningCandidateComponentProvider provider = new ClassPathScanningCandidateComponentProvider(false);
+        provider.addIncludeFilter(new AnnotationTypeFilter(DomainEventInfo.class));
+        provider.setEnvironment(environment);
+        return provider;
+    }
+
     @Bean(initMethod = "start")
     public AkcesClientController akcesClient(ProducerFactory<String, ProtocolRecord> producerFactory,
                                              ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory,
+                                             ConsumerFactory<String, ProtocolRecord> commandResponseConsumerFactory,
                                              KafkaAdminOperations kafkaAdmin,
                                              SchemaRegistryClient schemaRegistryClient,
-                                             ObjectMapper objectMapper) {
-        return new AkcesClientController(producerFactory, controlConsumerFactory, kafkaAdmin, schemaRegistryClient, objectMapper);
+                                             ObjectMapper objectMapper,
+                                             @Qualifier("domainEventScanner") ClassPathScanningCandidateComponentProvider domainEventScanner,
+                                             @Value("${akces.client.domainEventsPackage}") String domainEventsPackage) {
+        return new AkcesClientController(producerFactory,
+                controlConsumerFactory,
+                commandResponseConsumerFactory,
+                kafkaAdmin,
+                schemaRegistryClient,
+                objectMapper,
+                domainEventScanner,
+                domainEventsPackage);
     }
 }

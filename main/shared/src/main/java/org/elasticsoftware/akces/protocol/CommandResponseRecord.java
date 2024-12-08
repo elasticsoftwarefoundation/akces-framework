@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2023 The Original Authors
+ * Copyright 2022 - 2024 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -17,10 +17,9 @@
 
 package org.elasticsoftware.akces.protocol;
 
-import java.util.UUID;
+import java.util.List;
 
-public record CommandRecord(
-        String id,
+public record CommandResponseRecord(
         String tenantId,
         String name,
         int version,
@@ -28,24 +27,11 @@ public record CommandRecord(
         PayloadEncoding encoding,
         String aggregateId,
         String correlationId,
-        String replyToTopicPartition
+        String commandId,
+        List<DomainEventRecord> events,
+        byte[] encryptionKey
 ) implements ProtocolRecord {
-    public CommandRecord(String tenantId,
-                         String name,
-                         int version,
-                         byte[] payload,
-                         PayloadEncoding encoding,
-                         String aggregateId,
-                         String correlationId,
-                         String replyToTopicPartition) {
-        this(UUID.randomUUID().toString(),
-                tenantId,
-                name,
-                version,
-                payload,
-                encoding,
-                aggregateId,
-                correlationId,
-                replyToTopicPartition);
+    public CommandResponseRecord(String tenantId, String aggregateId, String correlationId, String commandId, List<DomainEventRecord> events, byte[] encryptionKey) {
+        this(tenantId, "CommandResponse", 1, null, PayloadEncoding.BYTES, aggregateId, correlationId, commandId, events, encryptionKey);
     }
 }

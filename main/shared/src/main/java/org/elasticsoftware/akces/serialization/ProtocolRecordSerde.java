@@ -37,18 +37,18 @@ import java.util.Map;
 public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
     private static final String domainEventRecordProto = """
         // org.elasticsoftware.akces.protocol.DomainEventRecord
-                        
+        
         // Message for org.elasticsoftware.akces.protocol.DomainEventRecord
         message DomainEventRecord {
-          optional string name = 1;
-          optional int32 version = 2;
-          optional bytes payload = 3;
-          optional PayloadEncoding encoding = 4;
-          optional string aggregateId = 5;
-          optional string correlationId = 6;
-          optional int64 generation = 7;
-          optional string tenantId = 8;
-          optional string id = 9;
+          optional string id = 1;
+          optional string tenantId = 2;
+          optional string name = 3;
+          optional int32 version = 4;
+          optional bytes payload = 5;
+          optional PayloadEncoding encoding = 6;
+          optional string aggregateId = 7;
+          optional string correlationId = 8;
+          optional int64 generation = 9;
         }
         // Enum for org.elasticsoftware.akces.protocol.PayloadEncoding
         enum PayloadEncoding {
@@ -80,17 +80,18 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
         """;
     private static final String commandRecordProto = """
         // org.elasticsoftware.akces.protocol.CommandRecord
-                    
+        
         // Message for org.elasticsoftware.akces.protocol.CommandRecord
         message CommandRecord {
-          optional string name = 1;
-          optional int32 version = 2;
-          optional bytes payload = 3;
-          optional PayloadEncoding encoding = 4;
-          optional string aggregateId = 5;
-          optional string correlationId = 6;
-          optional string tenantId = 7;
-          optional string id = 8;
+          optional string id = 1;
+          optional string tenantId = 2;
+          optional string name = 3;
+          optional int32 version = 4;
+          optional bytes payload = 5;
+          optional PayloadEncoding encoding = 6;
+          optional string aggregateId = 7;
+          optional string correlationId = 8;
+          optional string replyToTopicPartition = 9;
         }
         // Enum for org.elasticsoftware.akces.protocol.PayloadEncoding
         enum PayloadEncoding {
@@ -119,6 +120,41 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
           BYTES = 2;
         }
         """;
+    private static final String commandResponseRecordProto = """
+        // org.elasticsoftware.akces.protocol.CommandResponseRecord
+        
+        // Message for org.elasticsoftware.akces.protocol.CommandResponseRecord
+        message CommandResponseRecord {
+          optional string tenantId = 1;
+          optional string name = 2;
+          optional int32 version = 3;
+          optional bytes payload = 4;
+          optional PayloadEncoding encoding = 5;
+          optional string aggregateId = 6;
+          optional string correlationId = 7;
+          optional string commandId = 8;
+          repeated DomainEventRecord events = 9;
+          optional bytes encryptionKey = 10;
+        }
+        // Message for org.elasticsoftware.akces.protocol.DomainEventRecord
+        message DomainEventRecord {
+          optional string id = 1;
+          optional string tenantId = 2;
+          optional string name = 3;
+          optional int32 version = 4;
+          optional bytes payload = 5;
+          optional PayloadEncoding encoding = 6;
+          optional string aggregateId = 7;
+          optional string correlationId = 8;
+          optional int64 generation = 9;
+        }
+        // Enum for org.elasticsoftware.akces.protocol.PayloadEncoding
+        enum PayloadEncoding {
+          JSON = 0;
+          PROTOBUF = 1;
+          BYTES = 2;
+        }
+        """;
     private final ObjectMapper objectMapper = new ProtobufMapper();
     private final Serializer<ProtocolRecord> serializer;
     private final Deserializer<ProtocolRecord> deserializer;
@@ -129,14 +165,17 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
             ProtobufSchema aggregateStateRecordSchema = ProtobufSchemaLoader.std.load(new StringReader(aggregateStateRecordProto));
             ProtobufSchema commandRecordSchema = ProtobufSchemaLoader.std.load(new StringReader(commandRecordProto));
             ProtobufSchema gdprKeyRecordSchema = ProtobufSchemaLoader.std.load(new StringReader(gdprKeyRecordProto));
+            ProtobufSchema commandResponseRecordSchema = ProtobufSchemaLoader.std.load(new StringReader(commandResponseRecordProto));
             serializer = new SerializerImpl(objectMapper.writer(domainEventRecordSchema),
                     objectMapper.writer(aggregateStateRecordSchema),
                     objectMapper.writer(commandRecordSchema),
-                    objectMapper.writer(gdprKeyRecordSchema));
+                    objectMapper.writer(gdprKeyRecordSchema),
+                    objectMapper.writer(commandResponseRecordSchema));
             deserializer = new DeserializerImpl(objectMapper.readerFor(DomainEventRecord.class).with(domainEventRecordSchema),
                     objectMapper.readerFor(AggregateStateRecord.class).with(aggregateStateRecordSchema),
                     objectMapper.readerFor(CommandRecord.class).with(commandRecordSchema),
-                    objectMapper.readerFor(GDPRKeyRecord.class).with(gdprKeyRecordSchema));
+                    objectMapper.readerFor(GDPRKeyRecord.class).with(gdprKeyRecordSchema),
+                    objectMapper.readerFor(CommandResponseRecord.class).with(commandResponseRecordSchema));
         } catch (IOException e) {
             throw new SerializationException(e);
         }
@@ -167,15 +206,18 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
         private final ObjectWriter aggregateStateRecordWriter;
         private final ObjectWriter commandRecordWriter;
         private final ObjectWriter gdprKeyRecordWriter;
+        private final ObjectWriter commandResponseRecordWriter;
 
         private SerializerImpl(ObjectWriter domainEventRecordWriter,
                                ObjectWriter aggregateStateRecordWriter,
                                ObjectWriter commandRecordWriter,
-                               ObjectWriter gdprKeyRecordWriter) {
+                               ObjectWriter gdprKeyRecordWriter,
+                               ObjectWriter commandResponseRecordWriter) {
             this.domainEventRecordWriter = domainEventRecordWriter;
             this.aggregateStateRecordWriter = aggregateStateRecordWriter;
             this.commandRecordWriter = commandRecordWriter;
             this.gdprKeyRecordWriter = gdprKeyRecordWriter;
+            this.commandResponseRecordWriter = commandResponseRecordWriter;
         }
 
 
@@ -188,6 +230,8 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
                     return aggregateStateRecordWriter.writeValueAsBytes(r);
                 } else if(data instanceof CommandRecord r) {
                     return commandRecordWriter.writeValueAsBytes(r);
+                } else if(data instanceof CommandResponseRecord e) {
+                    return commandResponseRecordWriter.writeValueAsBytes(e);
                 } else if(data instanceof GDPRKeyRecord r) {
                     return gdprKeyRecordWriter.writeValueAsBytes(r);
                 } else {
@@ -204,15 +248,18 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
         private final ObjectReader aggregateStateRecordReader;
         private final ObjectReader commandRecordReader;
         private final ObjectReader gdprKeyRecordReader;
+        private final ObjectReader commandResponseRecordReader;
 
         public DeserializerImpl(ObjectReader domainEventRecordReader,
                                 ObjectReader aggregateStateRecordReader,
                                 ObjectReader commandRecordReader,
-                                ObjectReader gdprKeyRecordReader) {
+                                ObjectReader gdprKeyRecordReader,
+                                ObjectReader commandResponseRecordReader) {
             this.domainEventRecordReader = domainEventRecordReader;
             this.aggregateStateRecordReader = aggregateStateRecordReader;
             this.commandRecordReader = commandRecordReader;
             this.gdprKeyRecordReader = gdprKeyRecordReader;
+            this.commandResponseRecordReader = commandResponseRecordReader;
         }
 
         @Override
@@ -226,6 +273,8 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
                     return aggregateStateRecordReader.readValue(data);
                 } else if(topic.endsWith("Commands")) {
                     return commandRecordReader.readValue(data);
+                } else if(topic.endsWith("CommandResponses")) {
+                    return commandResponseRecordReader.readValue(data);
                 } else if(topic.endsWith("GDPRKeys")) {
                     return gdprKeyRecordReader.readValue(data);
                 } else {

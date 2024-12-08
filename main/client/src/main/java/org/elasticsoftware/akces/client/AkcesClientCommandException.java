@@ -22,24 +22,24 @@ import jakarta.annotation.Nullable;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
-public abstract class AkcesClientException extends RuntimeException {
+public abstract class AkcesClientCommandException extends RuntimeException {
     private final Class<? extends Command> commandClass;
     private final String commandType;
     private final Integer commandVersion;
 
-    public AkcesClientException(@Nonnull Class<? extends Command> commandClass,
-                                @Nullable CommandInfo commandInfo,
-                                @Nonnull String causeMessage,
-                                @Nonnull Throwable cause) {
+    public AkcesClientCommandException(@Nonnull Class<? extends Command> commandClass,
+                                       @Nullable CommandInfo commandInfo,
+                                       @Nonnull String causeMessage,
+                                       @Nonnull Throwable cause) {
         super("Problem "+causeMessage+" Command", cause);
         this.commandClass = commandClass;
         this.commandType = commandInfo != null ? commandInfo.type() : null;
         this.commandVersion = commandInfo != null ? commandInfo.version() : null;
     }
 
-    public AkcesClientException(@Nonnull Class<? extends Command> commandClass,
-                                @Nullable CommandInfo commandInfo,
-                                @Nonnull String message) {
+    public AkcesClientCommandException(@Nonnull Class<? extends Command> commandClass,
+                                       @Nullable CommandInfo commandInfo,
+                                       @Nonnull String message) {
         super(message);
         this.commandClass = commandClass;
         this.commandType = commandInfo != null ? commandInfo.type() : null;

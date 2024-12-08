@@ -21,7 +21,9 @@ import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftware.akces.events.DomainEvent;
 
+import java.util.List;
 import java.util.concurrent.CompletionStage;
 
 public interface AkcesClient {
@@ -44,11 +46,11 @@ public interface AkcesClient {
      * @throws          UnroutableCommandException if the {@link Command} is not routable to any AggregateService
      * @throws          IllegalArgumentException if the {@link Command} class is not annotated with {@link CommandInfo}
      */
-    default CompletionStage<String> send(@Nonnull String tenantId,@Nonnull Command command) {
+    default CompletionStage<List<DomainEvent>> send(@Nonnull String tenantId, @Nonnull Command command) {
         return send(tenantId, null, command);
     }
 
-    CompletionStage<String> send(@Nonnull String tenantId, @Nullable String correlationId,@Nonnull Command command);
+    CompletionStage<List<DomainEvent>> send(@Nonnull String tenantId, @Nullable String correlationId,@Nonnull Command command);
 
     default void sendAndForget(@Nonnull String tenantId, @Nonnull Command command){
         sendAndForget(tenantId, null, command);

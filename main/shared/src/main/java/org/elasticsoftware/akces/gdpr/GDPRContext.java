@@ -15,13 +15,24 @@
  *
  */
 
-package org.elasticsoftware.akces.client;
+package org.elasticsoftware.akces.gdpr;
 
-import org.elasticsoftware.akces.annotations.CommandInfo;
-import org.elasticsoftware.akces.commands.Command;
 
-public class UnroutableCommandException extends AkcesClientCommandException {
-    public UnroutableCommandException(Class<? extends Command> commandClass) {
-        super(commandClass, commandClass.getAnnotation(CommandInfo.class), "Unable to Route Command, no AggregateService found that handles the Command");
+import jakarta.annotation.Nonnull;
+import jakarta.annotation.Nullable;
+
+public sealed interface GDPRContext permits NoopGDPRContext, EncryptingGDPRContext {
+    @Nullable
+    String encrypt(@Nullable String data);
+
+    @Nullable
+    String decrypt(@Nullable String encryptedData);
+
+    @Nonnull
+    String getAggregateId();
+
+    @Nullable
+    default byte[] getEncryptionKey() {
+        return null;
     }
 }

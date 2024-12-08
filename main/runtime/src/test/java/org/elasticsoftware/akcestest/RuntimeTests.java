@@ -235,7 +235,7 @@ public class RuntimeTests  {
 
         String userId = "47db2418-dd10-11ed-afa1-0242ac120002";
         CreateWalletCommand command = new CreateWalletCommand(userId,"USD");
-        CommandRecord commandRecord = new CommandRecord(null,"CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null);
+        CommandRecord commandRecord = new CommandRecord(null,"CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null,null);
         String topicName = akcesAggregateController.resolveTopic(command.getClass());
         int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
         // produce a command to create a Wallet
@@ -259,7 +259,7 @@ public class RuntimeTests  {
         assertFalse(records.isEmpty());
 
         CreditWalletCommand creditCommand = new CreditWalletCommand(userId, "USD", new BigDecimal("100.00"));
-        CommandRecord creditCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(creditCommand), PayloadEncoding.JSON, creditCommand.getAggregateId(), null);
+        CommandRecord creditCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(creditCommand), PayloadEncoding.JSON, creditCommand.getAggregateId(), null, null);
 
         testProducer.beginTransaction();
         testProducer.send(new ProducerRecord<>(topicName, partition, creditCommandRecord.aggregateId(), creditCommandRecord));
@@ -275,7 +275,7 @@ public class RuntimeTests  {
 
         // now create a command that will cause an error
         CreditWalletCommand invalidCommand = new CreditWalletCommand(userId,"USD", new BigDecimal("-100.00"));
-        CommandRecord invalidCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(invalidCommand), PayloadEncoding.JSON, invalidCommand.getAggregateId(), null);
+        CommandRecord invalidCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(invalidCommand), PayloadEncoding.JSON, invalidCommand.getAggregateId(), null, null);
 
         testProducer.beginTransaction();
         testProducer.send(new ProducerRecord<>(topicName, partition, invalidCommandRecord.aggregateId(), invalidCommandRecord));
@@ -332,7 +332,7 @@ public class RuntimeTests  {
             testProducer.beginTransaction();
             for(String userId : userIds) {
                 CreateWalletCommand command = new CreateWalletCommand(userId,"USD");
-                CommandRecord commandRecord = new CommandRecord(null,"CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null);
+                CommandRecord commandRecord = new CommandRecord(null,"CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null, null);
                 String topicName = akcesAggregateController.resolveTopic(command.getClass());
                 int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
                 // produce a command to create a Wallet
@@ -396,6 +396,7 @@ public class RuntimeTests  {
                     objectMapper.writeValueAsBytes(command),
                     PayloadEncoding.JSON,
                     command.getAggregateId(),
+                    null,
                     null);
             String topicName = akcesAggregateController.resolveTopic(command.getClass());
             int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
@@ -458,6 +459,7 @@ public class RuntimeTests  {
                     objectMapper.writeValueAsBytes(command),
                     PayloadEncoding.JSON,
                     command.getAggregateId(),
+                    null,
                     null);
             String topicName = akcesAggregateController.resolveTopic(command.getClass());
             int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
@@ -524,6 +526,7 @@ public class RuntimeTests  {
                     objectMapper.writeValueAsBytes(command),
                     PayloadEncoding.JSON,
                     command.getAggregateId(),
+                    null,
                     null);
             String topicName = akcesAggregateController.resolveTopic(command.getClass());
             int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
@@ -573,7 +576,7 @@ public class RuntimeTests  {
                 Consumer<String, ProtocolRecord> testConsumer = consumerFactory.createConsumer("Test", "test")
         ) {
             CreateWalletCommand command = new CreateWalletCommand(userId, "USD");
-            CommandRecord commandRecord = new CommandRecord(null, "CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null);
+            CommandRecord commandRecord = new CommandRecord(null, "CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null,null);
             String topicName = akcesAggregateController.resolveTopic(command.getClass());
             int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
             // produce a command to create a Wallet
@@ -582,13 +585,13 @@ public class RuntimeTests  {
             testProducer.commitTransaction();
             // credit the wallet
             CreditWalletCommand creditCommand = new CreditWalletCommand(userId, "USD", new BigDecimal("100.00"));
-            CommandRecord creditCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(creditCommand), PayloadEncoding.JSON, creditCommand.getAggregateId(), null);
+            CommandRecord creditCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(creditCommand), PayloadEncoding.JSON, creditCommand.getAggregateId(), null,null);
             testProducer.beginTransaction();
             testProducer.send(new ProducerRecord<>(topicName, partition, creditCommandRecord.aggregateId(), creditCommandRecord));
             testProducer.commitTransaction();
             // now create a command that will cause an error
             CreditWalletCommand invalidCommand = new CreditWalletCommand(userId,"USD", new BigDecimal("-100.00"));
-            CommandRecord invalidCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(invalidCommand), PayloadEncoding.JSON, invalidCommand.getAggregateId(), null);
+            CommandRecord invalidCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(invalidCommand), PayloadEncoding.JSON, invalidCommand.getAggregateId(), null,null);
 
             testProducer.beginTransaction();
             testProducer.send(new ProducerRecord<>(topicName, partition, invalidCommandRecord.aggregateId(), invalidCommandRecord));

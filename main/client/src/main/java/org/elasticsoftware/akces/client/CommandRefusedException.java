@@ -21,7 +21,7 @@ import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
-public class CommandRefusedException extends AkcesClientException {
+public class CommandRefusedException extends AkcesClientCommandException {
     private final AkcesClientControllerState state;
 
     public CommandRefusedException(@Nonnull Class<? extends Command> commandClass, AkcesClientControllerState state) {

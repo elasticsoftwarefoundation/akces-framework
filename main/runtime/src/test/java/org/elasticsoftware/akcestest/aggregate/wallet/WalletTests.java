@@ -213,7 +213,8 @@ public class WalletTests {
                                 new CreateWalletCommand(aggregateId, "EUR")),
                         PayloadEncoding.JSON,
                         aggregateId,
-                        correlationId),
+                        correlationId,
+                        null),
                 producedRecords::add,
                 (eventRecord, index) -> indexedEvents.add(eventRecord),
                 () -> null
@@ -303,7 +304,8 @@ public class WalletTests {
                                 new CreateWalletCommand(aggregateId, "EUR")),
                         PayloadEncoding.JSON,
                         aggregateId,
-                        correlationId),
+                        correlationId,
+                        null),
                 producedRecords::add,
                 (eventRecord, index) -> indexedEvents.add(eventRecord),
                 () -> null

@@ -21,7 +21,7 @@ import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
-public class CommandSendingFailedException extends AkcesClientException {
+public class CommandSendingFailedException extends AkcesClientCommandException {
     public CommandSendingFailedException(@Nonnull Class<? extends Command> commandClass, @Nonnull Throwable cause) {
         super(commandClass, commandClass.getAnnotation(CommandInfo.class), "Sending", cause);
     }

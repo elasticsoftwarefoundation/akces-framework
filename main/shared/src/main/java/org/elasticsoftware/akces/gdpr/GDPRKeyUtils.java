@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2023 The Original Authors
+ * Copyright 2022 - 2024 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -20,9 +20,12 @@ package org.elasticsoftware.akces.gdpr;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.regex.Pattern;
 
 public class GDPRKeyUtils {
     private static SecureRandom secureRandom;
+    private static final Pattern UUID_REGEX =
+            Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
     static {
         try {
             secureRandom = SecureRandom.getInstance("NativePRNGNonBlocking");
@@ -43,5 +46,9 @@ public class GDPRKeyUtils {
 
     public static SecureRandom secureRandom() {
         return secureRandom;
+    }
+
+    public static boolean isUUID(String possibleUUID) {
+        return UUID_REGEX.matcher(possibleUUID).matches();
     }
 }

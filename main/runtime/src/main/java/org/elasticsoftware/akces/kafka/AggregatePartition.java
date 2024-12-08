@@ -53,6 +53,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsoftware.akces.gdpr.GDPRContextHolder.getCurrentGDPRContext;
 import static org.elasticsoftware.akces.kafka.AggregatePartitionState.*;
 
 public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
@@ -175,7 +176,8 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                     runtime.serialize(command),
                     PayloadEncoding.JSON,
                     command.getAggregateId(),
-                    null);
+                    null,
+                    null); // don't send a response
             // we should not use the local partition id but that of the aggregate
             Integer partition = ackesRegistry.resolvePartition(command.getAggregateId());
             KafkaSender.send(producer, new ProducerRecord<>(topic, partition, commandRecord.id(), commandRecord));
@@ -237,8 +239,27 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
 
     private void handleCommand(CommandRecord commandRecord) {
         try {
+            final List<DomainEventRecord> responseRecords = commandRecord.replyToTopicPartition() != null ?  new ArrayList<>() : null;
+            java.util.function.Consumer<ProtocolRecord> protocolRecordConsumer = (pr) -> {
+                send(pr);
+                if (responseRecords != null && pr instanceof DomainEventRecord der) {
+                    responseRecords.add(der);
+                }
+            };
             setupGDPRContext(commandRecord.tenantId(), commandRecord.aggregateId(), runtime.shouldGenerateGPRKey(commandRecord));
-            runtime.handleCommandRecord(commandRecord, this::send, this::index,() -> stateRepository.get(commandRecord.aggregateId()));
+            runtime.handleCommandRecord(commandRecord, protocolRecordConsumer, this::index , () -> stateRepository.get(commandRecord.aggregateId()));
+            if(responseRecords != null) {
+                CommandResponseRecord crr = new CommandResponseRecord(
+                        commandRecord.tenantId(),
+                        commandRecord.aggregateId(),
+                        commandRecord.correlationId(),
+                        commandRecord.id(),
+                        responseRecords,
+                        getCurrentGDPRContext() != null ? getCurrentGDPRContext().getEncryptionKey() : null);
+                TopicPartition replyToTopicPartition = PartitionUtils.parseReplyToTopicPartition(commandRecord.replyToTopicPartition());
+                KafkaSender.send(producer, new ProducerRecord<>(replyToTopicPartition.topic(), replyToTopicPartition.partition(), crr.commandId(), crr));
+            }
+
         } catch (IOException e) {
             // TODO need to raise a (built-in) ErrorEvent here
             logger.error("Error handling command", e);
