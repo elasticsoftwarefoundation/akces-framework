@@ -96,7 +96,6 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
     private static final TopicPartition AKCES_CONTROL_PARTITION = new TopicPartition("Akces-Control",0);
     private TopicPartition commandResponsePartition;
     private final ClassPathScanningCandidateComponentProvider domainEventScanner;
-    private final Map<String, TreeMap<Integer, DomainEventType<?>>> supportedDomainEvents = new HashMap<>();
 
     public AkcesClientController(ProducerFactory<String, ProtocolRecord> producerFactory,
                                  ConsumerFactory<String, AkcesControlRecord> controlRecordConsumerFactory,

@@ -175,43 +175,48 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
 
     @Override
     public void registerAndValidate(CommandType<?> commandType) throws Exception {
-        JsonSchema localSchema = generateJsonSchema(commandType);
-        List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas("commands."+commandType.typeName(), false, false);
-        if(registeredSchemas.isEmpty()) {
-            if(commandType.version() == 1) {
-                // we need to create the schema and register it (not external ones as they are owned by another aggregate)
-                schemaRegistryClient.register("commands."+commandType.typeName(), localSchema, commandType.version(), -1);
-            } else {
-                // we are missing schema(s) for the previous version(s)
-                throw new IllegalStateException(format("Missing schema(s) for previous version(s) for Command [%s:%d]", commandType.typeName(), commandType.version()));
-            }
-        } else {
-            // see if it is an existing schema
-            ParsedSchema registeredSchema = registeredSchemas.stream()
-                    .filter(parsedSchema -> getSchemaVersion(commandType, parsedSchema) == commandType.version())
-                    .findFirst().orElse(null);
-            if(registeredSchema != null) {
-                // it has to be exactly the same
-                if(!registeredSchema.deepEquals(localSchema)) {
-                    throw new IllegalStateException("Registered Schema does not match Local Schema");
-                }
-            } else {
-                // ensure we have an ordered list of schemas
-                registeredSchemas.sort(Comparator.comparingInt(ParsedSchema::version));
-                // see if the new version is exactly one higher than the last version
-                if(commandType.version() != registeredSchemas.get(registeredSchemas.size() - 1).version() + 1) {
-                    throw new IllegalStateException(format("New Schema version is not exactly one higher than the last version for Command [%s:%d]", commandType.typeName(), commandType.version()));
-                }
-                // see if the new schema is backwards compatible with the previous ones
-                if(localSchema.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE, registeredSchemas.stream().map(SimpleParsedSchemaHolder::new).collect(Collectors.toList())).isEmpty()) {
-                    // register the new schema
-                    schemaRegistryClient.register("commands."+commandType.typeName(), localSchema, commandType.version(), -1);
+        if(!commandSchemas.containsKey(commandType.typeClass())) {
+            JsonSchema localSchema = generateJsonSchema(commandType);
+            List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas("commands." + commandType.typeName(), false, false);
+            if (registeredSchemas.isEmpty()) {
+                if (commandType.version() == 1 && !commandType.external()) {
+                    // we need to create the schema and register it (not external ones as they are owned by another aggregate)
+                    schemaRegistryClient.register("commands." + commandType.typeName(), localSchema, commandType.version(), -1);
                 } else {
-                    throw new IllegalStateException(format("New Schema is not backwards compatible with previous versions for Command [%s:%d]", commandType.typeName(), commandType.version()));
+                    // we are missing schema(s) for the previous version(s)
+                    throw new IllegalStateException(format("Missing schema(s) for previous version(s) for Command [%s:%d]", commandType.typeName(), commandType.version()));
+                }
+            } else {
+                // see if it is an existing schema
+                ParsedSchema registeredSchema = registeredSchemas.stream()
+                        .filter(parsedSchema -> getSchemaVersion(commandType, parsedSchema) == commandType.version())
+                        .findFirst().orElse(null);
+                if (registeredSchema != null) {
+                    // it has to be exactly the same
+                    if (!registeredSchema.deepEquals(localSchema)) {
+                        throw new IllegalStateException("Registered Schema does not match Local Schema");
+                    }
+                } else if (!commandType.external()) {
+                    // ensure we have an ordered list of schemas
+                    registeredSchemas.sort(Comparator.comparingInt(ParsedSchema::version));
+                    // see if the new version is exactly one higher than the last version
+                    if (commandType.version() != registeredSchemas.get(registeredSchemas.size() - 1).version() + 1) {
+                        throw new IllegalStateException(format("New Schema version is not exactly one higher than the last version for Command [%s:%d]", commandType.typeName(), commandType.version()));
+                    }
+                    // see if the new schema is backwards compatible with the previous ones
+                    if (localSchema.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE, registeredSchemas.stream().map(SimpleParsedSchemaHolder::new).collect(Collectors.toList())).isEmpty()) {
+                        // register the new schema
+                        schemaRegistryClient.register("commands." + commandType.typeName(), localSchema, commandType.version(), -1);
+                    } else {
+                        throw new IllegalStateException(format("New Schema is not backwards compatible with previous versions for Command [%s:%d]", commandType.typeName(), commandType.version()));
+                    }
+                } else {
+                    throw new IllegalStateException(format("No Schema found for External Command [%s:%d]", commandType.typeName(), commandType.version()));
                 }
             }
+            commandSchemas.put(commandType.typeClass(), localSchema);
+            if(commandType.external()) addCommand(commandType);
         }
-        commandSchemas.put(commandType.typeClass(), localSchema);
     }
 
     private int getSchemaVersion(DomainEventType<?> domainEventType, ParsedSchema parsedSchema) {

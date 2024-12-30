@@ -23,7 +23,6 @@ import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 
-@DomainEventInfo(type = "AccountCreated")
 public record ExternalAccountCreatedEvent(
         @AggregateIdentifier @NotNull String userId,
         String country,

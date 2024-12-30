@@ -22,6 +22,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.processmanager.AkcesProcess;
 import org.elasticsoftware.akcestest.aggregate.wallet.InsufficientFundsErrorEvent;
+import org.elasticsoftware.akcestest.aggregate.wallet.InvalidCurrencyErrorEvent;
 
 import java.math.BigDecimal;
 
@@ -41,4 +42,6 @@ public sealed interface OrderProcess extends AkcesProcess permits BuyOrderProces
     String clientReference();
 
     DomainEvent handle(InsufficientFundsErrorEvent error);
+
+    DomainEvent handle(InvalidCurrencyErrorEvent error);
 }

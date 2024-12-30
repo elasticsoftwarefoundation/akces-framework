@@ -32,6 +32,9 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.elasticsoftware.akces.client.AkcesClient;
 import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akcestest.aggregate.orders.BuyOrderCreatedEvent;
+import org.elasticsoftware.akcestest.aggregate.orders.FxMarket;
+import org.elasticsoftware.akcestest.aggregate.orders.PlaceBuyOrderCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.BalanceCreatedEvent;
 import org.elasticsoftware.akcestest.aggregate.wallet.WalletCreatedEvent;
 import org.springframework.kafka.KafkaException;
@@ -564,11 +567,13 @@ public class RuntimeTests  {
                 // wait for the events to be produced
                 records = testConsumer.poll(Duration.ofMillis(250));
             }
-            assertEquals(3, allRecords.size());
+            assertEquals(4, allRecords.size());
+            // map to list of names
+            List<String> names = allRecords.stream().map(ProtocolRecord::name).toList();
             // make sure they are in the right order
-            assertEquals("AccountCreated", allRecords.getFirst().name());
-            assertEquals("WalletCreated", allRecords.get(1).name());
-            assertEquals("BalanceCreated", allRecords.getLast().name());
+            assertEquals("AccountCreated", names.getFirst());
+            assertTrue(names.indexOf("WalletCreated") < names.indexOf("BalanceCreated"));
+            assertTrue(names.contains("UserOrderProcessesCreated"));
         }
     }
 
@@ -653,6 +658,32 @@ public class RuntimeTests  {
         Assertions.assertEquals(2, result.size());
         assertInstanceOf(WalletCreatedEvent.class, result.getFirst());
         assertInstanceOf(BalanceCreatedEvent.class, result.getLast());
+    }
+
+    @Test
+    @Order(10)
+    public void testOrderFlowWithAkcesClient() throws ExecutionException, InterruptedException, TimeoutException {
+        // wait until the ackes controller is running
+        while(!akcesAggregateController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        String userId = "a28d41c4-9f9c-4708-b142-6b83768ee8f3";
+        CreateAccountCommand command = new CreateAccountCommand(userId,"NL", "Bella","Fowler", "bella.fowler@example.com");
+        List<DomainEvent> result = akcesClient.send("TEST_TENANT", command).toCompletableFuture().get(10, TimeUnit.SECONDS);
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(1, result.size());
+        assertInstanceOf(AccountCreatedEvent.class, result.getFirst());
+        // credit the wallet
+        akcesClient.sendAndForget("TEST_TENANT",new CreditWalletCommand(userId, "EUR", new BigDecimal("100.00")));
+        // place and order
+        PlaceBuyOrderCommand orderCommand = new PlaceBuyOrderCommand(userId, new FxMarket("USDEUR", "USD", "EUR"), new BigDecimal("90.00"), new BigDecimal("1.05"), "trade-1");
+        result = akcesClient.send("TEST_TENANT", orderCommand).toCompletableFuture().get(10, TimeUnit.SECONDS);
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(1, result.size());
+        assertInstanceOf(BuyOrderCreatedEvent.class, result.getFirst());
     }
 
     public TopicDescription getTopicDescription(String topic) {

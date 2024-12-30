@@ -20,7 +20,6 @@ package org.elasticsoftware.akcestest.aggregate.wallet;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 
-@DomainEventInfo(type = "AccountCreated")
 public record InvalidAccountCreatedEvent(String middleName, String currency) implements DomainEvent {
         @Override
         public String getAggregateId() {

@@ -165,6 +165,14 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         }
         // we need to resolve the command type
         CommandType<?> commandType = ackesRegistry.resolveType(command.getClass());
+        // ensure we have the command registered and validated, this is an idempotent call
+        try {
+            runtime.registerAndValidate(commandType);
+        } catch (Exception e) {
+            // TODO: throw a more specific exception
+            throw new RuntimeException(e);
+        }
+
         if (commandType != null) {
             // now we need to find the topic
             String topic = ackesRegistry.resolveTopic(commandType);
@@ -247,6 +255,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                 }
             };
             setupGDPRContext(commandRecord.tenantId(), commandRecord.aggregateId(), runtime.shouldGenerateGPRKey(commandRecord));
+            logger.trace("Handling CommandRecord with type {}", commandRecord.name());
             runtime.handleCommandRecord(commandRecord, protocolRecordConsumer, this::index , () -> stateRepository.get(commandRecord.aggregateId()));
             if(responseRecords != null) {
                 CommandResponseRecord crr = new CommandResponseRecord(
