@@ -30,6 +30,10 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.elasticsoftware.akces.client.AkcesClient;
+import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akcestest.aggregate.wallet.BalanceCreatedEvent;
+import org.elasticsoftware.akcestest.aggregate.wallet.WalletCreatedEvent;
 import org.springframework.kafka.KafkaException;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
@@ -72,6 +76,8 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -108,23 +114,26 @@ public class RuntimeTests  {
                     .withNetworkAliases("schema-registry")
                     .dependsOn(kafka);
 
-    @Inject
+    @Inject @Qualifier("aggregateServiceKafkaAdmin")
     KafkaAdmin adminClient;
 
-    @Inject
+    @Inject @Qualifier("aggregateServiceSchemaRegistryClient")
     SchemaRegistryClient schemaRegistryClient;
 
     @Inject @Qualifier("WalletAkcesController")
     AkcesAggregateController akcesAggregateController;
 
-    @Inject
+    @Inject @Qualifier("aggregateServiceConsumerFactory")
     ConsumerFactory<String, ProtocolRecord> consumerFactory;
 
-    @Inject
+    @Inject @Qualifier("aggregateServiceProducerFactory")
     ProducerFactory<String, ProtocolRecord> producerFactory;
 
-    @Inject
+    @Inject @Qualifier("aggregateServiceControlConsumerFactory")
     ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory;
+
+    @Inject @Qualifier("akcesClient")
+    AkcesClient akcesClient;
 
     @Inject
     ObjectMapper objectMapper;
@@ -626,6 +635,24 @@ public class RuntimeTests  {
             assertEquals("WalletCredited", allRecords.getLast().name());
 
         }
+    }
+
+    @Test
+    @Order(9)
+    public void testWithAkcesClient() throws ExecutionException, InterruptedException, TimeoutException {
+        // wait until the ackes controller is running
+        while(!akcesAggregateController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        String userId = "47db2418-dd10-11ed-afa1-0242ac120002";
+        CreateWalletCommand command = new CreateWalletCommand(userId,"USD");
+        List<DomainEvent> result = akcesClient.send("TEST_TENANT", command).toCompletableFuture().get(10, TimeUnit.SECONDS);
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(2, result.size());
+        assertInstanceOf(WalletCreatedEvent.class, result.getFirst());
+        assertInstanceOf(BalanceCreatedEvent.class, result.getLast());
     }
 
     public TopicDescription getTopicDescription(String topic) {

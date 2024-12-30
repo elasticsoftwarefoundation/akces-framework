@@ -42,7 +42,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 
-@SpringBootTest(classes = WalletConfiguration.class)
+@SpringBootTest(classes = WalletConfiguration.class, properties = "spring.autoconfigure.exclude=org.elasticsoftware.akces.client.AkcesClientAutoConfiguration")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class WalletTests {
     @Inject

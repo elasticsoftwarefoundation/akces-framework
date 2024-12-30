@@ -118,13 +118,13 @@ public class AggregateServiceApplicationTests {
     @Inject @Qualifier("AccountAkcesController")
     AkcesAggregateController akcesAggregateController;
 
-    @Inject
+    @Inject @Qualifier("aggregateServiceConsumerFactory")
     ConsumerFactory<String, ProtocolRecord> consumerFactory;
 
-    @Inject
+    @Inject @Qualifier("aggregateServiceProducerFactory")
     ProducerFactory<String, ProtocolRecord> producerFactory;
 
-    @Inject
+    @Inject @Qualifier("aggregateServiceControlConsumerFactory")
     ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory;
 
     @Test

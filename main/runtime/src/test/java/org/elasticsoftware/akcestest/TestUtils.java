@@ -41,6 +41,7 @@ public class TestUtils {
         KafkaAdmin kafkaAdmin = new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
         kafkaAdmin.createOrModifyTopics(
                 createCompactedTopic("Akces-Control", 3),
+                createTopic("Akces-CommandResponses", 3, 604800000L),
                 createCompactedTopic("Akces-GDPRKeys", 3),
                 createTopic("Wallet-Commands", 3),
                 createTopic("Wallet-DomainEvents", 3),
@@ -54,11 +55,15 @@ public class TestUtils {
     }
 
     private static NewTopic createTopic(String name, int numPartitions) {
+        return createTopic(name, numPartitions, -1L);
+    }
+
+    private static NewTopic createTopic(String name, int numPartitions, long retentionMs) {
         NewTopic topic = new NewTopic(name, numPartitions , Short.parseShort("1"));
         return topic.configs(Map.of(
                 "cleanup.policy","delete",
-                "max.message.bytes","10485760",
-                "retention.ms", "-1",
+                "max.message.bytes","20971520",
+                "retention.ms", Long.toString(retentionMs),
                 "segment.ms","604800000"));
     }
 

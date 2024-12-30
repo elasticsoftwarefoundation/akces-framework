@@ -29,7 +29,7 @@ import org.springframework.context.annotation.ComponentScan;
         "org.elasticsoftware.akces.beans"
 })
 public class WalletConfiguration {
-    @Bean
+    @Bean(name = "aggregateServiceSchemaRegistryClient")
     public SchemaRegistryClient createSchemaRegistryClient() {
         return new MockSchemaRegistryClient();
     }

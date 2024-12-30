@@ -257,6 +257,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                         responseRecords,
                         getCurrentGDPRContext() != null ? getCurrentGDPRContext().getEncryptionKey() : null);
                 TopicPartition replyToTopicPartition = PartitionUtils.parseReplyToTopicPartition(commandRecord.replyToTopicPartition());
+                logger.trace("Sending CommandResponseRecord with commandId {} to {}", crr.commandId(), replyToTopicPartition);
                 KafkaSender.send(producer, new ProducerRecord<>(replyToTopicPartition.topic(), replyToTopicPartition.partition(), crr.commandId(), crr));
             }
 

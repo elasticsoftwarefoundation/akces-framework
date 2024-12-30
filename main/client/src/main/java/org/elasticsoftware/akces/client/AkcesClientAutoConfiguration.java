@@ -58,36 +58,37 @@ public class AkcesClientAutoConfiguration {
     public AkcesClientAutoConfiguration() {
     }
 
-    @Bean
+    @Bean(name = "akcesClientControlSerde")
     public AkcesControlRecordSerde controlSerde(ObjectMapper objectMapper) {
         return new AkcesControlRecordSerde(objectMapper);
     }
 
-    @Bean
+    @Bean(name = "akcesClientJsonCustomizer")
     public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
         return builder -> builder.modulesToInstall(new AkcesGDPRModule());
     }
 
-    @Bean
+    @Bean(name = "akcesClientKafkaAdmin")
     public KafkaAdmin createKafkaAdmin(@Value("${spring.kafka.bootstrapServers}") String bootstrapServers) {
         return new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
     }
-    @Bean
+    @Bean(name = "akcesClientSchemaRegistryClient")
     public SchemaRegistryClient createSchemaRegistryClient(@Value("${kafka.schemaregistry.url}") String url) {
         return new CachedSchemaRegistryClient(url, 1000, List.of(new JsonSchemaProvider()), null);
     }
 
-    @Bean
+    @Bean(name = "akcesClientProducerFactory")
     public ProducerFactory<String, ProtocolRecord> producerFactory(KafkaProperties properties) {
         return new CustomKafkaProducerFactory<>(properties.buildProducerProperties(null), new StringSerializer(), serde.serializer());
     }
 
-    @Bean
-    public ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory(KafkaProperties properties, AkcesControlRecordSerde controlSerde) {
+    @Bean(name = "akcesClientControlConsumerFactory")
+    public ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory(KafkaProperties properties,
+                                                                              @Qualifier("akcesClientControlSerde") AkcesControlRecordSerde controlSerde) {
         return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), controlSerde.deserializer());
     }
 
-    @Bean
+    @Bean(name = "akcesClientCommandResponseConsumerFactory")
     public ConsumerFactory<String, ProtocolRecord> commandResponseConsumerFactory(KafkaProperties properties) {
         return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), serde.deserializer());
     }
@@ -100,12 +101,12 @@ public class AkcesClientAutoConfiguration {
         return provider;
     }
 
-    @Bean(initMethod = "start")
-    public AkcesClientController akcesClient(ProducerFactory<String, ProtocolRecord> producerFactory,
-                                             ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory,
-                                             ConsumerFactory<String, ProtocolRecord> commandResponseConsumerFactory,
-                                             KafkaAdminOperations kafkaAdmin,
-                                             SchemaRegistryClient schemaRegistryClient,
+    @Bean(name = "akcesClient", initMethod = "start")
+    public AkcesClientController akcesClient(@Qualifier("akcesClientProducerFactory") ProducerFactory<String, ProtocolRecord> producerFactory,
+                                             @Qualifier("akcesClientControlConsumerFactory") ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory,
+                                             @Qualifier("akcesClientCommandResponseConsumerFactory") ConsumerFactory<String, ProtocolRecord> commandResponseConsumerFactory,
+                                             @Qualifier("akcesClientKafkaAdmin") KafkaAdminOperations kafkaAdmin,
+                                             @Qualifier("akcesClientSchemaRegistryClient") SchemaRegistryClient schemaRegistryClient,
                                              ObjectMapper objectMapper,
                                              @Qualifier("domainEventScanner") ClassPathScanningCandidateComponentProvider domainEventScanner,
                                              @Value("${akces.client.domainEventsPackage}") String domainEventsPackage) {
