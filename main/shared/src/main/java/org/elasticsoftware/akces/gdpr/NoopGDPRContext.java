@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2023 The Original Authors
+ * Copyright 2022 - 2024 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -17,17 +17,31 @@
 
 package org.elasticsoftware.akces.gdpr;
 
-
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 
-public sealed interface GDPRContext permits NoopGDPRContext, EncryptingGDPRContext {
-    @Nullable
-    String encrypt(@Nullable String data);
+public final class NoopGDPRContext implements GDPRContext {
+    private final String aggregateId;
+
+    public NoopGDPRContext(@Nonnull String aggregateId) {
+        this.aggregateId = aggregateId;
+    }
 
     @Nullable
-    String decrypt(@Nullable String encryptedData);
+    @Override
+    public String encrypt(@Nullable String data) {
+        return data;
+    }
+
+    @Nullable
+    @Override
+    public String decrypt(@Nullable String encryptedData) {
+        return encryptedData;
+    }
 
     @Nonnull
-    String getAggregateId();
+    @Override
+    public String getAggregateId() {
+        return aggregateId;
+    }
 }

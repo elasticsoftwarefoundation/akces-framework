@@ -167,6 +167,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                                Consumer<ProtocolRecord> protocolRecordConsumer,
                                BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer,
                                Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
+
         Command command = materialize(commandType, commandRecord);
         AggregateStateRecord currentStateRecord = stateRecordSupplier.get();
         AggregateState currentState = materialize(currentStateRecord);
@@ -397,5 +398,9 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     protected AggregateStateType<?> getAggregateStateType(AggregateStateRecord record) {
         // TODO: add support for more state versions
         return type;
+    }
+
+    protected void addCommand(CommandType<?> commandType) {
+        this.commandTypes.computeIfAbsent(commandType.typeName(), typeName -> new ArrayList<>()).add(commandType);
     }
 }

@@ -20,7 +20,7 @@ package org.elasticsoftware.akces.client;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
-public class CommandValidationException extends AkcesClientException {
+public class CommandValidationException extends AkcesClientCommandException {
 
     public CommandValidationException(Class<? extends Command> commandClass,
                                       Throwable cause) {

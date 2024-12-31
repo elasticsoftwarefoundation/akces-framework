@@ -113,4 +113,15 @@ public final class Wallet implements Aggregate<WalletState> {
         }).toList());
     }
 
+    @EventSourcingHandler
+    public @NotNull WalletState reserveAmount(@NotNull AmountReservedEvent event, @NotNull WalletState state) {
+        return new WalletState(state.id(), state.balances().stream().map(b -> {
+            if (b.currency().equals(event.currency())) {
+                return new WalletState.Balance(b.currency(), b.amount(), b.reservedAmount().add(event.amount()));
+            } else {
+                return b;
+            }
+        }).toList());
+    }
+
 }

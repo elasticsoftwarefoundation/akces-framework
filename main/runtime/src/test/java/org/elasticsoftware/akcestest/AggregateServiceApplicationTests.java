@@ -62,7 +62,7 @@ import static org.elasticsoftware.akcestest.TestUtils.prepareKafka;
 @ContextConfiguration(initializers = AggregateServiceApplicationTests.Initializer.class)
 @Testcontainers
 public class AggregateServiceApplicationTests {
-    private static final String CONFLUENT_PLATFORM_VERSION = "7.7.1";
+    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";
 
     private static final Network network = Network.newNetwork();
 
@@ -118,13 +118,13 @@ public class AggregateServiceApplicationTests {
     @Inject @Qualifier("AccountAkcesController")
     AkcesAggregateController akcesAggregateController;
 
-    @Inject
+    @Inject @Qualifier("aggregateServiceConsumerFactory")
     ConsumerFactory<String, ProtocolRecord> consumerFactory;
 
-    @Inject
+    @Inject @Qualifier("aggregateServiceProducerFactory")
     ProducerFactory<String, ProtocolRecord> producerFactory;
 
-    @Inject
+    @Inject @Qualifier("aggregateServiceControlConsumerFactory")
     ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory;
 
     @Test

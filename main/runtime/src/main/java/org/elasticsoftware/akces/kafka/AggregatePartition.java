@@ -53,6 +53,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsoftware.akces.gdpr.GDPRContextHolder.getCurrentGDPRContext;
 import static org.elasticsoftware.akces.kafka.AggregatePartitionState.*;
 
 public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
@@ -164,6 +165,14 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         }
         // we need to resolve the command type
         CommandType<?> commandType = ackesRegistry.resolveType(command.getClass());
+        // ensure we have the command registered and validated, this is an idempotent call
+        try {
+            runtime.registerAndValidate(commandType);
+        } catch (Exception e) {
+            // TODO: throw a more specific exception
+            throw new RuntimeException(e);
+        }
+
         if (commandType != null) {
             // now we need to find the topic
             String topic = ackesRegistry.resolveTopic(commandType);
@@ -175,7 +184,8 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                     runtime.serialize(command),
                     PayloadEncoding.JSON,
                     command.getAggregateId(),
-                    null);
+                    null,
+                    null); // don't send a response
             // we should not use the local partition id but that of the aggregate
             Integer partition = ackesRegistry.resolvePartition(command.getAggregateId());
             KafkaSender.send(producer, new ProducerRecord<>(topic, partition, commandRecord.id(), commandRecord));
@@ -237,8 +247,29 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
 
     private void handleCommand(CommandRecord commandRecord) {
         try {
+            final List<DomainEventRecord> responseRecords = commandRecord.replyToTopicPartition() != null ?  new ArrayList<>() : null;
+            java.util.function.Consumer<ProtocolRecord> protocolRecordConsumer = (pr) -> {
+                send(pr);
+                if (responseRecords != null && pr instanceof DomainEventRecord der) {
+                    responseRecords.add(der);
+                }
+            };
             setupGDPRContext(commandRecord.tenantId(), commandRecord.aggregateId(), runtime.shouldGenerateGPRKey(commandRecord));
-            runtime.handleCommandRecord(commandRecord, this::send, this::index,() -> stateRepository.get(commandRecord.aggregateId()));
+            logger.trace("Handling CommandRecord with type {}", commandRecord.name());
+            runtime.handleCommandRecord(commandRecord, protocolRecordConsumer, this::index , () -> stateRepository.get(commandRecord.aggregateId()));
+            if(responseRecords != null) {
+                CommandResponseRecord crr = new CommandResponseRecord(
+                        commandRecord.tenantId(),
+                        commandRecord.aggregateId(),
+                        commandRecord.correlationId(),
+                        commandRecord.id(),
+                        responseRecords,
+                        getCurrentGDPRContext() != null ? getCurrentGDPRContext().getEncryptionKey() : null);
+                TopicPartition replyToTopicPartition = PartitionUtils.parseReplyToTopicPartition(commandRecord.replyToTopicPartition());
+                logger.trace("Sending CommandResponseRecord with commandId {} to {}", crr.commandId(), replyToTopicPartition);
+                KafkaSender.send(producer, new ProducerRecord<>(replyToTopicPartition.topic(), replyToTopicPartition.partition(), crr.commandId(), crr));
+            }
+
         } catch (IOException e) {
             // TODO need to raise a (built-in) ErrorEvent here
             logger.error("Error handling command", e);

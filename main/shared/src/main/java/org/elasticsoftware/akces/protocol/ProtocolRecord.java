@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.protocol;
 
-public sealed interface ProtocolRecord permits AggregateStateRecord, CommandRecord, DomainEventRecord, GDPRKeyRecord {
+public sealed interface ProtocolRecord permits AggregateStateRecord, CommandRecord, DomainEventRecord, GDPRKeyRecord, CommandResponseRecord {
     String tenantId();
 
     String name();

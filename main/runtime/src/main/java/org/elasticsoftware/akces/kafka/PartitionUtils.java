@@ -75,4 +75,12 @@ public final class PartitionUtils {
         return aggregate.getExternalDomainEventTypes().stream().map(externalDomainEvent ->
                 new TopicPartition(externalDomainEvent.typeName()+DOMAINEVENTS_SUFFIX, partition)).collect(Collectors.toList());
     }
+
+    public static TopicPartition parseReplyToTopicPartition(String replyTo) {
+        // split by last index of '-'
+        int lastIndex = replyTo.lastIndexOf('-');
+        String topic = replyTo.substring(0, lastIndex);
+        int partition = Integer.parseInt(replyTo.substring(lastIndex+1));
+        return new TopicPartition(topic, partition);
+    }
 }

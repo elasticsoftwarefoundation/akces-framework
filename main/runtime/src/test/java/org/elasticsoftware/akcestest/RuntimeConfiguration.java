@@ -33,6 +33,7 @@ import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
 import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.state.RocksDBAggregateStateRepositoryFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
@@ -61,47 +62,49 @@ import java.util.Map;
 public class RuntimeConfiguration {
     private final ProtocolRecordSerde serde = new ProtocolRecordSerde();
 
-    @Bean
+    @Bean(name = "aggregateServiceControlRecordSerde")
     public AkcesControlRecordSerde controlSerde(ObjectMapper objectMapper) {
         return new AkcesControlRecordSerde(objectMapper);
     }
 
-    @Bean
+    @Bean(name = "aggregateServiceJsonCustomizer")
     public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
         return builder -> builder.modulesToInstall(new AkcesGDPRModule());
     }
 
 
-    @Bean
+    @Bean(name = "aggregateServiceKafkaAdmin")
     public KafkaAdmin createKafkaAdmin(@Value("${spring.kafka.bootstrapServers}") String bootstrapServers) {
         return new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
     }
-    @Bean
+    @Bean(name = "aggregateServiceSchemaRegistryClient")
     public SchemaRegistryClient createSchemaRegistryClient(@Value("${kafka.schemaregistry.url}") String url) {
         return new CachedSchemaRegistryClient(url, 1000, List.of(new JsonSchemaProvider()), null);
     }
 
-    @Bean
+    @Bean(name = "aggregateServiceConsumerFactory")
     public ConsumerFactory<String, ProtocolRecord> consumerFactory(KafkaProperties properties) {
         return new DefaultKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), serde.deserializer());
     }
 
-    @Bean
+    @Bean(name = "aggregateServiceProducerFactory")
     public ProducerFactory<String, ProtocolRecord> producerFactory(KafkaProperties properties) {
         return new CustomKafkaProducerFactory<>(properties.buildProducerProperties(null), new StringSerializer(), serde.serializer());
     }
 
-    @Bean
-    public ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory(KafkaProperties properties, AkcesControlRecordSerde controlSerde) {
+    @Bean(name = "aggregateServiceControlConsumerFactory")
+    public ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory(KafkaProperties properties,
+                                                                              @Qualifier("aggregateServiceControlRecordSerde") AkcesControlRecordSerde controlSerde) {
         return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), controlSerde.deserializer());
     }
 
-    @Bean
-    public ProducerFactory<String, AkcesControlRecord> controlProducerFactory(KafkaProperties properties, AkcesControlRecordSerde controlSerde) {
+    @Bean(name = "aggregateServiceControlProducerFactory")
+    public ProducerFactory<String, AkcesControlRecord> controlProducerFactory(KafkaProperties properties,
+                                                                              @Qualifier("aggregateServiceControlRecordSerde") AkcesControlRecordSerde controlSerde) {
         return new CustomKafkaProducerFactory<>(properties.buildProducerProperties(null), new StringSerializer(), controlSerde.serializer());
     }
 
-    @Bean
+    @Bean(name = "aggregateStateRepositoryFactory")
     public AggregateStateRepositoryFactory aggregateStateRepositoryFactory() {
         //return new InMemoryAggregateStateRepositoryFactory();
         return new RocksDBAggregateStateRepositoryFactory(serde, "/tmp/akces");

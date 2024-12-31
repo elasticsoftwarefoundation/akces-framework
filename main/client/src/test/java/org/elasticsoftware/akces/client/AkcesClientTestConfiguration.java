@@ -17,10 +17,19 @@
 
 package org.elasticsoftware.akces.client;
 
+import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.StringSerializer;
+import org.elasticsoftware.akces.kafka.CustomKafkaProducerFactory;
+import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.core.ProducerFactory;
 
 @Configuration
 @EnableAutoConfiguration

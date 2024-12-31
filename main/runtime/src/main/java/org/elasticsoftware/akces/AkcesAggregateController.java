@@ -334,7 +334,6 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                     // this is a local command (will be sent to self)
                     return aggregateRuntime.getLocalCommandType(commandInfo.type(), commandInfo.version());
                 } else {
-                    // this is a command for an external service
                     return new CommandType<>(commandInfo.type(), commandInfo.version(), commandClass, false, true);
                 }
             } else {

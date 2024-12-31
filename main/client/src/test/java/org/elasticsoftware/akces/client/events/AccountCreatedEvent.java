@@ -15,33 +15,25 @@
  *
  */
 
-package org.elasticsoftware.akces.gdpr;
+package org.elasticsoftware.akces.client.events;
 
-import jakarta.annotation.Nonnull;
-import jakarta.annotation.Nullable;
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.AggregateIdentifier;
+import org.elasticsoftware.akces.annotations.DomainEventInfo;
+import org.elasticsoftware.akces.annotations.GDPRData;
+import org.elasticsoftware.akces.events.DomainEvent;
 
-public final class NoopGDPRContext implements GDPRContext {
-    private final String aggregateId;
 
-    public NoopGDPRContext(@Nonnull String aggregateId) {
-        this.aggregateId = aggregateId;
-    }
-
-    @Nullable
-    @Override
-    public String encrypt(@Nullable String data) {
-        return data;
-    }
-
-    @Nullable
-    @Override
-    public String decrypt(@Nullable String encryptedData) {
-        return encryptedData;
-    }
-
-    @Nonnull
+@DomainEventInfo(type = "AccountCreated")
+public record AccountCreatedEvent(
+        @AggregateIdentifier @NotNull String userId,
+        String country,
+        @GDPRData String firstName,
+        @GDPRData String lastName,
+        @GDPRData String email
+) implements DomainEvent {
     @Override
     public String getAggregateId() {
-        return aggregateId;
+        return userId();
     }
 }

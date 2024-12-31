@@ -71,24 +71,25 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                         BeanDefinitionBuilder.genericBeanDefinition(AggregateRuntimeFactory.class)
                                 .addConstructorArgValue(beanFactory)
                                 .addConstructorArgReference(beanFactory.getBeanNamesForType(ObjectMapper.class)[0])
-                                .addConstructorArgReference(beanFactory.getBeanNamesForType(SchemaRegistryClient.class)[0])
+                                .addConstructorArgReference("aggregateServiceSchemaRegistryClient")
                                 .addConstructorArgReference(beanName)
                                 .getBeanDefinition());
                 // and create a AkcesController bean to kickstart kafka (if kafka is configured)
                 // TODO: this is a bit crude, but it works for now
-                if(beanFactory.containsBeanDefinition("consumerFactory") &&
-                        beanFactory.containsBeanDefinition("producerFactory") &&
-                        beanFactory.containsBeanDefinition("controlConsumerFactory") &&
-                        beanFactory.containsBeanDefinition("controlProducerFactory")) {
+                if(beanFactory.containsBeanDefinition("aggregateServiceConsumerFactory") &&
+                        beanFactory.containsBeanDefinition("aggregateServiceProducerFactory") &&
+                        beanFactory.containsBeanDefinition("aggregateServiceControlProducerFactory") &&
+                        beanFactory.containsBeanDefinition("aggregateStateRepositoryFactory")) {
                     bdr.registerBeanDefinition(beanName + "AkcesController",
                             BeanDefinitionBuilder.genericBeanDefinition(AkcesAggregateController.class)
-                                    .addConstructorArgReference("consumerFactory")
-                                    .addConstructorArgReference("producerFactory")
-                                    .addConstructorArgReference("controlConsumerFactory")
-                                    .addConstructorArgReference("controlProducerFactory")
+                                    .addConstructorArgReference("aggregateServiceConsumerFactory")
+                                    .addConstructorArgReference("aggregateServiceProducerFactory")
+                                    .addConstructorArgReference("aggregateServiceControlConsumerFactory")
+                                    .addConstructorArgReference("aggregateServiceControlProducerFactory")
                                     .addConstructorArgReference("aggregateStateRepositoryFactory")
                                     .addConstructorArgReference(beanName + "AggregateRuntimeFactory")
-                                    .addConstructorArgReference(beanFactory.getBeanNamesForType(KafkaAdminOperations.class)[0])
+                                    //.addConstructorArgReference(beanFactory.getBeanNamesForType(KafkaAdminOperations.class)[0])
+                                    .addConstructorArgReference("aggregateServiceKafkaAdmin")
                                     .setInitMethodName("start")
                                     .getBeanDefinition());
                 }

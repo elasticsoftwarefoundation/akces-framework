@@ -30,6 +30,13 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.elasticsoftware.akces.client.AkcesClient;
+import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akcestest.aggregate.orders.BuyOrderCreatedEvent;
+import org.elasticsoftware.akcestest.aggregate.orders.FxMarket;
+import org.elasticsoftware.akcestest.aggregate.orders.PlaceBuyOrderCommand;
+import org.elasticsoftware.akcestest.aggregate.wallet.BalanceCreatedEvent;
+import org.elasticsoftware.akcestest.aggregate.wallet.WalletCreatedEvent;
 import org.springframework.kafka.KafkaException;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
@@ -72,6 +79,8 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -87,7 +96,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class RuntimeTests  {
 
-    private static final String CONFLUENT_PLATFORM_VERSION = "7.7.1";
+    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";
 
     private static final Network network = Network.newNetwork();
 
@@ -108,23 +117,26 @@ public class RuntimeTests  {
                     .withNetworkAliases("schema-registry")
                     .dependsOn(kafka);
 
-    @Inject
+    @Inject @Qualifier("aggregateServiceKafkaAdmin")
     KafkaAdmin adminClient;
 
-    @Inject
+    @Inject @Qualifier("aggregateServiceSchemaRegistryClient")
     SchemaRegistryClient schemaRegistryClient;
 
     @Inject @Qualifier("WalletAkcesController")
     AkcesAggregateController akcesAggregateController;
 
-    @Inject
+    @Inject @Qualifier("aggregateServiceConsumerFactory")
     ConsumerFactory<String, ProtocolRecord> consumerFactory;
 
-    @Inject
+    @Inject @Qualifier("aggregateServiceProducerFactory")
     ProducerFactory<String, ProtocolRecord> producerFactory;
 
-    @Inject
+    @Inject @Qualifier("aggregateServiceControlConsumerFactory")
     ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory;
+
+    @Inject @Qualifier("akcesClient")
+    AkcesClient akcesClient;
 
     @Inject
     ObjectMapper objectMapper;
@@ -235,7 +247,7 @@ public class RuntimeTests  {
 
         String userId = "47db2418-dd10-11ed-afa1-0242ac120002";
         CreateWalletCommand command = new CreateWalletCommand(userId,"USD");
-        CommandRecord commandRecord = new CommandRecord(null,"CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null);
+        CommandRecord commandRecord = new CommandRecord(null,"CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null,null);
         String topicName = akcesAggregateController.resolveTopic(command.getClass());
         int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
         // produce a command to create a Wallet
@@ -259,7 +271,7 @@ public class RuntimeTests  {
         assertFalse(records.isEmpty());
 
         CreditWalletCommand creditCommand = new CreditWalletCommand(userId, "USD", new BigDecimal("100.00"));
-        CommandRecord creditCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(creditCommand), PayloadEncoding.JSON, creditCommand.getAggregateId(), null);
+        CommandRecord creditCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(creditCommand), PayloadEncoding.JSON, creditCommand.getAggregateId(), null, null);
 
         testProducer.beginTransaction();
         testProducer.send(new ProducerRecord<>(topicName, partition, creditCommandRecord.aggregateId(), creditCommandRecord));
@@ -275,7 +287,7 @@ public class RuntimeTests  {
 
         // now create a command that will cause an error
         CreditWalletCommand invalidCommand = new CreditWalletCommand(userId,"USD", new BigDecimal("-100.00"));
-        CommandRecord invalidCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(invalidCommand), PayloadEncoding.JSON, invalidCommand.getAggregateId(), null);
+        CommandRecord invalidCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(invalidCommand), PayloadEncoding.JSON, invalidCommand.getAggregateId(), null, null);
 
         testProducer.beginTransaction();
         testProducer.send(new ProducerRecord<>(topicName, partition, invalidCommandRecord.aggregateId(), invalidCommandRecord));
@@ -332,7 +344,7 @@ public class RuntimeTests  {
             testProducer.beginTransaction();
             for(String userId : userIds) {
                 CreateWalletCommand command = new CreateWalletCommand(userId,"USD");
-                CommandRecord commandRecord = new CommandRecord(null,"CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null);
+                CommandRecord commandRecord = new CommandRecord(null,"CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null, null);
                 String topicName = akcesAggregateController.resolveTopic(command.getClass());
                 int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
                 // produce a command to create a Wallet
@@ -396,6 +408,7 @@ public class RuntimeTests  {
                     objectMapper.writeValueAsBytes(command),
                     PayloadEncoding.JSON,
                     command.getAggregateId(),
+                    null,
                     null);
             String topicName = akcesAggregateController.resolveTopic(command.getClass());
             int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
@@ -458,6 +471,7 @@ public class RuntimeTests  {
                     objectMapper.writeValueAsBytes(command),
                     PayloadEncoding.JSON,
                     command.getAggregateId(),
+                    null,
                     null);
             String topicName = akcesAggregateController.resolveTopic(command.getClass());
             int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
@@ -524,6 +538,7 @@ public class RuntimeTests  {
                     objectMapper.writeValueAsBytes(command),
                     PayloadEncoding.JSON,
                     command.getAggregateId(),
+                    null,
                     null);
             String topicName = akcesAggregateController.resolveTopic(command.getClass());
             int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
@@ -552,11 +567,13 @@ public class RuntimeTests  {
                 // wait for the events to be produced
                 records = testConsumer.poll(Duration.ofMillis(250));
             }
-            assertEquals(3, allRecords.size());
+            assertEquals(4, allRecords.size());
+            // map to list of names
+            List<String> names = allRecords.stream().map(ProtocolRecord::name).toList();
             // make sure they are in the right order
-            assertEquals("AccountCreated", allRecords.getFirst().name());
-            assertEquals("WalletCreated", allRecords.get(1).name());
-            assertEquals("BalanceCreated", allRecords.getLast().name());
+            assertEquals("AccountCreated", names.getFirst());
+            assertTrue(names.indexOf("WalletCreated") < names.indexOf("BalanceCreated"));
+            assertTrue(names.contains("UserOrderProcessesCreated"));
         }
     }
 
@@ -573,7 +590,7 @@ public class RuntimeTests  {
                 Consumer<String, ProtocolRecord> testConsumer = consumerFactory.createConsumer("Test", "test")
         ) {
             CreateWalletCommand command = new CreateWalletCommand(userId, "USD");
-            CommandRecord commandRecord = new CommandRecord(null, "CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null);
+            CommandRecord commandRecord = new CommandRecord(null, "CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null,null);
             String topicName = akcesAggregateController.resolveTopic(command.getClass());
             int partition = akcesAggregateController.resolvePartition(command.getAggregateId());
             // produce a command to create a Wallet
@@ -582,13 +599,13 @@ public class RuntimeTests  {
             testProducer.commitTransaction();
             // credit the wallet
             CreditWalletCommand creditCommand = new CreditWalletCommand(userId, "USD", new BigDecimal("100.00"));
-            CommandRecord creditCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(creditCommand), PayloadEncoding.JSON, creditCommand.getAggregateId(), null);
+            CommandRecord creditCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(creditCommand), PayloadEncoding.JSON, creditCommand.getAggregateId(), null,null);
             testProducer.beginTransaction();
             testProducer.send(new ProducerRecord<>(topicName, partition, creditCommandRecord.aggregateId(), creditCommandRecord));
             testProducer.commitTransaction();
             // now create a command that will cause an error
             CreditWalletCommand invalidCommand = new CreditWalletCommand(userId,"USD", new BigDecimal("-100.00"));
-            CommandRecord invalidCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(invalidCommand), PayloadEncoding.JSON, invalidCommand.getAggregateId(), null);
+            CommandRecord invalidCommandRecord = new CommandRecord(null,"CreditWallet", 1, objectMapper.writeValueAsBytes(invalidCommand), PayloadEncoding.JSON, invalidCommand.getAggregateId(), null,null);
 
             testProducer.beginTransaction();
             testProducer.send(new ProducerRecord<>(topicName, partition, invalidCommandRecord.aggregateId(), invalidCommandRecord));
@@ -623,6 +640,50 @@ public class RuntimeTests  {
             assertEquals("WalletCredited", allRecords.getLast().name());
 
         }
+    }
+
+    @Test
+    @Order(9)
+    public void testWithAkcesClient() throws ExecutionException, InterruptedException, TimeoutException {
+        // wait until the ackes controller is running
+        while(!akcesAggregateController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        String userId = "47db2418-dd10-11ed-afa1-0242ac120002";
+        CreateWalletCommand command = new CreateWalletCommand(userId,"USD");
+        List<DomainEvent> result = akcesClient.send("TEST_TENANT", command).toCompletableFuture().get(10, TimeUnit.SECONDS);
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(2, result.size());
+        assertInstanceOf(WalletCreatedEvent.class, result.getFirst());
+        assertInstanceOf(BalanceCreatedEvent.class, result.getLast());
+    }
+
+    @Test
+    @Order(10)
+    public void testOrderFlowWithAkcesClient() throws ExecutionException, InterruptedException, TimeoutException {
+        // wait until the ackes controller is running
+        while(!akcesAggregateController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        String userId = "a28d41c4-9f9c-4708-b142-6b83768ee8f3";
+        CreateAccountCommand command = new CreateAccountCommand(userId,"NL", "Bella","Fowler", "bella.fowler@example.com");
+        List<DomainEvent> result = akcesClient.send("TEST_TENANT", command).toCompletableFuture().get(10, TimeUnit.SECONDS);
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(1, result.size());
+        assertInstanceOf(AccountCreatedEvent.class, result.getFirst());
+        // credit the wallet
+        akcesClient.sendAndForget("TEST_TENANT",new CreditWalletCommand(userId, "EUR", new BigDecimal("100.00")));
+        // place and order
+        PlaceBuyOrderCommand orderCommand = new PlaceBuyOrderCommand(userId, new FxMarket("USDEUR", "USD", "EUR"), new BigDecimal("90.00"), new BigDecimal("1.05"), "trade-1");
+        result = akcesClient.send("TEST_TENANT", orderCommand).toCompletableFuture().get(10, TimeUnit.SECONDS);
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(1, result.size());
+        assertInstanceOf(BuyOrderCreatedEvent.class, result.getFirst());
     }
 
     public TopicDescription getTopicDescription(String topic) {

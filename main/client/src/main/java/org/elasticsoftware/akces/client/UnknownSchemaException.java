@@ -21,7 +21,7 @@ import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
-public class UnknownSchemaException extends AkcesClientException {
+public class UnknownSchemaException extends AkcesClientCommandException {
     private final String schemaIdentifier;
     public UnknownSchemaException(@Nonnull Class<? extends Command> commandClass, String schemaIdentifier) {
         super(commandClass, commandClass.getAnnotation(CommandInfo.class), "Unknown Schema");

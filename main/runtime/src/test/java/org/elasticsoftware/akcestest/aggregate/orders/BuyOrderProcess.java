@@ -19,6 +19,7 @@ package org.elasticsoftware.akcestest.aggregate.orders;
 
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akcestest.aggregate.wallet.InsufficientFundsErrorEvent;
+import org.elasticsoftware.akcestest.aggregate.wallet.InvalidCurrencyErrorEvent;
 
 import java.math.BigDecimal;
 
@@ -30,6 +31,11 @@ public record BuyOrderProcess(String orderId, FxMarket market, BigDecimal quanti
 
     @Override
     public DomainEvent handle(InsufficientFundsErrorEvent error) {
+        return new BuyOrderRejectedEvent(error.walletId(), orderId(), clientReference());
+    }
+
+    @Override
+    public DomainEvent handle(InvalidCurrencyErrorEvent error) {
         return new BuyOrderRejectedEvent(error.walletId(), orderId(), clientReference());
     }
 }

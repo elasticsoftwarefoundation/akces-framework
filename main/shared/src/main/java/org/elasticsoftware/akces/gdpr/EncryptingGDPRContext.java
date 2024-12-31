@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2023 The Original Authors
+ * Copyright 2022 - 2024 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -35,19 +35,19 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.UUID;
 
-import static org.elasticsoftware.akces.gdpr.GDPRKeyUtils.secureRandom;
-
 public final class EncryptingGDPRContext implements GDPRContext {
     private final String aggregateId;
     private final Cipher encryptingCipher;
     private final Cipher decryptingCipher;
+    private final byte[] encryptionKey;
 
-    public EncryptingGDPRContext(@Nonnull String aggregateId,@Nonnull byte[] key,boolean aggregateIsUUID) {
-        if (key.length != 32) {
+    public EncryptingGDPRContext(@Nonnull String aggregateId, @Nonnull byte[] encryptionKey, boolean aggregateIsUUID) {
+        if (encryptionKey.length != 32) {
             throw new IllegalArgumentException("Key size needs to be 32 bytes");
         }
         this.aggregateId = aggregateId;
-        SecretKeySpec keySpec = new SecretKeySpec(key, "AES");
+        this.encryptionKey = encryptionKey;
+        SecretKeySpec keySpec = new SecretKeySpec(encryptionKey, "AES");
         IvParameterSpec ivParameterSpec = null;
         String aesMode = "ECB";
         // use cbc mode if the aggregateId is a UUID, with UUID bytes as IV
@@ -59,8 +59,8 @@ public final class EncryptingGDPRContext implements GDPRContext {
         try {
             encryptingCipher = Cipher.getInstance("AES/"+aesMode+"/PKCS5PADDING");
             decryptingCipher = Cipher.getInstance("AES/"+aesMode+"/PKCS5PADDING");
-            encryptingCipher.init(Cipher.ENCRYPT_MODE, keySpec, ivParameterSpec, secureRandom());
-            decryptingCipher.init(Cipher.DECRYPT_MODE, keySpec, ivParameterSpec, secureRandom());
+            encryptingCipher.init(Cipher.ENCRYPT_MODE, keySpec, ivParameterSpec, GDPRKeyUtils.secureRandom());
+            decryptingCipher.init(Cipher.DECRYPT_MODE, keySpec, ivParameterSpec, GDPRKeyUtils.secureRandom());
         } catch (NoSuchPaddingException | NoSuchAlgorithmException | InvalidAlgorithmParameterException e) {
             throw new SerializationException(e);
         } catch (InvalidKeyException e) {
@@ -108,5 +108,11 @@ public final class EncryptingGDPRContext implements GDPRContext {
     @Nonnull
     public String getAggregateId() {
         return aggregateId;
+    }
+
+    @Nullable
+    @Override
+    public byte[] getEncryptionKey() {
+        return encryptionKey;
     }
 }

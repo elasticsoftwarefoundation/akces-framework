@@ -26,13 +26,14 @@ import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
 import org.elasticsoftware.akcestest.aggregate.wallet.AmountReservedEvent;
 import org.elasticsoftware.akcestest.aggregate.wallet.InsufficientFundsErrorEvent;
+import org.elasticsoftware.akcestest.aggregate.wallet.InvalidCurrencyErrorEvent;
 import org.elasticsoftware.akcestest.aggregate.wallet.ReserveAmountCommand;
 
 import java.util.ArrayList;
 import java.util.UUID;
 import java.util.stream.Stream;
 
-@AggregateInfo("OrderProcessManager")
+@AggregateInfo(value = "OrderProcessManager", indexed = true, indexName = "Users")
 public class OrderProcessManager implements Aggregate<OrderProcessManagerState> {
     @Override
     public String getName() {
@@ -52,6 +53,33 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
     @EventSourcingHandler(create = true)
     public OrderProcessManagerState create(UserOrderProcessesCreatedEvent event, OrderProcessManagerState isNull) {
         return new OrderProcessManagerState(event.userId());
+    }
+
+    @EventSourcingHandler
+    public OrderProcessManagerState handle(BuyOrderCreatedEvent event, OrderProcessManagerState state) {
+        return new OrderProcessManagerState(state.userId(), new ArrayList<>(state.runningProcesses()) {{
+            add(new BuyOrderProcess(
+                    event.orderId(),
+                    event.market(),
+                    event.quantity(),
+                    event.limitPrice(),
+                    event.clientReference()));
+        }} );
+    }
+
+    @EventSourcingHandler
+    public OrderProcessManagerState handle(BuyOrderRejectedEvent event, OrderProcessManagerState state) {
+        return new OrderProcessManagerState(state.userId(), new ArrayList<>(state.runningProcesses()) {{
+            removeIf(process -> process.orderId().equals(event.orderId()));
+        }} );
+    }
+
+    @EventSourcingHandler
+    public OrderProcessManagerState handle(BuyOrderPlacedEvent event, OrderProcessManagerState state) {
+        // TODO: we should not remove it but mark it as placed
+        return new OrderProcessManagerState(state.userId(), new ArrayList<>(state.runningProcesses()) {{
+            removeIf(process -> process.orderId().equals(event.orderId()));
+        }} );
     }
 
     /**
@@ -81,17 +109,7 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
                 command.clientReference()));
     }
 
-    @EventSourcingHandler
-    public OrderProcessManagerState handle(BuyOrderCreatedEvent event, OrderProcessManagerState state) {
-        return new OrderProcessManagerState(state.userId(), new ArrayList<>(state.runningProcesses()) {{
-            add(new BuyOrderProcess(
-                    event.orderId(),
-                    event.market(),
-                    event.quantity(),
-                    event.limitPrice(),
-                    event.clientReference()));
-        }} );
-    }
+
 
     @EventHandler(produces = BuyOrderPlacedEvent.class, errors = {})
     public Stream<DomainEvent> handle(AmountReservedEvent event, OrderProcessManagerState state) {
@@ -108,6 +126,11 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
 
     @EventHandler(produces = BuyOrderRejectedEvent.class, errors = {})
     public Stream<DomainEvent> handle(InsufficientFundsErrorEvent errorEvent, OrderProcessManagerState state) {
+        return Stream.of(state.getAkcesProcess(errorEvent.referenceId()).handle(errorEvent));
+    }
+
+    @EventHandler(produces = BuyOrderRejectedEvent.class, errors = {})
+    public Stream<DomainEvent> handle(InvalidCurrencyErrorEvent errorEvent, OrderProcessManagerState state) {
         return Stream.of(state.getAkcesProcess(errorEvent.referenceId()).handle(errorEvent));
     }
 }

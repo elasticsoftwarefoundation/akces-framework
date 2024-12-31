@@ -20,7 +20,7 @@ package org.elasticsoftware.akces.client;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
-public class CommandSerializationException extends AkcesClientException {
+public class CommandSerializationException extends AkcesClientCommandException {
 
     public CommandSerializationException(Class<? extends Command> commandClass,
                                          Throwable cause) {

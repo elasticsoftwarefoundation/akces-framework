@@ -42,7 +42,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 
-@SpringBootTest(classes = WalletConfiguration.class)
+@SpringBootTest(classes = WalletConfiguration.class, properties = "spring.autoconfigure.exclude=org.elasticsoftware.akces.client.AkcesClientAutoConfiguration")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class WalletTests {
     @Inject
@@ -56,7 +56,7 @@ public class WalletTests {
     public void testFindBeans() {
         assertEquals(3, applicationContext.getBeansOfType(CommandHandlerFunction.class).size());
         assertEquals(1, applicationContext.getBeansOfType(EventHandlerFunction.class).size());
-        assertEquals(3, applicationContext.getBeansOfType(EventSourcingHandlerFunction.class).size());
+        assertEquals(4, applicationContext.getBeansOfType(EventSourcingHandlerFunction.class).size());
         Assertions.assertNotNull(applicationContext.getBean("Wallet_ch_create_CreateWallet_1"));
         Assertions.assertNotNull(applicationContext.getBean("Wallet_ch_credit_CreditWallet_1"));
         Assertions.assertNotNull(applicationContext.getBean("Wallet_ch_makeReservation_ReserveAmount_1"));
@@ -213,7 +213,8 @@ public class WalletTests {
                                 new CreateWalletCommand(aggregateId, "EUR")),
                         PayloadEncoding.JSON,
                         aggregateId,
-                        correlationId),
+                        correlationId,
+                        null),
                 producedRecords::add,
                 (eventRecord, index) -> indexedEvents.add(eventRecord),
                 () -> null
@@ -303,7 +304,8 @@ public class WalletTests {
                                 new CreateWalletCommand(aggregateId, "EUR")),
                         PayloadEncoding.JSON,
                         aggregateId,
-                        correlationId),
+                        correlationId,
+                        null),
                 producedRecords::add,
                 (eventRecord, index) -> indexedEvents.add(eventRecord),
                 () -> null

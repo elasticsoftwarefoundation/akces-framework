@@ -25,6 +25,7 @@ import com.fasterxml.jackson.dataformat.protobuf.schema.ProtobufSchema;
 import com.fasterxml.jackson.dataformat.protobuf.schema.ProtobufSchemaLoader;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.CommandRecord;
+import org.elasticsoftware.akces.protocol.CommandResponseRecord;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
 import org.junit.jupiter.api.Test;
 
@@ -107,6 +108,17 @@ public class ProtocolTests {
     public void generateAggregateStateRecordProtobufSchema() throws JsonMappingException {
         ProtobufMapper mapper = new ProtobufMapper();
         ProtobufSchema schemaWrapper = mapper.generateSchemaFor(AggregateStateRecord.class);
+        NativeProtobufSchema nativeProtobufSchema = schemaWrapper.getSource();
+
+        String asProtofile = nativeProtobufSchema.toString();
+
+        System.out.println(asProtofile);
+    }
+
+    @Test
+    public void generateCommandResponseRecordProtobufSchema() throws JsonMappingException {
+        ProtobufMapper mapper = new ProtobufMapper();
+        ProtobufSchema schemaWrapper = mapper.generateSchemaFor(CommandResponseRecord.class);
         NativeProtobufSchema nativeProtobufSchema = schemaWrapper.getSource();
 
         String asProtofile = nativeProtobufSchema.toString();
