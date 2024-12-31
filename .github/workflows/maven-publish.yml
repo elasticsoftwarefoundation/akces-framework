@@ -7,7 +7,6 @@ on:
   push:
     tags:
       - v*
-
 jobs:
   build:
     concurrency: release
@@ -81,3 +80,4 @@ jobs:
           prerelease: false
           publish: true
           latest: true
+          version: ${{ github.ref_name }}
