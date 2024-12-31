@@ -14,8 +14,9 @@ jobs:
     name: Release to Github Packages
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
+      pull-requests: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
