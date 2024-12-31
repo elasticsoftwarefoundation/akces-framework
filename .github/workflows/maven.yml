@@ -10,12 +10,14 @@ on:
     paths:
       - bom/**
       - main/**
+      - pom.xml
   pull_request:
     branches:
       - main
     paths:
       - bom/**
       - main/**
+      - pom.xml
 
 jobs:
   build:
