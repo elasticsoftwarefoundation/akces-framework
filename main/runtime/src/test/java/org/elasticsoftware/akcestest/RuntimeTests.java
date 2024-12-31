@@ -561,8 +561,8 @@ public class RuntimeTests  {
             testConsumer.seekToBeginning(testConsumer.assignment());
             ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(250));
             List<ProtocolRecord> allRecords = new ArrayList<>();
-            // we should have 3 records in the index: AccountCreated, WalletCreated, BalanceCreated
-            while(allRecords.size() < 3) {
+            // we should have 4 records in the index: AccountCreated, WalletCreated, BalanceCreated
+            while(allRecords.size() < 4) {
                 records.forEach(record -> allRecords.add(record.value()));
                 // wait for the events to be produced
                 records = testConsumer.poll(Duration.ofMillis(250));
