@@ -1,6 +1,8 @@
-# akces-framework
+# Akces-Framework
 
-# to run tests it is required to have a docker deamon running (for instance colima)
+Apache Kafka CQRS & Event Sourcing Framework
+
+### to run tests it is required to have a docker deamon running (for instance colima)
 
 ```shell
 colima start --runtime docker
