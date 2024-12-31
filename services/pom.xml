@@ -88,7 +88,7 @@
                                     <username>${env.GITHUB_ACTOR}</username>
                                     <password>${env.GITHUB_TOKEN}</password>
                                     <url>docker://ghcr.io</url>
-                                    <email>${env.GITHUB_EMAIL}</email>
+<!--                                    <email>${env.GITHUB_EMAIL}</email>-->
                                 </builderRegistry>
                                 <imageName>ghcr.io/elasticsoftwarefoundation/${project.artifactId}</imageName>
                             </docker>
