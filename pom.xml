@@ -177,6 +177,11 @@
                     <artifactId>spring-boot-maven-plugin</artifactId>
                     <version>3.4.1</version>
                 </plugin>
+                <plugin>
+                    <groupId>io.fabric8</groupId>
+                    <artifactId>crd-generator-maven-plugin</artifactId>
+                    <version>7.0.1</version>
+                </plugin>
             </plugins>
         </pluginManagement>
         <plugins>

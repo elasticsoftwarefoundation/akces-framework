@@ -17,26 +17,16 @@
 
 package org.elasticsoftwarefoundation.akces.operator;
 
-import io.javaoperatorsdk.operator.Operator;
+import io.javaoperatorsdk.operator.api.reconciler.Context;
+import io.javaoperatorsdk.operator.api.reconciler.ControllerConfiguration;
 import io.javaoperatorsdk.operator.api.reconciler.Reconciler;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import io.javaoperatorsdk.operator.api.reconciler.UpdateControl;
+import org.elasticsoftwarefoundation.akces.operator.customresource.Aggregate;
 
-import java.util.List;
-
-@Configuration
-public class AkcesOperatorConfig {
-
-    @Bean
-    public AggregateReconciler aggregateReconciler() {
-        return new AggregateReconciler();
-    }
-
-    @Bean(initMethod = "start", destroyMethod = "stop")
-    @SuppressWarnings("rawtypes")
-    public Operator operator(List<Reconciler> controllers) {
-        Operator operator = new Operator();
-        controllers.forEach(operator::register);
-        return operator;
+@ControllerConfiguration
+public class AggregateReconciler implements Reconciler<Aggregate> {
+    @Override
+    public UpdateControl<Aggregate> reconcile(Aggregate resource, Context<Aggregate> context) throws Exception {
+        return null;
     }
 }
