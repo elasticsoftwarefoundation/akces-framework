@@ -19,6 +19,7 @@ package org.elasticsoftwarefoundation.akces.operator.customresource;
 
 public class AggregateSpec {
     Integer replicas;
+    String image;
 
     public Integer getReplicas() {
         return replicas;
@@ -26,5 +27,13 @@ public class AggregateSpec {
 
     public void setReplicas(Integer replicas) {
         this.replicas = replicas;
+    }
+
+    public String getImage() {
+        return image;
+    }
+
+    public void setImage(String image) {
+        this.image = image;
     }
 }

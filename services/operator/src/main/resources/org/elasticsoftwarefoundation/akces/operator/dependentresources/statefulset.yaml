@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ""
+  labels:
+    app.kubernetes.io/part-of: ""
+    app.kubernetes.io/managed-by: ""
+spec:
+  serviceName: ""
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ""
+  template:
+    metadata:
+      labels:
+        app: ""
+    spec:
+      containers:
+      - name: example-container
+        image: nginx:1.21.6
+        ports:
+        - containerPort: 80
+  volumeClaimTemplates:
+  - metadata:
+      name: example-storage
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 1Gi
