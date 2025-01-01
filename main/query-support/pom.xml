@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-main</artifactId>
-        <version>0.1.8</version>
+        <version>0.1.9-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
