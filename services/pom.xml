@@ -88,11 +88,11 @@
                                     <username>${env.GITHUB_ACTOR}</username>
                                     <password>${env.GITHUB_TOKEN}</password>
                                     <url>docker://ghcr.io</url>
-<!--                                    <email>${env.GITHUB_EMAIL}</email>-->
                                 </publishRegistry>
                             </docker>
                             <image>
-                                <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}</name>
+                                <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}:${project.version}</name>
+                                <publish>true</publish>
                             </image>
                         </configuration>
                     </plugin>
