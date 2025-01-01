@@ -11,7 +11,7 @@ jobs:
   build:
     concurrency: release
     name: Release to Github Packages
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
       packages: write
@@ -72,6 +72,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MAVEN_OPTS: "--add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.text=ALL-UNNAMED --add-opens=java.desktop/java.awt.font=ALL-UNNAMED"
+      - name: Publish Docker Images
+        working-directory: ${{ github.workspace }}/services
+        run: >
+          mvn
+          --show-version
+          --batch-mode
+          --no-transfer-progress
+          --activate-profiles maven-release,native
+          --file pom.xml
+          --settings $GITHUB_WORKSPACE/settings.xml
+          spring-boot:build-image
+          -DskipTests
+          -Dmaven.install.skip=true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ secrets.GITHUB_ACTOR }}
       - name: Create an automatic release
         uses: release-drafter/release-drafter@v6
         env:

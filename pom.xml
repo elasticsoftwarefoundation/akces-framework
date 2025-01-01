@@ -75,6 +75,7 @@
     <modules>
         <module>main</module>
         <module>bom</module>
+        <module>services</module>
     </modules>
 
     <build>
@@ -162,6 +163,17 @@
                     <groupId>org.sonatype.plugins</groupId>
                     <artifactId>nexus-staging-maven-plugin</artifactId>
                     <version>1.7.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.graalvm.buildtools</groupId>
+                    <artifactId>native-maven-plugin</artifactId>
+                    <version>0.10.4</version>
+                    <extensions>true</extensions>
+                </plugin>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <version>3.4.1</version>
                 </plugin>
             </plugins>
         </pluginManagement>

@@ -416,19 +416,19 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                 gdprContextRepository.process(gdprKeyRecords);
                 offsets.put(gdprKeyPartition, gdprKeyRecords.getLast().offset());
             }
-            // second handle commands
-            allRecords.records(commandPartition)
-                    .forEach(commandRecord -> {
-                        handleCommand((CommandRecord) commandRecord.value());
-                        offsets.put(commandPartition, commandRecord.offset());
-                    });
-            // then external events
+            // second handle external events
             externalEventPartitions
                     .forEach(externalEventPartition -> allRecords.records(externalEventPartition)
                             .forEach(eventRecord -> {
                                 handleExternalEvent((DomainEventRecord) eventRecord.value());
                                 offsets.put(externalEventPartition, eventRecord.offset());
                             }));
+            // then commands
+            allRecords.records(commandPartition)
+                    .forEach(commandRecord -> {
+                        handleCommand((CommandRecord) commandRecord.value());
+                        offsets.put(commandPartition, commandRecord.offset());
+                    });
             // then state (ignore?)
             List<ConsumerRecord<String, ProtocolRecord>> stateRecords = allRecords.records(statePartition);
             if (!stateRecords.isEmpty()) {
