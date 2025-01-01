@@ -82,7 +82,7 @@ jobs:
           --activate-profiles maven-release
           --file pom.xml
           --settings $GITHUB_WORKSPACE/settings.xml
-          spring-boot:build-image
+          native:add-reachability-metadata spring-boot:build-image
           -DskipTests
           -Dmaven.install.skip=true
         env:
