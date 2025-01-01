@@ -20,7 +20,7 @@
 
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-framework-parent</artifactId>
-    <version>0.1.7</version>
+    <version>0.1.8-SNAPSHOT</version>
 
     <packaging>pom</packaging>
 
@@ -49,7 +49,7 @@
         <developerConnection>scm:git:git@github.com:elasticsoftwarefoundation/akces-framework.git
         </developerConnection>
         <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
-        <tag>v0.1.7</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <distributionManagement>
