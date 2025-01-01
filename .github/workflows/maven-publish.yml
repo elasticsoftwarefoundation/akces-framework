@@ -79,7 +79,6 @@ jobs:
           --show-version
           --batch-mode
           --no-transfer-progress
-#          --activate-profiles maven-release,native
           --activate-profiles maven-release
           --file pom.xml
           --settings $GITHUB_WORKSPACE/settings.xml
