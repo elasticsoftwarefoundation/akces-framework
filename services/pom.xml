@@ -84,14 +84,16 @@
                         <artifactId>spring-boot-maven-plugin</artifactId>
                         <configuration>
                             <docker>
-                                <builderRegistry>
+                                <publishRegistry>
                                     <username>${env.GITHUB_ACTOR}</username>
                                     <password>${env.GITHUB_TOKEN}</password>
                                     <url>docker://ghcr.io</url>
 <!--                                    <email>${env.GITHUB_EMAIL}</email>-->
-                                </builderRegistry>
-                                <imageName>ghcr.io/elasticsoftwarefoundation/${project.artifactId}</imageName>
+                                </publishRegistry>
                             </docker>
+                            <image>
+                                <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}</name>
+                            </image>
                         </configuration>
                     </plugin>
                 </plugins>
