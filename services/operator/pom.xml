@@ -10,7 +10,6 @@
 	<name>Elastic Software Foundation :: Akces :: Services :: Akces Operator</name>
 	<description>Kubernetes Operator for the Akces Framework</description>
 	<properties>
-		<java.version>21</java.version>
 	</properties>
 	<dependencies>
 		<dependency>

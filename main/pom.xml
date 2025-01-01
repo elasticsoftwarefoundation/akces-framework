@@ -48,8 +48,6 @@
         <!-- testing -->
         <testng-version>7.10.2</testng-version>
         <mockito.version>5.14.2</mockito.version>
-        <!-- java 21+ -->
-        <java.version>21</java.version>
         <awaitility.version>4.2.2</awaitility.version>
         <persistence-api.version>2.2</persistence-api.version>
         <plexus-utils.version>4.0.1</plexus-utils.version>
