@@ -31,12 +31,4 @@ public class AkcesOperatorConfig {
     public AggregateReconciler aggregateReconciler() {
         return new AggregateReconciler();
     }
-
-    @Bean(initMethod = "start", destroyMethod = "stop")
-    @SuppressWarnings("rawtypes")
-    public Operator operator(List<Reconciler> controllers) {
-        Operator operator = new Operator();
-        controllers.forEach(operator::register);
-        return operator;
-    }
 }
