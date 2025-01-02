@@ -17,15 +17,25 @@
 
 package org.elasticsoftwarefoundation.akces.operator;
 
+import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.elasticsoftwarefoundation.akces.operator.aggregate.AggregateReconciler;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.core.KafkaAdmin;
+
+import java.util.Map;
 
 @Configuration
 public class AkcesOperatorConfig {
 
+    @Bean(name = "kafkaAdmin")
+    public KafkaAdmin kafkaAdmin(@Value(value = "${spring.kafka.bootstrap-servers}") String bootstrapServers) {
+        return new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
+    }
+
     @Bean
-    public AggregateReconciler aggregateReconciler() {
-        return new AggregateReconciler();
+    public AggregateReconciler aggregateReconciler(KafkaAdmin kafkaAdmin) {
+        return new AggregateReconciler(kafkaAdmin);
     }
 }

@@ -17,9 +17,20 @@
 
 package org.elasticsoftwarefoundation.akces.operator.aggregate;
 
+import java.util.List;
+
 public class AggregateSpec {
-    Integer replicas;
-    String image;
+    private Integer replicas;
+    private String image;
+    private List<String> aggregateNames;
+
+    public List<String> getAggregateNames() {
+        return aggregateNames;
+    }
+
+    public void setAggregateNames(List<String> aggregateNames) {
+        this.aggregateNames = aggregateNames;
+    }
 
     public Integer getReplicas() {
         return replicas;

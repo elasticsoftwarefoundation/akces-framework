@@ -22,9 +22,14 @@ import io.fabric8.kubernetes.api.model.apps.StatefulSet;
 import io.fabric8.kubernetes.api.model.apps.StatefulSetStatus;
 import io.javaoperatorsdk.operator.api.reconciler.*;
 import io.javaoperatorsdk.operator.api.reconciler.dependent.Dependent;
+import jakarta.annotation.PostConstruct;
+import org.apache.kafka.clients.admin.NewTopic;
+import org.elasticsoftwarefoundation.akces.operator.utils.KafkaTopicUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.kafka.core.KafkaAdmin;
 
+import java.util.List;
 import java.util.Objects;
 
 @Workflow(dependents = {
@@ -34,8 +39,22 @@ import java.util.Objects;
 @ControllerConfiguration
 public class AggregateReconciler implements Reconciler<Aggregate> {
     private final Logger log = LoggerFactory.getLogger(getClass());
+    private final KafkaAdmin kafkaAdmin;
+    private Integer partitions;
+
+    public AggregateReconciler(KafkaAdmin kafkaAdmin) {
+        this.kafkaAdmin = kafkaAdmin;
+    }
+
+    @PostConstruct
+    public void init() {
+        partitions = kafkaAdmin.describeTopics("Akces-Control").get("Akces-Control").partitions().size();
+        log.info("Found Akces-Control Topic with {} partitions", partitions);
+    }
+
     @Override
     public UpdateControl<Aggregate> reconcile(Aggregate resource, Context<Aggregate> context) throws Exception {
+        reconcileTopics(resource.getSpec().getAggregateNames());
         return context.getSecondaryResource(StatefulSet.class).map(statefulSet -> {
             Aggregate updatedAggregate = createAggregateForStatusUpdate(resource, statefulSet);
             log.info(
@@ -60,5 +79,13 @@ public class AggregateReconciler implements Reconciler<Aggregate> {
         status.setReadyReplicas(readyReplicas);
         res.setStatus(status);
         return res;
+    }
+
+    private void reconcileTopics(List<String> aggregateNames) {
+        log.info("Reconciling topics for Aggregates: {}", aggregateNames);
+        List<NewTopic> topics = aggregateNames.stream()
+                .map(name -> KafkaTopicUtils.createTopics(name, 3))
+                .flatMap(List::stream).toList();
+        kafkaAdmin.createOrModifyTopics(topics.toArray(new NewTopic[0]));
     }
 }
