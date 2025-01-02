@@ -15,7 +15,7 @@
  *
  */
 
-package org.elasticsoftwarefoundation.akces.operator.dependentresources;
+package org.elasticsoftwarefoundation.akces.operator.aggregate;
 
 import io.fabric8.kubernetes.api.model.ObjectMeta;
 import io.fabric8.kubernetes.api.model.Service;
@@ -25,7 +25,6 @@ import io.javaoperatorsdk.operator.api.config.informer.Informer;
 import io.javaoperatorsdk.operator.api.reconciler.Context;
 import io.javaoperatorsdk.operator.processing.dependent.kubernetes.CRUDKubernetesDependentResource;
 import io.javaoperatorsdk.operator.processing.dependent.kubernetes.KubernetesDependent;
-import org.elasticsoftwarefoundation.akces.operator.customresource.Aggregate;
 
 @KubernetesDependent(informer = @Informer(
         labelSelector = "app.kubernetes.io/managed-by=akces-operator"))
@@ -41,7 +40,7 @@ public class ServiceDependentResource extends CRUDKubernetesDependentResource<Se
         final String aggregateName = aggregateMetadata.getName();
         return new ServiceBuilder(ReconcilerUtils.loadYaml(Service.class, getClass(), "service.yaml"))
                 .editMetadata()
-                .withName(aggregateName+"service")
+                .withName(aggregateName+"-service")
                 .withNamespace(aggregateMetadata.getNamespace())
                 .addToLabels("app.kubernetes.io/part-of", aggregateName)
                 .addToLabels("app.kubernetes.io/managed-by", "akces-operator")

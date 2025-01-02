@@ -15,16 +15,18 @@
  *
  */
 
-package org.elasticsoftwarefoundation.akces.operator.customresource;
+package org.elasticsoftwarefoundation.akces.operator.aggregate;
 
-public class AggregateStatus {
-    private Integer readyReplicas = 0;
+import io.fabric8.kubernetes.api.model.Namespaced;
+import io.fabric8.kubernetes.client.CustomResource;
+import io.fabric8.kubernetes.model.annotation.Group;
+import io.fabric8.kubernetes.model.annotation.Kind;
+import io.fabric8.kubernetes.model.annotation.ShortNames;
+import io.fabric8.kubernetes.model.annotation.Version;
 
-    public Integer getReadyReplicas() {
-        return readyReplicas;
-    }
-
-    public void setReadyReplicas(Integer readyReplicas) {
-        this.readyReplicas = readyReplicas;
-    }
+@Group("akces.elasticsoftwarefoundation.org")
+@Version("v1")
+@Kind("Aggregate")
+@ShortNames("agg")
+public class Aggregate extends CustomResource<AggregateSpec, AggregateStatus> implements Namespaced {
 }

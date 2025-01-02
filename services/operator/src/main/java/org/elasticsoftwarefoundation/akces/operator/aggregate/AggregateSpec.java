@@ -15,18 +15,25 @@
  *
  */
 
-package org.elasticsoftwarefoundation.akces.operator.customresource;
+package org.elasticsoftwarefoundation.akces.operator.aggregate;
 
-import io.fabric8.kubernetes.api.model.Namespaced;
-import io.fabric8.kubernetes.client.CustomResource;
-import io.fabric8.kubernetes.model.annotation.Group;
-import io.fabric8.kubernetes.model.annotation.Kind;
-import io.fabric8.kubernetes.model.annotation.ShortNames;
-import io.fabric8.kubernetes.model.annotation.Version;
+public class AggregateSpec {
+    Integer replicas;
+    String image;
 
-@Group("akces.elasticsoftwarefoundation.org")
-@Version("v1")
-@Kind("Aggregate")
-@ShortNames("agg")
-public class Aggregate extends CustomResource<AggregateSpec, AggregateStatus> implements Namespaced {
+    public Integer getReplicas() {
+        return replicas;
+    }
+
+    public void setReplicas(Integer replicas) {
+        this.replicas = replicas;
+    }
+
+    public String getImage() {
+        return image;
+    }
+
+    public void setImage(String image) {
+        this.image = image;
+    }
 }

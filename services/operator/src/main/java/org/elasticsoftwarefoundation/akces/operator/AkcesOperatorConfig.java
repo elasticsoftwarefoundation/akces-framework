@@ -17,12 +17,9 @@
 
 package org.elasticsoftwarefoundation.akces.operator;
 
-import io.javaoperatorsdk.operator.Operator;
-import io.javaoperatorsdk.operator.api.reconciler.Reconciler;
+import org.elasticsoftwarefoundation.akces.operator.aggregate.AggregateReconciler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import java.util.List;
 
 @Configuration
 public class AkcesOperatorConfig {

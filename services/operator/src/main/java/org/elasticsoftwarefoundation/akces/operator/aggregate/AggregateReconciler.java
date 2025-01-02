@@ -15,17 +15,13 @@
  *
  */
 
-package org.elasticsoftwarefoundation.akces.operator;
+package org.elasticsoftwarefoundation.akces.operator.aggregate;
 
 import io.fabric8.kubernetes.api.model.ObjectMetaBuilder;
 import io.fabric8.kubernetes.api.model.apps.StatefulSet;
 import io.fabric8.kubernetes.api.model.apps.StatefulSetStatus;
 import io.javaoperatorsdk.operator.api.reconciler.*;
 import io.javaoperatorsdk.operator.api.reconciler.dependent.Dependent;
-import org.elasticsoftwarefoundation.akces.operator.customresource.Aggregate;
-import org.elasticsoftwarefoundation.akces.operator.customresource.AggregateStatus;
-import org.elasticsoftwarefoundation.akces.operator.dependentresources.ServiceDependentResource;
-import org.elasticsoftwarefoundation.akces.operator.dependentresources.StatefulSetDependentResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,7 +39,7 @@ public class AggregateReconciler implements Reconciler<Aggregate> {
         return context.getSecondaryResource(StatefulSet.class).map(statefulSet -> {
             Aggregate updatedAggregate = createAggregateForStatusUpdate(resource, statefulSet);
             log.info(
-                    "Updating status of Tomcat {} in namespace {} to {} ready replicas",
+                    "Updating status of Aggregate {} in namespace {} to {} ready replicas",
                     resource.getMetadata().getName(),
                     resource.getMetadata().getNamespace(),
                     resource.getStatus() == null ? 0 : resource.getStatus().getReadyReplicas());
@@ -57,9 +53,9 @@ public class AggregateReconciler implements Reconciler<Aggregate> {
                 .withName(tomcat.getMetadata().getName())
                 .withNamespace(tomcat.getMetadata().getNamespace())
                 .build());
-        StatefulSetStatus deploymentStatus =
+        StatefulSetStatus statefulSetStatus =
                 Objects.requireNonNullElse(statefulSet.getStatus(), new StatefulSetStatus());
-        int readyReplicas = Objects.requireNonNullElse(deploymentStatus.getReadyReplicas(), 0);
+        int readyReplicas = Objects.requireNonNullElse(statefulSetStatus.getReadyReplicas(), 0);
         AggregateStatus status = new AggregateStatus();
         status.setReadyReplicas(readyReplicas);
         res.setStatus(status);

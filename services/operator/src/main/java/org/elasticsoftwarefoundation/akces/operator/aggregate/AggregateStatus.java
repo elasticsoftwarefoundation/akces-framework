@@ -15,25 +15,16 @@
  *
  */
 
-package org.elasticsoftwarefoundation.akces.operator.customresource;
+package org.elasticsoftwarefoundation.akces.operator.aggregate;
 
-public class AggregateSpec {
-    Integer replicas;
-    String image;
+public class AggregateStatus {
+    private Integer readyReplicas = 0;
 
-    public Integer getReplicas() {
-        return replicas;
+    public Integer getReadyReplicas() {
+        return readyReplicas;
     }
 
-    public void setReplicas(Integer replicas) {
-        this.replicas = replicas;
-    }
-
-    public String getImage() {
-        return image;
-    }
-
-    public void setImage(String image) {
-        this.image = image;
+    public void setReadyReplicas(Integer readyReplicas) {
+        this.readyReplicas = readyReplicas;
     }
 }
