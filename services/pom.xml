@@ -20,7 +20,7 @@
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-parent</artifactId>
-        <version>0.1.11-SNAPSHOT</version>
+        <version>0.2.0-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -61,6 +61,16 @@
                 <groupId>io.javaoperatorsdk</groupId>
                 <artifactId>operator-framework-spring-boot-starter-test</artifactId>
                 <version>6.0.0-beta2</version>
+            </dependency>
+            <dependency>
+                <groupId>io.javaoperatorsdk</groupId>
+                <artifactId>operator-framework-junit-5</artifactId>
+                <version>5.0.0-beta1</version>
+            </dependency>
+            <dependency>
+                <groupId>io.fabric8</groupId>
+                <artifactId>crd-generator-apt-v2</artifactId>
+                <version>7.0.1</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework.boot</groupId>

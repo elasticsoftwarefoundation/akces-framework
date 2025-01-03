@@ -17,20 +17,25 @@
 
 package org.elasticsoftwarefoundation.akces.operator;
 
-import io.javaoperatorsdk.operator.Operator;
-import io.javaoperatorsdk.operator.api.reconciler.Reconciler;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.elasticsoftwarefoundation.akces.operator.aggregate.AggregateReconciler;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.core.KafkaAdmin;
 
-import java.util.List;
+import java.util.Map;
 
 @Configuration
 public class AkcesOperatorConfig {
-//    @Bean(initMethod = "start", destroyMethod = "stop")
-//    @SuppressWarnings("rawtypes")
-//    public Operator operator(List<Reconciler> controllers) {
-//        Operator operator = new Operator();
-//        controllers.forEach(operator::register);
-//        return operator;
-//    }
+
+    @Bean(name = "kafkaAdmin")
+    public KafkaAdmin kafkaAdmin(@Value(value = "${spring.kafka.bootstrap-servers}") String bootstrapServers) {
+        return new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
+    }
+
+    @Bean
+    public AggregateReconciler aggregateReconciler(KafkaAdmin kafkaAdmin) {
+        return new AggregateReconciler(kafkaAdmin);
+    }
 }

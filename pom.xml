@@ -20,7 +20,7 @@
 
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-framework-parent</artifactId>
-    <version>0.1.11-SNAPSHOT</version>
+    <version>0.2.0-SNAPSHOT</version>
 
     <packaging>pom</packaging>
 
@@ -176,6 +176,11 @@
                     <groupId>org.springframework.boot</groupId>
                     <artifactId>spring-boot-maven-plugin</artifactId>
                     <version>3.4.1</version>
+                </plugin>
+                <plugin>
+                    <groupId>io.fabric8</groupId>
+                    <artifactId>crd-generator-maven-plugin</artifactId>
+                    <version>7.0.1</version>
                 </plugin>
             </plugins>
         </pluginManagement>
