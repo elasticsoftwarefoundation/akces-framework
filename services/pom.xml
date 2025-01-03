@@ -123,7 +123,7 @@
                                 <publish>true</publish>
                                 <env>
                                     <BP_JVM_VERSION>${java.version}</BP_JVM_VERSION>
-                                    <BP_JVM_JLINK_ENABLED>true</BP_JVM_JLINK_ENABLED>
+                                    <BP_JVM_JLINK_ENABLED>false</BP_JVM_JLINK_ENABLED>
                                 </env>
                                 <buildpacks>
                                     <buildpack>paketo-buildpacks/ca-certificates</buildpack>
