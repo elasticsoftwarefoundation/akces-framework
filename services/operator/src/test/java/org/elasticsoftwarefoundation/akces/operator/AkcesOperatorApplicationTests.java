@@ -92,8 +92,14 @@ class AkcesOperatorApplicationTests {
 	}
 
 	@Test
-	void healthEndpointShouldBeEnabled() throws Exception {
-		assertThat(this.restTemplate.getForObject("http://localhost:" + port + "/actuator/health",
+	void healthReadinessEndpointShouldBeEnabled() throws Exception {
+		assertThat(this.restTemplate.getForObject("http://localhost:" + port + "/actuator/health/readiness",
+				String.class)).contains("{\"status\":\"UP\"}");
+	}
+
+	@Test
+	void healthLivenessEndpointShouldBeEnabled() throws Exception {
+		assertThat(this.restTemplate.getForObject("http://localhost:" + port + "/actuator/health/liveness",
 				String.class)).contains("{\"status\":\"UP\"}");
 	}
 
