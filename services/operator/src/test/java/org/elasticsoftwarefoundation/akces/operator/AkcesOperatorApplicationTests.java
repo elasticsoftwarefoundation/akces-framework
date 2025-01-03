@@ -52,9 +52,10 @@ import static org.elasticsoftwarefoundation.akces.operator.utils.KafkaTopicUtils
 import static org.elasticsoftwarefoundation.akces.operator.utils.KafkaTopicUtils.createTopic;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.springframework.boot.test.context.SpringBootTest.UseMainMethod.WHEN_AVAILABLE;
 
 @Testcontainers
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, useMainMethod = WHEN_AVAILABLE)
 @ContextConfiguration(initializers = AkcesOperatorApplicationTests.KafkaInitializer.class)
 @EnableMockOperator(crdPaths = {"classpath:META-INF/fabric8/aggregates.akces.elasticsoftwarefoundation.org-v1.yml"})
 class AkcesOperatorApplicationTests {

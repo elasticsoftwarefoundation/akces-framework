@@ -28,7 +28,7 @@ public class AkcesOperatorApplication {
 
 	public static void main(String[] args) {
 		Security.setProperty("crypto.policy", "unlimited");
-		Security.addProvider(new BouncyCastleProvider());
+		Security.insertProviderAt(new BouncyCastleProvider(),1);
 		SpringApplication.run(AkcesOperatorApplication.class, args);
 	}
 
