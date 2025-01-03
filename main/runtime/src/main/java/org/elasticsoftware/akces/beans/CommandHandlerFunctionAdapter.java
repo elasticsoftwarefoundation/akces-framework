@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2023 The Original Authors
+ * Copyright 2022 - 2025 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -17,13 +17,9 @@
 
 package org.elasticsoftware.akces.beans;
 
-import org.elasticsoftware.akces.aggregate.Aggregate;
-import org.elasticsoftware.akces.aggregate.AggregateState;
-import org.elasticsoftware.akces.aggregate.CommandType;
-import org.elasticsoftware.akces.aggregate.DomainEventType;
+import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
-import org.elasticsoftware.akces.aggregate.CommandHandlerFunction;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 import java.lang.reflect.InvocationTargetException;

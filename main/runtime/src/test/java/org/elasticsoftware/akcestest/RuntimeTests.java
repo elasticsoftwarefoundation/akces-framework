@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2023 The Original Authors
+ * Copyright 2022 - 2025 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -30,34 +30,34 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.elasticsoftware.akces.client.AkcesClient;
-import org.elasticsoftware.akces.events.DomainEvent;
-import org.elasticsoftware.akcestest.aggregate.orders.BuyOrderCreatedEvent;
-import org.elasticsoftware.akcestest.aggregate.orders.FxMarket;
-import org.elasticsoftware.akcestest.aggregate.orders.PlaceBuyOrderCommand;
-import org.elasticsoftware.akcestest.aggregate.wallet.BalanceCreatedEvent;
-import org.elasticsoftware.akcestest.aggregate.wallet.WalletCreatedEvent;
-import org.springframework.kafka.KafkaException;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.elasticsoftware.akces.AkcesAggregateController;
+import org.elasticsoftware.akces.client.AkcesClient;
 import org.elasticsoftware.akces.control.AggregateServiceCommandType;
 import org.elasticsoftware.akces.control.AggregateServiceDomainEventType;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
+import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.protocol.*;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
 import org.elasticsoftware.akcestest.aggregate.account.AccountState;
 import org.elasticsoftware.akcestest.aggregate.account.CreateAccountCommand;
+import org.elasticsoftware.akcestest.aggregate.orders.BuyOrderCreatedEvent;
+import org.elasticsoftware.akcestest.aggregate.orders.FxMarket;
+import org.elasticsoftware.akcestest.aggregate.orders.PlaceBuyOrderCommand;
+import org.elasticsoftware.akcestest.aggregate.wallet.BalanceCreatedEvent;
 import org.elasticsoftware.akcestest.aggregate.wallet.CreateWalletCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.CreditWalletCommand;
+import org.elasticsoftware.akcestest.aggregate.wallet.WalletCreatedEvent;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.kafka.KafkaException;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.ProducerFactory;

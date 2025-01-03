@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2023 The Original Authors
+ * Copyright 2022 - 2025 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@
 package org.elasticsoftware.akces.commands;
 
 import org.elasticsoftware.akces.aggregate.Aggregate;
-import org.elasticsoftware.akces.commands.CommandBus;
 
 public class CommandBusHolder {
     protected static final ThreadLocal<CommandBus> commandBusThreadLocal = new ThreadLocal<>();

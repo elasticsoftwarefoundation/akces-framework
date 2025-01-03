@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2023 The Original Authors
+ * Copyright 2022 - 2025 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -35,10 +35,7 @@ import io.confluent.kafka.schemaregistry.json.diff.SchemaDiff;
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.commands.Command;
-import org.elasticsoftware.akces.aggregate.CommandHandlerFunction;
 import org.elasticsoftware.akces.events.DomainEvent;
-import org.elasticsoftware.akces.aggregate.EventHandlerFunction;
-import org.elasticsoftware.akces.aggregate.EventSourcingHandlerFunction;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.CommandRecord;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;

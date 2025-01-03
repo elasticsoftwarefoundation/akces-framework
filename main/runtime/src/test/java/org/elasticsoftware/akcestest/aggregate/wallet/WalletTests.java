@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2023 The Original Authors
+ * Copyright 2022 - 2025 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -21,11 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.kafka.schemaregistry.ParsedSchema;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import jakarta.inject.Inject;
-import org.elasticsoftware.akces.aggregate.AggregateRuntime;
-import org.elasticsoftware.akces.aggregate.DomainEventType;
-import org.elasticsoftware.akces.aggregate.CommandHandlerFunction;
-import org.elasticsoftware.akces.aggregate.EventHandlerFunction;
-import org.elasticsoftware.akces.aggregate.EventSourcingHandlerFunction;
+import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.protocol.*;
 import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
 import org.elasticsoftware.akcestest.schemas.AccountCreatedEventV2;
