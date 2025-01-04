@@ -34,6 +34,7 @@
         <spring.version>6.2.1</spring.version>
         <spring-boot.version>3.4.1</spring-boot.version>
         <protobuf.version>4.29.2</protobuf.version>
+<!--        <protobuf.version>3.25.5</protobuf.version>-->
         <log4j.version>2.24.3</log4j.version>
         <guava.version>33.4.0-jre</guava.version>
         <jackson.version>2.18.2</jackson.version>
@@ -47,7 +48,6 @@
         <semver4j.version>5.4.0</semver4j.version>
         <!-- testing -->
         <testng-version>7.10.2</testng-version>
-        <mockito.version>5.14.2</mockito.version>
         <awaitility.version>4.2.2</awaitility.version>
         <persistence-api.version>2.2</persistence-api.version>
         <plexus-utils.version>4.0.1</plexus-utils.version>
@@ -182,6 +182,10 @@
                         <groupId>org.scala-lang</groupId>
                         <artifactId>scala-library</artifactId>
                     </exclusion>
+                    <exclusion>
+                        <groupId>commons-validator</groupId>
+                        <artifactId>commons-validator</artifactId>
+                    </exclusion>
                 </exclusions>
             </dependency>
             <dependency>
@@ -217,6 +221,10 @@
                     <exclusion>
                         <groupId>com.google.j2objc</groupId>
                         <artifactId>j2objc-annotations</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>com.google.protobuf</groupId>
+                        <artifactId>protobuf-java</artifactId>
                     </exclusion>
                 </exclusions>
             </dependency>
@@ -341,6 +349,12 @@
                 <groupId>org.apache.kafka</groupId>
                 <artifactId>kafka-streams</artifactId>
                 <version>${kafka.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.rocksdb</groupId>
+                        <artifactId>rocksdbjni</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
             <dependency>
                 <groupId>org.awaitility</groupId>

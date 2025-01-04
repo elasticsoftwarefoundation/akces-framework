@@ -15,15 +15,7 @@
  *
  */
 
-package org.elasticsoftware.akcestest;
+package org.elasticsoftwarefoundation.cryptotrading.aggregates.orders;
 
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Configuration;
-
-@Configuration
-@ComponentScan(basePackages = {
-        "org.elasticsoftware.akcestest.aggregate",
-})
-public class RuntimeConfiguration {
-
+public record CryptoMarket(String id, String baseCrypto, String quoteCrypto) {
 }

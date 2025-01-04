@@ -15,15 +15,17 @@
  *
  */
 
-package org.elasticsoftware.akcestest;
+package org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet;
 
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Configuration;
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.AggregateIdentifier;
+import org.elasticsoftware.akces.annotations.DomainEventInfo;
+import org.elasticsoftware.akces.events.DomainEvent;
 
-@Configuration
-@ComponentScan(basePackages = {
-        "org.elasticsoftware.akcestest.aggregate",
-})
-public class RuntimeConfiguration {
-
+@DomainEventInfo(type = "BalanceCreated")
+public record BalanceCreatedEvent(@AggregateIdentifier @NotNull String id, String currency) implements DomainEvent {
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
 }

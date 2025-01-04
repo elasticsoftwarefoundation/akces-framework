@@ -15,13 +15,24 @@
  *
  */
 
-package org.elasticsoftware.akcestest.aggregate.wallet;
+package org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet;
 
-import org.junit.jupiter.api.Test;
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.AggregateIdentifier;
+import org.elasticsoftware.akces.annotations.CommandInfo;
+import org.elasticsoftware.akces.commands.Command;
 
-public class AggregatePartitionTests {
-    @Test
-    public void testHandleCommand() {
+import java.math.BigDecimal;
 
+@CommandInfo(type = "CreditWallet", version = 1)
+public record CreditWalletCommand(
+        @AggregateIdentifier String id,
+        String currency,
+        BigDecimal amount
+) implements Command {
+    @NotNull
+    @Override
+    public String getAggregateId() {
+        return id();
     }
 }

@@ -15,15 +15,12 @@
  *
  */
 
-package org.elasticsoftware.akcestest;
+package org.elasticsoftwarefoundation.cryptotrading;
 
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@ComponentScan(basePackages = {
-        "org.elasticsoftware.akcestest.aggregate",
-})
-public class RuntimeConfiguration {
-
+@ComponentScan(basePackages = "org.elasticsoftwarefoundation.cryptotrading.aggregates")
+public class AggregateConfig {
 }

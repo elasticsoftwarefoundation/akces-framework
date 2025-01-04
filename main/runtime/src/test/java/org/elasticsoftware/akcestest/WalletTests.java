@@ -15,7 +15,7 @@
  *
  */
 
-package org.elasticsoftware.akcestest.aggregate.wallet;
+package org.elasticsoftware.akcestest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.kafka.schemaregistry.ParsedSchema;
@@ -24,6 +24,7 @@ import jakarta.inject.Inject;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.protocol.*;
 import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
+import org.elasticsoftware.akcestest.aggregate.wallet.*;
 import org.elasticsoftware.akcestest.schemas.AccountCreatedEventV2;
 import org.elasticsoftware.akcestest.schemas.AccountCreatedEventV3;
 import org.elasticsoftware.akcestest.schemas.NotCompatibleAccountCreatedEventV4;

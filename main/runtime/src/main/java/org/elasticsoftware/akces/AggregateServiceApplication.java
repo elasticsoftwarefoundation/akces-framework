@@ -24,6 +24,7 @@ import io.confluent.kafka.schemaregistry.json.JsonSchemaProvider;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.elasticsoftware.akces.beans.AggregateBeanFactoryPostProcessor;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.kafka.CustomKafkaConsumerFactory;
@@ -57,6 +58,11 @@ import java.util.Set;
 @PropertySource("classpath:akces-aggregateservice.properties")
 public class AggregateServiceApplication {
     private final ProtocolRecordSerde serde = new ProtocolRecordSerde();
+
+    @Bean(name = "aggregateServiceBeanFactoryPostProcessor")
+    public AggregateBeanFactoryPostProcessor aggregateBeanFactoryPostProcessor() {
+        return new AggregateBeanFactoryPostProcessor();
+    }
 
     @Bean(name = "aggregateServiceJsonCustomizer")
     public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
@@ -108,8 +114,8 @@ public class AggregateServiceApplication {
         SpringApplication application = new SpringApplication(AggregateServiceApplication.class);
         if(args.length > 0) {
             // this should be a package to scan
-            application.setSources(Set.of(args[0]));
+            application.setSources(Set.of(args));
         }
-        application.run(args);
+        application.run();
     }
 }

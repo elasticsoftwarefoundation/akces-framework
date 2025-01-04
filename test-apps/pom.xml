@@ -23,11 +23,10 @@
         <version>0.2.6-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
-
-    <artifactId>akces-framework-services</artifactId>
+    <artifactId>akces-framework-test-apps</artifactId>
     <packaging>pom</packaging>
 
-    <name>Elastic Software Foundation :: Akces :: Services</name>
+    <name>Elastic Software Foundation :: Akces :: Test Apps</name>
     <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
 
     <properties>
@@ -53,42 +52,6 @@
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>io.javaoperatorsdk</groupId>
-                <artifactId>operator-framework-spring-boot-starter</artifactId>
-                <version>6.0.0-beta2</version>
-                <exclusions>
-                    <exclusion>
-                        <groupId>io.fabric8</groupId>
-                        <artifactId>kubernetes-httpclient-vertx</artifactId>
-                    </exclusion>
-                </exclusions>
-            </dependency>
-            <dependency>
-                <groupId>io.javaoperatorsdk</groupId>
-                <artifactId>operator-framework-spring-boot-starter-test</artifactId>
-                <version>6.0.0-beta2</version>
-            </dependency>
-            <dependency>
-                <groupId>io.javaoperatorsdk</groupId>
-                <artifactId>operator-framework-junit-5</artifactId>
-                <version>5.0.0-beta1</version>
-            </dependency>
-            <dependency>
-                <groupId>io.fabric8</groupId>
-                <artifactId>crd-generator-apt-v2</artifactId>
-                <version>7.0.1</version>
-            </dependency>
-            <dependency>
-                <groupId>org.bouncycastle</groupId>
-                <artifactId>bcprov-jdk18on</artifactId>
-                <version>1.79</version>
-            </dependency>
-            <dependency>
-                <groupId>org.bouncycastle</groupId>
-                <artifactId>bcpkix-jdk18on</artifactId>
-                <version>1.79</version>
-            </dependency>
-            <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
                 <version>${spring-boot.version}</version>
@@ -98,7 +61,7 @@
         </dependencies>
     </dependencyManagement>
     <modules>
-        <module>operator</module>
+        <module>crypto-trading</module>
     </modules>
     <profiles>
         <profile>

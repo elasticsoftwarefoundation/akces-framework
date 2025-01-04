@@ -15,15 +15,21 @@
  *
  */
 
-package org.elasticsoftware.akcestest;
+package org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet;
 
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Configuration;
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.AggregateIdentifier;
+import org.elasticsoftware.akces.annotations.CommandInfo;
+import org.elasticsoftware.akces.commands.Command;
 
-@Configuration
-@ComponentScan(basePackages = {
-        "org.elasticsoftware.akcestest.aggregate",
-})
-public class RuntimeConfiguration {
-
+@CommandInfo(type = "CreateWallet", version = 1)
+public record CreateWalletCommand(
+        @AggregateIdentifier String id,
+        String currency
+) implements Command {
+    @NotNull
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
 }

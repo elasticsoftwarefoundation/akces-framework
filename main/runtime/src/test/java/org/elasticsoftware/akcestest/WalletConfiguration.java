@@ -15,10 +15,11 @@
  *
  */
 
-package org.elasticsoftware.akcestest.aggregate.wallet;
+package org.elasticsoftware.akcestest;
 
 import io.confluent.kafka.schemaregistry.client.MockSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
+import org.elasticsoftware.akces.beans.AggregateBeanFactoryPostProcessor;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -26,9 +27,13 @@ import org.springframework.context.annotation.ComponentScan;
 @EnableAutoConfiguration
 @ComponentScan(basePackages = {
         "org.elasticsoftware.akcestest.aggregate.wallet",
-        "org.elasticsoftware.akces.beans"
 })
 public class WalletConfiguration {
+    @Bean(name = "aggregateServiceBeanFactoryPostProcessor")
+    public AggregateBeanFactoryPostProcessor aggregateBeanFactoryPostProcessor() {
+        return new AggregateBeanFactoryPostProcessor();
+    }
+
     @Bean(name = "aggregateServiceSchemaRegistryClient")
     public SchemaRegistryClient createSchemaRegistryClient() {
         return new MockSchemaRegistryClient();

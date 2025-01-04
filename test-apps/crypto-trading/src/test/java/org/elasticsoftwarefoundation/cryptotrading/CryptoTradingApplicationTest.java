@@ -15,27 +15,17 @@
  *
  */
 
-package org.elasticsoftware.akcestest;
+package org.elasticsoftwarefoundation.cryptotrading;
 
 import jakarta.inject.Inject;
-import org.apache.kafka.clients.consumer.Consumer;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
-import org.elasticsoftware.akces.control.AkcesControlRecord;
-import org.elasticsoftware.akces.protocol.ProtocolRecord;
-import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.kafka.core.ConsumerFactory;
-import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.support.TestPropertySourceUtils;
 import org.testcontainers.containers.GenericContainer;
@@ -50,21 +40,19 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Duration;
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.List;
 
-import static org.elasticsoftware.akcestest.TestUtils.prepareExternalSchemas;
-import static org.elasticsoftware.akcestest.TestUtils.prepareKafka;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsoftwarefoundation.cryptotrading.TestUtils.prepareKafka;
 
 @SpringBootTest(
         classes = AggregateServiceApplication.class,
-        args = "org.elasticsoftware.akcestest.aggregate.account",
-        useMainMethod = SpringBootTest.UseMainMethod.ALWAYS)
-@ContextConfiguration(initializers = AggregateServiceApplicationTests.Initializer.class)
+        args = "org.elasticsoftwarefoundation.cryptotrading.AggregateConfig",
+        useMainMethod = SpringBootTest.UseMainMethod.ALWAYS,
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ContextConfiguration(initializers = CryptoTradingApplicationTest.Initializer.class)
 @Testcontainers
-public class AggregateServiceApplicationTests {
+public class CryptoTradingApplicationTest {
     private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";
 
     private static final Network network = Network.newNetwork();
@@ -92,8 +80,6 @@ public class AggregateServiceApplicationTests {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
-            prepareExternalSchemas("http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081), List.of(AccountCreatedEvent.class));
-            //prepareExternalServices(kafka.getBootstrapServers());
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
                     applicationContext,
                     "akces.rocksdb.baseDir=/tmp/akces",
@@ -116,50 +102,27 @@ public class AggregateServiceApplicationTests {
     }
 
     @Inject
-    ApplicationContext applicationContext;
+    @Qualifier("WalletAkcesController")
+    AkcesAggregateController walletController;
 
-    @Inject @Qualifier("AccountAkcesController")
-    AkcesAggregateController akcesAggregateController;
+    @Inject
+    @Qualifier("AccountAkcesController")
+    AkcesAggregateController accountController;
 
-    @Inject @Qualifier("aggregateServiceConsumerFactory")
-    ConsumerFactory<String, ProtocolRecord> consumerFactory;
-
-    @Inject @Qualifier("aggregateServiceProducerFactory")
-    ProducerFactory<String, ProtocolRecord> producerFactory;
-
-    @Inject @Qualifier("aggregateServiceControlConsumerFactory")
-    ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory;
+    @Inject
+    @Qualifier("OrderProcessManagerAkcesController")
+    AkcesAggregateController prderProcessManagerController;
 
     @Test
-    public void testAggregateLoading() {
-        // we should have a single aggregate (Account) loaded
-        Assertions.assertNotNull(applicationContext.getBean("AccountAggregateRuntimeFactory"));
-        Assertions.assertNotNull(akcesAggregateController);
-        Assertions.assertNotNull(consumerFactory);
-        Assertions.assertNotNull(producerFactory);
-        Assertions.assertNotNull(controlConsumerFactory);
-        Assertions.assertThrows(NoSuchBeanDefinitionException.class, () -> applicationContext.getBean("WalletAggregateRuntimeFactory"));
-        Assertions.assertThrows(NoSuchBeanDefinitionException.class, () -> applicationContext.getBean("OrderProcessManagerAggregateRuntimeFactory"));
+    void contextLoads() {
+        assertThat(walletController).isNotNull();
+        assertThat(accountController).isNotNull();
+        assertThat(prderProcessManagerController).isNotNull();
 
-        Consumer<String, AkcesControlRecord> controlConsumer = controlConsumerFactory.createConsumer("Test-AkcesControl","test-akces-control");
-
-        controlConsumer.subscribe(List.of("Akces-Control"));
-        controlConsumer.poll(Duration.ofMillis(1000));
-        controlConsumer.seekToBeginning(controlConsumer.assignment());
-
-        ConsumerRecords<String, AkcesControlRecord> controlRecords = new ConsumerRecords<>(Collections.emptyMap());
-        while(controlRecords.isEmpty()) {
-            controlRecords = controlConsumer.poll(Duration.ofMillis(1000));
-        }
-
-        // TODO: ensure that we see the Wallet command service
-
-        controlConsumer.close();
-
-        // wait until the ackes controller is running
-        while(!akcesAggregateController.isRunning()) {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !prderProcessManagerController.isRunning()) {
             Thread.onSpinWait();
         }
     }
-
 }

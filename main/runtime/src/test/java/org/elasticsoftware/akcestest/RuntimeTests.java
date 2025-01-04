@@ -33,6 +33,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.client.AkcesClient;
 import org.elasticsoftware.akces.control.AggregateServiceCommandType;
@@ -91,7 +92,10 @@ import static org.elasticsoftware.akcestest.TestUtils.prepareKafka;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Testcontainers
-@SpringBootTest(classes = RuntimeConfiguration.class, properties = "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration")
+@SpringBootTest(
+        classes = AggregateServiceApplication.class,
+        args = "org.elasticsoftware.akcestest.RuntimeConfiguration",
+        useMainMethod = SpringBootTest.UseMainMethod.ALWAYS)
 @ContextConfiguration(initializers = RuntimeTests.DataSourceInitializer.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class RuntimeTests  {
@@ -152,6 +156,7 @@ public class RuntimeTests  {
             //prepareExternalServices(kafka.getBootstrapServers());
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
                     applicationContext,
+                    "akces.rocksdb.baseDir=/tmp/akces",
                     "spring.kafka.enabled=true",
                     "spring.kafka.bootstrapServers="+kafka.getBootstrapServers(),
                     "kafka.schemaregistry.url=http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081)
@@ -192,10 +197,13 @@ public class RuntimeTests  {
     @AfterAll
     public static void cleanUp() throws IOException {
         // clean up the rocksdb directory
-        Files.walk(Paths.get("/tmp/akces"))
-                .sorted(Comparator.reverseOrder())
-                .map(Path::toFile)
-                .forEach(File::delete);
+        if(Files.exists(Paths.get("/tmp/akces"))) {
+            // clean up the rocksdb directory
+            Files.walk(Paths.get("/tmp/akces"))
+                    .sorted(Comparator.reverseOrder())
+                    .map(Path::toFile)
+                    .forEach(File::delete);
+        }
     }
 
     @Test
