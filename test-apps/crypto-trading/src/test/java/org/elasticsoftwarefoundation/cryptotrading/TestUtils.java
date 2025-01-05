@@ -49,9 +49,12 @@ public class TestUtils {
                 createTopic("Account-DomainEvents", 3),
                 createTopic("OrderProcessManager-Commands", 3),
                 createTopic("OrderProcessManager-DomainEvents", 3),
+                createTopic("CryptoMarket-Commands", 3),
+                createTopic("CryptoMarket-DomainEvents", 3),
                 createCompactedTopic("Wallet-AggregateState", 3),
                 createCompactedTopic("Account-AggregateState", 3),
-                createCompactedTopic("OrderProcessManager-AggregateState", 3));
+                createCompactedTopic("OrderProcessManager-AggregateState", 3),
+                createCompactedTopic("CryptoMarket-AggregateState", 3));
     }
 
     private static NewTopic createTopic(String name, int numPartitions) {

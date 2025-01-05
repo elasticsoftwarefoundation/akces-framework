@@ -35,7 +35,7 @@ public record InvalidCryptoCurrencyErrorEvent(
         this(walletId, cryptoCurrency, null);
     }
 
-    @Nonnull
+    @NotNull
     @Override
     public String getAggregateId() {
         return walletId();

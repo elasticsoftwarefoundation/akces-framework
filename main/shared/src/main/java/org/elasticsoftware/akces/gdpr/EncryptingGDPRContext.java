@@ -20,6 +20,8 @@ package org.elasticsoftware.akces.gdpr;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import org.apache.kafka.common.errors.SerializationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -33,9 +35,11 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.HexFormat;
 import java.util.UUID;
 
 public final class EncryptingGDPRContext implements GDPRContext {
+    private static final Logger logger = LoggerFactory.getLogger(EncryptingGDPRContext.class);
     private final String aggregateId;
     private final Cipher encryptingCipher;
     private final Cipher decryptingCipher;
@@ -75,6 +79,10 @@ public final class EncryptingGDPRContext implements GDPRContext {
             return null;
         }
         try {
+            logger.trace("Encrypting data for aggregateId '{}' with algorithm {} and encryptionKey (hash) {}",
+                    aggregateId,
+                    encryptingCipher.getAlgorithm(),
+                    HexFormat.of().formatHex(encryptionKey));
             return Base64.getUrlEncoder().encodeToString(encryptingCipher.doFinal(data.getBytes(StandardCharsets.UTF_8)));
         } catch (IllegalBlockSizeException | BadPaddingException e) {
             throw new SerializationException(e);
@@ -92,6 +100,10 @@ public final class EncryptingGDPRContext implements GDPRContext {
                 byte[] encryptedBytes = Base64.getUrlDecoder().decode(encryptedData);
                 // needs to be multiples of 16
                 if (encryptedBytes.length % 16 == 0) {
+                    logger.trace("Decrypting data for aggregateId '{}' with algorithm {} and encryptionKey (hash) {}",
+                            aggregateId,
+                            decryptingCipher.getAlgorithm(),
+                            HexFormat.of().formatHex(encryptionKey));
                     return new String(decryptingCipher.doFinal(encryptedBytes), StandardCharsets.UTF_8);
                 }
             }

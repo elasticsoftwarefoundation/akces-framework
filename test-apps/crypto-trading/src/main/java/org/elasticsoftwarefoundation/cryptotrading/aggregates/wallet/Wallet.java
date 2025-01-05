@@ -57,7 +57,7 @@ public final class Wallet implements Aggregate<WalletState> {
 
     @EventHandler(create = true, produces = WalletCreatedEvent.class, errors = {})
     public @NotNull Stream<DomainEvent> create(@NotNull AccountCreatedEvent event, WalletState isNull) {
-        return Stream.of(new WalletCreatedEvent(event.getAggregateId()), new BalanceCreatedEvent(event.getAggregateId(), "BTC"));
+        return Stream.of(new WalletCreatedEvent(event.getAggregateId()), new BalanceCreatedEvent(event.getAggregateId(), "EUR"));
     }
 
     @CommandHandler(produces = WalletCreditedEvent.class, errors = {InvalidCryptoCurrencyErrorEvent.class, InvalidAmountErrorEvent.class})

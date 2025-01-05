@@ -90,6 +90,9 @@ public class CryptoTradingWebApiTest {
     @Qualifier("OrderProcessManagerAkcesController")
     AkcesAggregateController prderProcessManagerController;
     @Inject
+    @Qualifier("CryptoMarketAkcesController")
+    AkcesAggregateController cryptoMarketController;
+    @Inject
     AkcesClientController akcesClientController;
     @Inject
     AccountController accountWebController;
@@ -117,6 +120,7 @@ public class CryptoTradingWebApiTest {
         assertThat(accountController).isNotNull();
         assertThat(prderProcessManagerController).isNotNull();
         assertThat(akcesClientController).isNotNull();
+        assertThat(cryptoMarketController).isNotNull();
 
         assertThat(accountWebController).isNotNull();
         assertThat(walletWebController).isNotNull();
@@ -124,6 +128,7 @@ public class CryptoTradingWebApiTest {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
                 !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
@@ -154,6 +159,7 @@ public class CryptoTradingWebApiTest {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
                 !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
@@ -173,6 +179,7 @@ public class CryptoTradingWebApiTest {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
                 !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
@@ -188,7 +195,7 @@ public class CryptoTradingWebApiTest {
                     assertThat(userId).isNotNull();
 
                     // credit the wallet for this user id with 1 BTC
-                    CreditWalletInput creditInput = new CreditWalletInput("BTC", new BigDecimal("1.0"));
+                    CreditWalletInput creditInput = new CreditWalletInput("EUR", new BigDecimal("1.0"));
                     webTestClient.post()
                             .uri("/wallets/" + userId + "/credit")
                             .bodyValue(creditInput)
@@ -198,7 +205,7 @@ public class CryptoTradingWebApiTest {
                             .value(creditOutput -> {
                                 assertThat(creditOutput).isNotNull();
                                 assertThat(creditOutput.amount()).isEqualByComparingTo("1.0");
-                                assertThat(creditOutput.currency()).isEqualTo("BTC");
+                                assertThat(creditOutput.currency()).isEqualTo("EUR");
                             });
                 });
     }
@@ -208,6 +215,7 @@ public class CryptoTradingWebApiTest {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
                 !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
@@ -238,10 +246,11 @@ public class CryptoTradingWebApiTest {
     }
 
     @Test
-    void testCreateAccountAndAddEurBalance() {
+    void testCreateAccountAndAddBtcBalance() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
                 !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
@@ -257,7 +266,7 @@ public class CryptoTradingWebApiTest {
                     assertThat(userId).isNotNull();
 
                     // add a EUR balance to the wallet for this user id
-                    CreateBalanceInput createBalanceInput = new CreateBalanceInput("EUR");
+                    CreateBalanceInput createBalanceInput = new CreateBalanceInput("BTC");
                     webTestClient.post()
                             .uri("/wallets/" + userId + "/balances")
                             .bodyValue(createBalanceInput)

@@ -15,26 +15,26 @@
  *
  */
 
-package org.elasticsoftwarefoundation.cryptotrading.aggregates.orders;
+package org.elasticsoftware.akcestest.schemas;
 
+import jakarta.annotation.Nonnull;
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
-import org.elasticsoftware.akces.annotations.DomainEventInfo;
-import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.annotations.CommandInfo;
+import org.elasticsoftware.akces.commands.Command;
 
 import java.math.BigDecimal;
 
-@DomainEventInfo(type = "BuyOrderCreated", version = 1)
-public record BuyOrderCreatedEvent(
-        @NotNull @AggregateIdentifier String userId,
-        @NotNull String orderId,
-        @NotNull CryptoMarket market,
-        @NotNull BigDecimal quantity,
-        @NotNull BigDecimal limitPrice,
-        @NotNull String clientReference
-) implements DomainEvent {
+@CommandInfo(type = "CreditWallet", version = 1)
+public record CreditWalletCommand(
+        @AggregateIdentifier @NotNull String id,
+        @NotNull String currency,
+        @NotNull BigDecimal amount,
+        BigDecimal optionalAmount
+) implements Command {
+    @NotNull
     @Override
     public String getAggregateId() {
-        return orderId();
+        return id();
     }
 }

@@ -15,26 +15,26 @@
  *
  */
 
-package org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.events;
-
+package org.elasticsoftwarefoundation.cryptotrading.aggregates.orders.commands;
 
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.akces.annotations.DomainEventInfo;
-import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.annotations.AggregateIdentifier;
+import org.elasticsoftware.akces.annotations.CommandInfo;
+import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.orders.CryptoMarket;
 
-@DomainEventInfo(type = "CryptoMarketCreated", version = 1)
-public record CryptoMarketCreatedEvent(
-        @NotNull String id,
-        @NotNull String baseCrypto,
-        @NotNull String quoteCrypto,
-        @NotNull String baseIncrement,
-        @NotNull String quoteIncrement,
-        @NotNull String defaultCounterPartyId
-) implements DomainEvent {
+import java.math.BigDecimal;
 
+@CommandInfo(type = "PlaceBuyOrder", version = 1)
+public record PlaceBuyOrderCommand(
+        @NotNull @AggregateIdentifier String userId,
+        @NotNull CryptoMarket market,
+        @NotNull BigDecimal amount,
+        @NotNull String clientReference
+) implements Command {
     @Override
+    @NotNull
     public String getAggregateId() {
-        return id();
+        return userId();
     }
 }

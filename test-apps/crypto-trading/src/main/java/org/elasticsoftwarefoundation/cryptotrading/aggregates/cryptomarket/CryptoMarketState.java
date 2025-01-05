@@ -18,11 +18,19 @@
 package org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.annotations.AggregateStateInfo;
 
 @AggregateStateInfo(type = "CryptoMarket", version = 1)
-public record CryptoMarketState(@NotNull String id, @NotNull String baseCrypto, @NotNull String quoteCrypto) implements AggregateState {
+public record CryptoMarketState(
+        @NotNull String id,
+        @NotNull String baseCrypto,
+        @NotNull String quoteCrypto,
+        @NotNull String baseIncrement,
+        @NotNull String quoteIncrement,
+        @NotNull String defaultCounterPartyId
+) implements AggregateState {
     @Override
     public String getAggregateId() {
         return id();

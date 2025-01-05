@@ -22,7 +22,14 @@ import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
 @CommandInfo(type = "CreateCryptoMarket", version = 1)
-public record CreateCryptoMarketCommand(@NotNull String id, @NotNull String baseCrypto, @NotNull String quoteCrypto) implements Command {
+public record CreateCryptoMarketCommand(
+        @NotNull String id,
+        @NotNull String baseCurrency,
+        @NotNull String quoteCurrency,
+        @NotNull String baseIncrement,
+        @NotNull String quoteIncrement,
+        @NotNull String defaultCounterPartyId
+) implements Command {
     @Override
     public String getAggregateId() {
         return id();

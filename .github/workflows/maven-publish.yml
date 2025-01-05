@@ -47,7 +47,7 @@ jobs:
           clean
           compile
           test-compile
-      - name: Verify with Maven
+      - name: Install with Maven
         run: >
           mvn
           --show-version
@@ -56,7 +56,7 @@ jobs:
           --activate-profiles maven-release
           --file pom.xml
           --settings $GITHUB_WORKSPACE/settings.xml
-          verify
+          install
       - name: Publish to Github Packages
         run: >
           mvn

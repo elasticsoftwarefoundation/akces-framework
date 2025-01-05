@@ -15,26 +15,24 @@
  *
  */
 
-package org.elasticsoftwarefoundation.cryptotrading.aggregates.orders;
+package org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.commands;
 
 import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.Side;
 
 import java.math.BigDecimal;
 
-@CommandInfo(type = "PlaceBuyOrder", version = 1)
-public record PlaceBuyOrderCommand(
-        @NotNull @AggregateIdentifier String userId,
-        @NotNull CryptoMarket market,
-        @NotNull BigDecimal quantity,
-        @NotNull BigDecimal limitPrice,
-        @NotNull String clientReference
-) implements Command {
+@CommandInfo(type = "PlaceMarketOrder", version = 1)
+public record PlaceMarketOrderCommand(@NotNull String marketId,
+                                      @NotNull String orderId,
+                                      @NotNull String ownerId,
+                                      @NotNull Side side,
+                                      BigDecimal funds,
+                                      BigDecimal size) implements Command {
     @Override
-    @NotNull
     public String getAggregateId() {
-        return userId();
+        return marketId();
     }
 }

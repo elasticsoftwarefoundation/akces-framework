@@ -23,6 +23,7 @@ import org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.Produ
 import org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.Ticker;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -45,6 +46,15 @@ public class CoinbaseServiceTest {
         Ticker ticker = coinbaseService.getTicker(productId);
         assertNotNull(ticker, "Ticker should not be null");
         // check all properties of ticker
+    }
+
+    @Test
+    public void testGetProducts() {
+        List<Product> products = coinbaseService.getProducts();
+        assertNotNull(products, "Products should not be null");
+        products.forEach(product -> {
+            System.out.println(product.id());
+        });
     }
 
 }

@@ -17,24 +17,17 @@
 
 package org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.events;
 
-
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
-import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.events.ErrorEvent;
 
-@DomainEventInfo(type = "CryptoMarketCreated", version = 1)
-public record CryptoMarketCreatedEvent(
-        @NotNull String id,
-        @NotNull String baseCrypto,
-        @NotNull String quoteCrypto,
-        @NotNull String baseIncrement,
-        @NotNull String quoteIncrement,
-        @NotNull String defaultCounterPartyId
-) implements DomainEvent {
-
+@DomainEventInfo(type = "MarketOrderRejected", version = 1)
+public record MarketOrderRejectedErrorEvent(@NotNull String marketId,
+                                            @NotNull String orderId,
+                                            @NotNull String ownerId,
+                                            @NotNull String rejectionReason) implements ErrorEvent {
     @Override
     public String getAggregateId() {
-        return id();
+        return marketId();
     }
 }

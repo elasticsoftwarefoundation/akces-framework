@@ -25,7 +25,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 //@SpringBootTest
 public class CoinbaseMarketDataTest {
 
-    //@Test
+    @Test
     void testCoinbaseGetProducts() {
         WebClient webClient = WebClient.builder()
                 .baseUrl("https://api.exchange.coinbase.com")

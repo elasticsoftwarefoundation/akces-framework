@@ -21,6 +21,9 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.processmanager.AkcesProcess;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.events.MarketOrderRejectedErrorEvent;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.orders.commands.RejectOrderCommand;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.orders.events.BuyOrderRejectedEvent;
 import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events.InsufficientFundsErrorEvent;
 import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events.InvalidCryptoCurrencyErrorEvent;
 
@@ -35,13 +38,15 @@ public sealed interface OrderProcess extends AkcesProcess permits BuyOrderProces
 
     CryptoMarket market();
 
-    BigDecimal quantity();
+    BigDecimal size();
 
-    BigDecimal limitPrice();
+    BigDecimal amount();
 
     String clientReference();
 
-    DomainEvent handle(InsufficientFundsErrorEvent error);
+    BuyOrderRejectedEvent handle(InsufficientFundsErrorEvent error);
 
-    DomainEvent handle(InvalidCryptoCurrencyErrorEvent error);
+    BuyOrderRejectedEvent handle(InvalidCryptoCurrencyErrorEvent error);
+
+    BuyOrderRejectedEvent handle(RejectOrderCommand command);
 }

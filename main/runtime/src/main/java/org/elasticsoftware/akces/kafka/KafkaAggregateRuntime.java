@@ -20,6 +20,7 @@ package org.elasticsoftware.akces.kafka;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.github.victools.jsonschema.generator.*;
 import com.github.victools.jsonschema.module.jackson.JacksonModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
@@ -41,6 +42,8 @@ import org.elasticsoftware.akces.protocol.CommandRecord;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
 import org.elasticsoftware.akces.protocol.PayloadEncoding;
 import org.everit.json.schema.ValidationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.*;
@@ -49,6 +52,7 @@ import java.util.stream.Collectors;
 import static java.lang.String.format;
 
 public class KafkaAggregateRuntime extends AggregateRuntimeBase {
+    private static final Logger log = LoggerFactory.getLogger(KafkaAggregateRuntime.class);
     private final SchemaRegistryClient schemaRegistryClient;
     private final SchemaGenerator jsonSchemaGenerator;
     private final ObjectMapper objectMapper;
@@ -80,12 +84,25 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                 eventSourcingHandlers,
                 generateGDPRKeyOnCreate);
         this.schemaRegistryClient = schemaRegistryClient;
-        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(SchemaVersion.DRAFT_7, OptionPreset.PLAIN_JSON);
-        configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS, JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
+        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(objectMapper,
+                SchemaVersion.DRAFT_7,
+                OptionPreset.PLAIN_JSON);
+        configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
+                JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
         configBuilder.with(new JacksonModule());
         configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
         configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
         configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
+        // we need to override the default behavior of the generator to write BigDecimal as type = number
+        configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
+            if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
+                JsonNode typeNode = collectedTypeAttributes.get("type");
+                if (typeNode.isArray()) {
+                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
+                } else
+                    collectedTypeAttributes.put("type", "string");
+            }
+        });
         SchemaGeneratorConfig config = configBuilder.build();
         this.jsonSchemaGenerator = new SchemaGenerator(config);
         this.objectMapper = objectMapper;
@@ -191,6 +208,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                 if (registeredSchema != null) {
                     // it has to be exactly the same
                     if (!registeredSchema.deepEquals(localSchema)) {
+                        log.error("Registered Schema {} does not match Local Schema {}", registeredSchema, localSchema);
                         throw new IllegalStateException("Registered Schema does not match Local Schema");
                     }
                 } else if (!commandType.external()) {

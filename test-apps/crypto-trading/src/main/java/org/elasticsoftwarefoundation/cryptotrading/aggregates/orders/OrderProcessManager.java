@@ -24,6 +24,14 @@ import org.elasticsoftware.akces.annotations.EventHandler;
 import org.elasticsoftware.akces.annotations.EventSourcingHandler;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftwarefoundation.cryptotrading.aggregates.account.AccountCreatedEvent;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.Side;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.commands.PlaceMarketOrderCommand;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.events.MarketOrderRejectedErrorEvent;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.orders.commands.*;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.orders.events.BuyOrderCreatedEvent;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.orders.events.BuyOrderPlacedEvent;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.orders.events.BuyOrderRejectedEvent;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.orders.events.UserOrderProcessesCreatedEvent;
 import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events.AmountReservedEvent;
 import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events.InsufficientFundsErrorEvent;
 import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events.InvalidCryptoCurrencyErrorEvent;
@@ -61,8 +69,7 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
             add(new BuyOrderProcess(
                     event.orderId(),
                     event.market(),
-                    event.quantity(),
-                    event.limitPrice(),
+                    event.amount(),
                     event.clientReference()));
         }} );
     }
@@ -97,27 +104,39 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
         getCommandBus().send(new ReserveAmountCommand(
                 state.userId(),
                 command.market().quoteCrypto(),
-                command.quantity().multiply(command.limitPrice()),
+                command.amount(),
                 orderId));
         // register the buy order process
         return Stream.of(new BuyOrderCreatedEvent(
                 state.userId(),
                 orderId,
                 command.market(),
-                command.quantity(),
-                command.limitPrice(),
+                command.amount(),
                 command.clientReference()));
     }
 
-
+    @CommandHandler(produces = BuyOrderRejectedEvent.class, errors = {})
+    public Stream<BuyOrderRejectedEvent> rejectOrder(RejectOrderCommand command, OrderProcessManagerState state) {
+        if(state.hasAkcesProcess(command.orderId())) {
+            return Stream.of(state.getAkcesProcess(command.orderId()).handle(command));
+        } else {
+            return Stream.empty();
+        }
+    }
 
     @EventHandler(produces = BuyOrderPlacedEvent.class, errors = {})
     public Stream<DomainEvent> handle(AmountReservedEvent event, OrderProcessManagerState state) {
         // happy path, need to send a command to the market to place the order
         OrderProcess orderProcess = state.getAkcesProcess(event.referenceId());
         if(orderProcess != null) {
-            // TODO: send order to ForexMarket
-            return Stream.of(new BuyOrderPlacedEvent(state.userId(), orderProcess.orderId(), orderProcess.market(), orderProcess.quantity(), orderProcess.limitPrice()));
+            getCommandBus().send(new PlaceMarketOrderCommand(
+                    orderProcess.market().id(),
+                    orderProcess.orderId(),
+                    state.userId(),
+                    Side.BUY,
+                    orderProcess.amount(),
+                    orderProcess.size()));
+            return Stream.of(new BuyOrderPlacedEvent(state.userId(), orderProcess.orderId(), orderProcess.market(), orderProcess.size(), orderProcess.amount()));
         } else {
             // TODO: this cannot happen
             return Stream.empty();
@@ -140,5 +159,12 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
         } else {
             return Stream.empty();
         }
+    }
+
+    @EventHandler(produces = {}, errors = {})
+    public Stream<DomainEvent> handle(MarketOrderRejectedErrorEvent errorEvent, OrderProcessManagerState state) {
+        // the aggregateId is different in this case (it's the CryptoMarketId) so we need to send a command to self
+        getCommandBus().send(new RejectOrderCommand(state.userId(), errorEvent.orderId()));
+        return Stream.empty();
     }
 }

@@ -35,7 +35,7 @@ public record InsufficientFundsErrorEvent(
         @Nullable String referenceId
 ) implements ErrorEvent {
     @Override
-    public @Nonnull String getAggregateId() {
+    public @NotNull String getAggregateId() {
         return walletId();
     }
 }

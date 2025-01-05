@@ -18,15 +18,32 @@
 package org.elasticsoftwarefoundation.cryptotrading;
 
 import jakarta.inject.Inject;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.common.TopicPartition;
 import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.client.AkcesClientController;
+import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.account.CreateAccountCommand;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.CoinbaseService;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.Product;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.Side;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.commands.CreateCryptoMarketCommand;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.commands.PlaceMarketOrderCommand;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.orders.CryptoMarket;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.orders.commands.PlaceBuyOrderCommand;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.commands.CreateBalanceCommand;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.commands.CreditWalletCommand;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.support.TestPropertySourceUtils;
 import org.testcontainers.containers.GenericContainer;
@@ -34,14 +51,22 @@ import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.shaded.org.checkerframework.checker.units.qual.C;
 import org.testcontainers.utility.DockerImageName;
+import reactor.core.publisher.Mono;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.elasticsoftwarefoundation.cryptotrading.TestUtils.prepareKafka;
@@ -115,8 +140,17 @@ public class CryptoTradingApplicationTest {
     AkcesAggregateController prderProcessManagerController;
 
     @Inject
+    @Qualifier("CryptoMarketAkcesController")
+    AkcesAggregateController cryptoMarketController;
+
+    @Inject
     AkcesClientController akcesClientController;
 
+    @Inject
+    CoinbaseService coinbaseService;
+
+    @Inject @Qualifier("aggregateServiceConsumerFactory")
+    ConsumerFactory<String, ProtocolRecord> consumerFactory;
 
     @Test
     void contextLoads() {
@@ -124,12 +158,110 @@ public class CryptoTradingApplicationTest {
         assertThat(accountController).isNotNull();
         assertThat(prderProcessManagerController).isNotNull();
         assertThat(akcesClientController).isNotNull();
+        assertThat(cryptoMarketController).isNotNull();
 
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
                 !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
+        }
+    }
+
+    @Test
+    void testCreateAllEURMarketsAndMakeATrade() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+        String counterPartyId = "337f335d-caf1-4f85-9440-6bc3c0ebbb77";
+        // create a counterparty account
+        akcesClientController.sendAndForget("TEST",
+                new CreateAccountCommand(counterPartyId,
+                "EU",
+                "Coinbase",
+                "Limited",
+                "no-reply@coinbase.com" ));
+
+        // create all EUR markets
+//        coinbaseService.getProducts().stream().filter(product -> product.quoteCurrency().equals("EUR")).forEach(product -> {
+//            akcesClientController.sendAndForget("TEST", new CreateCryptoMarketCommand(
+//                    product.id(),
+//                    product.baseCurrency(),
+//                    product.quoteCurrency(),
+//                    product.baseIncrement(),
+//                    product.quoteIncrement(),
+//                    counterPartyId
+//            ));
+//        });
+        Product product = coinbaseService.getProduct("BTC-EUR");
+        akcesClientController.sendAndForget("TEST", new CreateCryptoMarketCommand(
+            product.id(),
+            product.baseCurrency(),
+            product.quoteCurrency(),
+            product.baseIncrement(),
+            product.quoteIncrement(),
+            counterPartyId));
+
+        // create an account to trade
+        String accountId = "2254b8cb-f272-4695-82cf-306ba0149829";
+        Mono.fromCompletionStage(akcesClientController.send("TEST", new CreateAccountCommand(accountId,
+                "NL",
+                "John",
+                "Doe",
+                "john.doe@example.com"))).block();
+
+        // create a BTC balance (EUR balance should already be created
+        Mono.fromCompletionStage(akcesClientController.send("TEST",
+                new CreateBalanceCommand(accountId, "BTC"))).block();
+        // credit the user with EUR to make a BTC buy
+        Mono.fromCompletionStage(akcesClientController.send("TEST",
+                new CreditWalletCommand(accountId,
+                        "EUR",
+                        new BigDecimal("1000")))).block();
+        ;
+
+        // place a buy order on BTC-EUR market
+        String clientOrderId = "479ab2a4-d19e-4116-9f7e-cf13dca5763a";
+        Mono.fromCompletionStage(akcesClientController.send("TEST",
+                new PlaceBuyOrderCommand(accountId,
+                        new CryptoMarket("BTC-EUR","BTC", "EUR") ,
+                        new BigDecimal("250"),
+                        clientOrderId))).block();
+
+        // now we need to wait until we get the order filled event
+        try (
+                Consumer<String, ProtocolRecord> testConsumer = consumerFactory.createConsumer("Test", "test")
+        ) {
+            testConsumer.subscribe(Pattern.compile(".*-DomainEvents$"), new ConsumerRebalanceListener() {
+                @Override
+                public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+                }
+
+                @Override
+                public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+                    testConsumer.seekToBeginning(partitions);
+                }
+            });
+            int count = 0;
+            while (count < 16) {
+                for (ConsumerRecord<String, ProtocolRecord> record : testConsumer.poll(Duration.ofMillis(100))) {
+                    System.out.println(record.topic() + " : " + record.value().name() + "=" + new String(record.value().payload()));
+                    count++;
+                }
+            }
+        }
+
+        System.out.println("Waiting for 10 seconds");
+
+        try {
+            Thread.sleep(10 * 1000);
+        } catch (InterruptedException e) {
+            // ignore
         }
     }
 

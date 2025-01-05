@@ -18,24 +18,46 @@
 package org.elasticsoftwarefoundation.cryptotrading.aggregates.orders;
 
 import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.events.MarketOrderRejectedErrorEvent;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.orders.commands.RejectOrderCommand;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.orders.events.BuyOrderRejectedEvent;
 import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events.InsufficientFundsErrorEvent;
 import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events.InvalidCryptoCurrencyErrorEvent;
 
 import java.math.BigDecimal;
 
-public record BuyOrderProcess(String orderId, CryptoMarket market, BigDecimal quantity, BigDecimal limitPrice, String clientReference) implements OrderProcess {
+public record BuyOrderProcess(
+        String orderId,
+        CryptoMarket market,
+        BigDecimal size,
+        BigDecimal amount,
+        String clientReference
+) implements OrderProcess {
+    public BuyOrderProcess(String orderId,
+                           CryptoMarket market,
+                           BigDecimal amount,
+                           String clientReference) {
+        this(orderId, market, null, amount, clientReference);
+    }
+
     @Override
     public String getProcessId() {
         return orderId();
     }
 
     @Override
-    public DomainEvent handle(InsufficientFundsErrorEvent error) {
+    public BuyOrderRejectedEvent handle(InsufficientFundsErrorEvent error) {
         return new BuyOrderRejectedEvent(error.walletId(), orderId(), clientReference());
     }
 
     @Override
-    public DomainEvent handle(InvalidCryptoCurrencyErrorEvent error) {
+    public BuyOrderRejectedEvent handle(InvalidCryptoCurrencyErrorEvent error) {
         return new BuyOrderRejectedEvent(error.walletId(), orderId(), clientReference());
     }
+
+    @Override
+    public BuyOrderRejectedEvent handle(RejectOrderCommand command) {
+        return new BuyOrderRejectedEvent(command.userId(), orderId(), clientReference());
+    }
+
 }
