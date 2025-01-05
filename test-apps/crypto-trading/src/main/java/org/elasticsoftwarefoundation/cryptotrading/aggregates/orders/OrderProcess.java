@@ -21,8 +21,8 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.processmanager.AkcesProcess;
-import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.InsufficientFundsErrorEvent;
-import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.InvalidCryptoCurrencyErrorEvent;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events.InsufficientFundsErrorEvent;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events.InvalidCryptoCurrencyErrorEvent;
 
 import java.math.BigDecimal;
 

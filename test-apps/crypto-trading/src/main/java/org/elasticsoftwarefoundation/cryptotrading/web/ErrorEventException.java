@@ -15,12 +15,20 @@
  *
  */
 
-package org.elasticsoftware.akces.processmanager;
+package org.elasticsoftwarefoundation.cryptotrading.web;
 
-import org.elasticsoftware.akces.aggregate.AggregateState;
+import org.elasticsoftware.akces.events.ErrorEvent;
 
-public interface ProcessManagerState<P extends AkcesProcess> extends AggregateState {
-    P getAkcesProcess(String processId) throws UnknownAkcesProcessException;
+public class ErrorEventException extends RuntimeException {
+    private final ErrorEvent errorEvent;
 
-    boolean hasAkcesProcess(String processId);
+    public ErrorEventException(ErrorEvent errorEvent) {
+        super();
+        this.errorEvent = errorEvent;
+    }
+
+    public ErrorEvent getErrorEvent() {
+        return errorEvent;
+    }
+
 }

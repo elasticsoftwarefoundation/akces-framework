@@ -15,29 +15,17 @@
  *
  */
 
-package org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet;
+package org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events;
 
-import jakarta.annotation.Nullable;
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
-import org.elasticsoftware.akces.events.ErrorEvent;
+import org.elasticsoftware.akces.events.DomainEvent;
 
-import javax.annotation.Nonnull;
-
-@DomainEventInfo(type = "InvalidCryptoCurrencyError")
-public record InvalidCryptoCurrencyErrorEvent(
-        @NotNull @AggregateIdentifier String walletId,
-        @NotNull String cryptoCurrency,
-        @Nullable String referenceId
-) implements ErrorEvent {
-    public InvalidCryptoCurrencyErrorEvent(@NotNull String walletId, @NotNull String cryptoCurrency) {
-        this(walletId, cryptoCurrency, null);
-    }
-
-    @Nonnull
+@DomainEventInfo(type = "BalanceCreated")
+public record BalanceCreatedEvent(@AggregateIdentifier @NotNull String id, String currency) implements DomainEvent {
     @Override
     public String getAggregateId() {
-        return walletId();
+        return id();
     }
 }

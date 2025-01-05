@@ -24,10 +24,10 @@ import org.elasticsoftware.akces.annotations.EventHandler;
 import org.elasticsoftware.akces.annotations.EventSourcingHandler;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftwarefoundation.cryptotrading.aggregates.account.AccountCreatedEvent;
-import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.AmountReservedEvent;
-import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.InsufficientFundsErrorEvent;
-import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.InvalidCryptoCurrencyErrorEvent;
-import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.ReserveAmountCommand;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events.AmountReservedEvent;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events.InsufficientFundsErrorEvent;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events.InvalidCryptoCurrencyErrorEvent;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.commands.ReserveAmountCommand;
 
 import java.util.ArrayList;
 import java.util.UUID;
@@ -91,9 +91,9 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
      */
     @CommandHandler(produces = BuyOrderCreatedEvent.class, errors = {})
     public Stream<BuyOrderCreatedEvent> placeBuyOrder(PlaceBuyOrderCommand command, OrderProcessManagerState state) {
-        // we need to reserve the quote cryptoCurrency amount on wallet of the user
+        // we need to reserve the quote currency amount on wallet of the user
         String orderId = UUID.randomUUID().toString();
-        // send command to reserve the amount of the quote cryptoCurrency
+        // send command to reserve the amount of the quote currency
         getCommandBus().send(new ReserveAmountCommand(
                 state.userId(),
                 command.market().quoteCrypto(),
@@ -126,11 +126,19 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
 
     @EventHandler(produces = BuyOrderRejectedEvent.class, errors = {})
     public Stream<DomainEvent> handle(InsufficientFundsErrorEvent errorEvent, OrderProcessManagerState state) {
-        return Stream.of(state.getAkcesProcess(errorEvent.referenceId()).handle(errorEvent));
+        if(state.hasAkcesProcess(errorEvent.referenceId())) {
+            return Stream.of(state.getAkcesProcess(errorEvent.referenceId()).handle(errorEvent));
+        } else {
+            return Stream.empty();
+        }
     }
 
     @EventHandler(produces = BuyOrderRejectedEvent.class, errors = {})
     public Stream<DomainEvent> handle(InvalidCryptoCurrencyErrorEvent errorEvent, OrderProcessManagerState state) {
-        return Stream.of(state.getAkcesProcess(errorEvent.referenceId()).handle(errorEvent));
+        if(state.hasAkcesProcess(errorEvent.referenceId())) {
+            return Stream.of(state.getAkcesProcess(errorEvent.referenceId()).handle(errorEvent));
+        } else {
+            return Stream.empty();
+        }
     }
 }

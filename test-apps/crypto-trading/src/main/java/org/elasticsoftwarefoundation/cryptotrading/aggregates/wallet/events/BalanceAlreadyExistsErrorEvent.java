@@ -15,19 +15,17 @@
  *
  */
 
-package org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet;
+package org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events;
 
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
-import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.events.ErrorEvent;
 
-@DomainEventInfo(type = "WalletCreated")
-public record WalletCreatedEvent(
-        @AggregateIdentifier @NotNull String id
-) implements DomainEvent {
+@DomainEventInfo(type = "BalanceAlreadyExistsError")
+public record BalanceAlreadyExistsErrorEvent(@AggregateIdentifier @NotNull String walletId, String currency) implements ErrorEvent {
     @Override
     public String getAggregateId() {
-        return id();
+        return walletId();
     }
 }

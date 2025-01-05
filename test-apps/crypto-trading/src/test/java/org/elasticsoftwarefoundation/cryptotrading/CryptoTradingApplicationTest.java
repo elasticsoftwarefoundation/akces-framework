@@ -20,6 +20,7 @@ package org.elasticsoftwarefoundation.cryptotrading;
 import jakarta.inject.Inject;
 import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
+import org.elasticsoftware.akces.client.AkcesClientController;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -113,16 +114,23 @@ public class CryptoTradingApplicationTest {
     @Qualifier("OrderProcessManagerAkcesController")
     AkcesAggregateController prderProcessManagerController;
 
+    @Inject
+    AkcesClientController akcesClientController;
+
+
     @Test
     void contextLoads() {
         assertThat(walletController).isNotNull();
         assertThat(accountController).isNotNull();
         assertThat(prderProcessManagerController).isNotNull();
+        assertThat(akcesClientController).isNotNull();
 
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
-                !prderProcessManagerController.isRunning()) {
+                !prderProcessManagerController.isRunning() ||
+                !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
     }
+
 }

@@ -15,27 +15,19 @@
  *
  */
 
-package org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet;
+package org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.commands;
 
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
-import org.elasticsoftware.akces.annotations.DomainEventInfo;
-import org.elasticsoftware.akces.events.ErrorEvent;
+import org.elasticsoftware.akces.annotations.CommandInfo;
+import org.elasticsoftware.akces.commands.Command;
 
-import javax.annotation.Nonnull;
-
-@DomainEventInfo(type = "InvalidAmountError")
-public record InvalidAmountErrorEvent(
-        @NotNull @AggregateIdentifier String walletId,
-        @NotNull String currency,
-        String referenceId
-) implements ErrorEvent {
-    public InvalidAmountErrorEvent(@NotNull String walletId, @NotNull String currency) {
-        this(walletId, currency, null);
-    }
-
+@CommandInfo(type = "CreateBalance", version = 1)
+public record CreateBalanceCommand(
+        @AggregateIdentifier String id,
+        String currency
+) implements Command {
     @Override
-    public @Nonnull String getAggregateId() {
-        return walletId();
+    public String getAggregateId() {
+        return id();
     }
 }

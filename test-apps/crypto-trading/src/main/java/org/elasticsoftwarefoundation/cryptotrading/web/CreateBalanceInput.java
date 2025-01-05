@@ -15,24 +15,13 @@
  *
  */
 
-package org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet;
+package org.elasticsoftwarefoundation.cryptotrading.web;
 
 import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.akces.annotations.AggregateIdentifier;
-import org.elasticsoftware.akces.annotations.CommandInfo;
-import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.commands.CreateBalanceCommand;
 
-import java.math.BigDecimal;
-
-@CommandInfo(type = "CreditWallet", version = 1)
-public record CreditWalletCommand(
-        @AggregateIdentifier String id,
-        String currency,
-        BigDecimal amount
-) implements Command {
-    @NotNull
-    @Override
-    public String getAggregateId() {
-        return id();
+public record CreateBalanceInput(@NotNull String currency) {
+    public CreateBalanceCommand toCommand(String walletId) {
+        return new CreateBalanceCommand(walletId, this.currency);
     }
 }

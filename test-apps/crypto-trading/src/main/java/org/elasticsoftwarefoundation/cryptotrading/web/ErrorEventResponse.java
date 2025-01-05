@@ -15,24 +15,7 @@
  *
  */
 
-package org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet;
+package org.elasticsoftwarefoundation.cryptotrading.web;
 
-import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.akces.annotations.AggregateIdentifier;
-import org.elasticsoftware.akces.annotations.DomainEventInfo;
-import org.elasticsoftware.akces.events.DomainEvent;
-
-import java.math.BigDecimal;
-
-@DomainEventInfo(type = "WalletCredited")
-public record WalletCreditedEvent(
-        @AggregateIdentifier @NotNull String id,
-        String currency,
-        BigDecimal amount,
-        BigDecimal balance
-) implements DomainEvent {
-    @Override
-    public String getAggregateId() {
-        return id();
-    }
+public record ErrorEventResponse(String eventType) {
 }

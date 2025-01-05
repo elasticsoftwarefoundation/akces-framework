@@ -15,17 +15,17 @@
  *
  */
 
-package org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet;
+package org.elasticsoftwarefoundation.cryptotrading.web;
 
-import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.akces.annotations.AggregateIdentifier;
-import org.elasticsoftware.akces.annotations.DomainEventInfo;
-import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events.WalletCreditedEvent;
 
-@DomainEventInfo(type = "BalanceCreated")
-public record BalanceCreatedEvent(@AggregateIdentifier @NotNull String id, String currency) implements DomainEvent {
-    @Override
-    public String getAggregateId() {
-        return id();
+import java.math.BigDecimal;
+
+public record CreditWalletOutput(String id,
+                                 String currency,
+                                 BigDecimal amount,
+                                 BigDecimal balance) {
+    static CreditWalletOutput from(WalletCreditedEvent event) {
+        return new CreditWalletOutput(event.id(), event.currency(), event.amount(), event.balance());
     }
 }

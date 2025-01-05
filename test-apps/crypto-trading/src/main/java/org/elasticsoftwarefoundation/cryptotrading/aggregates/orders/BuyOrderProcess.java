@@ -18,8 +18,8 @@
 package org.elasticsoftwarefoundation.cryptotrading.aggregates.orders;
 
 import org.elasticsoftware.akces.events.DomainEvent;
-import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.InsufficientFundsErrorEvent;
-import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.InvalidCryptoCurrencyErrorEvent;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events.InsufficientFundsErrorEvent;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events.InvalidCryptoCurrencyErrorEvent;
 
 import java.math.BigDecimal;
 

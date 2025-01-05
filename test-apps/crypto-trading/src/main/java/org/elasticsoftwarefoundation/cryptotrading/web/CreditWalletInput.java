@@ -15,12 +15,14 @@
  *
  */
 
-package org.elasticsoftware.akces.processmanager;
+package org.elasticsoftwarefoundation.cryptotrading.web;
 
-import org.elasticsoftware.akces.aggregate.AggregateState;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.commands.CreditWalletCommand;
 
-public interface ProcessManagerState<P extends AkcesProcess> extends AggregateState {
-    P getAkcesProcess(String processId) throws UnknownAkcesProcessException;
+import java.math.BigDecimal;
 
-    boolean hasAkcesProcess(String processId);
+public record CreditWalletInput(String currency, BigDecimal amount) {
+    public CreditWalletCommand toCommand(String userId) {
+        return new CreditWalletCommand(userId, currency, amount);
+    }
 }

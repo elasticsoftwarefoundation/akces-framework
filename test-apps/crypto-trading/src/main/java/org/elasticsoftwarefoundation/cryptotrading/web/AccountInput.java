@@ -15,25 +15,16 @@
  *
  */
 
-package org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet;
+package org.elasticsoftwarefoundation.cryptotrading.web;
 
 import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.akces.annotations.AggregateIdentifier;
-import org.elasticsoftware.akces.annotations.CommandInfo;
-import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.account.CreateAccountCommand;
 
-import java.math.BigDecimal;
-
-@CommandInfo(type = "ReserveAmount", version = 1)
-public record ReserveAmountCommand(
-        @NotNull @AggregateIdentifier String userId,
-        @NotNull String currency,
-        @NotNull BigDecimal amount,
-        @NotNull String referenceId
-) implements Command {
-    @Override
-    @NotNull
-    public String getAggregateId() {
-        return userId();
+public record AccountInput(@NotNull String country,
+                           @NotNull String firstName,
+                           @NotNull String lastName,
+                           @NotNull String email) {
+    public CreateAccountCommand toCommand(String userId) {
+        return new CreateAccountCommand(userId, country(), firstName(), lastName(), email());
     }
 }

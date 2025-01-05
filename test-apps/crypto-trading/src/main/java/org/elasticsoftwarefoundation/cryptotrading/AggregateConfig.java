@@ -17,10 +17,24 @@
 
 package org.elasticsoftwarefoundation.cryptotrading;
 
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.web.reactive.function.client.WebClient;
 
 @Configuration
-@ComponentScan(basePackages = "org.elasticsoftwarefoundation.cryptotrading.aggregates")
+@ComponentScan(basePackages = {
+        "org.elasticsoftwarefoundation.cryptotrading.aggregates",
+})
 public class AggregateConfig {
+    @Bean("coinbaseWebClient")
+    public WebClient coinbaseWebClient() {
+        return WebClient.builder()
+                .baseUrl("https://api.exchange.coinbase.com")
+                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(16 * 1024 * 1024))
+                .build();
+    }
 }

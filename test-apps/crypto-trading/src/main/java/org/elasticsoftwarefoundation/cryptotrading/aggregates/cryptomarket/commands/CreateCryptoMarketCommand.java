@@ -15,12 +15,16 @@
  *
  */
 
-package org.elasticsoftware.akces.processmanager;
+package org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.commands;
 
-import org.elasticsoftware.akces.aggregate.AggregateState;
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.CommandInfo;
+import org.elasticsoftware.akces.commands.Command;
 
-public interface ProcessManagerState<P extends AkcesProcess> extends AggregateState {
-    P getAkcesProcess(String processId) throws UnknownAkcesProcessException;
-
-    boolean hasAkcesProcess(String processId);
+@CommandInfo(type = "CreateCryptoMarket", version = 1)
+public record CreateCryptoMarketCommand(@NotNull String id, @NotNull String baseCrypto, @NotNull String quoteCrypto) implements Command {
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
 }

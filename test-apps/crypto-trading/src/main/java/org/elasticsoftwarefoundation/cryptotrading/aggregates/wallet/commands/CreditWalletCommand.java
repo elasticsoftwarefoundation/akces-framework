@@ -15,12 +15,24 @@
  *
  */
 
-package org.elasticsoftware.akces.processmanager;
+package org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.commands;
 
-import org.elasticsoftware.akces.aggregate.AggregateState;
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.AggregateIdentifier;
+import org.elasticsoftware.akces.annotations.CommandInfo;
+import org.elasticsoftware.akces.commands.Command;
 
-public interface ProcessManagerState<P extends AkcesProcess> extends AggregateState {
-    P getAkcesProcess(String processId) throws UnknownAkcesProcessException;
+import java.math.BigDecimal;
 
-    boolean hasAkcesProcess(String processId);
+@CommandInfo(type = "CreditWallet", version = 1)
+public record CreditWalletCommand(
+        @AggregateIdentifier String id,
+        String currency,
+        BigDecimal amount
+) implements Command {
+    @NotNull
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
 }

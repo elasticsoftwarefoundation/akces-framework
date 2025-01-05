@@ -25,6 +25,11 @@ import org.elasticsoftware.akces.annotations.EventHandler;
 import org.elasticsoftware.akces.annotations.EventSourcingHandler;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftwarefoundation.cryptotrading.aggregates.account.AccountCreatedEvent;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.commands.CreateBalanceCommand;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.commands.CreateWalletCommand;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.commands.CreditWalletCommand;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.commands.ReserveAmountCommand;
+import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events.*;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -52,8 +57,7 @@ public final class Wallet implements Aggregate<WalletState> {
 
     @EventHandler(create = true, produces = WalletCreatedEvent.class, errors = {})
     public @NotNull Stream<DomainEvent> create(@NotNull AccountCreatedEvent event, WalletState isNull) {
-        // TODO: base the cryptoCurrency on the country
-        return Stream.of(new WalletCreatedEvent(event.getAggregateId()), new BalanceCreatedEvent(event.getAggregateId(), "EUR"));
+        return Stream.of(new WalletCreatedEvent(event.getAggregateId()), new BalanceCreatedEvent(event.getAggregateId(), "BTC"));
     }
 
     @CommandHandler(produces = WalletCreditedEvent.class, errors = {InvalidCryptoCurrencyErrorEvent.class, InvalidAmountErrorEvent.class})
@@ -123,5 +127,15 @@ public final class Wallet implements Aggregate<WalletState> {
             }
         }).toList());
     }
+
+    @CommandHandler(produces = BalanceCreatedEvent.class, errors = {BalanceAlreadyExistsErrorEvent.class})
+public @NotNull Stream<DomainEvent> createBalance(@NotNull CreateBalanceCommand cmd, @NotNull WalletState currentState) {
+    boolean balanceExists = currentState.balances().stream()
+            .anyMatch(balance -> balance.currency().equals(cmd.currency()));
+    if (balanceExists) {
+        return Stream.of(new BalanceAlreadyExistsErrorEvent(cmd.id(), cmd.currency()));
+    }
+    return Stream.of(new BalanceCreatedEvent(cmd.id(), cmd.currency()));
+}
 
 }

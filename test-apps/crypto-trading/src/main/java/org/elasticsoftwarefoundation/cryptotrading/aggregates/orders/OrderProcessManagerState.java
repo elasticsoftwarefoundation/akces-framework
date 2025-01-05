@@ -41,4 +41,9 @@ public record OrderProcessManagerState(
         return runningProcesses.stream().filter(p -> p.orderId().equals(processId)).findFirst()
                 .orElseThrow(() -> new UnknownAkcesProcessException("OrderProcessManager", userId(), processId));
     }
+
+    @Override
+    public boolean hasAkcesProcess(String processId) {
+        return runningProcesses.stream().anyMatch(p -> p.orderId().equals(processId));
+    }
 }

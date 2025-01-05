@@ -15,27 +15,18 @@
  *
  */
 
-package org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet;
+package org.elasticsoftwarefoundation.cryptotrading.aggregates.cryptomarket.events;
 
-import jakarta.annotation.Nullable;
+
 import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
-import org.elasticsoftware.akces.events.ErrorEvent;
+import org.elasticsoftware.akces.events.DomainEvent;
 
-import javax.annotation.Nonnull;
-import java.math.BigDecimal;
+@DomainEventInfo(type = "CryptoMarketCreated", version = 1)
+public record CryptoMarketCreatedEvent(@NotNull String id, @NotNull String baseCrypto, @NotNull String quoteCrypto) implements DomainEvent {
 
-@DomainEventInfo(type = "InsufficientFundsError")
-public record InsufficientFundsErrorEvent(
-        @NotNull @AggregateIdentifier String walletId,
-        @NotNull String currency,
-        @NotNull BigDecimal availableAmount,
-        @NotNull BigDecimal requestedAmount,
-        @Nullable String referenceId
-) implements ErrorEvent {
     @Override
-    public @Nonnull String getAggregateId() {
-        return walletId();
+    public String getAggregateId() {
+        return id();
     }
 }

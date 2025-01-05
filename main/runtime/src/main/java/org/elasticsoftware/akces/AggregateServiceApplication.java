@@ -60,7 +60,7 @@ public class AggregateServiceApplication {
     private final ProtocolRecordSerde serde = new ProtocolRecordSerde();
 
     @Bean(name = "aggregateServiceBeanFactoryPostProcessor")
-    public AggregateBeanFactoryPostProcessor aggregateBeanFactoryPostProcessor() {
+    public static AggregateBeanFactoryPostProcessor aggregateBeanFactoryPostProcessor() {
         return new AggregateBeanFactoryPostProcessor();
     }
 

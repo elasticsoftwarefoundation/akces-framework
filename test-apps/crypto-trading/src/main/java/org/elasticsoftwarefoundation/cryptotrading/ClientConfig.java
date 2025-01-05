@@ -15,12 +15,14 @@
  *
  */
 
-package org.elasticsoftware.akces.processmanager;
+package org.elasticsoftwarefoundation.cryptotrading;
 
-import org.elasticsoftware.akces.aggregate.AggregateState;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
 
-public interface ProcessManagerState<P extends AkcesProcess> extends AggregateState {
-    P getAkcesProcess(String processId) throws UnknownAkcesProcessException;
-
-    boolean hasAkcesProcess(String processId);
+@Configuration
+@ComponentScan(basePackages = {
+        "org.elasticsoftwarefoundation.cryptotrading.web"
+})
+public class ClientConfig {
 }

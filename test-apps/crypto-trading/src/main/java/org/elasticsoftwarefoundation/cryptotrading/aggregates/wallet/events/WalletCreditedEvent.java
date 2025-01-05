@@ -15,19 +15,22 @@
  *
  */
 
-package org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet;
+package org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.events;
 
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
-import org.elasticsoftware.akces.annotations.CommandInfo;
-import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftware.akces.annotations.DomainEventInfo;
+import org.elasticsoftware.akces.events.DomainEvent;
 
-@CommandInfo(type = "CreateWallet", version = 1)
-public record CreateWalletCommand(
-        @AggregateIdentifier String id,
-        String currency
-) implements Command {
-    @NotNull
+import java.math.BigDecimal;
+
+@DomainEventInfo(type = "WalletCredited")
+public record WalletCreditedEvent(
+        @AggregateIdentifier @NotNull String id,
+        String currency,
+        BigDecimal amount,
+        BigDecimal balance
+) implements DomainEvent {
     @Override
     public String getAggregateId() {
         return id();
