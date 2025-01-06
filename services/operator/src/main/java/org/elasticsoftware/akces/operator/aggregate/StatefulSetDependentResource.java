@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces.operator.aggregate;
 
+import io.fabric8.kubernetes.api.model.LocalObjectReference;
 import io.fabric8.kubernetes.api.model.ObjectMeta;
 import io.fabric8.kubernetes.api.model.apps.StatefulSet;
 import io.fabric8.kubernetes.api.model.apps.StatefulSetBuilder;
@@ -54,6 +55,7 @@ public class StatefulSetDependentResource extends CRUDKubernetesDependentResourc
                 .editTemplate()
                 .editMetadata().addToLabels("app", aggregateName).endMetadata()
                 .editSpec()
+                .addToImagePullSecrets(new LocalObjectReference("github-packages-cfg"))
                 .editFirstContainer().withImage(aggregate.getSpec().getImage()).endContainer()
                 .endSpec()
                 .endTemplate()
