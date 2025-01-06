@@ -23,6 +23,7 @@ public class AggregateSpec {
     private Integer replicas;
     private String image;
     private List<String> aggregateNames;
+    private List<String> args;
 
     public List<String> getAggregateNames() {
         return aggregateNames;
@@ -46,5 +47,13 @@ public class AggregateSpec {
 
     public void setImage(String image) {
         this.image = image;
+    }
+
+    public List<String> getArgs() {
+        return args;
+    }
+
+    public void setArgs(List<String> args) {
+        this.args = args;
     }
 }
