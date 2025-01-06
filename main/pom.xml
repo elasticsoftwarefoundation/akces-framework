@@ -45,7 +45,7 @@
         <java-uuid-generator.version>4.3.0</java-uuid-generator.version>
         <rocksdb.version>9.7.3</rocksdb.version>
         <caffeine.version>3.1.8</caffeine.version>
-        <semver4j.version>5.4.0</semver4j.version>
+        <semver4j.version>5.5.0</semver4j.version>
         <!-- testing -->
         <testng-version>7.10.2</testng-version>
         <awaitility.version>4.2.2</awaitility.version>
@@ -154,7 +154,7 @@
             <dependency>
                 <groupId>commons-validator</groupId>
                 <artifactId>commons-validator</artifactId>
-                <version>1.8.0</version>
+                <version>1.9.0</version>
             </dependency>
             <dependency>
                 <groupId>io.confluent</groupId>
