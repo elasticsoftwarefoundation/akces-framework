@@ -60,6 +60,7 @@ public class StatefulSetDependentResource extends CRUDKubernetesDependentResourc
                     .withImage(aggregate.getSpec().getImage())
                     .withName("akces-aggregates")
                     .withArgs(aggregate.getSpec().getArgs())
+                    .withResources(aggregate.getSpec().getResources())
                 .endContainer()
                 .editFirstVolume()
                     .editConfigMap()

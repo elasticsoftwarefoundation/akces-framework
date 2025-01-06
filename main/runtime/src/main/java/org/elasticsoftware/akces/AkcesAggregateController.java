@@ -148,8 +148,9 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                     consumerRecords.forEach(record -> {
                         AkcesControlRecord controlRecord = record.value();
                         if (controlRecord instanceof AggregateServiceRecord aggregateServiceRecord) {
-                            logger.info("Discovered service: {}", aggregateServiceRecord.aggregateName());
-                            aggregateServices.put(record.key(), aggregateServiceRecord);
+                            if(aggregateServices.putIfAbsent(record.key(), aggregateServiceRecord) == null) {
+                                logger.info("Discovered service: {}", aggregateServiceRecord.aggregateName());
+                            }
                         } else {
                             logger.info("Received unknown AkcesControlRecord type: {}", controlRecord.getClass().getSimpleName());
                         }
@@ -177,10 +178,9 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                         AkcesControlRecord controlRecord = record.value();
                         if (controlRecord instanceof AggregateServiceRecord aggregateServiceRecord) {
                             // only log it once
-                            if(!aggregateServices.containsKey(record.key())) {
+                            if(aggregateServices.putIfAbsent(record.key(), aggregateServiceRecord) == null) {
                                 logger.info("Discovered service: {}", aggregateServiceRecord.aggregateName());
                             }
-                            aggregateServices.put(record.key(), aggregateServiceRecord);
                         } else {
                             logger.info("Received unknown AkcesControlRecord type: {}", controlRecord.getClass().getSimpleName());
                         }
@@ -303,8 +303,10 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
         partitionsToRevoke.addAll(collection);
         // if we are already running, we can immediately rebalance
         if(processState == RUNNING) {
+            logger.info("Switching from RUNNING to REBALANCING, revoking {} partitions", collection.size());
             processState = REBALANCING;
         } else if(processState == INITIALIZING) { // otherwise we first have to load the services data
+            logger.info("Switching from INITIALIZING to INITIAL_REBALANCING, revoking {} partitions", collection.size());
             processState = INITIAL_REBALANCING;
         }
     }
@@ -314,8 +316,10 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
         partitionsToAssign.addAll(collection);
         // if we are already running, we can immediately rebalance
         if(processState == RUNNING) {
+            logger.info("Switching from RUNNING to REBALANCING, assigning {} partitions", collection.size());
             processState = REBALANCING;
         } else if(processState == INITIALIZING) { // otherwise we first have to load the services data
+            logger.info("Switching from INITIALIZING to INITIAL_REBALANCING, assigning {} partitions", collection.size());
             processState = INITIAL_REBALANCING;
         }
     }

@@ -226,9 +226,10 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
             for(ConsumerRecord<String, AkcesControlRecord> record : consumerRecords) {
                 AkcesControlRecord controlRecord = record.value();
                 if (controlRecord instanceof AggregateServiceRecord aggregateServiceRecord) {
-                    logger.info("Discovered service: {}", aggregateServiceRecord.aggregateName());
-                    aggregateServices.put(record.key(), aggregateServiceRecord);
-                    registerSchemas(aggregateServiceRecord);
+                    if(aggregateServices.putIfAbsent(record.key(), aggregateServiceRecord) == null) {
+                        logger.info("Discovered service: {}", aggregateServiceRecord.aggregateName());
+                        registerSchemas(aggregateServiceRecord);
+                    }
                 } else {
                     logger.info("Received unknown AkcesControlRecord type: {}", controlRecord.getClass().getSimpleName());
                 }

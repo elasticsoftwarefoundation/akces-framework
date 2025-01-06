@@ -17,6 +17,8 @@
 
 package org.elasticsoftware.akces.operator.aggregate;
 
+import io.fabric8.kubernetes.api.model.ResourceRequirements;
+
 import java.util.List;
 
 public class AggregateSpec {
@@ -24,6 +26,7 @@ public class AggregateSpec {
     private String image;
     private List<String> aggregateNames;
     private List<String> args;
+    private ResourceRequirements resources;
 
     public List<String> getAggregateNames() {
         return aggregateNames;
@@ -55,5 +58,13 @@ public class AggregateSpec {
 
     public void setArgs(List<String> args) {
         this.args = args;
+    }
+
+    public ResourceRequirements getResources() {
+        return resources;
+    }
+
+    public void setResources(ResourceRequirements resources) {
+        this.resources = resources;
     }
 }
