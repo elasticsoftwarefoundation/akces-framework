@@ -50,7 +50,7 @@
         <testng-version>7.10.2</testng-version>
         <awaitility.version>4.2.2</awaitility.version>
         <persistence-api.version>2.2</persistence-api.version>
-        <plexus-utils.version>4.0.1</plexus-utils.version>
+        <plexus-utils.version>4.0.2</plexus-utils.version>
         <netty.version>4.1.112.Final</netty.version>
         <micrometer.version>1.13.3</micrometer.version>
         <fast-uuid.version>0.2.0</fast-uuid.version>
