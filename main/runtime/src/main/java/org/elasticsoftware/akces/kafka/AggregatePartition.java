@@ -296,12 +296,12 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     private void process() {
         try {
             if (processState == PROCESSING) {
-                ConsumerRecords<String, ProtocolRecord> allRecords = consumer.poll(Duration.ZERO);
+                ConsumerRecords<String, ProtocolRecord> allRecords = consumer.poll(Duration.ofMillis(10));
                 if (!allRecords.isEmpty()) {
                     processRecords(allRecords);
                 }
             } else if(processState == LOADING_GDPR_KEYS) {
-                ConsumerRecords<String, ProtocolRecord> gdprKeyRecords = consumer.poll(Duration.ZERO);
+                ConsumerRecords<String, ProtocolRecord> gdprKeyRecords = consumer.poll(Duration.ofMillis(10));
                 gdprContextRepository.process(gdprKeyRecords.records(gdprKeyPartition));
                 // stop condition
                 if (gdprKeyRecords.isEmpty() && initializedEndOffsets.getOrDefault(gdprKeyPartition, 0L) <= consumer.position(gdprKeyPartition)) {
@@ -325,7 +325,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                     }
                 }
             } else if (processState == LOADING_STATE) {
-                ConsumerRecords<String, ProtocolRecord> stateRecords = consumer.poll(Duration.ZERO);
+                ConsumerRecords<String, ProtocolRecord> stateRecords = consumer.poll(Duration.ofMillis(10));
                 stateRepository.process(stateRecords.records(statePartition));
                 // stop condition
                 if (stateRecords.isEmpty() && initializedEndOffsets.getOrDefault(statePartition, 0L) <= consumer.position(statePartition)) {

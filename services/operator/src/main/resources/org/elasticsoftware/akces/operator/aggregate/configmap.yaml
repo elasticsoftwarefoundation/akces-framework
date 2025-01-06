@@ -7,6 +7,8 @@ data:
     # Spring application properties
     spring.kafka.enabled=true
     spring.kafka.bootstrap-servers=akces-kafka-bootstrap.kafka:9092
+    spring.kafka.consumer.properties.group.instance.id=${HOSTNAME}
+    spring.kafka.consumer.properties.session.timeout.ms=30000
     kafka.schemaregistry.url=http://akces-schema-registry.kafka:8081
     akces.rocksdb.baseDir=/tmp/rocksdb
   logback.xml: |
