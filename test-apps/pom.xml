@@ -53,17 +53,17 @@
             <dependency>
                 <groupId>org.elasticsoftwarefoundation.akces</groupId>
                 <artifactId>akces-api</artifactId>
-                <version>${akces-framework.version}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.elasticsoftwarefoundation.akces</groupId>
                 <artifactId>akces-runtime</artifactId>
-                <version>${akces-framework.version}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.elasticsoftwarefoundation.akces</groupId>
                 <artifactId>akces-client</artifactId>
-                <version>${akces-framework.version}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework.boot</groupId>
