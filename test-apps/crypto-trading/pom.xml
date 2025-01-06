@@ -21,7 +21,7 @@
 	<parent>
 		<groupId>org.elasticsoftwarefoundation.akces</groupId>
 		<artifactId>akces-framework-test-apps</artifactId>
-		<version>0.3.4-SNAPSHOT</version>
+		<version>0.3.5-SNAPSHOT</version>
 	</parent>
 	<artifactId>akces-crypto-trading</artifactId>
 	<name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading</name>
