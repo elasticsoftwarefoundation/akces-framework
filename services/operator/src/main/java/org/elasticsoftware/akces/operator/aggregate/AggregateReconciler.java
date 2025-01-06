@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Objects;
 
 @Workflow(dependents = {
+        @Dependent(type = ConfigMapDependentResource.class),
         @Dependent(type = StatefulSetDependentResource.class),
         @Dependent(type = ServiceDependentResource.class)
 })
@@ -84,7 +85,7 @@ public class AggregateReconciler implements Reconciler<Aggregate> {
     private void reconcileTopics(List<String> aggregateNames) {
         log.info("Reconciling topics for Aggregates: {}", aggregateNames);
         List<NewTopic> topics = aggregateNames.stream()
-                .map(name -> KafkaTopicUtils.createTopics(name, 3))
+                .map(name -> KafkaTopicUtils.createTopics(name, partitions))
                 .flatMap(List::stream).toList();
         kafkaAdmin.createOrModifyTopics(topics.toArray(new NewTopic[0]));
     }

@@ -74,7 +74,7 @@ public class AkcesClientAutoConfiguration {
     }
 
     @Bean(name = "akcesClientKafkaAdmin")
-    public KafkaAdmin createKafkaAdmin(@Value("${spring.kafka.bootstrapServers}") String bootstrapServers) {
+    public KafkaAdmin createKafkaAdmin(@Value("${spring.kafka.bootstrap-servers}") String bootstrapServers) {
         return new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
     }
     @Bean(name = "akcesClientSchemaRegistryClient")

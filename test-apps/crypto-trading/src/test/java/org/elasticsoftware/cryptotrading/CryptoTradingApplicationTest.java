@@ -104,7 +104,7 @@ public class CryptoTradingApplicationTest {
                     applicationContext,
                     "akces.rocksdb.baseDir=/tmp/akces",
                     "spring.kafka.enabled=true",
-                    "spring.kafka.bootstrapServers="+kafka.getBootstrapServers(),
+                    "spring.kafka.bootstrap-servers="+kafka.getBootstrapServers(),
                     "kafka.schemaregistry.url=http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081)
             );
         }

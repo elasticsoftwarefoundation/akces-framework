@@ -80,7 +80,7 @@ public class AggregateServiceApplication {
     }
 
     @Bean(name = "aggregateServiceKafkaAdmin")
-    public KafkaAdmin kafkaAdmin(@Value("${spring.kafka.bootstrapServers}") String bootstrapServers) {
+    public KafkaAdmin kafkaAdmin(@Value("${spring.kafka.bootstrap-servers}") String bootstrapServers) {
         return new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
     }
     @Bean(name = "aggregateServiceSchemaRegistryClient")
