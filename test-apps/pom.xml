@@ -96,7 +96,7 @@
                             </docker>
                             <image>
                                 <builder>docker.io/paketobuildpacks/builder-noble-java-tiny:latest</builder>
-                                <runImage>docker.io/paketobuildpacks/run-noble-tiny:latest</runImage>
+                                <runImage>docker.io/paketobuildpacks/run-noble-base:latest</runImage>
                                 <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}:${project.version}</name>
                                 <publish>true</publish>
                                 <env>
