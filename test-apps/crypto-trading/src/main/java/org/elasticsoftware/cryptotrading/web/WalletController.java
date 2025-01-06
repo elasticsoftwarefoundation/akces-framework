@@ -36,9 +36,11 @@ public class WalletController {
         this.akcesClient = akcesClient;
     }
 
-    @PostMapping("/{walletId}/credit")
-    public Mono<ResponseEntity<CreditWalletOutput>> creditBalance(@PathVariable("walletId") String walletId, @RequestBody CreditWalletInput input) {
-        return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(walletId)))
+    @PostMapping("/{walletId}/balances/{currency}/credit")
+    public Mono<ResponseEntity<CreditWalletOutput>> creditBalance(@PathVariable("walletId") String walletId,
+                                                                  @PathVariable("currency") String currency,
+                                                                  @RequestBody CreditWalletInput input) {
+        return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(walletId, currency)))
                 .map(List::getFirst)
                 .handle((domainEvent, sink) -> {
                     if(domainEvent instanceof WalletCreditedEvent) {

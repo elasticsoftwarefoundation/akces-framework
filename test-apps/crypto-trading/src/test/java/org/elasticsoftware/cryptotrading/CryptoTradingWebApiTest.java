@@ -23,6 +23,7 @@ import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.client.AkcesClientController;
 import org.elasticsoftware.cryptotrading.web.*;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -104,6 +105,7 @@ public class CryptoTradingWebApiTest {
     private WebTestClient webTestClient;
 
     @AfterAll
+    @BeforeAll
     public static void cleanUp() throws IOException {
         if (Files.exists(Paths.get("/tmp/akces"))) {
             // clean up the rocksdb directory
@@ -195,9 +197,9 @@ public class CryptoTradingWebApiTest {
                     assertThat(userId).isNotNull();
 
                     // credit the wallet for this user id with 1 BTC
-                    CreditWalletInput creditInput = new CreditWalletInput("EUR", new BigDecimal("1.0"));
+                    CreditWalletInput creditInput = new CreditWalletInput(new BigDecimal("1.0"));
                     webTestClient.post()
-                            .uri("/wallets/" + userId + "/credit")
+                            .uri("/wallets/" + userId + "/balances/EUR/credit")
                             .bodyValue(creditInput)
                             .exchange()
                             .expectStatus().is2xxSuccessful()
@@ -231,9 +233,9 @@ public class CryptoTradingWebApiTest {
                     assertThat(userId).isNotNull();
 
                     // credit the wallet for this user id with 1 ETH
-                    CreditWalletInput creditInput = new CreditWalletInput("ETH", new BigDecimal("1.0"));
+                    CreditWalletInput creditInput = new CreditWalletInput(new BigDecimal("1.0"));
                     webTestClient.post()
-                            .uri("/wallets/" + userId + "/credit")
+                            .uri("/wallets/" + userId + "/balances/ETH/credit")
                             .bodyValue(creditInput)
                             .exchange()
                             .expectStatus().is4xxClientError()
@@ -265,7 +267,7 @@ public class CryptoTradingWebApiTest {
                 .value(userId -> {
                     assertThat(userId).isNotNull();
 
-                    // add a EUR balance to the wallet for this user id
+                    // add a BTC balance to the wallet for this user id
                     CreateBalanceInput createBalanceInput = new CreateBalanceInput("BTC");
                     webTestClient.post()
                             .uri("/wallets/" + userId + "/balances")

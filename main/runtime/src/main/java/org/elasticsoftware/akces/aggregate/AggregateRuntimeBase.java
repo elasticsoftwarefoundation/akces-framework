@@ -18,7 +18,6 @@
 package org.elasticsoftware.akces.aggregate;
 
 import jakarta.annotation.Nullable;
-import jakarta.validation.constraints.NotNull;
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.errors.AggregateAlreadyExistsErrorEvent;

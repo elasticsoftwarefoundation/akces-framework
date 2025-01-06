@@ -17,14 +17,12 @@
 
 package org.elasticsoftware.akces.state;
 
-import jakarta.annotation.Nullable;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.requests.ProduceResponse;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 
-import javax.validation.constraints.Null;
 import java.io.Closeable;
 import java.util.List;
 import java.util.concurrent.Future;

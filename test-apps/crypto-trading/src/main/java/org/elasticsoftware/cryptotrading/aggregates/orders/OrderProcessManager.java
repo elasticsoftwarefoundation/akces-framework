@@ -27,15 +27,16 @@ import org.elasticsoftware.cryptotrading.aggregates.account.AccountCreatedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.Side;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.PlaceMarketOrderCommand;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderRejectedErrorEvent;
-import org.elasticsoftware.cryptotrading.aggregates.orders.commands.*;
+import org.elasticsoftware.cryptotrading.aggregates.orders.commands.PlaceBuyOrderCommand;
+import org.elasticsoftware.cryptotrading.aggregates.orders.commands.RejectOrderCommand;
 import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderCreatedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderPlacedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderRejectedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.orders.events.UserOrderProcessesCreatedEvent;
+import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.ReserveAmountCommand;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.AmountReservedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.InsufficientFundsErrorEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.InvalidCryptoCurrencyErrorEvent;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.ReserveAmountCommand;
 
 import java.util.ArrayList;
 import java.util.UUID;

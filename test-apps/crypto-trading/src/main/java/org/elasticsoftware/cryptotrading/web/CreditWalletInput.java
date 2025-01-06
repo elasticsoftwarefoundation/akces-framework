@@ -21,8 +21,8 @@ import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreditWallet
 
 import java.math.BigDecimal;
 
-public record CreditWalletInput(String currency, BigDecimal amount) {
-    public CreditWalletCommand toCommand(String userId) {
+public record CreditWalletInput(BigDecimal amount) {
+    public CreditWalletCommand toCommand(String userId, String currency) {
         return new CreditWalletCommand(userId, currency, amount);
     }
 }
