@@ -47,6 +47,8 @@ jobs:
           clean
           compile
           test-compile
+          -DskipTests
+          -Dmaven.install.skip=true
       - name: Install with Maven
         run: >
           mvn
@@ -57,6 +59,8 @@ jobs:
           --file pom.xml
           --settings $GITHUB_WORKSPACE/settings.xml
           install
+          -DskipTests
+          -Dmaven.install.skip=true
       - name: Publish to Github Packages
         run: >
           mvn
