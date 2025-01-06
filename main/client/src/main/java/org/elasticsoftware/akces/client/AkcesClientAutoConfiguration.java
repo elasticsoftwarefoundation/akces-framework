@@ -17,7 +17,9 @@
 
 package org.elasticsoftware.akces.client;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.cfg.JsonNodeFeature;
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.json.JsonSchemaProvider;
@@ -31,6 +33,7 @@ import org.elasticsoftware.akces.kafka.CustomKafkaConsumerFactory;
 import org.elasticsoftware.akces.kafka.CustomKafkaProducerFactory;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
+import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,6 +50,7 @@ import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaAdminOperations;
 import org.springframework.kafka.core.ProducerFactory;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -65,7 +69,10 @@ public class AkcesClientAutoConfiguration {
 
     @Bean(name = "akcesClientJsonCustomizer")
     public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
-        return builder -> builder.modulesToInstall(new AkcesGDPRModule());
+        return builder -> {
+            builder.modulesToInstall(new AkcesGDPRModule());
+            builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+        };
     }
 
     @Bean(name = "akcesClientKafkaAdmin")

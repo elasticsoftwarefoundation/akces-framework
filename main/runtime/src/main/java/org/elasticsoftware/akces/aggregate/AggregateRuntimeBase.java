@@ -18,11 +18,17 @@
 package org.elasticsoftware.akces.aggregate;
 
 import jakarta.annotation.Nullable;
+import jakarta.validation.constraints.NotNull;
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftware.akces.errors.AggregateAlreadyExistsErrorEvent;
+import org.elasticsoftware.akces.errors.CommandExecutionErrorEvent;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.events.ErrorEvent;
+import org.elasticsoftware.akces.kafka.KafkaAggregateRuntime;
 import org.elasticsoftware.akces.protocol.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.*;
@@ -35,6 +41,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 
 public abstract class AggregateRuntimeBase implements AggregateRuntime {
+    protected static final Logger log = LoggerFactory.getLogger(KafkaAggregateRuntime.class);
     private final AggregateStateType<?> type;
     private final Class<? extends Aggregate> aggregateClass;
     private final CommandHandlerFunction<AggregateState, Command, DomainEvent> commandCreateHandler;
@@ -88,13 +95,74 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                                     Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
         // determine command
         CommandType<?> commandType = getCommandType(commandRecord);
-        // TODO: need to raise an ErrorEvent in case of exception
-        // find handler
-        if(commandType.create()) {
-            handleCreateCommand(commandType, commandRecord, protocolRecordConsumer, domainEventIndexer);
-        } else {
-            handleCommand(commandType, commandRecord, protocolRecordConsumer, domainEventIndexer, stateRecordSupplier);
+        try {
+            if (commandType.create()) {
+                // if we already have state, this is an error and the aggregate already exists
+                if (stateRecordSupplier.get() != null) {
+                    log.warn("Command {} wants to create a {} Aggregate with id {}, but the state already exists. Generating a AggregateAlreadyExistsError",
+                            commandRecord.name(),
+                            getName(),
+                            commandRecord.aggregateId());
+                    aggregateAlreadyExists(commandRecord, protocolRecordConsumer);
+                } else {
+                    handleCreateCommand(commandType, commandRecord, protocolRecordConsumer, domainEventIndexer);
+                }
+            } else {
+                // see if we have a handler configured for this command
+                if (commandHandlers.containsKey(commandType)) {
+                    handleCommand(commandType, commandRecord, protocolRecordConsumer, domainEventIndexer, stateRecordSupplier);
+                } else {
+                    commandExecutionError(commandRecord, protocolRecordConsumer, "No handler found for command " + commandRecord.name());
+                }
+            }
+        } catch(Throwable t) {
+            // TODO: potentially see if we need to terminate the runtime
+            log.error("Exception while handling command, sending CommandExecutionError", t);
+            commandExecutionError(commandRecord, protocolRecordConsumer, t);
         }
+    }
+
+    private void aggregateAlreadyExists(ProtocolRecord commandOrDomainEventRecord,
+                                        Consumer<ProtocolRecord> protocolRecordConsumer) {
+        AggregateAlreadyExistsErrorEvent errorEvent = new AggregateAlreadyExistsErrorEvent(commandOrDomainEventRecord.aggregateId(), this.getName());
+        DomainEventType<?> type = getDomainEventType(AggregateAlreadyExistsErrorEvent.class);
+        DomainEventRecord eventRecord = new DomainEventRecord(
+                commandOrDomainEventRecord.tenantId(),
+                type.typeName(),
+                type.version(),
+                serialize(errorEvent),
+                getEncoding(type),
+                errorEvent.getAggregateId(),
+                commandOrDomainEventRecord.correlationId(),
+                -1L); // ErrorEvents have no generation number because they don't alter the state
+        protocolRecordConsumer.accept(eventRecord);
+    }
+
+    private void commandExecutionError(CommandRecord commandRecord,
+                                       Consumer<ProtocolRecord> protocolRecordConsumer,
+                                       Throwable exception) {
+        commandExecutionError(commandRecord, protocolRecordConsumer, exception.getMessage());
+    }
+
+    private void commandExecutionError(CommandRecord commandRecord,
+                                       Consumer<ProtocolRecord> protocolRecordConsumer,
+                                       String errorDescription) {
+        CommandExecutionErrorEvent errorEvent = new CommandExecutionErrorEvent(
+                commandRecord.aggregateId(),
+                this.getName(),
+                commandRecord.name(),
+                errorDescription);
+        DomainEventType<?> type = getDomainEventType(AggregateAlreadyExistsErrorEvent.class);
+        DomainEventRecord eventRecord = new DomainEventRecord(
+                commandRecord.tenantId(),
+                type.typeName(),
+                type.version(),
+                serialize(errorEvent),
+                getEncoding(type),
+                errorEvent.getAggregateId(),
+                commandRecord.correlationId(),
+                -1L); // ErrorEvents have no generation number because they don't alter the state
+        protocolRecordConsumer.accept(eventRecord);
     }
 
     private CommandType<?> getCommandType(CommandRecord commandRecord) {
@@ -308,11 +376,25 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                                                 Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
         // determine the type to use for the external event
         DomainEventType<?> domainEventType = getDomainEventType(eventRecord);
+        // with external domainevents we should look at the handler and not at the type of the external event
         if(domainEventType != null) {
-            if (domainEventType.create()) {
-                handleCreateEvent(domainEventType, eventRecord, protocolRecordConsumer, domainEventIndexer);
+            if (eventCreateHandler != null && eventCreateHandler.getEventType().equals(domainEventType) ) {
+                // if the state already exists, this is an error.
+                if(stateRecordSupplier.get() != null) {
+                    // this is an error, log it and generate a AggregateAlreadyExistsError
+                    log.warn("External DomainEvent {} wants to create a {} Aggregate with id {}, but the state already exists. Generate a AggregateAlreadyExistsError",
+                            eventRecord.name(),
+                            getName(),
+                            eventRecord.aggregateId());
+                    aggregateAlreadyExists(eventRecord, protocolRecordConsumer);
+                } else {
+                    handleCreateEvent(domainEventType, eventRecord, protocolRecordConsumer, domainEventIndexer);
+                }
             } else {
-                handleEvent(domainEventType, eventRecord, protocolRecordConsumer, domainEventIndexer, stateRecordSupplier);
+                // only process the event if we have a handler for it
+                if(eventHandlers.containsKey(domainEventType)) {
+                    handleEvent(domainEventType, eventRecord, protocolRecordConsumer, domainEventIndexer, stateRecordSupplier);
+                }
             }
         } // ignore if we don't have an external domainevent registered
     }

@@ -112,6 +112,8 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
         this.objectMapper = objectMapper;
         this.domainEventScanner = domainEventScanner;
         loadSupportedDomainEvents(basePackage);
+        // load the built-in error events as well
+        loadSupportedDomainEvents("org.elasticsoftware.akces.errors");
     }
 
     @VisibleForTesting

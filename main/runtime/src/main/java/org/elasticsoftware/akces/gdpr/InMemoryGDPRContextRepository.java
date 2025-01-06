@@ -119,9 +119,9 @@ public class InMemoryGDPRContextRepository implements GDPRContextRepository {
     }
 
     private GDPRContext createGDPRContext(String aggregateId) {
-        checkAggregateIdType(aggregateId);
         GDPRKeyRecord record = getGDPRKeyRecord(aggregateId);
         if(record != null) {
+            checkAggregateIdType(aggregateId);
             return new EncryptingGDPRContext(record.aggregateId(), record.payload(), aggregateIdIsUUID);
         } else {
             return new NoopGDPRContext(aggregateId);
@@ -147,8 +147,10 @@ public class InMemoryGDPRContextRepository implements GDPRContextRepository {
             try {
                 UUID.fromString(aggregateId);
                 aggregateIdIsUUID = true;
+                log.trace("AggregateId '{}' is a UUID", aggregateId);
             } catch (IllegalArgumentException e) {
                 aggregateIdIsUUID = false;
+                log.trace("AggregateId '{}' is not a UUID", aggregateId);
             }
             aggregateIdTypeCheckDone = true;
         }

@@ -185,11 +185,16 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
         // return from the transaction map if present
         if(transactionStateRecordMap.containsKey(aggregateId)) {
             return transactionStateRecordMap.get(aggregateId).record();
-        } else {
-            try {
-                return (AggregateStateRecord) deserializer.deserialize(topicName, db.get(keyBytes(aggregateId)));
-            } catch (RocksDBException | SerializationException e) {
-                throw new AggregateStateRepositoryException("Problem reading record with aggregateId " + aggregateId, e);
+        } else  {
+            byte[] keyBytes = keyBytes(aggregateId);
+            if(db.keyExists(keyBytes)) {
+                try {
+                    return (AggregateStateRecord) deserializer.deserialize(topicName, db.get(keyBytes));
+                } catch (RocksDBException | SerializationException e) {
+                    throw new AggregateStateRepositoryException("Problem reading record with aggregateId " + aggregateId, e);
+                }
+            } else {
+                return null;
             }
         }
     }

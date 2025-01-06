@@ -169,7 +169,9 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         try {
             runtime.registerAndValidate(commandType);
         } catch (Exception e) {
+            logger.error("Problem registering command {}", commandType.typeName(), e);
             // TODO: throw a more specific exception
+            // TODO: decide whether to terminate the AggregatePartition
             throw new RuntimeException(e);
         }
 
@@ -281,6 +283,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     private void handleExternalEvent(DomainEventRecord eventRecord) {
         try {
             setupGDPRContext(eventRecord.tenantId(), eventRecord.aggregateId(), runtime.shouldGenerateGPRKey(eventRecord));
+            logger.trace("Handling DomainEventRecord with type {} as External Event", eventRecord.name());
             runtime.handleExternalDomainEventRecord(eventRecord, this::send, this::index, () -> stateRepository.get(eventRecord.aggregateId()));
         } catch (IOException e) {
             // TODO need to raise a (built-in) ErrorEvent here

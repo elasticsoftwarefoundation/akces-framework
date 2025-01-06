@@ -17,7 +17,10 @@
 
 package org.elasticsoftware.akces;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.cfg.JsonNodeFeature;
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.json.JsonSchemaProvider;
@@ -31,6 +34,7 @@ import org.elasticsoftware.akces.kafka.CustomKafkaConsumerFactory;
 import org.elasticsoftware.akces.kafka.CustomKafkaProducerFactory;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
+import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
 import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.state.RocksDBAggregateStateRepositoryFactory;
@@ -49,6 +53,7 @@ import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.ProducerFactory;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -60,13 +65,16 @@ public class AggregateServiceApplication {
     private final ProtocolRecordSerde serde = new ProtocolRecordSerde();
 
     @Bean(name = "aggregateServiceBeanFactoryPostProcessor")
-    public AggregateBeanFactoryPostProcessor aggregateBeanFactoryPostProcessor() {
+    public static AggregateBeanFactoryPostProcessor aggregateBeanFactoryPostProcessor() {
         return new AggregateBeanFactoryPostProcessor();
     }
 
     @Bean(name = "aggregateServiceJsonCustomizer")
     public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
-        return builder -> builder.modulesToInstall(new AkcesGDPRModule());
+        return builder -> {
+            builder.modulesToInstall(new AkcesGDPRModule());
+            builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+        };
     }
 
     @Bean(name = "aggregateServiceControlRecordSerde")
