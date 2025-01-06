@@ -37,8 +37,7 @@ import org.elasticsoftwarefoundation.cryptotrading.aggregates.orders.CryptoMarke
 import org.elasticsoftwarefoundation.cryptotrading.aggregates.orders.commands.PlaceBuyOrderCommand;
 import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.commands.CreateBalanceCommand;
 import org.elasticsoftwarefoundation.cryptotrading.aggregates.wallet.commands.CreditWalletCommand;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContextInitializer;
@@ -78,6 +77,7 @@ import static org.elasticsoftwarefoundation.cryptotrading.TestUtils.prepareKafka
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ContextConfiguration(initializers = CryptoTradingApplicationTest.Initializer.class)
 @Testcontainers
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class CryptoTradingApplicationTest {
     private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";
 
@@ -117,6 +117,7 @@ public class CryptoTradingApplicationTest {
     }
 
     @AfterAll
+    @BeforeAll
     public static void cleanUp() throws IOException {
         if(Files.exists(Paths.get("/tmp/akces"))) {
             // clean up the rocksdb directory
@@ -152,7 +153,10 @@ public class CryptoTradingApplicationTest {
     @Inject @Qualifier("aggregateServiceConsumerFactory")
     ConsumerFactory<String, ProtocolRecord> consumerFactory;
 
+    private final static String counterPartyId = "337f335d-caf1-4f85-9440-6bc3c0ebbb77";
+
     @Test
+    @Order(1)
     void contextLoads() {
         assertThat(walletController).isNotNull();
         assertThat(accountController).isNotNull();
@@ -170,6 +174,7 @@ public class CryptoTradingApplicationTest {
     }
 
     @Test
+    @Order(2)
     void testCreateAllEURMarketsAndMakeATrade() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
@@ -178,7 +183,7 @@ public class CryptoTradingApplicationTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
-        String counterPartyId = "337f335d-caf1-4f85-9440-6bc3c0ebbb77";
+
         // create a counterparty account
         akcesClientController.sendAndForget("TEST",
                 new CreateAccountCommand(counterPartyId,

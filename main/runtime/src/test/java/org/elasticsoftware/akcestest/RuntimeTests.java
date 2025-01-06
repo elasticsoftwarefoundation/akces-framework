@@ -40,6 +40,7 @@ import org.elasticsoftware.akces.control.AggregateServiceCommandType;
 import org.elasticsoftware.akces.control.AggregateServiceDomainEventType;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
+import org.elasticsoftware.akces.errors.AggregateAlreadyExistsErrorEvent;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.protocol.*;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
@@ -253,7 +254,7 @@ public class RuntimeTests  {
             Thread.onSpinWait();
         }
 
-        String userId = "47db2418-dd10-11ed-afa1-0242ac120002";
+        String userId = "086fe270-f848-4b37-9858-f5311280a32e";
         CreateWalletCommand command = new CreateWalletCommand(userId,"USD");
         CommandRecord commandRecord = new CommandRecord(null,"CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null,null);
         String topicName = akcesAggregateController.resolveTopic(command.getClass());
@@ -658,7 +659,7 @@ public class RuntimeTests  {
             Thread.onSpinWait();
         }
 
-        String userId = "47db2418-dd10-11ed-afa1-0242ac120002";
+        String userId = "243f2482-d81f-42cb-91f1-105a79f35e34";
         CreateWalletCommand command = new CreateWalletCommand(userId,"USD");
         List<DomainEvent> result = akcesClient.send("TEST_TENANT", command).toCompletableFuture().get(10, TimeUnit.SECONDS);
 
@@ -692,6 +693,32 @@ public class RuntimeTests  {
         Assertions.assertNotNull(result);
         Assertions.assertEquals(1, result.size());
         assertInstanceOf(BuyOrderCreatedEvent.class, result.getFirst());
+    }
+
+    @Test
+    @Order(11)
+    public void testAggregateAlreadyExistsErrorWithAkcesClient() throws ExecutionException, InterruptedException, TimeoutException {
+        // wait until the ackes controller is running
+        while(!akcesAggregateController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        String userId = "854c0c16-b3be-4d04-8ce8-a606eec89a1f";
+
+        CreateAccountCommand command = new CreateAccountCommand(userId,"USA", "Angelo","Plummer", "AngeloRPlummer@rhyta.com");
+        List<DomainEvent> result = akcesClient.send("TEST_TENANT", command).toCompletableFuture().get(10, TimeUnit.SECONDS);
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(1, result.size());
+        assertInstanceOf(AccountCreatedEvent.class, result.getFirst());
+
+        // try to create the same account again
+        result = akcesClient.send("TEST_TENANT", command).toCompletableFuture().get(10, TimeUnit.SECONDS);
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(1, result.size());
+        assertInstanceOf(AggregateAlreadyExistsErrorEvent.class, result.getFirst());
+
+
     }
 
     public TopicDescription getTopicDescription(String topic) {

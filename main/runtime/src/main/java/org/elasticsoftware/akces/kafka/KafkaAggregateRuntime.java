@@ -52,7 +52,6 @@ import java.util.stream.Collectors;
 import static java.lang.String.format;
 
 public class KafkaAggregateRuntime extends AggregateRuntimeBase {
-    private static final Logger log = LoggerFactory.getLogger(KafkaAggregateRuntime.class);
     private final SchemaRegistryClient schemaRegistryClient;
     private final SchemaGenerator jsonSchemaGenerator;
     private final ObjectMapper objectMapper;
@@ -162,7 +161,11 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                 } else {
                     // it has to be exactly the same
                     if(!registeredSchema.deepEquals(localSchema)) {
-                        throw new IllegalStateException("Registered Schema does not match Local Schema");
+                        // in some weird edge cases Objects.equals(registeredSchema.rawSchema(), localSchema.rawSchema() is false
+                        // however Objects.equals(registeredSchema.toString(), localSchema.toString()) is true
+                        if(!Objects.equals(registeredSchema.toString(), localSchema.toString())) {
+                            throw new IllegalStateException("Registered Schema does not match Local Schema");
+                        }
                     }
                 }
             } else if(domainEventType.external()) {
@@ -208,8 +211,12 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                 if (registeredSchema != null) {
                     // it has to be exactly the same
                     if (!registeredSchema.deepEquals(localSchema)) {
-                        log.error("Registered Schema {} does not match Local Schema {}", registeredSchema, localSchema);
-                        throw new IllegalStateException("Registered Schema does not match Local Schema");
+                        // in some weird edge cases Objects.equals(registeredSchema.rawSchema(), localSchema.rawSchema() is false
+                        // however Objects.equals(registeredSchema.toString(), localSchema.toString()) is true
+                        if(!Objects.equals(registeredSchema.toString(), localSchema.toString())) {
+                            log.error("Registered Schema {} does not match Local Schema {}", registeredSchema, localSchema);
+                            throw new IllegalStateException("Registered Schema does not match Local Schema");
+                        }
                     }
                 } else if (!commandType.external()) {
                     // ensure we have an ordered list of schemas

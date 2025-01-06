@@ -23,6 +23,8 @@ import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.annotations.*;
 import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftware.akces.errors.AggregateAlreadyExistsErrorEvent;
+import org.elasticsoftware.akces.errors.CommandExecutionErrorEvent;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.kafka.AggregateRuntimeFactory;
 import org.springframework.beans.BeansException;
@@ -40,9 +42,20 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcessor {
+    public static final List<DomainEventType<? extends DomainEvent>> COMMAND_HANDLER_CREATE_SYSTEM_ERRORS = List.of(
+            new DomainEventType<>("AggregateAlreadyExistsError", 1, AggregateAlreadyExistsErrorEvent.class, false, false, true),
+            new DomainEventType<>("CommandExecutionError", 1, CommandExecutionErrorEvent.class, false, false, true)
+    );
+    public static final List<DomainEventType<? extends DomainEvent>> COMMAND_HANDLER_SYSTEM_ERRORS = List.of(
+            new DomainEventType<>("CommandExecutionError", 1, CommandExecutionErrorEvent.class, false, false, true)
+    );
+    public static final List<DomainEventType<? extends DomainEvent>> EVENT_HANDLER_CREATE_SYSTEM_ERRORS = List.of(
+            new DomainEventType<>("AggregateAlreadyExistsError", 1, AggregateAlreadyExistsErrorEvent.class, false, false, true)
+    );
+
     @Override
     public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
-        if(beanFactory instanceof BeanDefinitionRegistry bdr) {
+        if (beanFactory instanceof BeanDefinitionRegistry bdr) {
             Arrays.asList(beanFactory.getBeanNamesForAnnotation(AggregateInfo.class)).forEach(beanName -> {
                 BeanDefinition bd = beanFactory.getBeanDefinition(beanName);
                 try {
@@ -72,7 +85,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                                 .getBeanDefinition());
                 // and create a AkcesController bean to kickstart kafka (if kafka is configured)
                 // TODO: this is a bit crude, but it works for now
-                if(beanFactory.containsBeanDefinition("aggregateServiceConsumerFactory") &&
+                if (beanFactory.containsBeanDefinition("aggregateServiceConsumerFactory") &&
                         beanFactory.containsBeanDefinition("aggregateServiceProducerFactory") &&
                         beanFactory.containsBeanDefinition("aggregateServiceControlProducerFactory") &&
                         beanFactory.containsBeanDefinition("aggregateStateRepositoryFactory")) {
@@ -97,7 +110,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
 
     private void processEventSourcingHandler(String aggregateBeanName, Method eventSourcingHandlerMethod, BeanDefinitionRegistry bdr) {
         EventSourcingHandler eventSourcingHandler = eventSourcingHandlerMethod.getAnnotation(EventSourcingHandler.class);
-        if(eventSourcingHandlerMethod.getParameterCount() == 2 &&
+        if (eventSourcingHandlerMethod.getParameterCount() == 2 &&
                 DomainEvent.class.isAssignableFrom(eventSourcingHandlerMethod.getParameterTypes()[0]) &&
                 AggregateState.class.isAssignableFrom(eventSourcingHandlerMethod.getParameterTypes()[1]) &&
                 AggregateState.class.isAssignableFrom(eventSourcingHandlerMethod.getReturnType())) {
@@ -121,7 +134,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
 
     private void processEventHandler(String aggregateBeanName, Method eventHandlerMethod, BeanDefinitionRegistry bdr) {
         EventHandler eventHandler = eventHandlerMethod.getAnnotation(EventHandler.class);
-        if(eventHandlerMethod.getParameterCount() == 2 &&
+        if (eventHandlerMethod.getParameterCount() == 2 &&
                 DomainEvent.class.isAssignableFrom(eventHandlerMethod.getParameterTypes()[0]) &&
                 AggregateState.class.isAssignableFrom(eventHandlerMethod.getParameterTypes()[1]) &&
                 Stream.class.isAssignableFrom(eventHandlerMethod.getReturnType())) {
@@ -135,8 +148,8 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .addConstructorArgValue(eventHandlerMethod.getParameterTypes()[0])
                             .addConstructorArgValue(eventHandlerMethod.getParameterTypes()[1])
                             .addConstructorArgValue(eventHandler.create())
-                            .addConstructorArgValue(generateDomainEventTypes(eventHandler.produces(), false))
-                            .addConstructorArgValue(generateDomainEventTypes(eventHandler.errors(), true))
+                            .addConstructorArgValue(generateDomainEventTypes(eventHandler.produces(), eventHandler.create()))
+                            .addConstructorArgValue(generateEventHandlerErrorEventTypes(eventHandler.errors(), eventHandler.create()))
                             .addConstructorArgValue(eventInfo)
                             .setInitMethodName("init")
                             .getBeanDefinition());
@@ -148,7 +161,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
     private void processCommandHandler(String aggregateBeanName, Method commandHandlerMethod, BeanDefinitionRegistry bdr) {
         // the method signature should match CommandHandlerFunction
         CommandHandler commandHandler = commandHandlerMethod.getAnnotation(CommandHandler.class);
-        if(commandHandlerMethod.getParameterCount() == 2 &&
+        if (commandHandlerMethod.getParameterCount() == 2 &&
                 Command.class.isAssignableFrom(commandHandlerMethod.getParameterTypes()[0]) &&
                 AggregateState.class.isAssignableFrom(commandHandlerMethod.getParameterTypes()[1]) &&
                 Stream.class.isAssignableFrom(commandHandlerMethod.getReturnType())) {
@@ -162,8 +175,8 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .addConstructorArgValue(commandHandlerMethod.getParameterTypes()[0])
                             .addConstructorArgValue(commandHandlerMethod.getParameterTypes()[1])
                             .addConstructorArgValue(commandHandler.create())
-                            .addConstructorArgValue(generateDomainEventTypes(commandHandler.produces(), false))
-                            .addConstructorArgValue(generateDomainEventTypes(commandHandler.errors(), true))
+                            .addConstructorArgValue(generateDomainEventTypes(commandHandler.produces(), commandHandler.create()))
+                            .addConstructorArgValue(generateCommandHandlerErrorEventTypes(commandHandler.errors(), commandHandler.create()))
                             .addConstructorArgValue(commandInfo)
                             .setInitMethodName("init").getBeanDefinition()
             );
@@ -172,11 +185,28 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
         }
     }
 
-    private List<DomainEventType<?>> generateDomainEventTypes(Class<? extends DomainEvent>[] domainEventClasses, boolean isError) {
+    private List<DomainEventType<?>> generateDomainEventTypes(Class<? extends DomainEvent>[] domainEventClasses,
+                                                              boolean isCreate) {
         return Arrays.stream(domainEventClasses).map(eventClass -> {
             DomainEventInfo eventInfo = eventClass.getAnnotation(DomainEventInfo.class);
-            return new DomainEventType<>(eventInfo.type(), eventInfo.version(), eventClass, false, false, isError);
+            return new DomainEventType<>(eventInfo.type(), eventInfo.version(), eventClass, isCreate, false, false);
         }).collect(Collectors.toList());
+    }
+
+    private List<DomainEventType<?>> generateEventHandlerErrorEventTypes(Class<? extends DomainEvent>[] domainEventClasses, boolean isCreate) {
+        Stream<DomainEventType<? extends DomainEvent>> systemErrorEvents = (isCreate) ? EVENT_HANDLER_CREATE_SYSTEM_ERRORS.stream() : Stream.empty();
+        return Stream.concat(Arrays.stream(domainEventClasses).map(eventClass -> {
+            DomainEventInfo eventInfo = eventClass.getAnnotation(DomainEventInfo.class);
+            return new DomainEventType<>(eventInfo.type(), eventInfo.version(), eventClass, false, false, true);
+        }), systemErrorEvents).collect(Collectors.toList());
+    }
+
+    private List<DomainEventType<?>> generateCommandHandlerErrorEventTypes(Class<? extends DomainEvent>[] domainEventClasses, boolean isCreate) {
+        Stream<DomainEventType<? extends DomainEvent>> systemErrorEvents = (isCreate) ? COMMAND_HANDLER_CREATE_SYSTEM_ERRORS.stream() : COMMAND_HANDLER_SYSTEM_ERRORS.stream();
+        return Stream.concat(Arrays.stream(domainEventClasses).map(eventClass -> {
+            DomainEventInfo eventInfo = eventClass.getAnnotation(DomainEventInfo.class);
+            return new DomainEventType<>(eventInfo.type(), eventInfo.version(), eventClass, false, false, true);
+        }), systemErrorEvents).collect(Collectors.toList());
     }
 
 }

@@ -171,6 +171,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         } catch (Exception e) {
             logger.error("Problem registering command {}", commandType.typeName(), e);
             // TODO: throw a more specific exception
+            // TODO: decide whether to terminate the AggregatePartition
             throw new RuntimeException(e);
         }
 
