@@ -60,7 +60,6 @@ jobs:
           --settings $GITHUB_WORKSPACE/settings.xml
           install
           -DskipTests
-          -Dmaven.install.skip=true
       - name: Publish to Github Packages
         run: >
           mvn
@@ -72,7 +71,6 @@ jobs:
           --settings $GITHUB_WORKSPACE/settings.xml
           deploy
           -DskipTests
-          -Dmaven.install.skip=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MAVEN_OPTS: "--add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.text=ALL-UNNAMED --add-opens=java.desktop/java.awt.font=ALL-UNNAMED"
@@ -88,7 +86,6 @@ jobs:
           --settings $GITHUB_WORKSPACE/settings.xml
           native:add-reachability-metadata spring-boot:build-image
           -DskipTests
-          -Dmaven.install.skip=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ secrets.GITHUB_ACTOR }}
@@ -104,7 +101,6 @@ jobs:
           --settings $GITHUB_WORKSPACE/settings.xml
           native:add-reachability-metadata spring-boot:build-image
           -DskipTests
-          -Dmaven.install.skip=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ secrets.GITHUB_ACTOR }}
