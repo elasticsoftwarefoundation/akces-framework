@@ -55,8 +55,11 @@ public class StatefulSetDependentResource extends CRUDKubernetesDependentResourc
                 .editTemplate()
                 .editMetadata().addToLabels("app", aggregateName).endMetadata()
                 .editSpec()
-                .addToImagePullSecrets(new LocalObjectReference("github-packages-cfg"))
-                .editFirstContainer().withImage(aggregate.getSpec().getImage()).endContainer()
+                .addToImagePullSecrets(new LocalObjectReference("github-packages-cfg"))  // TODO: needs to be configurable
+                .editFirstContainer()
+                    .withImage(aggregate.getSpec().getImage())
+                    .withName("akces-aggregates")
+                .endContainer()
                 .endSpec()
                 .endTemplate()
                 .endSpec()

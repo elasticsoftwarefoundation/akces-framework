@@ -17,15 +17,7 @@ spec:
         app: ""
     spec:
       containers:
-      - name: akces-operator
-        image: nginx:1.21.6
+      - name: akces-aggregate-service
+        image: ""
         ports:
         - containerPort: 8080
-  volumeClaimTemplates:
-  - metadata:
-      name: example-storage
-    spec:
-      accessModes: ["ReadWriteOnce"]
-      resources:
-        requests:
-          storage: 1Gi
