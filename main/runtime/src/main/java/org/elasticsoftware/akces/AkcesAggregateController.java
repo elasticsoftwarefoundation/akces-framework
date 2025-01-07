@@ -44,6 +44,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdminOperations;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.lang.NonNull;
+import org.springframework.lang.NonNullApi;
 import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 
 import java.time.Duration;
@@ -222,6 +224,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
             for (TopicPartition topicPartition : partitionsToRevoke) {
                 AggregatePartition aggregatePartition = aggregatePartitions.remove(topicPartition.partition());
                 if (aggregatePartition != null) {
+                    logger.info("Stopping AggregatePartition {}", aggregatePartition.getId());
                     try {
                         aggregatePartition.close();
                     } catch (Exception e) {
@@ -244,7 +247,8 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                         toGDPRKeysTopicPartition(aggregateRuntime, topicPartition.partition()),
                         aggregateRuntime.getExternalDomainEventTypes(),
                         this);
-                aggregatePartitions.put(topicPartition.partition(), aggregatePartition);
+                aggregatePartitions.put(aggregatePartition.getId(), aggregatePartition);
+                logger.info("Starting AggregatePartition {}", aggregatePartition.getId());
                 executorService.submit(aggregatePartition);
             }
             partitionsToAssign.clear();
@@ -298,29 +302,39 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     }
 
     @Override
-    public void onPartitionsRevoked(Collection<TopicPartition> collection) {
-        // stop all local AggregatePartition instances
-        partitionsToRevoke.addAll(collection);
-        // if we are already running, we can immediately rebalance
-        if(processState == RUNNING) {
-            logger.info("Switching from RUNNING to REBALANCING, revoking {} partitions", collection.size());
-            processState = REBALANCING;
-        } else if(processState == INITIALIZING) { // otherwise we first have to load the services data
-            logger.info("Switching from INITIALIZING to INITIAL_REBALANCING, revoking {} partitions", collection.size());
-            processState = INITIAL_REBALANCING;
+    public void onPartitionsRevoked(Collection<TopicPartition> topicPartitions) {
+        // don't do anything on empty partitions
+        if(!topicPartitions.isEmpty()) {
+            // stop all local AggregatePartition instances
+            partitionsToRevoke.addAll(topicPartitions);
+            // if we are already running, we can immediately rebalance
+            if(processState == RUNNING) {
+                logger.info("Switching from RUNNING to REBALANCING, revoking partitions: {}",
+                        topicPartitions.stream().map(TopicPartition::partition).toList());
+                processState = REBALANCING;
+            } else if(processState == INITIALIZING) { // otherwise we first have to load the services data
+                logger.info("Switching from INITIALIZING to INITIAL_REBALANCING, revoking partitions: {}",
+                        topicPartitions.stream().map(TopicPartition::partition).toList());
+                processState = INITIAL_REBALANCING;
+            }
         }
     }
 
     @Override
-    public void onPartitionsAssigned(Collection<TopicPartition> collection) {
-        partitionsToAssign.addAll(collection);
-        // if we are already running, we can immediately rebalance
-        if(processState == RUNNING) {
-            logger.info("Switching from RUNNING to REBALANCING, assigning {} partitions", collection.size());
-            processState = REBALANCING;
-        } else if(processState == INITIALIZING) { // otherwise we first have to load the services data
-            logger.info("Switching from INITIALIZING to INITIAL_REBALANCING, assigning {} partitions", collection.size());
-            processState = INITIAL_REBALANCING;
+    public void onPartitionsAssigned(Collection<TopicPartition> topicPartitions) {
+        if(!topicPartitions.isEmpty()) {
+            // start all local AggregatePartition instances
+            partitionsToAssign.addAll(topicPartitions);
+            // if we are already running, we can immediately rebalance
+            if (processState == RUNNING) {
+                logger.info("Switching from RUNNING to REBALANCING, assigning partitions : {}",
+                        topicPartitions.stream().map(TopicPartition::partition).toList());
+                processState = REBALANCING;
+            } else if (processState == INITIALIZING) { // otherwise we first have to load the services data
+                logger.info("Switching from INITIALIZING to INITIAL_REBALANCING, assigning partitions : {}",
+                        topicPartitions.stream().map(TopicPartition::partition).toList());
+                processState = INITIAL_REBALANCING;
+            }
         }
     }
 
