@@ -19,6 +19,7 @@ package org.elasticsoftware.akces.operator.aggregate;
 
 import io.fabric8.kubernetes.api.model.LocalObjectReference;
 import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.api.model.Quantity;
 import io.fabric8.kubernetes.api.model.apps.StatefulSet;
 import io.fabric8.kubernetes.api.model.apps.StatefulSetBuilder;
 import io.javaoperatorsdk.operator.ReconcilerUtils;
@@ -26,6 +27,8 @@ import io.javaoperatorsdk.operator.api.config.informer.Informer;
 import io.javaoperatorsdk.operator.api.reconciler.Context;
 import io.javaoperatorsdk.operator.processing.dependent.kubernetes.CRUDKubernetesDependentResource;
 import io.javaoperatorsdk.operator.processing.dependent.kubernetes.KubernetesDependent;
+
+import java.util.Map;
 
 @KubernetesDependent(informer = @Informer(
         labelSelector = "app.kubernetes.io/managed-by=akces-operator"))
@@ -69,6 +72,14 @@ public class StatefulSetDependentResource extends CRUDKubernetesDependentResourc
                 .endVolume()
                 .endSpec()
                 .endTemplate()
+                .editFirstVolumeClaimTemplate()
+                .editSpec()
+                .withStorageClassName("akces-data-hyperdisk-balanced") // TODO: get from config
+                .editResources()
+                .withRequests(Map.of("storage", new Quantity("4Gi"))) // TODO: get from Aggregate
+                .endResources()
+                .endSpec()
+                .endVolumeClaimTemplate()
                 .endSpec()
                 .build();
 

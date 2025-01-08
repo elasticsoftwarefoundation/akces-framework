@@ -10,7 +10,7 @@ data:
     spring.kafka.consumer.properties.group.instance.id=${HOSTNAME}
     spring.kafka.consumer.properties.session.timeout.ms=30000
     kafka.schemaregistry.url=http://akces-schema-registry.kafka:8081
-    akces.rocksdb.baseDir=/tmp/rocksdb
+    akces.rocksdb.baseDir=/var/lib/akces-data
   logback.xml: |
     <configuration>
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">

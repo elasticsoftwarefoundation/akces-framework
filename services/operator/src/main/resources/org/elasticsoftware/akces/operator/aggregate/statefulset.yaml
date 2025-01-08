@@ -55,7 +55,18 @@ spec:
         volumeMounts:
           - name: config-volume
             mountPath: /config
+          - name: akces-data
+            mountPath: /var/lib/akces-data
       volumes:
         - name: config-volume
           configMap:
             name: ""
+  volumeClaimTemplates:
+    - metadata:
+        name: akces-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: "akces-data-hyperdisk-balanced"
+        resources:
+          requests:
+            storage: 4Gi
