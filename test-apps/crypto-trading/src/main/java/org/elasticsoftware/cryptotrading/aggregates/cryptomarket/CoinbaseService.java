@@ -56,5 +56,15 @@ public class CoinbaseService {
                 .block();
     }
 
+    public List<Product> getProductsForQuoteCurrency(String quoteCurrency) {
+        return webClient.get()
+                .uri("/products")
+                .retrieve()
+                .bodyToFlux(Product.class)
+                .filter(product -> product.quoteCurrency().equals(quoteCurrency))
+                .collectList()
+                .block();
+    }
+
 
 }

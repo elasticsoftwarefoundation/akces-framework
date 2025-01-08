@@ -25,10 +25,7 @@ import org.elasticsoftware.akces.annotations.EventHandler;
 import org.elasticsoftware.akces.annotations.EventSourcingHandler;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.cryptotrading.aggregates.account.AccountCreatedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreateBalanceCommand;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreateWalletCommand;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreditWalletCommand;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.ReserveAmountCommand;
+import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.*;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.*;
 
 import java.math.BigDecimal;
@@ -129,13 +126,19 @@ public final class Wallet implements Aggregate<WalletState> {
     }
 
     @CommandHandler(produces = BalanceCreatedEvent.class, errors = {BalanceAlreadyExistsErrorEvent.class})
-public @NotNull Stream<DomainEvent> createBalance(@NotNull CreateBalanceCommand cmd, @NotNull WalletState currentState) {
-    boolean balanceExists = currentState.balances().stream()
-            .anyMatch(balance -> balance.currency().equals(cmd.currency()));
-    if (balanceExists) {
-        return Stream.of(new BalanceAlreadyExistsErrorEvent(cmd.id(), cmd.currency()));
+    public @NotNull Stream<DomainEvent> createBalance(@NotNull CreateBalanceCommand cmd, @NotNull WalletState currentState) {
+        boolean balanceExists = currentState.balances().stream()
+                .anyMatch(balance -> balance.currency().equals(cmd.currency()));
+        if (balanceExists) {
+            return Stream.of(new BalanceAlreadyExistsErrorEvent(cmd.id(), cmd.currency()));
+        }
+        return Stream.of(new BalanceCreatedEvent(cmd.id(), cmd.currency()));
     }
-    return Stream.of(new BalanceCreatedEvent(cmd.id(), cmd.currency()));
-}
+
+    @CommandHandler(produces = {WalletCreditedEvent.class}, errors = {InvalidCryptoCurrencyErrorEvent.class, InvalidAmountErrorEvent.class})
+    public @NotNull Stream<DomainEvent> settleCurrencies(@NotNull SettleCurrenciesCommand cmd, @NotNull WalletState currentState) {
+        // TODO: implement
+        return Stream.empty();
+    }
 
 }

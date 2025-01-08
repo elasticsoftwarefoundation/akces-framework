@@ -26,6 +26,7 @@ import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.cryptotrading.aggregates.account.AccountCreatedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.Side;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.PlaceMarketOrderCommand;
+import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderFilledEvent;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderRejectedErrorEvent;
 import org.elasticsoftware.cryptotrading.aggregates.orders.commands.PlaceBuyOrderCommand;
 import org.elasticsoftware.cryptotrading.aggregates.orders.commands.RejectOrderCommand;
@@ -145,7 +146,7 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
     }
 
     @EventHandler(produces = BuyOrderRejectedEvent.class, errors = {})
-    public Stream<DomainEvent> handle(InsufficientFundsErrorEvent errorEvent, OrderProcessManagerState state) {
+    public Stream<DomainEvent> handleError(InsufficientFundsErrorEvent errorEvent, OrderProcessManagerState state) {
         if(state.hasAkcesProcess(errorEvent.referenceId())) {
             return Stream.of(state.getAkcesProcess(errorEvent.referenceId()).handle(errorEvent));
         } else {
@@ -154,12 +155,24 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
     }
 
     @EventHandler(produces = BuyOrderRejectedEvent.class, errors = {})
-    public Stream<DomainEvent> handle(InvalidCryptoCurrencyErrorEvent errorEvent, OrderProcessManagerState state) {
+    public Stream<DomainEvent> handleError(InvalidCryptoCurrencyErrorEvent errorEvent, OrderProcessManagerState state) {
         if(state.hasAkcesProcess(errorEvent.referenceId())) {
             return Stream.of(state.getAkcesProcess(errorEvent.referenceId()).handle(errorEvent));
         } else {
             return Stream.empty();
         }
+    }
+
+    @EventHandler(produces = {}, errors = {})
+    public Stream<DomainEvent> handle(MarketOrderFilledEvent event, OrderProcessManagerState state) {
+//        OrderProcess orderProcess = state.getAkcesProcess(event.orderId());
+//        switch (orderProcess instanceof BuyOrderProcess buyOrderProcess) {
+//            // we need to send a command to the wallet to release the reserved amount
+//            // we need to cancel the reservation and debit the quote currency
+//            // we need to credit the base currency
+//        }
+        // TODO: implement
+        return Stream.empty();
     }
 
     @EventHandler(produces = {}, errors = {})

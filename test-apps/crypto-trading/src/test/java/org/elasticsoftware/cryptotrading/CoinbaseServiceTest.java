@@ -58,4 +58,14 @@ public class CoinbaseServiceTest {
         });
     }
 
+    @Test
+    public void testGetProductsForQuoteCurrency() {
+        String quoteCurrency = "USD";
+        List<Product> products = coinbaseService.getProductsForQuoteCurrency(quoteCurrency);
+        assertNotNull(products, "Products should not be null");
+        products.forEach(product -> {
+            System.out.println(product.id());
+        });
+    }
+
 }
