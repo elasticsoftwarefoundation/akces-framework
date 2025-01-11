@@ -58,6 +58,7 @@ spec:
             mountPath: /config
           - name: akces-data
             mountPath: /var/lib/akces-data
+            readOnly: false
       volumes:
         - name: config-volume
           configMap:
