@@ -168,19 +168,19 @@ public class CryptoTradingWebApiTest {
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
-            .uri("/accounts")
-            .bodyValue(accountInput)
-            .exchange()
-            .expectStatus().is2xxSuccessful()
-            .expectBody(AccountOutput.class)
-            .value(accountOutput -> {
-                assertThat(accountOutput).isNotNull();
-                assertThat(accountOutput.userId()).isNotNull();
-                assertThat(accountOutput.country()).isEqualTo("NL");
-                assertThat(accountOutput.firstName()).isEqualTo("John");
-                assertThat(accountOutput.lastName()).isEqualTo("Doe");
-                assertThat(accountOutput.email()).isEqualTo("john.doe@example.com");
-            });
+                .uri("/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .value(accountOutput -> {
+                    assertThat(accountOutput).isNotNull();
+                    assertThat(accountOutput.userId()).isNotNull();
+                    assertThat(accountOutput.country()).isEqualTo("NL");
+                    assertThat(accountOutput.firstName()).isEqualTo("John");
+                    assertThat(accountOutput.lastName()).isEqualTo("Doe");
+                    assertThat(accountOutput.email()).isEqualTo("john.doe@example.com");
+                });
     }
 
     @Test
@@ -281,6 +281,43 @@ public class CryptoTradingWebApiTest {
                             .bodyValue(createBalanceInput)
                             .exchange()
                             .expectStatus().is2xxSuccessful();
+                });
+    }
+
+    @Test
+    void testGetAccount() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        AccountInput accountInput = new AccountInput("US", "John", "Doe", "john.doe@example.com");
+        webTestClient.post()
+                .uri("/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .value(accountOutput -> {
+                    assertThat(accountOutput.userId()).isNotNull();
+
+                    // retrieve the account details
+                    webTestClient.get()
+                            .uri("/accounts/" + accountOutput.userId())
+                            .exchange()
+                            .expectStatus().is2xxSuccessful()
+                            .expectBody(AccountOutput.class)
+                            .value(retrievedAccount -> {
+                                assertThat(retrievedAccount).isNotNull();
+                                assertThat(retrievedAccount.userId()).isEqualTo(accountOutput.userId());
+                                assertThat(retrievedAccount.country()).isEqualTo("US");
+                                assertThat(retrievedAccount.firstName()).isEqualTo("John");
+                                assertThat(retrievedAccount.lastName()).isEqualTo("Doe");
+                                assertThat(retrievedAccount.email()).isEqualTo("john.doe@example.com");
+                            });
                 });
     }
 
