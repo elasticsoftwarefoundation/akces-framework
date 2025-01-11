@@ -96,9 +96,9 @@ public class CryptoTradingWebApiTest {
     @Inject
     AkcesClientController akcesClientController;
     @Inject
-    AccountController accountWebController;
+    AccountCommandController accountWebController;
     @Inject
-    WalletController walletWebController;
+    WalletCommandController walletWebController;
     @LocalServerPort
     private int port;
     @Inject
@@ -168,12 +168,19 @@ public class CryptoTradingWebApiTest {
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
-                .uri("/accounts")
-                .bodyValue(accountInput)
-                .exchange()
-                .expectStatus().is2xxSuccessful()
-                .expectBody(String.class)
-                .value(userId -> assertThat(userId).isNotNull());
+            .uri("/accounts")
+            .bodyValue(accountInput)
+            .exchange()
+            .expectStatus().is2xxSuccessful()
+            .expectBody(AccountOutput.class)
+            .value(accountOutput -> {
+                assertThat(accountOutput).isNotNull();
+                assertThat(accountOutput.userId()).isNotNull();
+                assertThat(accountOutput.country()).isEqualTo("NL");
+                assertThat(accountOutput.firstName()).isEqualTo("John");
+                assertThat(accountOutput.lastName()).isEqualTo("Doe");
+                assertThat(accountOutput.email()).isEqualTo("john.doe@example.com");
+            });
     }
 
     @Test
@@ -192,14 +199,14 @@ public class CryptoTradingWebApiTest {
                 .bodyValue(accountInput)
                 .exchange()
                 .expectStatus().is2xxSuccessful()
-                .expectBody(String.class)
-                .value(userId -> {
-                    assertThat(userId).isNotNull();
+                .expectBody(AccountOutput.class)
+                .value(accountOutput -> {
+                    assertThat(accountOutput.userId()).isNotNull();
 
                     // credit the wallet for this user id with 1 BTC
                     CreditWalletInput creditInput = new CreditWalletInput(new BigDecimal("1.0"));
                     webTestClient.post()
-                            .uri("/wallets/" + userId + "/balances/EUR/credit")
+                            .uri("/wallets/" + accountOutput.userId() + "/balances/EUR/credit")
                             .bodyValue(creditInput)
                             .exchange()
                             .expectStatus().is2xxSuccessful()
@@ -228,14 +235,14 @@ public class CryptoTradingWebApiTest {
                 .bodyValue(accountInput)
                 .exchange()
                 .expectStatus().is2xxSuccessful()
-                .expectBody(String.class)
-                .value(userId -> {
-                    assertThat(userId).isNotNull();
+                .expectBody(AccountOutput.class)
+                .value(accountOutput -> {
+                    assertThat(accountOutput.userId()).isNotNull();
 
                     // credit the wallet for this user id with 1 ETH
                     CreditWalletInput creditInput = new CreditWalletInput(new BigDecimal("1.0"));
                     webTestClient.post()
-                            .uri("/wallets/" + userId + "/balances/ETH/credit")
+                            .uri("/wallets/" + accountOutput.userId() + "/balances/ETH/credit")
                             .bodyValue(creditInput)
                             .exchange()
                             .expectStatus().is4xxClientError()
@@ -263,14 +270,14 @@ public class CryptoTradingWebApiTest {
                 .bodyValue(accountInput)
                 .exchange()
                 .expectStatus().is2xxSuccessful()
-                .expectBody(String.class)
-                .value(userId -> {
-                    assertThat(userId).isNotNull();
+                .expectBody(AccountOutput.class)
+                .value(accountOutput -> {
+                    assertThat(accountOutput.userId()).isNotNull();
 
                     // add a BTC balance to the wallet for this user id
                     CreateBalanceInput createBalanceInput = new CreateBalanceInput("BTC");
                     webTestClient.post()
-                            .uri("/wallets/" + userId + "/balances")
+                            .uri("/wallets/" + accountOutput.userId() + "/balances")
                             .bodyValue(createBalanceInput)
                             .exchange()
                             .expectStatus().is2xxSuccessful();

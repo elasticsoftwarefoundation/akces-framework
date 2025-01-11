@@ -32,6 +32,7 @@ spec:
                 command: ["/bin/sh", "-c", "sleep 10"]
         ports:
         - containerPort: 8080
+          name: http
         readinessProbe:
           failureThreshold: 3
           httpGet:

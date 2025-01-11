@@ -29,10 +29,10 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/wallets")
-public class WalletController {
+public class WalletCommandController {
     private final AkcesClient akcesClient;
 
-    public WalletController(AkcesClient akcesClient) {
+    public WalletCommandController(AkcesClient akcesClient) {
         this.akcesClient = akcesClient;
     }
 

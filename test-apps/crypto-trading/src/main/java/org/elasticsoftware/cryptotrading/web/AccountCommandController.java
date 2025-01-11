@@ -31,18 +31,22 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/accounts")
-public class AccountController {
+public class AccountCommandController {
     private final AkcesClient akcesClient;
 
-    public AccountController(AkcesClient akcesClient) {
+    public AccountCommandController(AkcesClient akcesClient) {
         this.akcesClient = akcesClient;
     }
 
     @PostMapping
-    public Mono<ResponseEntity<String>> createAccount(@RequestBody AccountInput input) {
-        String userId = UUID.randomUUID().toString();
-        return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(userId)))
-                .map(List::getFirst)
-                .map(domainEvent -> ResponseEntity.ok(((AccountCreatedEvent) domainEvent).userId()));
-    }
+    public Mono<ResponseEntity<AccountOutput>> createAccount(@RequestBody AccountInput input) {
+    String userId = UUID.randomUUID().toString();
+    return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(userId)))
+            .map(List::getFirst)
+            .map(domainEvent -> {
+                AccountCreatedEvent event = (AccountCreatedEvent) domainEvent;
+                AccountOutput output = new AccountOutput(event.userId(), input.country(), input.firstName(), input.lastName(), input.email());
+                return ResponseEntity.ok(output);
+            });
+}
 }
