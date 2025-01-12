@@ -323,8 +323,15 @@ public class CryptoTradingWebApiTest {
 
     @Test
     void testInvalidApiVersion() {
-        webTestClient.post()
-                .uri("/v3/accounts")
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+        webTestClient.get()
+                .uri("/v13/accounts/invalid-id")
                 .exchange()
                 .expectStatus().isNotFound();
     }
