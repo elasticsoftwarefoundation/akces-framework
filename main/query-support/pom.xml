@@ -45,6 +45,46 @@
             <artifactId>akces-shared</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-json</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-protobuf-serializer</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-json-serializer</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>joda-time</groupId>
+            <artifactId>joda-time</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-json-schema-serializer</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-protobuf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.victools</groupId>
+            <artifactId>jsonschema-generator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.victools</groupId>
+            <artifactId>jsonschema-module-jakarta-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.victools</groupId>
+            <artifactId>jsonschema-module-jackson</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

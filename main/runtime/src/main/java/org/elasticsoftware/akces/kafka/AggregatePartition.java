@@ -55,6 +55,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.singletonList;
 import static org.elasticsoftware.akces.gdpr.GDPRContextHolder.getCurrentGDPRContext;
 import static org.elasticsoftware.akces.kafka.AggregatePartitionState.*;
+import static org.elasticsoftware.akces.util.TopicNameUtils.getIndexTopicName;
 
 public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     private static final Logger logger = LoggerFactory.getLogger(AggregatePartition.class);
@@ -221,7 +222,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     private void index(DomainEventRecord der, IndexParams params) {
         // send to the index topic
         // TODO: this assumes that auto.create.topics.enable is set to true on the kafka cluster
-        String topicName = params.indexName()+"-"+params.indexKey()+"-DomainEventIndex";
+        String topicName = getIndexTopicName(params.indexName(),params.indexKey());
         logger.trace("Indexing DomainEventRecord {}:{} with id {} to topic {}", der.name(), der.version(), der.id(), topicName+"-0");
         // index topics only have one partition
         KafkaSender.send(producer, new ProducerRecord<>(topicName, 0, der.id(), der));
