@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/accounts")
+@RequestMapping("/v{version:1}/accounts")
 public class AccountCommandController {
     private final AkcesClient akcesClient;
 

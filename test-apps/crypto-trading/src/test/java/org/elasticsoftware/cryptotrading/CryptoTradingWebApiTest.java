@@ -168,7 +168,7 @@ public class CryptoTradingWebApiTest {
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
-                .uri("/accounts")
+                .uri("/v1/accounts")
                 .bodyValue(accountInput)
                 .exchange()
                 .expectStatus().is2xxSuccessful()
@@ -195,7 +195,7 @@ public class CryptoTradingWebApiTest {
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
-                .uri("/accounts")
+                .uri("/v1/accounts")
                 .bodyValue(accountInput)
                 .exchange()
                 .expectStatus().is2xxSuccessful()
@@ -206,7 +206,7 @@ public class CryptoTradingWebApiTest {
                     // credit the wallet for this user id with 1 BTC
                     CreditWalletInput creditInput = new CreditWalletInput(new BigDecimal("1.0"));
                     webTestClient.post()
-                            .uri("/wallets/" + accountOutput.userId() + "/balances/EUR/credit")
+                            .uri("/v1/wallets/" + accountOutput.userId() + "/balances/EUR/credit")
                             .bodyValue(creditInput)
                             .exchange()
                             .expectStatus().is2xxSuccessful()
@@ -231,7 +231,7 @@ public class CryptoTradingWebApiTest {
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
-                .uri("/accounts")
+                .uri("/v1/accounts")
                 .bodyValue(accountInput)
                 .exchange()
                 .expectStatus().is2xxSuccessful()
@@ -242,7 +242,7 @@ public class CryptoTradingWebApiTest {
                     // credit the wallet for this user id with 1 ETH
                     CreditWalletInput creditInput = new CreditWalletInput(new BigDecimal("1.0"));
                     webTestClient.post()
-                            .uri("/wallets/" + accountOutput.userId() + "/balances/ETH/credit")
+                            .uri("/v1/wallets/" + accountOutput.userId() + "/balances/ETH/credit")
                             .bodyValue(creditInput)
                             .exchange()
                             .expectStatus().is4xxClientError()
@@ -266,7 +266,7 @@ public class CryptoTradingWebApiTest {
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
-                .uri("/accounts")
+                .uri("/v1/accounts")
                 .bodyValue(accountInput)
                 .exchange()
                 .expectStatus().is2xxSuccessful()
@@ -277,7 +277,7 @@ public class CryptoTradingWebApiTest {
                     // add a BTC balance to the wallet for this user id
                     CreateBalanceInput createBalanceInput = new CreateBalanceInput("BTC");
                     webTestClient.post()
-                            .uri("/wallets/" + accountOutput.userId() + "/balances")
+                            .uri("/v1/wallets/" + accountOutput.userId() + "/balances")
                             .bodyValue(createBalanceInput)
                             .exchange()
                             .expectStatus().is2xxSuccessful();
@@ -296,7 +296,7 @@ public class CryptoTradingWebApiTest {
 
         AccountInput accountInput = new AccountInput("US", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
-                .uri("/accounts")
+                .uri("/v1/accounts")
                 .bodyValue(accountInput)
                 .exchange()
                 .expectStatus().is2xxSuccessful()
@@ -306,7 +306,7 @@ public class CryptoTradingWebApiTest {
 
                     // retrieve the account details
                     webTestClient.get()
-                            .uri("/accounts/" + accountOutput.userId())
+                            .uri("/v1/accounts/" + accountOutput.userId())
                             .exchange()
                             .expectStatus().is2xxSuccessful()
                             .expectBody(AccountOutput.class)
@@ -319,6 +319,14 @@ public class CryptoTradingWebApiTest {
                                 assertThat(retrievedAccount.email()).isEqualTo("john.doe@example.com");
                             });
                 });
+    }
+
+    @Test
+    void testInvalidApiVersion() {
+        webTestClient.post()
+                .uri("/v3/accounts")
+                .exchange()
+                .expectStatus().isNotFound();
     }
 
     public static class Initializer

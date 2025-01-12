@@ -28,7 +28,7 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 
 @RestController
-@RequestMapping("/wallets")
+@RequestMapping("/v{version:1}/wallets")
 public class WalletCommandController {
     private final AkcesClient akcesClient;
 
