@@ -71,7 +71,7 @@
             <dependency>
                 <groupId>io.javaoperatorsdk</groupId>
                 <artifactId>operator-framework-junit-5</artifactId>
-                <version>5.0.0-beta1</version>
+                <version>5.0.0-RC1</version>
             </dependency>
             <dependency>
                 <groupId>io.fabric8</groupId>
