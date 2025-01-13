@@ -17,19 +17,32 @@
 
 package org.elasticsoftware.akces.query.models;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.github.victools.jsonschema.generator.*;
+import com.github.victools.jsonschema.module.jackson.JacksonModule;
+import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
+import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
+import io.confluent.kafka.schemaregistry.ParsedSchema;
+import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
+import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
+import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import jakarta.inject.Inject;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
+import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.client.AkcesClientController;
 import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.query.QueryModelEventHandlerFunction;
 import org.elasticsoftware.akces.query.models.wallet.WalletQueryModel;
 import org.elasticsoftware.akces.query.models.wallet.WalletQueryModelState;
+import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akcestest.aggregate.wallet.BalanceCreatedEvent;
 import org.elasticsoftware.akcestest.aggregate.wallet.CreateWalletCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.WalletCreatedEvent;
@@ -37,8 +50,10 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextException;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.test.context.ContextConfiguration;
@@ -52,6 +67,7 @@ import org.testcontainers.utility.DockerImageName;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -141,6 +157,11 @@ public class QueryModelRuntimeTests {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
+            prepareDomainEventSchemas("http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081),
+                    List.of(
+                            WalletCreatedEvent.class,
+                            BalanceCreatedEvent.class
+                    ));
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
                     applicationContext,
                     "akces.rocksdb.baseDir=/tmp/akces",
@@ -166,6 +187,45 @@ public class QueryModelRuntimeTests {
                 createCompactedTopic("Wallet-AggregateState", 3),
                 createCompactedTopic("Account-AggregateState", 3),
                 createCompactedTopic("OrderProcessManager-AggregateState", 3));
+    }
+
+    public static <D extends DomainEvent> void prepareDomainEventSchemas(String url, List<Class<?>> domainEventClasses) {
+        SchemaRegistryClient src = new CachedSchemaRegistryClient(url, 100);
+        Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
+        objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
+        objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(objectMapperBuilder.build(),
+                SchemaVersion.DRAFT_7,
+                OptionPreset.PLAIN_JSON);
+        configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
+                JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
+        configBuilder.with(new JacksonModule());
+        configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
+        configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
+        configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
+        // we need to override the default behavior of the generator to write BigDecimal as type = number
+        configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
+            if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
+                JsonNode typeNode = collectedTypeAttributes.get("type");
+                if (typeNode.isArray()) {
+                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
+                } else
+                    collectedTypeAttributes.put("type", "string");
+            }
+        });
+        SchemaGeneratorConfig config = configBuilder.build();
+        SchemaGenerator jsonSchemaGenerator = new SchemaGenerator(config);
+        try {
+            for(Class<?> domainEventClass : domainEventClasses) {
+                DomainEventInfo info = domainEventClass.getAnnotation(DomainEventInfo.class);
+                src.register("domainevents."+info.type(),
+                        new JsonSchema(jsonSchemaGenerator.generateSchema(domainEventClass), List.of(), Map.of(), info.version()),
+                        info.version(),
+                        -1);
+            }
+        } catch (IOException | RestClientException e) {
+            throw new ApplicationContextException("Problem populating SchemaRegistry", e);
+        }
     }
 
     private static NewTopic createTopic(String name, int numPartitions) {
@@ -251,8 +311,8 @@ public class QueryModelRuntimeTests {
             Thread.onSpinWait();
         }
 
-        CompletableFuture<WalletQueryModelState> stateFuture = akcesQueryModelController.getHydratedState(WalletQueryModel.class, "unknown-id")
-                .toCompletableFuture();
+        CompletableFuture<WalletQueryModelState> stateFuture = akcesQueryModelController.getHydratedState(
+                WalletQueryModel.class, "unknown-id").toCompletableFuture();
         assertNotNull(stateFuture);
         ExecutionException exception = assertThrows(ExecutionException.class, stateFuture::get);
         assertInstanceOf(IllegalArgumentException.class, exception.getCause());
@@ -276,8 +336,28 @@ public class QueryModelRuntimeTests {
         assertInstanceOf(IllegalArgumentException.class, exception.getCause());
     }
 
+    @Test @Order(5)
+    public void testRegisteredSchemas() throws RestClientException, IOException {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
+                !akcesClientController.isRunning() ||
+                !akcesQueryModelController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        // now we should have all the schemas registered
+        List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas("domainevents.WalletCreated", false, false);
+        assertFalse(registeredSchemas.isEmpty());
+        assertEquals(1,schemaRegistryClient.getVersion("domainevents.WalletCreated", registeredSchemas.getFirst()));
+
+        registeredSchemas = schemaRegistryClient.getSchemas("domainevents.AccountCreated", false, false);
+        assertFalse(registeredSchemas.isEmpty());
+        assertEquals(1,schemaRegistryClient.getVersion("domainevents.AccountCreated", registeredSchemas.getFirst()));
+    }
+
     @Test
-    @Order(5)
+    @Order(6)
     public void testCreateAndQueryWalletQueryModel() throws ExecutionException, InterruptedException, TimeoutException {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
@@ -289,12 +369,6 @@ public class QueryModelRuntimeTests {
 
         String userId = "a28d41c4-9f9c-4708-b142-6b83768ee8f3";
         List<DomainEvent> result;
-//        CreateAccountCommand command = new CreateAccountCommand(userId,"NL", "Bella","Fowler", "bella.fowler@example.com");
-//        List<DomainEvent> result = assertDoesNotThrow(() -> akcesClientController.send("TEST_TENANT", command).toCompletableFuture().get(10, TimeUnit.SECONDS));
-//
-//        Assertions.assertNotNull(result);
-//        Assertions.assertEquals(1, result.size());
-//        assertInstanceOf(AccountCreatedEvent.class, result.getFirst());
 
         CreateWalletCommand createWalletCommand = new CreateWalletCommand(userId, "BTC");
         result = assertDoesNotThrow(() -> akcesClientController.send("TEST_TENANT", createWalletCommand).toCompletableFuture().get(10, TimeUnit.SECONDS));
@@ -312,7 +386,7 @@ public class QueryModelRuntimeTests {
     }
 
     @Test
-    @Order(6)
+    @Order(7)
     public void testCreateAndQueryWalletQueryModelWithMultipleConcurrentRequests() throws ExecutionException, InterruptedException, TimeoutException {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
@@ -363,7 +437,5 @@ public class QueryModelRuntimeTests {
             WalletQueryModelState state = stateFuture.get();
             assertNotNull(state);
         }
-
-        List<DomainEvent> result;
     }
 }

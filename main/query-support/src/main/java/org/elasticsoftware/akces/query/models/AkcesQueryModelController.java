@@ -34,7 +34,7 @@ import static org.elasticsoftware.akces.util.TopicUtils.getIndexTopicName;
 @SuppressWarnings("rawtypes")
 public class AkcesQueryModelController extends Thread implements AutoCloseable, ApplicationContextAware, QueryModels {
     private static final Logger logger = LoggerFactory.getLogger(AkcesQueryModelController.class);
-    private final Map<Class<? extends QueryModel>, QueryModelRuntime> runtimes = new HashMap<>();
+    private final Map<Class<? extends QueryModel>, QueryModelRuntime> runtimes = new ConcurrentHashMap<>();
     private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
     private volatile AkcesQueryModelControllerState processState = INITIALIZING;
     private final BlockingQueue<HydrationRequest<?>> commandQueue = new LinkedBlockingQueue<>();
@@ -64,9 +64,13 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         S currentState = null;
         Long currentOffset = null;
         QueryModelRuntime<S> runtime = getRuntime(modelClass);
-        CompletableFuture<S> completableFuture = new CompletableFuture<>();
-        commandQueue.add(new HydrationRequest<>(runtime, completableFuture, id, currentState, currentOffset));
-        return completableFuture;
+        if(runtime != null) {
+            CompletableFuture<S> completableFuture = new CompletableFuture<>();
+            commandQueue.add(new HydrationRequest<>(runtime, completableFuture, id, currentState, currentOffset));
+            return completableFuture;
+        } else {
+            return CompletableFuture.failedFuture(new QueryModelExecutionException("QueryModel not found"));
+        }
     }
 
     @Override
@@ -127,6 +131,19 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         } else if(processState == INITIALIZING) {
             try {
                 // TODO: we need to load the initial GDPRKeys here if necessary
+                Iterator<QueryModelRuntime> iterator = runtimes.values().iterator();
+                while (iterator.hasNext()) {
+                    QueryModelRuntime queryModelRuntime = iterator.next();
+                    try {
+                        queryModelRuntime.validateDomainEventSchemas();
+                    } catch (SchemaException e) {
+                        logger.error(
+                                "SchemaException while validating DomainEventSchemas for QueryModel {}. Disabling QueryModel",
+                                queryModelRuntime.getName(),
+                                e);
+                        iterator.remove();
+                    }
+                }
                 processState = RUNNING;
             } catch (WakeupException | InterruptException e) {
                 // ignore
@@ -173,14 +190,19 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
     private <S extends QueryModelState> HydrationExecution<S> processHydrationExecution(HydrationExecution<S> execution,
                                                                     List<ConsumerRecord<String, ProtocolRecord>> records) {
         try {
-            logger.info("Processing {} records HydrationExecution on index {} with id {} and runtime {}", records.size(), execution.runtime().getIndexName(), execution.id(), execution.runtime().getName());
+            logger.info(
+                    "Processing {} records HydrationExecution on index {} with id {} and runtime {}",
+                    records.size(),
+                    execution.runtime().getIndexName(),
+                    execution.id(),
+                    execution.runtime().getName());
             return execution.withCurrentState(execution.runtime().apply(
                     records.stream().map(record -> (DomainEventRecord) record.value())
                             .toList(), execution.currentState()));
         } catch (IOException e) {
             logger.error("Exception while processing HydrationExecution", e);
             // TODO: create our own exception
-            execution.completableFuture.completeExceptionally(e);
+            execution.completableFuture.completeExceptionally(new QueryModelExecutionException("Exception while processing HydrationExecution", e));
             return null; // this will remove the HydrationExecution from the map
         }
     }

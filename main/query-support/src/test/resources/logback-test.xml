@@ -38,7 +38,7 @@
         <appender-ref ref="CONSOLE"/>
     </logger>
 
-    <logger name="org.elasticsoftware.akces.client" level="trace" additivity="false">
+    <logger name="org.elasticsoftware.akces.query.models" level="trace" additivity="false">
         <appender-ref ref="CONSOLE"/>
     </logger>
 

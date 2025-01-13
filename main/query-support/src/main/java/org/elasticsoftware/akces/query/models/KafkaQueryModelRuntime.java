@@ -24,8 +24,12 @@ import com.github.victools.jsonschema.generator.*;
 import com.github.victools.jsonschema.module.jackson.JacksonModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
+import io.confluent.kafka.schemaregistry.ParsedSchema;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
+import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import io.confluent.kafka.schemaregistry.json.diff.Difference;
+import io.confluent.kafka.schemaregistry.json.diff.SchemaDiff;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
@@ -43,7 +47,7 @@ import java.util.List;
 import java.util.Map;
 
 public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryModelRuntime<S> {
-    private static final Logger log = LoggerFactory.getLogger(KafkaQueryModelRuntime.class);
+    private static final Logger logger = LoggerFactory.getLogger(KafkaQueryModelRuntime.class);
     private final SchemaRegistryClient schemaRegistryClient;
     private final SchemaGenerator jsonSchemaGenerator;
     private final ObjectMapper objectMapper;
@@ -126,6 +130,72 @@ public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryM
             } // ignore if we don't have an external domainevent registered
         }
         return state;
+    }
+
+    @Override
+    public void validateDomainEventSchemas() {
+        for (DomainEventType<?> domainEventType : domainEvents.values()) {
+            try {
+                logger.info("Validating schema for domain event {}", domainEventType.typeName());
+                JsonSchema localSchema = generateJsonSchema(domainEventType);
+                // check if the type exists in the registry
+                List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas("domainevents." + domainEventType.typeName(), false, false);
+                if (!registeredSchemas.isEmpty()) {
+                    logger.trace("Found {} schemas for domain event {}", registeredSchemas.size(), domainEventType.typeName());
+                    // see if it is an existing schema
+                    ParsedSchema registeredSchema = registeredSchemas.stream()
+                            .filter(parsedSchema -> getSchemaVersion(domainEventType, parsedSchema) == domainEventType.version())
+                            .findFirst().orElse(null);
+                    if (registeredSchema != null) {
+                        logger.trace("Found schema for domain event {} version {}", domainEventType.typeName(), domainEventType.version());
+                        // localSchema has to be a subset of registeredSchema
+                        // TODO: this needs to be implemented to make sure we
+                        // TODO: need to check a range of schema's here
+                        List<Difference> differences = SchemaDiff.compare(((JsonSchema) registeredSchema).rawSchema(), localSchema.rawSchema());
+                        if (!differences.isEmpty()) {
+                            // we need to check if any properties were removed, removed properties are allowed
+                            // adding properties is not allowed, as well as changing the type etc
+                            List<Difference> violatingDifferences = differences.stream()
+                                    .filter(difference -> !difference.getType().equals(Difference.Type.PROPERTY_REMOVED_FROM_CLOSED_CONTENT_MODEL))
+                                    .toList();
+                            if(!violatingDifferences.isEmpty()) {
+                               // our implementaion class is incompatible with the registered schema
+                                throw new IncompatibleSchemaException(
+                                        "domainevents." + domainEventType.typeName(),
+                                        domainEventType.version(),
+                                        domainEventType.typeClass(),
+                                        violatingDifferences);
+                            }
+                        }
+                    } else {
+                        // did not find the specific version
+                        throw new SchemaVersionNotFoundException(
+                                "domainevents." + domainEventType.typeName(),
+                                domainEventType.version(),
+                                domainEventType.typeClass());
+                    }
+                } else {
+                    // do not find any schemas
+                    throw new SchemaNotFoundException(
+                            "domainevents." + domainEventType.typeName(),
+                            domainEventType.typeClass());
+                }
+            } catch (IOException | RestClientException | RuntimeException e) {
+                logger.error("Error generating schema for domain event {}", domainEventType.typeName(), e);
+            }
+        }
+    }
+
+    private JsonSchema generateJsonSchema(DomainEventType<?> domainEventType) {
+        return new JsonSchema(jsonSchemaGenerator.generateSchema(domainEventType.typeClass()), List.of(), Map.of(), domainEventType.version());
+    }
+
+    private int getSchemaVersion(DomainEventType<?> domainEventType, ParsedSchema parsedSchema) {
+        try {
+            return schemaRegistryClient.getVersion("domainevents."+domainEventType.typeName(), parsedSchema);
+        } catch (IOException | RestClientException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private DomainEvent materialize(DomainEventType<?> domainEventType, DomainEventRecord eventRecord) throws IOException {

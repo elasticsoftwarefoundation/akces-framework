@@ -17,21 +17,21 @@
 
 package org.elasticsoftware.akces.query.models;
 
-import org.elasticsoftware.akces.protocol.DomainEventRecord;
-import org.elasticsoftware.akces.query.QueryModel;
-import org.elasticsoftware.akces.query.QueryModelState;
+public class SchemaException extends RuntimeException {
+    private final String schemaIdentifier;
+    private final Class<?> implementationClass;
 
-import java.io.IOException;
-import java.util.List;
+    public SchemaException(String message, String schemaIdentifier, Class<?> implementationClass) {
+        super(message);
+        this.schemaIdentifier = schemaIdentifier;
+        this.implementationClass = implementationClass;
+    }
 
-public interface QueryModelRuntime<S extends QueryModelState> {
-    String getName();
+    public String getSchemaIdentifier() {
+        return schemaIdentifier;
+    }
 
-    String getIndexName();
-
-    Class<? extends QueryModel> getQueryModelClass();
-
-    S apply(List<DomainEventRecord> eventRecords, S currentState) throws IOException;
-
-    void validateDomainEventSchemas();
+    public Class<?> getImplementationClass() {
+        return implementationClass;
+    }
 }

@@ -17,21 +17,16 @@
 
 package org.elasticsoftware.akces.query.models;
 
-import org.elasticsoftware.akces.protocol.DomainEventRecord;
-import org.elasticsoftware.akces.query.QueryModel;
-import org.elasticsoftware.akces.query.QueryModelState;
+public class SchemaVersionNotFoundException extends SchemaException {
+    private final int schemaVersion;
 
-import java.io.IOException;
-import java.util.List;
+    public SchemaVersionNotFoundException(String schemaIdentifier, int schemaVersion, Class<?> implementationClass) {
+        super("Schema Version Not Found", schemaIdentifier, implementationClass);
+        this.schemaVersion = schemaVersion;
+    }
 
-public interface QueryModelRuntime<S extends QueryModelState> {
-    String getName();
+    public int getSchemaVersion() {
+        return schemaVersion;
+    }
 
-    String getIndexName();
-
-    Class<? extends QueryModel> getQueryModelClass();
-
-    S apply(List<DomainEventRecord> eventRecords, S currentState) throws IOException;
-
-    void validateDomainEventSchemas();
 }
