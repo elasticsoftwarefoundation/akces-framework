@@ -15,7 +15,13 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.query;
 
-public record IndexParams(String indexName, String indexKey, boolean createIndex) {
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.constraints.NotNull;
+
+public interface QueryModelState {
+    @JsonIgnore
+    @NotNull
+    String getIndexKey();
 }

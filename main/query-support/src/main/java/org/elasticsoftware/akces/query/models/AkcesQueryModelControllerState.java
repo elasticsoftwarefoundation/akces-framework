@@ -15,7 +15,10 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.query.models;
 
-public record IndexParams(String indexName, String indexKey, boolean createIndex) {
+public enum AkcesQueryModelControllerState {
+    INITIALIZING,
+    RUNNING,
+    SHUTTING_DOWN
 }

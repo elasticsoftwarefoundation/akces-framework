@@ -42,7 +42,7 @@
         <javassist.version>3.30.2-GA</javassist.version>
         <lz4.version>1.8.0</lz4.version>
         <kafka.version>3.8.1</kafka.version>
-        <java-uuid-generator.version>4.3.0</java-uuid-generator.version>
+        <java-uuid-generator.version>5.1.0</java-uuid-generator.version>
         <rocksdb.version>9.7.3</rocksdb.version>
         <caffeine.version>3.1.8</caffeine.version>
         <semver4j.version>5.5.0</semver4j.version>
@@ -57,7 +57,7 @@
         <confluent.version>7.8.0</confluent.version>
         <victools.version>4.37.0</victools.version>
         <joda-time.version>2.13.0</joda-time.version>
-        <logback.version>1.5.13</logback.version>
+        <logback.version>1.5.16</logback.version>
         <testcontainers.version>1.20.4</testcontainers.version>
     </properties>
 
@@ -129,7 +129,7 @@
             <dependency>
                 <groupId>jakarta.validation</groupId>
                 <artifactId>jakarta.validation-api</artifactId>
-                <version>3.0.2</version>
+                <version>3.1.0</version>
             </dependency>
             <dependency>
                 <groupId>jakarta.inject</groupId>

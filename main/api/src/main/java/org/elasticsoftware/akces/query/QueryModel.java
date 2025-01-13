@@ -15,7 +15,14 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.query;
 
-public record IndexParams(String indexName, String indexKey, boolean createIndex) {
+public interface QueryModel<S extends QueryModelState> {
+    default String getName() {
+        return getClass().getSimpleName();
+    }
+
+    Class<S> getStateClass();
+
+    String getIndexName();
 }

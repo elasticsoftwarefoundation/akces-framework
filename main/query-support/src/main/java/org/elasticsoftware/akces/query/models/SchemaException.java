@@ -15,7 +15,23 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.query.models;
 
-public record IndexParams(String indexName, String indexKey, boolean createIndex) {
+public class SchemaException extends RuntimeException {
+    private final String schemaIdentifier;
+    private final Class<?> implementationClass;
+
+    public SchemaException(String message, String schemaIdentifier, Class<?> implementationClass) {
+        super(message);
+        this.schemaIdentifier = schemaIdentifier;
+        this.implementationClass = implementationClass;
+    }
+
+    public String getSchemaIdentifier() {
+        return schemaIdentifier;
+    }
+
+    public Class<?> getImplementationClass() {
+        return implementationClass;
+    }
 }

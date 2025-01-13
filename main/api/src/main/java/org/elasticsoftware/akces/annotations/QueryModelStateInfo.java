@@ -15,7 +15,10 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.annotations;
 
-public record IndexParams(String indexName, String indexKey, boolean createIndex) {
+public @interface QueryModelStateInfo {
+    String type();
+
+    int version() default 1;
 }

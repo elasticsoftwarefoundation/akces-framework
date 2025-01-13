@@ -15,7 +15,24 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.annotations;
 
-public record IndexParams(String indexName, String indexKey, boolean createIndex) {
+import org.springframework.core.annotation.AliasFor;
+import org.springframework.stereotype.Component;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.TYPE})
+@Component
+public @interface QueryModelInfo {
+    @AliasFor(annotation = Component.class)
+    String value();
+
+    int version() default 1;
+
+    String indexName();
 }

@@ -15,7 +15,15 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.annotations;
 
-public record IndexParams(String indexName, String indexKey, boolean createIndex) {
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target({ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface QueryModelEventHandler {
+    boolean create() default false;
 }

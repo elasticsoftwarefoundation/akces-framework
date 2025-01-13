@@ -15,7 +15,23 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.query.models;
 
-public record IndexParams(String indexName, String indexKey, boolean createIndex) {
+import org.elasticsoftware.akces.protocol.DomainEventRecord;
+import org.elasticsoftware.akces.query.QueryModel;
+import org.elasticsoftware.akces.query.QueryModelState;
+
+import java.io.IOException;
+import java.util.List;
+
+public interface QueryModelRuntime<S extends QueryModelState> {
+    String getName();
+
+    String getIndexName();
+
+    Class<? extends QueryModel> getQueryModelClass();
+
+    S apply(List<DomainEventRecord> eventRecords, S currentState) throws IOException;
+
+    void validateDomainEventSchemas();
 }

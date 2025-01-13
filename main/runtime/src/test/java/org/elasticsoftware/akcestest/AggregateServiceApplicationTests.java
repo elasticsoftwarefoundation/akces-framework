@@ -72,6 +72,8 @@ public class AggregateServiceApplicationTests {
     @Container
     private static final KafkaContainer kafka =
             new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:"+CONFLUENT_PLATFORM_VERSION))
+                    .withKraft()
+                    .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false")
                     .withNetwork(network)
                     .withNetworkAliases("kafka");
 

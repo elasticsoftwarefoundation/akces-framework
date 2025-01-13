@@ -15,7 +15,7 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.query;
 
-public record IndexParams(String indexName, String indexKey, boolean createIndex) {
+public record QueryModelStateType<C extends QueryModelState>(String typeName, int version, Class<C> typeClass, String indexName) {
 }

@@ -15,7 +15,12 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.query.models;
 
-public record IndexParams(String indexName, String indexKey, boolean createIndex) {
+public class SchemaNotFoundException extends SchemaException {
+
+    public SchemaNotFoundException(String schemaIdentifier, Class<?> implementationClass) {
+        super("Schema Not Found", schemaIdentifier, implementationClass);
+    }
+
 }

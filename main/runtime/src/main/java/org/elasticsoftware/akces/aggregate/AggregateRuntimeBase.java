@@ -173,9 +173,10 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
 
     private void indexDomainEventIfRequired(DomainEventRecord domainEventRecord,
                                             AggregateState state,
-                                            BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer) {
+                                            BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer,
+                                            boolean createIndex) {
         if(type.indexed()) {
-            domainEventIndexer.accept(domainEventRecord, new IndexParams(type.indexName(),state.getIndexKey()));
+            domainEventIndexer.accept(domainEventRecord, new IndexParams(type.indexName(),state.getIndexKey(),createIndex));
         }
     }
 
@@ -215,7 +216,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                 commandRecord.correlationId(),
                 stateRecord.generation());
         protocolRecordConsumer.accept(eventRecord);
-        indexDomainEventIfRequired(eventRecord, state, domainEventIndexer);
+        indexDomainEventIfRequired(eventRecord, state, domainEventIndexer, true);
         // if there are more events, handle them as normal events
         AggregateStateRecord currentStateRecord = stateRecord;
         while(itr.hasNext()) {
@@ -283,7 +284,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                 domainEventRecord.correlationId(),
                 stateRecord.generation());
         protocolRecordConsumer.accept(eventRecord);
-        indexDomainEventIfRequired(eventRecord, state, domainEventIndexer);
+        indexDomainEventIfRequired(eventRecord, state, domainEventIndexer, true);
         // if there are more events, handle them as normal events
         AggregateStateRecord currentStateRecord = stateRecord;
         while(itr.hasNext()) {
@@ -348,7 +349,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                     correlationId,
                     nextStateRecord.generation());
             protocolRecordConsumer.accept(eventRecord);
-            indexDomainEventIfRequired(eventRecord, nextState, domainEventIndexer);
+            indexDomainEventIfRequired(eventRecord, nextState, domainEventIndexer, false);
             return nextStateRecord;
         } else {
             // this is an ErrorEvent, this doesn't alter the state but needs to be produced

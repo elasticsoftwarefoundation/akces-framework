@@ -15,7 +15,18 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.query.models;
 
-public record IndexParams(String indexName, String indexKey, boolean createIndex) {
+public class SchemaVersionNotFoundException extends SchemaException {
+    private final int schemaVersion;
+
+    public SchemaVersionNotFoundException(String schemaIdentifier, int schemaVersion, Class<?> implementationClass) {
+        super("Schema Version Not Found", schemaIdentifier, implementationClass);
+        this.schemaVersion = schemaVersion;
+    }
+
+    public int getSchemaVersion() {
+        return schemaVersion;
+    }
+
 }

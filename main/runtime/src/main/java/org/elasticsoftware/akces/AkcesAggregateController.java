@@ -20,6 +20,7 @@ package org.elasticsoftware.akces;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import jakarta.annotation.Nonnull;
+import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -44,8 +45,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdminOperations;
 import org.springframework.kafka.core.ProducerFactory;
-import org.springframework.lang.NonNull;
-import org.springframework.lang.NonNullApi;
 import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 
 import java.time.Duration;
@@ -57,6 +56,8 @@ import java.util.concurrent.Executors;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsoftware.akces.AkcesControllerState.*;
 import static org.elasticsoftware.akces.kafka.PartitionUtils.*;
+import static org.elasticsoftware.akces.util.TopicUtils.createCompactedTopic;
+import static org.elasticsoftware.akces.util.TopicUtils.getIndexTopicName;
 
 public class AkcesAggregateController extends Thread implements AutoCloseable, ConsumerRebalanceListener, AkcesRegistry {
     private static final Logger logger = LoggerFactory.getLogger(AkcesAggregateController.class);
@@ -70,6 +71,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     private final ExecutorService executorService;
     private final HashFunction hashFunction = Hashing.murmur3_32_fixed();
     private Integer partitions = null;
+    private Short replicationFactor = null;
     private final Map<String, AggregateServiceRecord> aggregateServices = new ConcurrentHashMap<>();
     private Consumer<String, AkcesControlRecord> controlConsumer;
     private final AggregateStateRepositoryFactory aggregateStateRepositoryFactory;
@@ -108,7 +110,9 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                 aggregateRuntime.registerAndValidate(commandType);
             }
             // find out about the cluster
-            partitions = kafkaAdmin.describeTopics("Akces-Control").get("Akces-Control").partitions().size();
+            TopicDescription controlTopicDescription = kafkaAdmin.describeTopics("Akces-Control").get("Akces-Control");
+            partitions = controlTopicDescription.partitions().size();
+            replicationFactor = (short) controlTopicDescription.partitions().getFirst().replicas().size();
             // publish our own record
             publishControlRecord(partitions);
             // and start consuming
@@ -246,7 +250,8 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                         toAggregateStateTopicPartition(aggregateRuntime, topicPartition.partition()),
                         toGDPRKeysTopicPartition(aggregateRuntime, topicPartition.partition()),
                         aggregateRuntime.getExternalDomainEventTypes(),
-                        this);
+                        this,
+                        this::createIndexTopic);
                 aggregatePartitions.put(aggregatePartition.getId(), aggregatePartition);
                 logger.info("Starting AggregatePartition {}", aggregatePartition.getId());
                 executorService.submit(aggregatePartition);
@@ -254,6 +259,17 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
             partitionsToAssign.clear();
             // move back to running
             processState = RUNNING;
+        }
+    }
+
+    private Boolean createIndexTopic(String indexName, String indexKey) {
+        try {
+            kafkaAdmin.createOrModifyTopics(
+                    createCompactedTopic(getIndexTopicName(indexName,indexKey), 1, replicationFactor));
+            return true;
+        } catch (Exception e) {
+            logger.error("Error creating index topic: {}", indexName, e);
+            return false;
         }
     }
 
@@ -432,6 +448,6 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     }
 
     public boolean isRunning() {
-        return processState == RUNNING;
+        return processState == RUNNING && aggregatePartitions.values().stream().allMatch(AggregatePartition::isProcessing);
     }
 }

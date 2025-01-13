@@ -15,7 +15,15 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.query.models;
 
-public record IndexParams(String indexName, String indexKey, boolean createIndex) {
+public class QueryModelExecutionException extends RuntimeException {
+
+    public QueryModelExecutionException(String message) {
+        super(message);
+    }
+
+    public QueryModelExecutionException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }
