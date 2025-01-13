@@ -17,5 +17,5 @@
 
 package org.elasticsoftware.akces.aggregate;
 
-public record IndexParams(String indexName, String indexKey) {
+public record IndexParams(String indexName, String indexKey, boolean createIndex) {
 }

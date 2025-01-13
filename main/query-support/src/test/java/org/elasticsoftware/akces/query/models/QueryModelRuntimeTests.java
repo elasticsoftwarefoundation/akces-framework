@@ -30,8 +30,6 @@ import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.query.QueryModelEventHandlerFunction;
 import org.elasticsoftware.akces.query.models.wallet.WalletQueryModel;
 import org.elasticsoftware.akces.query.models.wallet.WalletQueryModelState;
-import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
-import org.elasticsoftware.akcestest.aggregate.account.CreateAccountCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.BalanceCreatedEvent;
 import org.elasticsoftware.akcestest.aggregate.wallet.CreateWalletCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.WalletCreatedEvent;
@@ -82,14 +80,15 @@ public class QueryModelRuntimeTests {
 
     @Container
     private static final KafkaContainer kafka =
-            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:"+CONFLUENT_PLATFORM_VERSION))
+            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:" + CONFLUENT_PLATFORM_VERSION))
                     .withKraft()
+                    .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false")
                     .withNetwork(network)
                     .withNetworkAliases("kafka");
 
     @Container
     private static final GenericContainer<?> schemaRegistry =
-            new GenericContainer<>(DockerImageName.parse("confluentinc/cp-schema-registry:"+CONFLUENT_PLATFORM_VERSION))
+            new GenericContainer<>(DockerImageName.parse("confluentinc/cp-schema-registry:" + CONFLUENT_PLATFORM_VERSION))
                     .withNetwork(network)
                     .withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "kafka:9092")
                     .withEnv("SCHEMA_REGISTRY_HOST_NAME", "localhost")
@@ -97,13 +96,16 @@ public class QueryModelRuntimeTests {
                     .withNetworkAliases("schema-registry")
                     .dependsOn(kafka);
 
-    @Inject @Qualifier("akcesQueryModelKafkaAdmin")
+    @Inject
+    @Qualifier("akcesQueryModelKafkaAdmin")
     KafkaAdmin adminClient;
 
-    @Inject @Qualifier("akcesQueryModelSchemaRegistryClient")
+    @Inject
+    @Qualifier("akcesQueryModelSchemaRegistryClient")
     SchemaRegistryClient schemaRegistryClient;
 
-    @Inject @Qualifier("akcesQueryModelConsumerFactory")
+    @Inject
+    @Qualifier("akcesQueryModelConsumerFactory")
     ConsumerFactory<String, ProtocolRecord> consumerFactory;
 
     @Inject
@@ -127,7 +129,7 @@ public class QueryModelRuntimeTests {
     @Inject
     ObjectMapper objectMapper;
 
-//    @Inject @Qualifier("WalletQueryModelQueryModelRuntime")
+    //    @Inject @Qualifier("WalletQueryModelQueryModelRuntime")
 //    QueryModelRuntime<WalletQueryModelState> walletQueryModelRuntime;
     @Inject
     ApplicationContext applicationContext;
@@ -143,8 +145,8 @@ public class QueryModelRuntimeTests {
                     applicationContext,
                     "akces.rocksdb.baseDir=/tmp/akces",
                     "spring.kafka.enabled=true",
-                    "spring.kafka.bootstrap-servers="+kafka.getBootstrapServers(),
-                    "kafka.schemaregistry.url=http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081)
+                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
+                    "kafka.schemaregistry.url=http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081)
             );
         }
     }
@@ -171,30 +173,31 @@ public class QueryModelRuntimeTests {
     }
 
     private static NewTopic createTopic(String name, int numPartitions, long retentionMs) {
-        NewTopic topic = new NewTopic(name, numPartitions , Short.parseShort("1"));
+        NewTopic topic = new NewTopic(name, numPartitions, Short.parseShort("1"));
         return topic.configs(Map.of(
-                "cleanup.policy","delete",
-                "max.message.bytes","20971520",
+                "cleanup.policy", "delete",
+                "max.message.bytes", "20971520",
                 "retention.ms", Long.toString(retentionMs),
-                "segment.ms","604800000"));
+                "segment.ms", "604800000"));
     }
 
     private static NewTopic createCompactedTopic(String name, int numPartitions) {
-        NewTopic topic = new NewTopic(name, numPartitions , Short.parseShort("1"));
+        NewTopic topic = new NewTopic(name, numPartitions, Short.parseShort("1"));
         return topic.configs(Map.of(
-                "cleanup.policy","compact",
-                "max.message.bytes","20971520",
+                "cleanup.policy", "compact",
+                "max.message.bytes", "20971520",
                 "retention.ms", "-1",
-                "segment.ms","604800000",
+                "segment.ms", "604800000",
                 "min.cleanable.dirty.ratio", "0.1",
                 "delete.retention.ms", "604800000",
                 "compression.type", "lz4"));
     }
 
-    @BeforeAll @AfterAll
+    @BeforeAll
+    @AfterAll
     public static void cleanUp() throws IOException {
         // clean up the rocksdb directory
-        if(Files.exists(Paths.get("/tmp/akces"))) {
+        if (Files.exists(Paths.get("/tmp/akces"))) {
             // clean up the rocksdb directory
             Files.walk(Paths.get("/tmp/akces"))
                     .sorted(Comparator.reverseOrder())
@@ -203,7 +206,8 @@ public class QueryModelRuntimeTests {
         }
     }
 
-    @Test @Order(1)
+    @Test
+    @Order(1)
     void testContextLoads() {
         assertNotNull(adminClient);
         assertNotNull(schemaRegistryClient);
@@ -224,7 +228,8 @@ public class QueryModelRuntimeTests {
         }
     }
 
-    @Test @Order(2)
+    @Test
+    @Order(2)
     public void testFindBeans() {
         assertNotNull(applicationContext);
         assertEquals(2, applicationContext.getBeansOfType(QueryModelEventHandlerFunction.class).size());
@@ -235,7 +240,8 @@ public class QueryModelRuntimeTests {
         assertEquals(1, applicationContext.getBeansOfType(QueryModelRuntime.class).size());
     }
 
-    @Test @Order(3)
+    @Test
+    @Order(3)
     public void testWithUnknownId() throws InterruptedException, TimeoutException {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
@@ -252,7 +258,8 @@ public class QueryModelRuntimeTests {
         assertInstanceOf(IllegalArgumentException.class, exception.getCause());
     }
 
-    @Test @Order(4)
+    @Test
+    @Order(4)
     public void testWithUnknownIdAgainAndInsureNotCreated() throws InterruptedException, TimeoutException {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
@@ -269,7 +276,8 @@ public class QueryModelRuntimeTests {
         assertInstanceOf(IllegalArgumentException.class, exception.getCause());
     }
 
-    @Test @Order(5)
+    @Test
+    @Order(5)
     public void testCreateAndQueryWalletQueryModel() throws ExecutionException, InterruptedException, TimeoutException {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
@@ -301,5 +309,61 @@ public class QueryModelRuntimeTests {
         assertNotNull(stateFuture);
         WalletQueryModelState state = assertDoesNotThrow(() -> stateFuture.get(10, TimeUnit.SECONDS));
         assertNotNull(state);
+    }
+
+    @Test
+    @Order(6)
+    public void testCreateAndQueryWalletQueryModelWithMultipleConcurrentRequests() throws ExecutionException, InterruptedException, TimeoutException {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
+                !akcesClientController.isRunning() ||
+                !akcesQueryModelController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        List<String> userIds = List.of(
+                "0dfc7c15-2e97-43c0-81f3-52f19e177909",
+                "69084006-819f-47bf-8dad-026915e70eef",
+                "1deccc0d-75ce-4fdd-900d-779a088b5449",
+                "1c28cd3c-9d67-4756-aa40-8d8bb60870a0",
+                "21d39df6-29d2-465f-bef1-e32206a95519",
+                "6873a740-a15c-4164-ad8d-101006deea22",
+                "fae4298d-041a-4ad3-bef0-1903361c1408",
+                "9eb4ebd4-3897-460d-a756-0615e6eb8c7e",
+                "278254d9-47ee-4014-b275-1119d74d4af2",
+                "fbfd596f-0a84-413c-9f98-206bc6f0be0a"
+        );
+
+        List<CompletableFuture<List<DomainEvent>>> futures = userIds.stream()
+                .map(userId -> akcesClientController.send("TEST_TENANT", new CreateWalletCommand(userId, "BTC"))
+                        .toCompletableFuture())
+                .toList();
+
+        CompletableFuture<Void> allOf = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+        allOf.get(10, TimeUnit.SECONDS);
+
+        for (CompletableFuture<List<DomainEvent>> future : futures) {
+            List<DomainEvent> result = future.get();
+            assertNotNull(result);
+            assertEquals(2, result.size());
+            assertInstanceOf(WalletCreatedEvent.class, result.get(0));
+            assertInstanceOf(BalanceCreatedEvent.class, result.get(1));
+        }
+
+        List<CompletableFuture<WalletQueryModelState>> stateFutures = userIds.stream()
+                .map(userId -> akcesQueryModelController.getHydratedState(WalletQueryModel.class, userId)
+                        .toCompletableFuture())
+                .toList();
+
+        CompletableFuture<Void> allOfStates = CompletableFuture.allOf(stateFutures.toArray(new CompletableFuture[0]));
+        allOfStates.get(10, TimeUnit.SECONDS);
+
+        for (CompletableFuture<WalletQueryModelState> stateFuture : stateFutures) {
+            WalletQueryModelState state = stateFuture.get();
+            assertNotNull(state);
+        }
+
+        List<DomainEvent> result;
     }
 }

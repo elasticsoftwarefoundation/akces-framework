@@ -49,13 +49,14 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsoftware.akces.gdpr.GDPRContextHolder.getCurrentGDPRContext;
 import static org.elasticsoftware.akces.kafka.AggregatePartitionState.*;
-import static org.elasticsoftware.akces.util.TopicNameUtils.getIndexTopicName;
+import static org.elasticsoftware.akces.util.TopicUtils.getIndexTopicName;
 
 public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     private static final Logger logger = LoggerFactory.getLogger(AggregatePartition.class);
@@ -78,6 +79,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     private Map<TopicPartition,Long> initializedEndOffsets = Collections.emptyMap();
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
     private volatile Thread aggregatePartitionThread = null;
+    private final BiFunction<String,String,Boolean> indexTopicCreator;
 
 
     public AggregatePartition(ConsumerFactory<String, ProtocolRecord> consumerFactory,
@@ -90,12 +92,14 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                               TopicPartition statePartition,
                               TopicPartition gdprKeyPartition,
                               Collection<DomainEventType<?>> externalDomainEventTypes,
-                              AkcesRegistry ackesRegistry) {
+                              AkcesRegistry ackesRegistry,
+                              BiFunction<String,String,Boolean> indexTopicCreator) {
         this.gdprKeyPartition = gdprKeyPartition;
         this.ackesRegistry = ackesRegistry;
         this.consumerFactory = consumerFactory;
         this.producerFactory = producerFactory;
         this.runtime = runtime;
+        this.indexTopicCreator = indexTopicCreator;
         this.stateRepository = stateRepositoryFactory.create(runtime, id);
         this.id = id;
         this.commandPartition = commandPartition;
@@ -221,8 +225,14 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
 
     private void index(DomainEventRecord der, IndexParams params) {
         // send to the index topic
-        // TODO: this assumes that auto.create.topics.enable is set to true on the kafka cluster
         String topicName = getIndexTopicName(params.indexName(),params.indexKey());
+        if(params.createIndex()) {
+            if(consumer.partitionsFor(topicName).isEmpty()) {
+                if(indexTopicCreator.apply(params.indexName(),params.indexKey())) {
+                    logger.info("Creating DomainEventIndex topic {}", topicName);
+                }
+            }
+        }
         logger.trace("Indexing DomainEventRecord {}:{} with id {} to topic {}", der.name(), der.version(), der.id(), topicName+"-0");
         // index topics only have one partition
         KafkaSender.send(producer, new ProducerRecord<>(topicName, 0, der.id(), der));

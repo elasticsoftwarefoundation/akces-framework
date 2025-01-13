@@ -17,13 +17,29 @@
 
 package org.elasticsoftware.akces.util;
 
-public final class TopicNameUtils {
+import org.apache.kafka.clients.admin.NewTopic;
+
+import java.util.Map;
+
+public final class TopicUtils {
     public static final String DOMAIN_EVENT_INDEX = "-DomainEventIndex";
 
-    private TopicNameUtils() {
+    private TopicUtils() {
     }
 
     public static String getIndexTopicName(String indexName, String indexKey) {
         return indexName + "-" + indexKey + DOMAIN_EVENT_INDEX;
+    }
+
+    public static NewTopic createCompactedTopic(String name, int numPartitions, short replicationFactor) {
+        NewTopic topic = new NewTopic(name, numPartitions , replicationFactor);
+        return topic.configs(Map.of(
+                "cleanup.policy","compact",
+                "max.message.bytes","20971520",
+                "retention.ms", "-1",
+                "segment.ms","604800000",
+                "min.cleanable.dirty.ratio", "0.1",
+                "delete.retention.ms", "604800000",
+                "compression.type", "lz4"));
     }
 }
