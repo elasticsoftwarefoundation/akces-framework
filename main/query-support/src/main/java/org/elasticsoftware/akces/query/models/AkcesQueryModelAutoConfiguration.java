@@ -27,9 +27,12 @@ import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.kafka.core.ConsumerFactory;
@@ -43,11 +46,13 @@ import java.util.List;
 public class AkcesQueryModelAutoConfiguration {
     private final ProtocolRecordSerde serde = new ProtocolRecordSerde();
 
+    @Conditional(QueryModelImplementationPresentCondition.class)
     @Bean(name = "queryModelBeanFactoryPostProcessor")
     public static QueryModelBeanFactoryPostProcessor queryModelBeanFactoryPostProcessor() {
         return new QueryModelBeanFactoryPostProcessor();
     }
 
+    @ConditionalOnMissingBean(Jackson2ObjectMapperBuilderCustomizer.class)
     @Bean(name = "akcesQueryModelJsonCustomizer")
     public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
         return builder -> {
@@ -56,15 +61,19 @@ public class AkcesQueryModelAutoConfiguration {
         };
     }
 
+    @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
     @Bean(name = "akcesQueryModelSchemaRegistryClient")
     public SchemaRegistryClient createSchemaRegistryClient(@Value("${kafka.schemaregistry.url}") String url) {
         return new CachedSchemaRegistryClient(url, 1000, List.of(new JsonSchemaProvider()), null);
     }
 
+    @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
     @Bean(name = "akcesQueryModelConsumerFactory")
     public ConsumerFactory<String, ProtocolRecord> consumerFactory(KafkaProperties properties) {
         return new DefaultKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), serde.deserializer());
     }
+
+    @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
     @Bean(name = "ackesQueryModelController", initMethod = "start")
     public AkcesQueryModelController queryModelRuntimes(@Qualifier("akcesQueryModelConsumerFactory") ConsumerFactory<String, ProtocolRecord> consumerFactory) {
         return new AkcesQueryModelController(consumerFactory);
