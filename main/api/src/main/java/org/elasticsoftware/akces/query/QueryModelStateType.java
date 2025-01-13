@@ -15,14 +15,7 @@
  *
  */
 
-package org.elasticsoftware.akces.queries;
+package org.elasticsoftware.akces.query;
 
-public interface QueryModel<S extends QueryModelState> {
-    default String getName() {
-        return getClass().getSimpleName();
-    }
-
-    Class<S> getStateClass();
-
-    String getIndexName();
+public record QueryModelStateType<C extends QueryModelState>(String typeName, int version, Class<C> typeClass, String indexName) {
 }

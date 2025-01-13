@@ -15,13 +15,14 @@
  *
  */
 
-package org.elasticsoftware.akces.queries;
+package org.elasticsoftware.akces.query;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.validation.constraints.NotNull;
+public interface QueryModel<S extends QueryModelState> {
+    default String getName() {
+        return getClass().getSimpleName();
+    }
 
-public interface QueryModelState {
-    @JsonIgnore
-    @NotNull
-    String getIndexKey();
+    Class<S> getStateClass();
+
+    String getIndexName();
 }

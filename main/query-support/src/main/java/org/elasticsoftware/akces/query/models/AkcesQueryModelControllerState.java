@@ -15,7 +15,10 @@
  *
  */
 
-package org.elasticsoftware.akces.queries;
+package org.elasticsoftware.akces.query.models;
 
-public record QueryModelStateType<C extends QueryModelState>(String typeName, int version, Class<C> typeClass, String indexName) {
+public enum AkcesQueryModelControllerState {
+    INITIALIZING,
+    RUNNING,
+    SHUTTING_DOWN
 }

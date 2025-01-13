@@ -15,15 +15,15 @@
  *
  */
 
-package org.elasticsoftware.akces.queries.models;
+package org.elasticsoftware.akces.query.models;
 
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
-import org.elasticsoftware.akces.queries.QueryModel;
-import org.elasticsoftware.akces.queries.QueryModelEventHandlerFunction;
-import org.elasticsoftware.akces.queries.QueryModelState;
+import org.elasticsoftware.akces.query.QueryModel;
+import org.elasticsoftware.akces.query.QueryModelEventHandlerFunction;
+import org.elasticsoftware.akces.query.QueryModelState;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;

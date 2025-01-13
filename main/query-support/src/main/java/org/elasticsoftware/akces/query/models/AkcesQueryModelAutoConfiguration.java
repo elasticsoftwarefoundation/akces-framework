@@ -15,7 +15,7 @@
  *
  */
 
-package org.elasticsoftware.akces.queries.models;
+package org.elasticsoftware.akces.query.models;
 
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
@@ -65,8 +65,8 @@ public class AkcesQueryModelAutoConfiguration {
     public ConsumerFactory<String, ProtocolRecord> consumerFactory(KafkaProperties properties) {
         return new DefaultKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), serde.deserializer());
     }
-    @Bean("queryModels")
-    public QueryModels queryModelRuntimes(@Qualifier("akcesQueryModelConsumerFactory") ConsumerFactory<String, ProtocolRecord> consumerFactory) {
+    @Bean(name = "ackesQueryModelController", initMethod = "start")
+    public AkcesQueryModelController queryModelRuntimes(@Qualifier("akcesQueryModelConsumerFactory") ConsumerFactory<String, ProtocolRecord> consumerFactory) {
         return new AkcesQueryModelController(consumerFactory);
     }
 }

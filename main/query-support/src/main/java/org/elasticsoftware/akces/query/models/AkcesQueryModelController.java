@@ -1,4 +1,4 @@
-package org.elasticsoftware.akces.queries.models;
+package org.elasticsoftware.akces.query.models;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -9,8 +9,8 @@ import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.WakeupException;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
-import org.elasticsoftware.akces.queries.QueryModel;
-import org.elasticsoftware.akces.queries.QueryModelState;
+import org.elasticsoftware.akces.query.QueryModel;
+import org.elasticsoftware.akces.query.QueryModelState;
 import org.elasticsoftware.akces.util.HostUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,13 +25,10 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
-import static org.elasticsoftware.akces.queries.models.AkcesQueryModelControllerState.*;
+import static org.elasticsoftware.akces.query.models.AkcesQueryModelControllerState.*;
 import static org.elasticsoftware.akces.util.TopicNameUtils.getIndexTopicName;
 
 @SuppressWarnings("rawtypes")
@@ -98,11 +95,15 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                         indexConsumer.seekToBeginning(List.of(partition));
                     }
                 });
-                ConsumerRecords<String,ProtocolRecord> consumerRecords = indexConsumer.poll(Duration.ofMillis(10));
-                for (TopicPartition partition : consumerRecords.partitions()) {
-                    hydrationExecutions.computeIfPresent(partition,
-                            (topicPartition, hydrationExecution) ->
-                                    processHydrationExecution(hydrationExecution, consumerRecords.records(partition) ));
+                // only poll if there is something to poll
+                if(!hydrationExecutions.isEmpty()) {
+                    logger.info("Processing hydrationExecutions {}", hydrationExecutions);
+                    ConsumerRecords<String, ProtocolRecord> consumerRecords = indexConsumer.poll(Duration.ofMillis(10));
+                    for (TopicPartition partition : consumerRecords.partitions()) {
+                        hydrationExecutions.computeIfPresent(partition,
+                                (topicPartition, hydrationExecution) ->
+                                        processHydrationExecution(hydrationExecution, consumerRecords.records(partition)));
+                    }
                 }
                 // check for stop condition
                 Iterator<HydrationExecution<?>> itr = hydrationExecutions.values().iterator();
@@ -112,6 +113,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                         // we are done with this execution
                         execution.complete();
                         itr.remove();
+                        // TODO: store the state and offset in a cache
                     }
                 }
             } catch (WakeupException | InterruptException e) {
@@ -125,6 +127,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         } else if(processState == INITIALIZING) {
             try {
                 // TODO: we need to load the initial GDPRKeys here if necessary
+                processState = RUNNING;
             } catch (WakeupException | InterruptException e) {
                 // ignore
             } catch (KafkaException e) {
@@ -137,26 +140,40 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
     }
 
     private Map<TopicPartition,HydrationExecution<?>> processHydrationRequests(Consumer<String,ProtocolRecord> indexConsumer) {
+        Map<TopicPartition, HydrationExecution<?>> newExecutions = new HashMap<>();
         // see if we have new commands to process
-        HydrationRequest request = commandQueue.poll();
-        Map<TopicPartition,HydrationExecution<?>> newExecutions = new HashMap<>();
-        while(request != null) {
-            // create the TopicPartition to check
-            QueryModelRuntime runtime = request.runtime();
-            TopicPartition indexPartition = new TopicPartition(getIndexTopicName(runtime.getIndexName(), request.id()), 0);
-            newExecutions.put(indexPartition, new HydrationExecution<>(runtime, request.completableFuture(), request.id(), request.currentState(), request.currentOffset(), indexPartition, null));
-            request = commandQueue.poll();
+        try {
+            HydrationRequest request = commandQueue.poll(100, TimeUnit.MILLISECONDS);
+            while (request != null) {
+                logger.info("Processing HydrationRequest on index {} with id {} and runtime {}", request.runtime().getIndexName(), request.id(), request.runtime().getName());
+                // create the TopicPartition to check
+                QueryModelRuntime runtime = request.runtime();
+                String topicName = getIndexTopicName(runtime.getIndexName(), request.id());
+                if (!indexConsumer.partitionsFor(topicName).isEmpty()) {
+                    TopicPartition indexPartition = new TopicPartition(topicName, 0);
+                    newExecutions.put(indexPartition, new HydrationExecution<>(runtime, request.completableFuture(), request.id(), request.currentState(), request.currentOffset(), indexPartition, null));
+                } else {
+                    logger.warn("KafkaTopic {} not found for HydrationRequest on index {} with id {}", topicName, request.runtime().getIndexName(), request.id());
+                    // TODO: return a proper error here
+                    request.completableFuture().completeExceptionally(new IllegalArgumentException("KafkaTopic not found"));
+                }
+                request = commandQueue.poll();
+            }
+            // we need to get the endoffsets for all the partitions
+            indexConsumer.endOffsets(newExecutions.keySet()).forEach((partition, endOffset) -> {
+                newExecutions.computeIfPresent(partition, (topicPartition, hydrationExecution) -> hydrationExecution.withEndOffset(endOffset));
+            });
+            return newExecutions;
+        } catch (InterruptedException e) {
+            // ignore
         }
-        // we need to get the endoffsets for all the partitions
-        indexConsumer.endOffsets(newExecutions.keySet()).forEach((partition, endOffset) -> {
-            newExecutions.computeIfPresent(partition, (topicPartition, hydrationExecution) -> hydrationExecution.withEndOffset(endOffset));
-        });
         return newExecutions;
     }
 
     private <S extends QueryModelState> HydrationExecution<S> processHydrationExecution(HydrationExecution<S> execution,
                                                                     List<ConsumerRecord<String, ProtocolRecord>> records) {
         try {
+            logger.info("Processing {} records HydrationExecution on index {} with id {} and runtime {}", records.size(), execution.runtime().getIndexName(), execution.id(), execution.runtime().getName());
             return execution.withCurrentState(execution.runtime().apply(
                     records.stream().map(record -> (DomainEventRecord) record.value())
                             .toList(), execution.currentState()));
@@ -171,6 +188,10 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
     @Override
     public void close() throws Exception {
 
+    }
+
+    public boolean isRunning() {
+        return processState == RUNNING;
     }
 
     private record HydrationRequest<S extends QueryModelState>(QueryModelRuntime<S> runtime, CompletableFuture<S> completableFuture, String id, S currentState, Long currentOffset) { }

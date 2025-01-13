@@ -15,4 +15,4 @@
 #
 #
 
-org.elasticsoftware.akces.queries.models.AkcesQueryModelAutoConfiguration
+org.elasticsoftware.akces.query.models.AkcesQueryModelAutoConfiguration

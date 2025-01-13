@@ -15,7 +15,7 @@
  *
  */
 
-package org.elasticsoftware.akces.queries.models;
+package org.elasticsoftware.akces.query.models;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -29,10 +29,10 @@ import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
-import org.elasticsoftware.akces.queries.QueryModel;
-import org.elasticsoftware.akces.queries.QueryModelEventHandlerFunction;
-import org.elasticsoftware.akces.queries.QueryModelState;
-import org.elasticsoftware.akces.queries.QueryModelStateType;
+import org.elasticsoftware.akces.query.QueryModel;
+import org.elasticsoftware.akces.query.QueryModelEventHandlerFunction;
+import org.elasticsoftware.akces.query.QueryModelState;
+import org.elasticsoftware.akces.query.QueryModelStateType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

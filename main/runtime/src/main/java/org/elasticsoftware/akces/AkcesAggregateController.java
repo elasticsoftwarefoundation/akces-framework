@@ -432,6 +432,6 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     }
 
     public boolean isRunning() {
-        return processState == RUNNING;
+        return processState == RUNNING && aggregatePartitions.values().stream().allMatch(AggregatePartition::isProcessing);
     }
 }

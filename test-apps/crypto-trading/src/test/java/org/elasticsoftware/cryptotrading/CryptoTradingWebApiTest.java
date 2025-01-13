@@ -69,6 +69,7 @@ public class CryptoTradingWebApiTest {
     @Container
     private static final KafkaContainer kafka =
             new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:" + CONFLUENT_PLATFORM_VERSION))
+                    .withKraft()
                     .withNetwork(network)
                     .withNetworkAliases("kafka");
 

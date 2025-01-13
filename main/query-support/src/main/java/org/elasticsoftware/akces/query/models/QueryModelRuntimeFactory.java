@@ -15,20 +15,20 @@
  *
  */
 
-package org.elasticsoftware.akces.queries.models;
+package org.elasticsoftware.akces.query.models;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.annotations.QueryModelInfo;
-import org.elasticsoftware.akces.queries.QueryModel;
-import org.elasticsoftware.akces.queries.QueryModelEventHandlerFunction;
-import org.elasticsoftware.akces.queries.QueryModelState;
-import org.elasticsoftware.akces.queries.QueryModelStateType;
+import org.elasticsoftware.akces.query.QueryModel;
+import org.elasticsoftware.akces.query.QueryModelEventHandlerFunction;
+import org.elasticsoftware.akces.query.QueryModelState;
+import org.elasticsoftware.akces.query.QueryModelStateType;
 import org.springframework.beans.factory.FactoryBean;
 import org.springframework.beans.factory.ListableBeanFactory;
 
-public class QueryModelRuntimeFactory<S extends QueryModelState> implements FactoryBean<QueryModelRuntime> {
+public class QueryModelRuntimeFactory<S extends QueryModelState> implements FactoryBean<QueryModelRuntime<S>> {
     private final ListableBeanFactory applicationContext;
     private final ObjectMapper objectMapper;
     private final SchemaRegistryClient schemaRegistryClient;
@@ -45,7 +45,7 @@ public class QueryModelRuntimeFactory<S extends QueryModelState> implements Fact
     }
 
     @Override
-    public QueryModelRuntime getObject() throws Exception {
+    public QueryModelRuntime<S> getObject() throws Exception {
         return createRuntime(queryModel);
     }
 
@@ -54,7 +54,7 @@ public class QueryModelRuntimeFactory<S extends QueryModelState> implements Fact
         return QueryModelRuntime.class;
     }
 
-    private QueryModelRuntime createRuntime(QueryModel<S> queryModel) {
+    private QueryModelRuntime<S> createRuntime(QueryModel<S> queryModel) {
         KafkaQueryModelRuntime.Builder runtimeBuilder = new KafkaQueryModelRuntime.Builder();
 
         QueryModelInfo queryModelInfo = queryModel.getClass().getAnnotation(QueryModelInfo.class);

@@ -469,4 +469,8 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                     .ifPresent(offset -> consumer.seek(topicPartition, offset));
         });
     }
+
+    public boolean isProcessing() {
+        return processState == PROCESSING;
+    }
 }

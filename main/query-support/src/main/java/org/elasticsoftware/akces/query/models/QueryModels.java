@@ -1,7 +1,7 @@
-package org.elasticsoftware.akces.queries.models;
+package org.elasticsoftware.akces.query.models;
 
-import org.elasticsoftware.akces.queries.QueryModel;
-import org.elasticsoftware.akces.queries.QueryModelState;
+import org.elasticsoftware.akces.query.QueryModel;
+import org.elasticsoftware.akces.query.QueryModelState;
 
 import java.util.concurrent.CompletionStage;
 

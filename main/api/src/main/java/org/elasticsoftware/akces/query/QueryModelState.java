@@ -15,21 +15,13 @@
  *
  */
 
-package org.elasticsoftware.akces.queries.models;
+package org.elasticsoftware.akces.query;
 
-import org.elasticsoftware.akces.protocol.DomainEventRecord;
-import org.elasticsoftware.akces.queries.QueryModel;
-import org.elasticsoftware.akces.queries.QueryModelState;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.constraints.NotNull;
 
-import java.io.IOException;
-import java.util.List;
-
-public interface QueryModelRuntime<S extends QueryModelState> {
-    String getName();
-
-    String getIndexName();
-
-    Class<? extends QueryModel> getQueryModelClass();
-
-    S apply(List<DomainEventRecord> eventRecords, S currentState) throws IOException;
+public interface QueryModelState {
+    @JsonIgnore
+    @NotNull
+    String getIndexKey();
 }

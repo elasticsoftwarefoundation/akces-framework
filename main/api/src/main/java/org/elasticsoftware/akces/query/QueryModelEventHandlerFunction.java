@@ -15,7 +15,7 @@
  *
  */
 
-package org.elasticsoftware.akces.queries;
+package org.elasticsoftware.akces.query;
 
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.aggregate.DomainEventType;

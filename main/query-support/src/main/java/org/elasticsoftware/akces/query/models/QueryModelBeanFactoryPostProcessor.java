@@ -15,14 +15,14 @@
  *
  */
 
-package org.elasticsoftware.akces.queries.models;
+package org.elasticsoftware.akces.query.models;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.annotations.QueryModelEventHandler;
 import org.elasticsoftware.akces.annotations.QueryModelInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
-import org.elasticsoftware.akces.queries.QueryModelState;
+import org.elasticsoftware.akces.query.QueryModelState;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
@@ -51,7 +51,7 @@ public class QueryModelBeanFactoryPostProcessor implements BeanFactoryPostProces
                     throw new ApplicationContextException("Unable to load class for bean " + beanName, e);
                 }
                 // now we need to add a bean definition for the AggregateRuntimeFactory
-                bdr.registerBeanDefinition(beanName + "QueryModelRuntimeFactory",
+                bdr.registerBeanDefinition(beanName + "QueryModelRuntime",
                         BeanDefinitionBuilder.genericBeanDefinition(QueryModelRuntimeFactory.class)
                                 .addConstructorArgValue(beanFactory)
                                 .addConstructorArgReference(beanFactory.getBeanNamesForType(ObjectMapper.class)[0])
