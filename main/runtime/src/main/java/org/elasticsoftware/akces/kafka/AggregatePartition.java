@@ -38,6 +38,7 @@ import org.elasticsoftware.akces.gdpr.InMemoryGDPRContextRepository;
 import org.elasticsoftware.akces.protocol.*;
 import org.elasticsoftware.akces.state.AggregateStateRepository;
 import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
+import org.elasticsoftware.akces.util.HostUtils;
 import org.elasticsoftware.akces.util.KafkaSender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,7 +57,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.singletonList;
 import static org.elasticsoftware.akces.gdpr.GDPRContextHolder.getCurrentGDPRContext;
 import static org.elasticsoftware.akces.kafka.AggregatePartitionState.*;
-import static org.elasticsoftware.akces.util.TopicUtils.getIndexTopicName;
+import static org.elasticsoftware.akces.util.KafkaUtils.getIndexTopicName;
 
 public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     private static final Logger logger = LoggerFactory.getLogger(AggregatePartition.class);
@@ -123,8 +124,11 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             // register the CommandBus
             AggregatePartitionCommandBus.registerCommandBus(this);
             logger.info("Starting AggregatePartition {} of {}Aggregate", id, runtime.getName());
-            this.consumer = consumerFactory.createConsumer(runtime.getName() +"Aggregate-partition-" + id, runtime.getName() +"Aggregate-partition-" + id, null);
-            this.producer = producerFactory.createProducer(runtime.getName() + "Aggregate-partition-" + id);
+            this.consumer = consumerFactory.createConsumer(
+                    runtime.getName() +"Aggregate-partition-" + id,
+                    runtime.getName() +"Aggregate-partition-" + id + "-" + HostUtils.getHostName(),
+                    null);
+            this.producer = producerFactory.createProducer(runtime.getName() + "Aggregate-partition-" + id + "-" + HostUtils.getHostName());
             // resolve the external event partitions
             externalDomainEventTypes.forEach(domainEventType -> {
                 String topic = ackesRegistry.resolveTopic(domainEventType);

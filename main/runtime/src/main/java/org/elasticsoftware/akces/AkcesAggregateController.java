@@ -56,8 +56,8 @@ import java.util.concurrent.Executors;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsoftware.akces.AkcesControllerState.*;
 import static org.elasticsoftware.akces.kafka.PartitionUtils.*;
-import static org.elasticsoftware.akces.util.TopicUtils.createCompactedTopic;
-import static org.elasticsoftware.akces.util.TopicUtils.getIndexTopicName;
+import static org.elasticsoftware.akces.util.KafkaUtils.createCompactedTopic;
+import static org.elasticsoftware.akces.util.KafkaUtils.getIndexTopicName;
 
 public class AkcesAggregateController extends Thread implements AutoCloseable, ConsumerRebalanceListener, AkcesRegistry {
     private static final Logger logger = LoggerFactory.getLogger(AkcesAggregateController.class);
@@ -118,8 +118,8 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
             // and start consuming
             controlConsumer =
                     controlRecordConsumerFactory.createConsumer(
-                            aggregateRuntime.getName()+"=Akces-Control",
-                            aggregateRuntime.getName() + "-" + HostUtils.getHostName() + "-control",
+                            aggregateRuntime.getName()+"-Akces-Control",
+                            aggregateRuntime.getName() + "-" + HostUtils.getHostName() + "-Akces-Control",
                             null);
             controlConsumer.subscribe(List.of("Akces-Control"), this);
             //controlConsumer.enforceRebalance();

@@ -22,6 +22,7 @@ import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.json.JsonSchemaProvider;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
+import org.elasticsoftware.akces.kafka.CustomKafkaConsumerFactory;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
@@ -36,7 +37,6 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.kafka.core.ConsumerFactory;
-import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -70,7 +70,7 @@ public class AkcesQueryModelAutoConfiguration {
     @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
     @Bean(name = "akcesQueryModelConsumerFactory")
     public ConsumerFactory<String, ProtocolRecord> consumerFactory(KafkaProperties properties) {
-        return new DefaultKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), serde.deserializer());
+        return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), serde.deserializer());
     }
 
     @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)

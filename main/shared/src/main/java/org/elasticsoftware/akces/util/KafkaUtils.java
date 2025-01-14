@@ -21,10 +21,10 @@ import org.apache.kafka.clients.admin.NewTopic;
 
 import java.util.Map;
 
-public final class TopicUtils {
+public final class KafkaUtils {
     public static final String DOMAIN_EVENT_INDEX = "-DomainEventIndex";
 
-    private TopicUtils() {
+    private KafkaUtils() {
     }
 
     public static String getIndexTopicName(String indexName, String indexKey) {
@@ -42,4 +42,5 @@ public final class TopicUtils {
                 "delete.retention.ms", "604800000",
                 "compression.type", "lz4"));
     }
+
 }

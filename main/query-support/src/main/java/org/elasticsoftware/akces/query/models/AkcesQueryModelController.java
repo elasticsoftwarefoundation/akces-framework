@@ -29,7 +29,7 @@ import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 import static org.elasticsoftware.akces.query.models.AkcesQueryModelControllerState.*;
-import static org.elasticsoftware.akces.util.TopicUtils.getIndexTopicName;
+import static org.elasticsoftware.akces.util.KafkaUtils.getIndexTopicName;
 
 @SuppressWarnings({"rawtypes","unchecked"})
 public class AkcesQueryModelController extends Thread implements AutoCloseable, ApplicationContextAware, QueryModels {
