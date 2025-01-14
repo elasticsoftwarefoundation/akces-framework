@@ -17,16 +17,8 @@
 
 package org.elasticsoftware.akces.query.models;
 
-public class QueryModelExecutionException extends RuntimeException {
-    private final Class<?> modelClass;
-
-    public QueryModelExecutionException(String message, Class<?> modelClass) {
-        super(message);
-        this.modelClass = modelClass;
-    }
-
-    public QueryModelExecutionException(String message, Class<?> modelClass, Throwable cause) {
-        super(message, cause);
-        this.modelClass = modelClass;
+public class QueryModelNotFoundException extends QueryModelExecutionException{
+    public QueryModelNotFoundException(Class<?> modelClass) {
+        super("Query model not found", modelClass);
     }
 }

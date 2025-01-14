@@ -31,10 +31,11 @@ import java.util.stream.Collectors;
 import static org.elasticsoftware.akces.query.models.AkcesQueryModelControllerState.*;
 import static org.elasticsoftware.akces.util.TopicUtils.getIndexTopicName;
 
-@SuppressWarnings("rawtypes")
+@SuppressWarnings({"rawtypes","unchecked"})
 public class AkcesQueryModelController extends Thread implements AutoCloseable, ApplicationContextAware, QueryModels {
     private static final Logger logger = LoggerFactory.getLogger(AkcesQueryModelController.class);
-    private final Map<Class<? extends QueryModel>, QueryModelRuntime> runtimes = new ConcurrentHashMap<>();
+    private final Map<Class<? extends QueryModel>, QueryModelRuntime> enabledRuntimes = new ConcurrentHashMap<>();
+    private final Map<Class<? extends QueryModel>, QueryModelRuntime> disabledRuntimes = new ConcurrentHashMap<>();
     private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
     private volatile AkcesQueryModelControllerState processState = INITIALIZING;
     private final BlockingQueue<HydrationRequest<?>> commandQueue = new LinkedBlockingQueue<>();
@@ -47,15 +48,19 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
 
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
-        this.runtimes.putAll(
+        this.enabledRuntimes.putAll(
                 applicationContext.getBeansOfType(QueryModelRuntime.class).values().stream()
                 .collect(Collectors.toMap(runtime -> ((QueryModelRuntime<?>)runtime).getQueryModelClass(), runtime -> runtime)));
     }
 
 
     @SuppressWarnings("unchecked")
-    public <S extends QueryModelState> QueryModelRuntime<S> getRuntime(Class<? extends QueryModel<S>> modelClass) {
-        return (QueryModelRuntime<S>) this.runtimes.get(modelClass);
+    private <S extends QueryModelState> QueryModelRuntime<S> getEnabledRuntime(Class<? extends QueryModel<S>> modelClass) {
+        return (QueryModelRuntime<S>) this.enabledRuntimes.get(modelClass);
+    }
+
+    private  <S extends QueryModelState> boolean isRuntimeDisable(Class<? extends QueryModel<S>> modelClass) {
+        return this.disabledRuntimes.containsKey(modelClass);
     }
 
     @Override
@@ -63,20 +68,24 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         // TODO: get state and offset from a cache
         S currentState = null;
         Long currentOffset = null;
-        QueryModelRuntime<S> runtime = getRuntime(modelClass);
+        QueryModelRuntime<S> runtime = getEnabledRuntime(modelClass);
         if(runtime != null) {
             CompletableFuture<S> completableFuture = new CompletableFuture<>();
             commandQueue.add(new HydrationRequest<>(runtime, completableFuture, id, currentState, currentOffset));
             return completableFuture;
+        } else if(isRuntimeDisable(modelClass)) {
+            // TODO: add Schema differences
+            return CompletableFuture.failedFuture(new QueryModelExecutionDisabledException(modelClass));
         } else {
-            return CompletableFuture.failedFuture(new QueryModelExecutionException("QueryModel not found"));
+            // not found
+            return CompletableFuture.failedFuture(new QueryModelNotFoundException(modelClass));
         }
     }
 
     @Override
     public void run() {
         try (final Consumer<String, ProtocolRecord> indexConsumer = consumerFactory.createConsumer(
-                "AkcesQueryModelController",
+                HostUtils.getHostName() + "-AkcesQueryModelController",
                 HostUtils.getHostName() + "-AkcesQueryModelController",
                 null)) {
             while (processState != SHUTTING_DOWN) {
@@ -131,7 +140,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         } else if(processState == INITIALIZING) {
             try {
                 // TODO: we need to load the initial GDPRKeys here if necessary
-                Iterator<QueryModelRuntime> iterator = runtimes.values().iterator();
+                Iterator<QueryModelRuntime> iterator = enabledRuntimes.values().iterator();
                 while (iterator.hasNext()) {
                     QueryModelRuntime queryModelRuntime = iterator.next();
                     try {
@@ -142,6 +151,8 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                                 queryModelRuntime.getName(),
                                 e);
                         iterator.remove();
+                        // mark the runtime as disabled
+                        disabledRuntimes.put(queryModelRuntime.getQueryModelClass(), queryModelRuntime);
                     }
                 }
                 processState = RUNNING;
@@ -201,8 +212,11 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                             .toList(), execution.currentState()));
         } catch (IOException e) {
             logger.error("Exception while processing HydrationExecution", e);
-            // TODO: create our own exception
-            execution.completableFuture.completeExceptionally(new QueryModelExecutionException("Exception while processing HydrationExecution", e));
+            execution.completableFuture.completeExceptionally(
+                    new QueryModelExecutionException(
+                            "Exception while processing HydrationExecution",
+                            execution.runtime().getQueryModelClass(),
+                            e));
             return null; // this will remove the HydrationExecution from the map
         }
     }

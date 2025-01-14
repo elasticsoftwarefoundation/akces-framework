@@ -82,7 +82,6 @@ import java.util.concurrent.TimeoutException;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Testcontainers
-//@SpringBootTest(classes = QueryModelTestConfiguration.class, properties = "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration")
 @SpringBootTest(
         classes = AggregateServiceApplication.class,
         args = "org.elasticsoftware.akces.query.models.QueryModelTestConfiguration",
@@ -145,8 +144,6 @@ public class QueryModelRuntimeTests {
     @Inject
     ObjectMapper objectMapper;
 
-    //    @Inject @Qualifier("WalletQueryModelQueryModelRuntime")
-//    QueryModelRuntime<WalletQueryModelState> walletQueryModelRuntime;
     @Inject
     ApplicationContext applicationContext;
 

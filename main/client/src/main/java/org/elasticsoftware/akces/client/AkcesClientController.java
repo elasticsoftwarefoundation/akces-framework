@@ -124,11 +124,11 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
     @Override
     public void run() {
         try (final Consumer<String, AkcesControlRecord> controlConsumer = controlRecordConsumerFactory.createConsumer(
-                    "AkcesClientController",
+                HostUtils.getHostName() + "-AkcesClientController",
                     HostUtils.getHostName() + "-AkcesClientController",
                     null);
              final Consumer<String, ProtocolRecord> commandResponseConsumer = commandResponseConsumerFactory.createConsumer(
-                     "AkcesClientController",
+                     HostUtils.getHostName() + "-AkcesClientController",
                      HostUtils.getHostName() + "-AkcesClientController",
                      null);
             final Producer<String, ProtocolRecord> producer = producerFactory.createProducer(HostUtils.getHostName() + "-AkcesClientController")) {

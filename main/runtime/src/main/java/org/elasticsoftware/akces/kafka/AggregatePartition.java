@@ -123,7 +123,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             // register the CommandBus
             AggregatePartitionCommandBus.registerCommandBus(this);
             logger.info("Starting AggregatePartition {} of {}Aggregate", id, runtime.getName());
-            this.consumer = consumerFactory.createConsumer(runtime.getName(), runtime.getName() +"Aggregate-partition-" + id, null);
+            this.consumer = consumerFactory.createConsumer(runtime.getName() +"Aggregate-partition-" + id, runtime.getName() +"Aggregate-partition-" + id, null);
             this.producer = producerFactory.createProducer(runtime.getName() + "Aggregate-partition-" + id);
             // resolve the external event partitions
             externalDomainEventTypes.forEach(domainEventType -> {

@@ -15,18 +15,25 @@
  *
  */
 
-package org.elasticsoftware.akces.query.models;
+package org.elasticsoftware.akces.query.models.account;
 
-public class QueryModelExecutionException extends RuntimeException {
-    private final Class<?> modelClass;
+import org.elasticsoftware.akces.query.QueryModel;
 
-    public QueryModelExecutionException(String message, Class<?> modelClass) {
-        super(message);
-        this.modelClass = modelClass;
+// we cannot set the value of QueryModelInfo to Account because it will clash with the Account aggregate bean name
+//@QueryModelInfo(value = "AccountQueryModel", version = 1, indexName = "Users")
+public class AccountQueryModel implements QueryModel<AccountQueryModelState> {
+    @Override
+    public String getName() {
+        return "AccountQueryModel";
     }
 
-    public QueryModelExecutionException(String message, Class<?> modelClass, Throwable cause) {
-        super(message, cause);
-        this.modelClass = modelClass;
+    @Override
+    public Class<AccountQueryModelState> getStateClass() {
+        return AccountQueryModelState.class;
+    }
+
+    @Override
+    public String getIndexName() {
+        return "Users";
     }
 }

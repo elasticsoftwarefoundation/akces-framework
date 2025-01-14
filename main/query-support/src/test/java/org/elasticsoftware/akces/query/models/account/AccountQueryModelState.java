@@ -15,18 +15,14 @@
  *
  */
 
-package org.elasticsoftware.akces.query.models;
+package org.elasticsoftware.akces.query.models.account;
 
-public class QueryModelExecutionException extends RuntimeException {
-    private final Class<?> modelClass;
+import org.elasticsoftware.akces.query.QueryModelState;
 
-    public QueryModelExecutionException(String message, Class<?> modelClass) {
-        super(message);
-        this.modelClass = modelClass;
-    }
-
-    public QueryModelExecutionException(String message, Class<?> modelClass, Throwable cause) {
-        super(message, cause);
-        this.modelClass = modelClass;
+//@QueryModelStateInfo(type = "Account")
+public record AccountQueryModelState(String accountId) implements QueryModelState {
+    @Override
+    public String getIndexKey() {
+        return accountId();
     }
 }

@@ -29,7 +29,7 @@ public interface QueryModelRuntime<S extends QueryModelState> {
 
     String getIndexName();
 
-    Class<? extends QueryModel> getQueryModelClass();
+    Class<? extends QueryModel<S>> getQueryModelClass();
 
     S apply(List<DomainEventRecord> eventRecords, S currentState) throws IOException;
 

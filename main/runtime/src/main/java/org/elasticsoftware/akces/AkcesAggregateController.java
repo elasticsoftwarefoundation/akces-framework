@@ -118,7 +118,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
             // and start consuming
             controlConsumer =
                     controlRecordConsumerFactory.createConsumer(
-                            aggregateRuntime.getName(),
+                            aggregateRuntime.getName()+"=Akces-Control",
                             aggregateRuntime.getName() + "-" + HostUtils.getHostName() + "-control",
                             null);
             controlConsumer.subscribe(List.of("Akces-Control"), this);

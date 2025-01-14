@@ -27,8 +27,6 @@ import org.springframework.kafka.core.KafkaAdmin;
 import java.util.Map;
 
 @Configuration
-//@EnableAutoConfiguration
-//@EnableConfigurationProperties(KafkaProperties.class)
 @ComponentScan(basePackages = {
         "org.elasticsoftware.akcestest.aggregate",
         "org.elasticsoftware.akces.query.models.wallet"

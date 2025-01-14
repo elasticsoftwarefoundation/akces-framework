@@ -17,16 +17,10 @@
 
 package org.elasticsoftware.akces.query.models;
 
-public class QueryModelExecutionException extends RuntimeException {
-    private final Class<?> modelClass;
+public class QueryModelExecutionDisabledException extends QueryModelExecutionException {
 
-    public QueryModelExecutionException(String message, Class<?> modelClass) {
-        super(message);
-        this.modelClass = modelClass;
+    public QueryModelExecutionDisabledException(Class<?> modelClass) {
+        super("Query model execution is disabled due to Schema validation errors", modelClass);
     }
 
-    public QueryModelExecutionException(String message, Class<?> modelClass, Throwable cause) {
-        super(message, cause);
-        this.modelClass = modelClass;
-    }
 }
