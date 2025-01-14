@@ -35,6 +35,7 @@ import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
 import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.state.RocksDBAggregateStateRepositoryFactory;
+import org.elasticsoftware.akces.util.EnvironmentPropertiesPrinter;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
@@ -112,6 +113,11 @@ public class AggregateServiceApplication {
     @Bean(name = "aggregateStateRepositoryFactory")
     public AggregateStateRepositoryFactory aggregateStateRepositoryFactory(@Value("${akces.rocksdb.baseDir}") String baseDir) {
         return new RocksDBAggregateStateRepositoryFactory(serde, baseDir);
+    }
+
+    @Bean(name = "EnvironmentPropertiesPrinter")
+    public EnvironmentPropertiesPrinter environmentPropertiesPrinter() {
+        return new EnvironmentPropertiesPrinter();
     }
 
     public static void main(String[] args) {
