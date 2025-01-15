@@ -23,50 +23,13 @@
         <artifactId>akces-framework-test-apps</artifactId>
         <version>0.5.1-SNAPSHOT</version>
     </parent>
-    <artifactId>akces-crypto-trading</artifactId>
+    <artifactId>akces-crypto-trading-parent</artifactId>
+    <packaging>pom</packaging>
     <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading</name>
     <description>Crypto Trading Akces Test Application</description>
     <properties>
     </properties>
     <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-webflux</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-logging</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-autoconfigure</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.kafka</groupId>
-            <artifactId>spring-kafka</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.elasticsoftwarefoundation.akces</groupId>
-            <artifactId>akces-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.elasticsoftwarefoundation.akces</groupId>
-            <artifactId>akces-runtime</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.elasticsoftwarefoundation.akces</groupId>
-            <artifactId>akces-client</artifactId>
-        </dependency>
-
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -102,12 +65,13 @@
         </dependency>
     </dependencies>
 
+    <modules>
+        <module>aggregates</module>
+    </modules>
+
     <build>
         <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
+
         </plugins>
     </build>
 
