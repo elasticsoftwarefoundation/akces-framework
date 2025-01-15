@@ -61,11 +61,6 @@ import java.util.Set;
 public class AggregateServiceApplication {
     private final ProtocolRecordSerde serde = new ProtocolRecordSerde();
 
-    @Bean(name = "aggregateServiceBeanFactoryPostProcessor")
-    public static AggregateBeanFactoryPostProcessor aggregateBeanFactoryPostProcessor() {
-        return new AggregateBeanFactoryPostProcessor();
-    }
-
     public static void main(String[] args) {
         SpringApplication application = new SpringApplication(AggregateServiceApplication.class);
         if (args.length > 0) {
@@ -73,6 +68,11 @@ public class AggregateServiceApplication {
             application.setSources(Set.of(args));
         }
         application.run();
+    }
+
+    @Bean(name = "aggregateServiceBeanFactoryPostProcessor")
+    public static AggregateBeanFactoryPostProcessor aggregateBeanFactoryPostProcessor() {
+        return new AggregateBeanFactoryPostProcessor();
     }
 
     @Bean(name = "aggregateServiceJsonCustomizer")
