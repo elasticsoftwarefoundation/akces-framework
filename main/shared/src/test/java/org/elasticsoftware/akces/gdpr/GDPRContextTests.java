@@ -25,7 +25,7 @@ import javax.crypto.spec.SecretKeySpec;
 public class GDPRContextTests {
     @Test
     public void testEncryptDecrypt() {
-        GDPRContext ctx = new EncryptingGDPRContext("ef234add-e0df-4769-b5f4-612a3207bad3",GDPRKeyUtils.createKey().getEncoded(), true);
+        GDPRContext ctx = new EncryptingGDPRContext("ef234add-e0df-4769-b5f4-612a3207bad3", GDPRKeyUtils.createKey().getEncoded(), true);
         String encryptedData = ctx.encrypt("test");
         System.out.println(encryptedData);
         String decryptedData = ctx.decrypt(encryptedData);
@@ -34,7 +34,7 @@ public class GDPRContextTests {
 
     @Test
     public void testEncrypt() {
-        GDPRContext ctx = new EncryptingGDPRContext("ef234add-e0df-4769-b5f4-612a3207bad3",GDPRKeyUtils.createKey().getEncoded(), true);
+        GDPRContext ctx = new EncryptingGDPRContext("ef234add-e0df-4769-b5f4-612a3207bad3", GDPRKeyUtils.createKey().getEncoded(), true);
         String name = ctx.encrypt("Jasin Terlouw");
         String street = ctx.encrypt("Gershwinstraat 125");
         System.out.println("name: " + name);
@@ -45,7 +45,7 @@ public class GDPRContextTests {
 
     @Test
     public void testEncryptForTests() {
-        GDPRContext ctx = new EncryptingGDPRContext("ef234add-e0df-4769-b5f4-612a3207bad3",GDPRKeyUtils.createKey().getEncoded(), true);
+        GDPRContext ctx = new EncryptingGDPRContext("ef234add-e0df-4769-b5f4-612a3207bad3", GDPRKeyUtils.createKey().getEncoded(), true);
         String firstName = ctx.encrypt("Fahim");
         String lastName = ctx.encrypt("Zuijderwijk");
         String email = ctx.encrypt("FahimZuijderwijk@jourrapide.com");
@@ -63,7 +63,7 @@ public class GDPRContextTests {
         String encrypted = "CnTg8ppy-GCWYLHEB4Ia9Q==";
         byte[] key = {90, -73, -103, -5, 40, -102, -103, 86, -29, -13, -30, -96, 109, -7, -61, 83, 58, 93, 60, -37, -54, -82, 24, 118, 53, 13, 32, 28, -68, -30, 63, -16};
 
-        GDPRContext ctx = new EncryptingGDPRContext(aggregateId,key,true);
+        GDPRContext ctx = new EncryptingGDPRContext(aggregateId, key, true);
 
         ctx.decrypt(encrypted);
 

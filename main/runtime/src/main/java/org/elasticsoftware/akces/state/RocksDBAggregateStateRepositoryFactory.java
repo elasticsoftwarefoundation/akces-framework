@@ -20,7 +20,7 @@ package org.elasticsoftware.akces.state;
 import org.elasticsoftware.akces.aggregate.AggregateRuntime;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
 
-public class RocksDBAggregateStateRepositoryFactory implements AggregateStateRepositoryFactory{
+public class RocksDBAggregateStateRepositoryFactory implements AggregateStateRepositoryFactory {
     private final ProtocolRecordSerde serde;
     private final String baseDir;
 
@@ -33,8 +33,8 @@ public class RocksDBAggregateStateRepositoryFactory implements AggregateStateRep
     public AggregateStateRepository create(AggregateRuntime aggregateRuntime, Integer partitionId) {
         return new RocksDBAggregateStateRepository(
                 baseDir,
-                aggregateRuntime.getName()+"-AggregateState-"+partitionId.toString(),
-                aggregateRuntime.getName()+"-AggregateState",
+                aggregateRuntime.getName() + "-AggregateState-" + partitionId.toString(),
+                aggregateRuntime.getName() + "-AggregateState",
                 serde.serializer(),
                 serde.deserializer());
     }

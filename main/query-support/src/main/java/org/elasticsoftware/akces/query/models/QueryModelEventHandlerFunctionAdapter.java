@@ -34,9 +34,9 @@ public class QueryModelEventHandlerFunctionAdapter<S extends QueryModelState, E 
     private final String adapterMethodName;
     private final Class<E> domainEventClass;
     private final Class<S> stateClass;
-    private Method adapterMethod;
     private final boolean create;
     private final DomainEventInfo domainEventInfo;
+    private Method adapterMethod;
 
     public QueryModelEventHandlerFunctionAdapter(QueryModel<S> queryModel,
                                                  String adapterMethodName,
@@ -68,8 +68,8 @@ public class QueryModelEventHandlerFunctionAdapter<S extends QueryModelState, E 
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         } catch (InvocationTargetException e) {
-            if(e.getCause() != null) {
-                if(e.getCause() instanceof RuntimeException) {
+            if (e.getCause() != null) {
+                if (e.getCause() instanceof RuntimeException) {
                     throw (RuntimeException) e.getCause();
                 } else {
                     throw new RuntimeException(e.getCause());
@@ -82,7 +82,7 @@ public class QueryModelEventHandlerFunctionAdapter<S extends QueryModelState, E 
 
     @Override
     public DomainEventType<E> getEventType() {
-        return new DomainEventType<>(domainEventInfo.type(), domainEventInfo.version(), domainEventClass, create, true,false);
+        return new DomainEventType<>(domainEventInfo.type(), domainEventInfo.version(), domainEventClass, create, true, false);
     }
 
     @Override

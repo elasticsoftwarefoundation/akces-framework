@@ -67,145 +67,144 @@ import static org.springframework.boot.test.context.SpringBootTest.UseMainMethod
 @Testcontainers
 @DirtiesContext
 class AkcesOperatorApplicationTests {
-	private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";
+    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";
 
-	private static final Network network = Network.newNetwork();
+    private static final Network network = Network.newNetwork();
 
-	@Container
-	private static final KafkaContainer kafka =
-			new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:"+CONFLUENT_PLATFORM_VERSION))
-					.withKraft()
-					.withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false")
-					.withNetwork(network)
-					.withNetworkAliases("kafka");
+    @Container
+    private static final KafkaContainer kafka =
+            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:" + CONFLUENT_PLATFORM_VERSION))
+                    .withKraft()
+                    .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false")
+                    .withNetwork(network)
+                    .withNetworkAliases("kafka");
 
-	@LocalServerPort
-	private int port;
+    @LocalServerPort
+    private int port;
 
-	@Autowired
-	private TestRestTemplate restTemplate;
+    @Autowired
+    private TestRestTemplate restTemplate;
 
-	@Autowired
-	private AggregateReconciler aggregateReconciler;
+    @Autowired
+    private AggregateReconciler aggregateReconciler;
 
-	@Autowired
-	private CommandServiceReconciler commandServiceReconciler;
+    @Autowired
+    private CommandServiceReconciler commandServiceReconciler;
 
-	@Autowired
-	private QueryServiceReconciler queryServiceReconciler;
+    @Autowired
+    private QueryServiceReconciler queryServiceReconciler;
 
-	@Autowired
+    @Autowired
     private KafkaAdmin kafkaAdmin;
 
-	public static class KafkaInitializer
-			implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+    @Test
+    void contextLoads() {
+        assertThat(restTemplate).isNotNull();
+        assertThat(aggregateReconciler).isNotNull();
+    }
 
-		@Override
-		public void initialize(ConfigurableApplicationContext applicationContext) {
-			// initialize kafka topics
-			KafkaAdmin kafkaAdmin = new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers()));
-			kafkaAdmin.createOrModifyTopics(
-					createCompactedTopic("Akces-Control", 3),
-					createTopic("Akces-CommandResponses", 3, 604800000L),
-					createCompactedTopic("Akces-GDPRKeys", 3)
-			);
-			//prepareExternalServices(kafka.getBootstrapServers());
-			TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
-					applicationContext,
-					"spring.kafka.enabled=true",
-					"spring.kafka.bootstrap-servers="+kafka.getBootstrapServers()
-			);
-		}
-	}
+    @Test
+    void healthReadinessEndpointShouldBeEnabled() throws Exception {
+        assertThat(this.restTemplate.getForObject("http://localhost:" + port + "/actuator/health/readiness",
+                String.class)).contains("{\"status\":\"UP\"}");
+    }
 
+    @Test
+    void healthLivenessEndpointShouldBeEnabled() throws Exception {
+        assertThat(this.restTemplate.getForObject("http://localhost:" + port + "/actuator/health/liveness",
+                String.class)).contains("{\"status\":\"UP\"}");
+    }
 
-	@Test
-	void contextLoads() {
-		assertThat(restTemplate).isNotNull();
-		assertThat(aggregateReconciler).isNotNull();
-	}
+    @Test
+    void testAggregateReconciliation() throws Exception {
+        Aggregate aggregate = new Aggregate();
+        aggregate.setMetadata(new ObjectMetaBuilder()
+                .withName("test-aggregate")
+                .withNamespace("akces")
+                .build());
+        aggregate.setSpec(new AggregateSpec());
+        aggregate.getSpec().setReplicas(3);
+        aggregate.getSpec().setImage("test-image");
+        aggregate.getSpec().setAggregateNames(List.of("Account", "OrderProcessManager", "Wallet"));
 
-	@Test
-	void healthReadinessEndpointShouldBeEnabled() throws Exception {
-		assertThat(this.restTemplate.getForObject("http://localhost:" + port + "/actuator/health/readiness",
-				String.class)).contains("{\"status\":\"UP\"}");
-	}
+        Context<Aggregate> mockContext = mock(Context.class);
+        when(mockContext.getSecondaryResource(StatefulSet.class)).thenReturn(Optional.empty());
+        UpdateControl<Aggregate> updateControl = aggregateReconciler.reconcile(aggregate, mockContext);
 
-	@Test
-	void healthLivenessEndpointShouldBeEnabled() throws Exception {
-		assertThat(this.restTemplate.getForObject("http://localhost:" + port + "/actuator/health/liveness",
-				String.class)).contains("{\"status\":\"UP\"}");
-	}
+        Map<String, TopicDescription> reconciledTopics = kafkaAdmin.describeTopics("Account-DomainEvents", "Account-Commands", "Account-AggregateState",
+                "OrderProcessManager-DomainEvents", "OrderProcessManager-Commands", "OrderProcessManager-AggregateState",
+                "Wallet-DomainEvents", "Wallet-Commands", "Wallet-AggregateState");
 
-	@Test
-	void testAggregateReconciliation() throws Exception {
-		Aggregate aggregate = new Aggregate();
-		aggregate.setMetadata(new ObjectMetaBuilder()
-				.withName("test-aggregate")
-				.withNamespace("akces")
-				.build());
-		aggregate.setSpec(new AggregateSpec());
-		aggregate.getSpec().setReplicas(3);
-		aggregate.getSpec().setImage("test-image");
-		aggregate.getSpec().setAggregateNames(List.of("Account", "OrderProcessManager", "Wallet"));
+        assertThat(reconciledTopics).hasSize(9);
+        assertThat(reconciledTopics.get("Account-DomainEvents").partitions().size()).isEqualTo(3);
+        assertThat(reconciledTopics.get("Account-Commands").partitions().size()).isEqualTo(3);
+        assertThat(reconciledTopics.get("Account-AggregateState").partitions().size()).isEqualTo(3);
+        assertThat(reconciledTopics.get("OrderProcessManager-DomainEvents").partitions().size()).isEqualTo(3);
+        assertThat(reconciledTopics.get("OrderProcessManager-Commands").partitions().size()).isEqualTo(3);
+        assertThat(reconciledTopics.get("OrderProcessManager-AggregateState").partitions().size()).isEqualTo(3);
+        assertThat(reconciledTopics.get("Wallet-DomainEvents").partitions().size()).isEqualTo(3);
+        assertThat(reconciledTopics.get("Wallet-Commands").partitions().size()).isEqualTo(3);
+        assertThat(reconciledTopics.get("Wallet-AggregateState").partitions().size()).isEqualTo(3);
 
-		Context<Aggregate> mockContext = mock(Context.class);
-		when(mockContext.getSecondaryResource(StatefulSet.class)).thenReturn(Optional.empty());
-		UpdateControl<Aggregate> updateControl = aggregateReconciler.reconcile(aggregate, mockContext);
+    }
 
-		Map<String, TopicDescription> reconciledTopics = kafkaAdmin.describeTopics("Account-DomainEvents", "Account-Commands", "Account-AggregateState",
-				"OrderProcessManager-DomainEvents", "OrderProcessManager-Commands", "OrderProcessManager-AggregateState",
-				"Wallet-DomainEvents", "Wallet-Commands", "Wallet-AggregateState");
+    @Test
+    void testCommandServiceReconciliation() throws Exception {
+        CommandService commandService = new CommandService();
+        commandService.setMetadata(new ObjectMetaBuilder()
+                .withName("test-command-service")
+                .withNamespace("akces")
+                .build());
+        commandService.setSpec(new CommandServiceSpec());
+        commandService.getSpec().setReplicas(3);
+        commandService.getSpec().setImage("test-image");
 
-		assertThat(reconciledTopics).hasSize(9);
-		assertThat(reconciledTopics.get("Account-DomainEvents").partitions().size()).isEqualTo(3);
-		assertThat(reconciledTopics.get("Account-Commands").partitions().size()).isEqualTo(3);
-		assertThat(reconciledTopics.get("Account-AggregateState").partitions().size()).isEqualTo(3);
-		assertThat(reconciledTopics.get("OrderProcessManager-DomainEvents").partitions().size()).isEqualTo(3);
-		assertThat(reconciledTopics.get("OrderProcessManager-Commands").partitions().size()).isEqualTo(3);
-		assertThat(reconciledTopics.get("OrderProcessManager-AggregateState").partitions().size()).isEqualTo(3);
-		assertThat(reconciledTopics.get("Wallet-DomainEvents").partitions().size()).isEqualTo(3);
-		assertThat(reconciledTopics.get("Wallet-Commands").partitions().size()).isEqualTo(3);
-		assertThat(reconciledTopics.get("Wallet-AggregateState").partitions().size()).isEqualTo(3);
+        Context<CommandService> mockContext = mock(Context.class);
+        when(mockContext.getSecondaryResource(StatefulSet.class)).thenReturn(Optional.empty());
+        UpdateControl<CommandService> updateControl = commandServiceReconciler.reconcile(commandService, mockContext);
 
-	}
+        assertThat(updateControl.isNoUpdate()).isTrue();
+        assertThat(updateControl.getResource().isPresent()).isFalse();
+    }
 
-	@Test
-	void testCommandServiceReconciliation() throws Exception {
-		CommandService commandService = new CommandService();
-		commandService.setMetadata(new ObjectMetaBuilder()
-				.withName("test-command-service")
-				.withNamespace("akces")
-				.build());
-		commandService.setSpec(new CommandServiceSpec());
-		commandService.getSpec().setReplicas(3);
-		commandService.getSpec().setImage("test-image");
+    @Test
+    void testQueryServiceReconciliation() throws Exception {
+        QueryService queryService = new QueryService();
+        queryService.setMetadata(new ObjectMetaBuilder()
+                .withName("test-query-service")
+                .withNamespace("akces")
+                .build());
+        queryService.setSpec(new QueryServiceSpec());
+        queryService.getSpec().setReplicas(3);
+        queryService.getSpec().setImage("test-image");
 
-		Context<CommandService> mockContext = mock(Context.class);
-		when(mockContext.getSecondaryResource(StatefulSet.class)).thenReturn(Optional.empty());
-		UpdateControl<CommandService> updateControl = commandServiceReconciler.reconcile(commandService, mockContext);
+        Context<QueryService> mockContext = mock(Context.class);
+        when(mockContext.getSecondaryResource(StatefulSet.class)).thenReturn(Optional.empty());
+        UpdateControl<QueryService> updateControl = queryServiceReconciler.reconcile(queryService, mockContext);
 
-		assertThat(updateControl.isNoUpdate()).isTrue();
-		assertThat(updateControl.getResource().isPresent()).isFalse();
-	}
+        assertThat(updateControl.isNoUpdate()).isTrue();
+        assertThat(updateControl.getResource().isPresent()).isFalse();
+    }
 
-	@Test
-	void testQueryServiceReconciliation() throws Exception {
-		QueryService queryService = new QueryService();
-		queryService.setMetadata(new ObjectMetaBuilder()
-				.withName("test-query-service")
-				.withNamespace("akces")
-				.build());
-		queryService.setSpec(new QueryServiceSpec());
-		queryService.getSpec().setReplicas(3);
-		queryService.getSpec().setImage("test-image");
+    public static class KafkaInitializer
+            implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
-		Context<QueryService> mockContext = mock(Context.class);
-		when(mockContext.getSecondaryResource(StatefulSet.class)).thenReturn(Optional.empty());
-		UpdateControl<QueryService> updateControl = queryServiceReconciler.reconcile(queryService, mockContext);
-
-		assertThat(updateControl.isNoUpdate()).isTrue();
-		assertThat(updateControl.getResource().isPresent()).isFalse();
-	}
+        @Override
+        public void initialize(ConfigurableApplicationContext applicationContext) {
+            // initialize kafka topics
+            KafkaAdmin kafkaAdmin = new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers()));
+            kafkaAdmin.createOrModifyTopics(
+                    createCompactedTopic("Akces-Control", 3),
+                    createTopic("Akces-CommandResponses", 3, 604800000L),
+                    createCompactedTopic("Akces-GDPRKeys", 3)
+            );
+            //prepareExternalServices(kafka.getBootstrapServers());
+            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
+                    applicationContext,
+                    "spring.kafka.enabled=true",
+                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers()
+            );
+        }
+    }
 
 }

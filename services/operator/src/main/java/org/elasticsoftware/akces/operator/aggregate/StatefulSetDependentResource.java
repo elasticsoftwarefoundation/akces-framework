@@ -39,7 +39,7 @@ public class StatefulSetDependentResource extends CRUDKubernetesDependentResourc
 
     @Override
     protected StatefulSet desired(Aggregate aggregate, Context<Aggregate> context) {
-        StatefulSet statefulSet = ReconcilerUtils.loadYaml(StatefulSet.class, getClass(),"statefulset.yaml");
+        StatefulSet statefulSet = ReconcilerUtils.loadYaml(StatefulSet.class, getClass(), "statefulset.yaml");
         final ObjectMeta aggregateMetadata = aggregate.getMetadata();
         final String aggregateName = aggregateMetadata.getName();
 
@@ -52,7 +52,7 @@ public class StatefulSetDependentResource extends CRUDKubernetesDependentResourc
                 .addToLabels("app.kubernetes.io/managed-by", "akces-operator")
                 .endMetadata()
                 .editSpec()
-                .withServiceName(aggregateName+"-service")
+                .withServiceName(aggregateName + "-service")
                 .editSelector().addToMatchLabels("app", aggregateName).endSelector()
                 .withReplicas(aggregate.getSpec().getReplicas())
                 .editTemplate()
@@ -60,15 +60,15 @@ public class StatefulSetDependentResource extends CRUDKubernetesDependentResourc
                 .editSpec()
                 .addToImagePullSecrets(new LocalObjectReference("github-packages-cfg"))  // TODO: needs to be configurable
                 .editFirstContainer()
-                    .withImage(aggregate.getSpec().getImage())
-                    .withName("akces-aggregates")
-                    .withArgs(aggregate.getSpec().getArgs())
-                    .withResources(aggregate.getSpec().getResources())
+                .withImage(aggregate.getSpec().getImage())
+                .withName("akces-aggregates")
+                .withArgs(aggregate.getSpec().getArgs())
+                .withResources(aggregate.getSpec().getResources())
                 .endContainer()
                 .editFirstVolume()
-                    .editConfigMap()
-                        .withName(aggregateName+"-config")
-                    .endConfigMap()
+                .editConfigMap()
+                .withName(aggregateName + "-config")
+                .endConfigMap()
                 .endVolume()
                 .endSpec()
                 .endTemplate()

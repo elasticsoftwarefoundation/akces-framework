@@ -64,14 +64,14 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
                     event.quantity(),
                     event.limitPrice(),
                     event.clientReference()));
-        }} );
+        }});
     }
 
     @EventSourcingHandler
     public OrderProcessManagerState handle(BuyOrderRejectedEvent event, OrderProcessManagerState state) {
         return new OrderProcessManagerState(state.userId(), new ArrayList<>(state.runningProcesses()) {{
             removeIf(process -> process.orderId().equals(event.orderId()));
-        }} );
+        }});
     }
 
     @EventSourcingHandler
@@ -79,7 +79,7 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
         // TODO: we should not remove it but mark it as placed
         return new OrderProcessManagerState(state.userId(), new ArrayList<>(state.runningProcesses()) {{
             removeIf(process -> process.orderId().equals(event.orderId()));
-        }} );
+        }});
     }
 
     /**
@@ -110,12 +110,11 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
     }
 
 
-
     @EventHandler(produces = BuyOrderPlacedEvent.class, errors = {})
     public Stream<DomainEvent> handle(AmountReservedEvent event, OrderProcessManagerState state) {
         // happy path, need to send a command to the market to place the order
         OrderProcess orderProcess = state.getAkcesProcess(event.referenceId());
-        if(orderProcess != null) {
+        if (orderProcess != null) {
             // TODO: send order to ForexMarket
             return Stream.of(new BuyOrderPlacedEvent(state.userId(), orderProcess.orderId(), orderProcess.market(), orderProcess.quantity(), orderProcess.limitPrice()));
         } else {

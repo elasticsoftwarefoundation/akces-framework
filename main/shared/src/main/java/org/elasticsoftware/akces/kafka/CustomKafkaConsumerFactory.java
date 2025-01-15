@@ -24,7 +24,7 @@ import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 
 import java.util.Map;
 
-public class CustomKafkaConsumerFactory<K,V> extends DefaultKafkaConsumerFactory<K,V> {
+public class CustomKafkaConsumerFactory<K, V> extends DefaultKafkaConsumerFactory<K, V> {
     public CustomKafkaConsumerFactory(Map<String, Object> configs, Deserializer<K> keyDeserializer, Deserializer<V> valueDeserializer) {
         super(configs, keyDeserializer, valueDeserializer);
     }

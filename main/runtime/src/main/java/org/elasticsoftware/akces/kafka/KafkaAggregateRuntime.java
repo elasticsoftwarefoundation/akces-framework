@@ -57,17 +57,17 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
     private final Map<Class<? extends Command>, JsonSchema> commandSchemas = new HashMap<>();
 
     private KafkaAggregateRuntime(SchemaRegistryClient schemaRegistryClient,
-                                 ObjectMapper objectMapper,
-                                 AggregateStateType<?> stateType,
-                                 Class<? extends Aggregate> aggregateClass,
-                                 CommandHandlerFunction<AggregateState, Command, DomainEvent> commandCreateHandler,
-                                 EventHandlerFunction<AggregateState, DomainEvent, DomainEvent> eventCreateHandler,
-                                 EventSourcingHandlerFunction<AggregateState, DomainEvent> createStateHandler,
-                                 Map<Class<?>, DomainEventType<?>> domainEvents,
-                                 Map<String, List<CommandType<?>>> commandTypes,
-                                 Map<CommandType<?>, CommandHandlerFunction<AggregateState, Command, DomainEvent>> commandHandlers,
-                                 Map<DomainEventType<?>, EventHandlerFunction<AggregateState, DomainEvent, DomainEvent>> eventHandlers,
-                                 Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers,
+                                  ObjectMapper objectMapper,
+                                  AggregateStateType<?> stateType,
+                                  Class<? extends Aggregate> aggregateClass,
+                                  CommandHandlerFunction<AggregateState, Command, DomainEvent> commandCreateHandler,
+                                  EventHandlerFunction<AggregateState, DomainEvent, DomainEvent> eventCreateHandler,
+                                  EventSourcingHandlerFunction<AggregateState, DomainEvent> createStateHandler,
+                                  Map<Class<?>, DomainEventType<?>> domainEvents,
+                                  Map<String, List<CommandType<?>>> commandTypes,
+                                  Map<CommandType<?>, CommandHandlerFunction<AggregateState, Command, DomainEvent>> commandHandlers,
+                                  Map<DomainEventType<?>, EventHandlerFunction<AggregateState, DomainEvent, DomainEvent>> eventHandlers,
+                                  Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers,
                                   boolean generateGDPRKeyOnCreate) {
         super(stateType,
                 aggregateClass,
@@ -120,12 +120,12 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
         // generate the local schema version
         JsonSchema localSchema = generateJsonSchema(domainEventType);
         // check if the type exists in the registry
-        List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas("domainevents."+domainEventType.typeName(), false, false);
-        if(registeredSchemas.isEmpty()) {
-            if(!domainEventType.external()) {
-                if(domainEventType.version() == 1) {
+        List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas("domainevents." + domainEventType.typeName(), false, false);
+        if (registeredSchemas.isEmpty()) {
+            if (!domainEventType.external()) {
+                if (domainEventType.version() == 1) {
                     // we need to create the schema and register it (not external ones as they are owned by another aggregate)
-                    schemaRegistryClient.register("domainevents."+domainEventType.typeName(), localSchema, domainEventType.version(), -1);
+                    schemaRegistryClient.register("domainevents." + domainEventType.typeName(), localSchema, domainEventType.version(), -1);
                 } else {
                     // we are missing schema(s) for the previous version(s)
                     throw new IllegalStateException(format("Missing schema(s) for previous version(s) for DomainEvent [%s:%d]", domainEventType.typeName(), domainEventType.version()));
@@ -139,46 +139,46 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
             ParsedSchema registeredSchema = registeredSchemas.stream()
                     .filter(parsedSchema -> getSchemaVersion(domainEventType, parsedSchema) == domainEventType.version())
                     .findFirst().orElse(null);
-            if(registeredSchema != null) {
+            if (registeredSchema != null) {
                 // we need to make sure that the schemas are compatible
-                if(domainEventType.external()) {
+                if (domainEventType.external()) {
                     // localSchema has to be a subset of registeredSchema
                     // TODO: this needs to be implemented to make sure we
                     // TODO: need to check a range of schema's here
-                    List<Difference> differences = SchemaDiff.compare(((JsonSchema)registeredSchema).rawSchema(), localSchema.rawSchema());
-                    if(!differences.isEmpty()) {
+                    List<Difference> differences = SchemaDiff.compare(((JsonSchema) registeredSchema).rawSchema(), localSchema.rawSchema());
+                    if (!differences.isEmpty()) {
                         // we need to check if any properties were removed, removed properties are allowed
                         // adding properties is not allowed, as well as changing the type etc
-                        for(Difference difference : differences) {
+                        for (Difference difference : differences) {
                             // TODO: see if we need to ignore other types
-                            if(!difference.getType().equals(Difference.Type.PROPERTY_REMOVED_FROM_CLOSED_CONTENT_MODEL)) {
+                            if (!difference.getType().equals(Difference.Type.PROPERTY_REMOVED_FROM_CLOSED_CONTENT_MODEL)) {
                                 throw new IllegalStateException(format("Schema is not compatible with Registered Schema for External DomainEvent [%s:%d]", domainEventType.typeName(), domainEventType.version()));
                             }
                         }
                     }
                 } else {
                     // it has to be exactly the same
-                    if(!registeredSchema.deepEquals(localSchema)) {
+                    if (!registeredSchema.deepEquals(localSchema)) {
                         // in some weird edge cases Objects.equals(registeredSchema.rawSchema(), localSchema.rawSchema() is false
                         // however Objects.equals(registeredSchema.toString(), localSchema.toString()) is true
-                        if(!Objects.equals(registeredSchema.toString(), localSchema.toString())) {
+                        if (!Objects.equals(registeredSchema.toString(), localSchema.toString())) {
                             throw new IllegalStateException("Registered Schema does not match Local Schema");
                         }
                     }
                 }
-            } else if(domainEventType.external()) {
+            } else if (domainEventType.external()) {
                 throw new IllegalStateException(format("No Schema found for External DomainEvent [%s:%d]", domainEventType.typeName(), domainEventType.version()));
             } else {
                 // ensure we have an ordered list of schemas
                 registeredSchemas.sort(Comparator.comparingInt(ParsedSchema::version));
                 // see if the new version is exactly one higher than the last version
-                if(domainEventType.version() != registeredSchemas.get(registeredSchemas.size() - 1).version() + 1) {
+                if (domainEventType.version() != registeredSchemas.get(registeredSchemas.size() - 1).version() + 1) {
                     throw new IllegalStateException(format("New Schema version is not exactly one higher than the last version for DomainEvent [%s:%d]", domainEventType.typeName(), domainEventType.version()));
                 }
                 // see if the new schema is backwards compatible with the previous ones
-                if(localSchema.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE, registeredSchemas.stream().map(SimpleParsedSchemaHolder::new).collect(Collectors.toList())).isEmpty()) {
+                if (localSchema.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE, registeredSchemas.stream().map(SimpleParsedSchemaHolder::new).collect(Collectors.toList())).isEmpty()) {
                     // register the new schema
-                    schemaRegistryClient.register("domainevents."+domainEventType.typeName(), localSchema, domainEventType.version(), -1);
+                    schemaRegistryClient.register("domainevents." + domainEventType.typeName(), localSchema, domainEventType.version(), -1);
                 } else {
                     throw new IllegalStateException(format("New Schema is not backwards compatible with previous versions for DomainEvent [%s:%d]", domainEventType.typeName(), domainEventType.version()));
                 }
@@ -190,7 +190,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
 
     @Override
     public void registerAndValidate(CommandType<?> commandType) throws Exception {
-        if(!commandSchemas.containsKey(commandType.typeClass())) {
+        if (!commandSchemas.containsKey(commandType.typeClass())) {
             JsonSchema localSchema = generateJsonSchema(commandType);
             List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas("commands." + commandType.typeName(), false, false);
             if (registeredSchemas.isEmpty()) {
@@ -211,7 +211,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                     if (!registeredSchema.deepEquals(localSchema)) {
                         // in some weird edge cases Objects.equals(registeredSchema.rawSchema(), localSchema.rawSchema() is false
                         // however Objects.equals(registeredSchema.toString(), localSchema.toString()) is true
-                        if(!Objects.equals(registeredSchema.toString(), localSchema.toString())) {
+                        if (!Objects.equals(registeredSchema.toString(), localSchema.toString())) {
                             log.error("Registered Schema {} does not match Local Schema {}", registeredSchema, localSchema);
                             throw new IllegalStateException("Registered Schema does not match Local Schema");
                         }
@@ -235,13 +235,13 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                 }
             }
             commandSchemas.put(commandType.typeClass(), localSchema);
-            if(commandType.external()) addCommand(commandType);
+            if (commandType.external()) addCommand(commandType);
         }
     }
 
     private int getSchemaVersion(DomainEventType<?> domainEventType, ParsedSchema parsedSchema) {
         try {
-            return schemaRegistryClient.getVersion("domainevents."+domainEventType.typeName(), parsedSchema);
+            return schemaRegistryClient.getVersion("domainevents." + domainEventType.typeName(), parsedSchema);
         } catch (IOException | RestClientException e) {
             throw new RuntimeException(e);
         }
@@ -249,7 +249,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
 
     private int getSchemaVersion(CommandType<?> commandType, ParsedSchema parsedSchema) {
         try {
-            return schemaRegistryClient.getVersion("commands."+commandType.typeName(), parsedSchema);
+            return schemaRegistryClient.getVersion("commands." + commandType.typeName(), parsedSchema);
         } catch (IOException | RestClientException e) {
             throw new RuntimeException(e);
         }
@@ -281,9 +281,9 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
         try {
             domainEventSchemas.get(domainEvent.getClass()).validate(jsonNode);
             return objectMapper.writeValueAsBytes(jsonNode);
-        } catch(ValidationException e) {
+        } catch (ValidationException e) {
             throw new SerializationException("Validation Failed while Serializing DomainEventClass " + domainEvent.getClass().getName(), e);
-        } catch(JsonProcessingException e) {
+        } catch (JsonProcessingException e) {
             throw new SerializationException("Serialization Failed while Serializing DomainEventClass " + domainEvent.getClass().getName(), e);
         }
     }
@@ -295,9 +295,9 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
             commandSchemas.get(command.getClass()).validate(jsonNode);
             return objectMapper.writeValueAsBytes(command);
         } catch (ValidationException e) {
-            throw new SerializationException("Validation Failed while Serializing CommandClass "+command.getClass().getName() ,e);
-        } catch(JsonProcessingException e) {
-            throw new SerializationException("Serialization Failed while Serializing CommandClass "+command.getClass().getName() ,e);
+            throw new SerializationException("Validation Failed while Serializing CommandClass " + command.getClass().getName(), e);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("Serialization Failed while Serializing CommandClass " + command.getClass().getName(), e);
         }
 
     }

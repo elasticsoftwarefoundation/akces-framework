@@ -38,23 +38,23 @@ public interface AkcesClient {
      * to the topic.
      * </p>
      *
-     * @param           tenantId    The tenantId
-     * @param           command     The Command to dispatch
-     * @return          A CompletionStage that will be completed with the generated correlationId of the Command
-     * @throws          CommandRefusedException if the AkcesClient is not in RUNNING state when this method is called
-     * @throws          UnknownSchemaException if the {@link Command} has a schemaIdentifier that is not known to the AkcesSystem
-     * @throws          UnroutableCommandException if the {@link Command} is not routable to any AggregateService
-     * @throws          IllegalArgumentException if the {@link Command} class is not annotated with {@link CommandInfo}
+     * @param tenantId The tenantId
+     * @param command  The Command to dispatch
+     * @return A CompletionStage that will be completed with the generated correlationId of the Command
+     * @throws CommandRefusedException    if the AkcesClient is not in RUNNING state when this method is called
+     * @throws UnknownSchemaException     if the {@link Command} has a schemaIdentifier that is not known to the AkcesSystem
+     * @throws UnroutableCommandException if the {@link Command} is not routable to any AggregateService
+     * @throws IllegalArgumentException   if the {@link Command} class is not annotated with {@link CommandInfo}
      */
     default CompletionStage<List<DomainEvent>> send(@Nonnull String tenantId, @Nonnull Command command) {
         return send(tenantId, null, command);
     }
 
-    CompletionStage<List<DomainEvent>> send(@Nonnull String tenantId, @Nullable String correlationId,@Nonnull Command command);
+    CompletionStage<List<DomainEvent>> send(@Nonnull String tenantId, @Nullable String correlationId, @Nonnull Command command);
 
-    default void sendAndForget(@Nonnull String tenantId, @Nonnull Command command){
+    default void sendAndForget(@Nonnull String tenantId, @Nonnull Command command) {
         sendAndForget(tenantId, null, command);
     }
 
-    void sendAndForget(@Nonnull String tenantId,@Nullable String correlationId,@Nonnull Command command);
+    void sendAndForget(@Nonnull String tenantId, @Nullable String correlationId, @Nonnull Command command);
 }

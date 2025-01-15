@@ -64,7 +64,7 @@ public final class Wallet implements Aggregate<WalletState> {
     @NotNull
     public Stream<DomainEvent> credit(@NotNull CreditWalletCommand cmd, @NotNull WalletState currentState) {
         WalletState.Balance balance = currentState.balances().stream().filter(b -> b.currency().equals(cmd.currency())).findFirst().orElse(null);
-        if (balance == null ) {
+        if (balance == null) {
             // TODO: add more detail to the error event
             return Stream.of(new InvalidCryptoCurrencyErrorEvent(cmd.id(), cmd.currency()));
         }
@@ -78,7 +78,7 @@ public final class Wallet implements Aggregate<WalletState> {
     @CommandHandler(produces = AmountReservedEvent.class, errors = {InvalidCryptoCurrencyErrorEvent.class, InvalidAmountErrorEvent.class, InsufficientFundsErrorEvent.class})
     public Stream<DomainEvent> makeReservation(ReserveAmountCommand command, WalletState state) {
         WalletState.Balance balance = state.balances().stream().filter(b -> b.currency().equals(command.currency())).findFirst().orElse(null);
-        if (balance == null ) {
+        if (balance == null) {
             // TODO: add more detail to the error event
             return Stream.of(new InvalidCryptoCurrencyErrorEvent(command.userId(), command.currency(), command.referenceId()));
         }
@@ -87,10 +87,10 @@ public final class Wallet implements Aggregate<WalletState> {
             return Stream.of(new InvalidAmountErrorEvent(command.userId(), command.currency()));
         }
         // see if we have enough balance
-        if(balance.getAvailableAmount().compareTo(command.amount()) >= 0) {
+        if (balance.getAvailableAmount().compareTo(command.amount()) >= 0) {
             return Stream.of(new AmountReservedEvent(command.userId(), command.currency(), command.amount(), command.referenceId()));
         } else {
-            return Stream.of(new InsufficientFundsErrorEvent(command.userId(), command.currency(),balance.getAvailableAmount(), command.amount(), command.referenceId()));
+            return Stream.of(new InsufficientFundsErrorEvent(command.userId(), command.currency(), balance.getAvailableAmount(), command.amount(), command.referenceId()));
         }
     }
 
@@ -129,13 +129,13 @@ public final class Wallet implements Aggregate<WalletState> {
     }
 
     @CommandHandler(produces = BalanceCreatedEvent.class, errors = {BalanceAlreadyExistsErrorEvent.class})
-public @NotNull Stream<DomainEvent> createBalance(@NotNull CreateBalanceCommand cmd, @NotNull WalletState currentState) {
-    boolean balanceExists = currentState.balances().stream()
-            .anyMatch(balance -> balance.currency().equals(cmd.currency()));
-    if (balanceExists) {
-        return Stream.of(new BalanceAlreadyExistsErrorEvent(cmd.id(), cmd.currency()));
+    public @NotNull Stream<DomainEvent> createBalance(@NotNull CreateBalanceCommand cmd, @NotNull WalletState currentState) {
+        boolean balanceExists = currentState.balances().stream()
+                .anyMatch(balance -> balance.currency().equals(cmd.currency()));
+        if (balanceExists) {
+            return Stream.of(new BalanceAlreadyExistsErrorEvent(cmd.id(), cmd.currency()));
+        }
+        return Stream.of(new BalanceCreatedEvent(cmd.id(), cmd.currency()));
     }
-    return Stream.of(new BalanceCreatedEvent(cmd.id(), cmd.currency()));
-}
 
 }

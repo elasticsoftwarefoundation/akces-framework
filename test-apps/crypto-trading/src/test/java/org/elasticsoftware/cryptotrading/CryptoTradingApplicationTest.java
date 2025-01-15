@@ -81,7 +81,7 @@ public class CryptoTradingApplicationTest {
 
     @Container
     private static final KafkaContainer kafka =
-            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:"+CONFLUENT_PLATFORM_VERSION))
+            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:" + CONFLUENT_PLATFORM_VERSION))
                     .withKraft()
                     .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false")
                     .withNetwork(network)
@@ -89,35 +89,38 @@ public class CryptoTradingApplicationTest {
 
     @Container
     private static final GenericContainer<?> schemaRegistry =
-            new GenericContainer<>(DockerImageName.parse("confluentinc/cp-schema-registry:"+CONFLUENT_PLATFORM_VERSION))
+            new GenericContainer<>(DockerImageName.parse("confluentinc/cp-schema-registry:" + CONFLUENT_PLATFORM_VERSION))
                     .withNetwork(network)
                     .withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "kafka:9092")
                     .withEnv("SCHEMA_REGISTRY_HOST_NAME", "localhost")
                     .withExposedPorts(8081)
                     .withNetworkAliases("schema-registry")
                     .dependsOn(kafka);
-
-    public static class Initializer
-            implements ApplicationContextInitializer<ConfigurableApplicationContext> {
-
-        @Override
-        public void initialize(ConfigurableApplicationContext applicationContext) {
-            // initialize kafka topics
-            prepareKafka(kafka.getBootstrapServers());
-            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
-                    applicationContext,
-                    "akces.rocksdb.baseDir=/tmp/akces",
-                    "spring.kafka.enabled=true",
-                    "spring.kafka.bootstrap-servers="+kafka.getBootstrapServers(),
-                    "kafka.schemaregistry.url=http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081)
-            );
-        }
-    }
+    private final static String counterPartyId = "337f335d-caf1-4f85-9440-6bc3c0ebbb77";
+    @Inject
+    @Qualifier("WalletAkcesController")
+    AkcesAggregateController walletController;
+    @Inject
+    @Qualifier("AccountAkcesController")
+    AkcesAggregateController accountController;
+    @Inject
+    @Qualifier("OrderProcessManagerAkcesController")
+    AkcesAggregateController prderProcessManagerController;
+    @Inject
+    @Qualifier("CryptoMarketAkcesController")
+    AkcesAggregateController cryptoMarketController;
+    @Inject
+    AkcesClientController akcesClientController;
+    @Inject
+    CoinbaseService coinbaseService;
+    @Inject
+    @Qualifier("aggregateServiceConsumerFactory")
+    ConsumerFactory<String, ProtocolRecord> consumerFactory;
 
     @AfterAll
     @BeforeAll
     public static void cleanUp() throws IOException {
-        if(Files.exists(Paths.get("/tmp/akces"))) {
+        if (Files.exists(Paths.get("/tmp/akces"))) {
             // clean up the rocksdb directory
             Files.walk(Paths.get("/tmp/akces"))
                     .sorted(Comparator.reverseOrder())
@@ -125,33 +128,6 @@ public class CryptoTradingApplicationTest {
                     .forEach(File::delete);
         }
     }
-
-    @Inject
-    @Qualifier("WalletAkcesController")
-    AkcesAggregateController walletController;
-
-    @Inject
-    @Qualifier("AccountAkcesController")
-    AkcesAggregateController accountController;
-
-    @Inject
-    @Qualifier("OrderProcessManagerAkcesController")
-    AkcesAggregateController prderProcessManagerController;
-
-    @Inject
-    @Qualifier("CryptoMarketAkcesController")
-    AkcesAggregateController cryptoMarketController;
-
-    @Inject
-    AkcesClientController akcesClientController;
-
-    @Inject
-    CoinbaseService coinbaseService;
-
-    @Inject @Qualifier("aggregateServiceConsumerFactory")
-    ConsumerFactory<String, ProtocolRecord> consumerFactory;
-
-    private final static String counterPartyId = "337f335d-caf1-4f85-9440-6bc3c0ebbb77";
 
     @Test
     @Order(1)
@@ -185,10 +161,10 @@ public class CryptoTradingApplicationTest {
         // create a counterparty account
         akcesClientController.sendAndForget("TEST",
                 new CreateAccountCommand(counterPartyId,
-                "EU",
-                "Coinbase",
-                "Limited",
-                "no-reply@coinbase.com" ));
+                        "EU",
+                        "Coinbase",
+                        "Limited",
+                        "no-reply@coinbase.com"));
 
         // create all EUR markets
 //        coinbaseService.getProducts().stream().filter(product -> product.quoteCurrency().equals("EUR")).forEach(product -> {
@@ -203,12 +179,12 @@ public class CryptoTradingApplicationTest {
 //        });
         Product product = coinbaseService.getProduct("BTC-EUR");
         akcesClientController.sendAndForget("TEST", new CreateCryptoMarketCommand(
-            product.id(),
-            product.baseCurrency(),
-            product.quoteCurrency(),
-            product.baseIncrement(),
-            product.quoteIncrement(),
-            counterPartyId));
+                product.id(),
+                product.baseCurrency(),
+                product.quoteCurrency(),
+                product.baseIncrement(),
+                product.quoteIncrement(),
+                counterPartyId));
 
         // create an account to trade
         String accountId = "2254b8cb-f272-4695-82cf-306ba0149829";
@@ -232,7 +208,7 @@ public class CryptoTradingApplicationTest {
         String clientOrderId = "479ab2a4-d19e-4116-9f7e-cf13dca5763a";
         Mono.fromCompletionStage(akcesClientController.send("TEST",
                 new PlaceBuyOrderCommand(accountId,
-                        new CryptoMarket("BTC-EUR","BTC", "EUR") ,
+                        new CryptoMarket("BTC-EUR", "BTC", "EUR"),
                         new BigDecimal("250"),
                         clientOrderId))).block();
 
@@ -265,6 +241,23 @@ public class CryptoTradingApplicationTest {
             Thread.sleep(10 * 1000);
         } catch (InterruptedException e) {
             // ignore
+        }
+    }
+
+    public static class Initializer
+            implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+
+        @Override
+        public void initialize(ConfigurableApplicationContext applicationContext) {
+            // initialize kafka topics
+            prepareKafka(kafka.getBootstrapServers());
+            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
+                    applicationContext,
+                    "akces.rocksdb.baseDir=/tmp/akces",
+                    "spring.kafka.enabled=true",
+                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
+                    "kafka.schemaregistry.url=http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081)
+            );
         }
     }
 

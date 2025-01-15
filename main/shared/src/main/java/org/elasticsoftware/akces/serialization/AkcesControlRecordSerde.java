@@ -62,7 +62,7 @@ public final class AkcesControlRecordSerde implements Serde<AkcesControlRecord> 
                 } else {
                     throw new SerializationException("Unsupported AkcesControlRecord type " + data.getClass().getSimpleName());
                 }
-            } catch(JsonProcessingException e) {
+            } catch (JsonProcessingException e) {
                 throw new SerializationException(e);
             }
         }
@@ -78,9 +78,9 @@ public final class AkcesControlRecordSerde implements Serde<AkcesControlRecord> 
         @Override
         public AkcesControlRecord deserialize(String topic, byte[] data) {
             try {
-                if(data == null) {
+                if (data == null) {
                     return null;
-                } else if(topic.endsWith("Akces-Control")) {
+                } else if (topic.endsWith("Akces-Control")) {
                     return objectMapper.readValue(data, AkcesControlRecord.class);
                 } else {
                     throw new SerializationException("Unsupported topic " + topic);

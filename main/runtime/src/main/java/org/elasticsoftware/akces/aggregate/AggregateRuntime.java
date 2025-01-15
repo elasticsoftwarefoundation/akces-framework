@@ -39,7 +39,7 @@ public interface AggregateRuntime {
 
     void handleCommandRecord(CommandRecord commandRecord,
                              Consumer<ProtocolRecord> protocolRecordConsumer,
-                             BiConsumer<DomainEventRecord,IndexParams> domainEventIndexer,
+                             BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer,
                              Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException;
 
     void handleExternalDomainEventRecord(DomainEventRecord eventRecord,

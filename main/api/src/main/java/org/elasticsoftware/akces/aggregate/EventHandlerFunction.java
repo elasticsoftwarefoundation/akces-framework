@@ -27,8 +27,9 @@ import java.util.List;
 import java.util.stream.Stream;
 
 @FunctionalInterface
-public interface EventHandlerFunction<S extends AggregateState,InputEvent extends DomainEvent, E extends DomainEvent> {
-    @NotEmpty Stream<E> apply(@NotNull InputEvent event, S state);
+public interface EventHandlerFunction<S extends AggregateState, InputEvent extends DomainEvent, E extends DomainEvent> {
+    @NotEmpty
+    Stream<E> apply(@NotNull InputEvent event, S state);
 
     default DomainEventType<InputEvent> getEventType() {
         throw new UnsupportedOperationException("When implementing EventHandlerFunction directly, you must override getEventType()");

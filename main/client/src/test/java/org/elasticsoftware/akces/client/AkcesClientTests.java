@@ -104,7 +104,7 @@ public class AkcesClientTests {
 
     @Container
     private static final KafkaContainer kafka =
-            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:"+CONFLUENT_PLATFORM_VERSION))
+            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:" + CONFLUENT_PLATFORM_VERSION))
                     .withKraft()
                     .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false")
                     .withNetwork(network)
@@ -112,7 +112,7 @@ public class AkcesClientTests {
 
     @Container
     private static final GenericContainer<?> schemaRegistry =
-            new GenericContainer<>(DockerImageName.parse("confluentinc/cp-schema-registry:"+CONFLUENT_PLATFORM_VERSION))
+            new GenericContainer<>(DockerImageName.parse("confluentinc/cp-schema-registry:" + CONFLUENT_PLATFORM_VERSION))
                     .withNetwork(network)
                     .withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "kafka:9092")
                     .withEnv("SCHEMA_REGISTRY_HOST_NAME", "localhost")
@@ -138,26 +138,6 @@ public class AkcesClientTests {
     @Inject
     ObjectMapper objectMapper;
 
-    public static class ContextInitializer
-            implements ApplicationContextInitializer<ConfigurableApplicationContext> {
-
-        @Override
-        public void initialize(ConfigurableApplicationContext applicationContext) {
-            // initialize kafka topics
-            prepareKafka(kafka.getBootstrapServers());
-            prepareCommandSchemas("http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081), List.of(CreateAccountCommand.class));
-            prepareDomainEventSchemas("http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081), List.of(AccountCreatedEvent.class));
-            prepareExternalServices(kafka.getBootstrapServers());
-            //prepareExternalServices(kafka.getBootstrapServers());
-            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
-                    applicationContext,
-                    "spring.kafka.enabled=true",
-                    "spring.kafka.bootstrap-servers="+kafka.getBootstrapServers(),
-                    "kafka.schemaregistry.url=http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081)
-            );
-        }
-    }
-
     public static void prepareKafka(String bootstrapServers) {
         KafkaAdmin kafkaAdmin = new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
         kafkaAdmin.createOrModifyTopics(
@@ -180,21 +160,21 @@ public class AkcesClientTests {
     }
 
     private static NewTopic createTopic(String name, int numPartitions, long retentionMs) {
-        NewTopic topic = new NewTopic(name, numPartitions , Short.parseShort("1"));
+        NewTopic topic = new NewTopic(name, numPartitions, Short.parseShort("1"));
         return topic.configs(Map.of(
-                "cleanup.policy","delete",
-                "max.message.bytes","20971520",
+                "cleanup.policy", "delete",
+                "max.message.bytes", "20971520",
                 "retention.ms", Long.toString(retentionMs),
-                "segment.ms","604800000"));
+                "segment.ms", "604800000"));
     }
 
     private static NewTopic createCompactedTopic(String name, int numPartitions) {
-        NewTopic topic = new NewTopic(name, numPartitions , Short.parseShort("1"));
+        NewTopic topic = new NewTopic(name, numPartitions, Short.parseShort("1"));
         return topic.configs(Map.of(
-                "cleanup.policy","compact",
-                "max.message.bytes","20971520",
+                "cleanup.policy", "compact",
+                "max.message.bytes", "20971520",
                 "retention.ms", "-1",
-                "segment.ms","604800000",
+                "segment.ms", "604800000",
                 "min.cleanable.dirty.ratio", "0.1",
                 "delete.retention.ms", "604800000",
                 "compression.type", "lz4"));
@@ -227,9 +207,9 @@ public class AkcesClientTests {
         SchemaGeneratorConfig config = configBuilder.build();
         SchemaGenerator jsonSchemaGenerator = new SchemaGenerator(config);
         try {
-            for(Class<C> commandClass : commandClasses) {
+            for (Class<C> commandClass : commandClasses) {
                 CommandInfo info = commandClass.getAnnotation(CommandInfo.class);
-                src.register("commands."+info.type(),
+                src.register("commands." + info.type(),
                         new JsonSchema(jsonSchemaGenerator.generateSchema(commandClass), List.of(), Map.of(), info.version()),
                         info.version(),
                         -1);
@@ -266,9 +246,9 @@ public class AkcesClientTests {
         SchemaGeneratorConfig config = configBuilder.build();
         SchemaGenerator jsonSchemaGenerator = new SchemaGenerator(config);
         try {
-            for(Class<D> domainEventClass : domainEventClasses) {
+            for (Class<D> domainEventClass : domainEventClasses) {
                 DomainEventInfo info = domainEventClass.getAnnotation(DomainEventInfo.class);
-                src.register("domainevents."+info.type(),
+                src.register("domainevents." + info.type(),
                         new JsonSchema(jsonSchemaGenerator.generateSchema(domainEventClass), List.of(), Map.of(), info.version()),
                         info.version(),
                         -1);
@@ -290,13 +270,13 @@ public class AkcesClientTests {
                 ProducerConfig.RETRY_BACKOFF_MS_CONFIG, "0",
                 ProducerConfig.TRANSACTIONAL_ID_CONFIG, "Test-AkcesControllerProducer",
                 ProducerConfig.CLIENT_ID_CONFIG, "Test-AkcesControllerProducer");
-        try (Producer<String,AkcesControlRecord> controlProducer = new KafkaProducer<>(controlProducerProps, new StringSerializer(), controlSerde.serializer())) {
+        try (Producer<String, AkcesControlRecord> controlProducer = new KafkaProducer<>(controlProducerProps, new StringSerializer(), controlSerde.serializer())) {
             controlProducer.initTransactions();
             AggregateServiceRecord aggregateServiceRecord = new AggregateServiceRecord(
                     "Account",
                     "Account-Commands",
                     "Account-DomainEvents",
-                    List.of(new AggregateServiceCommandType("CreateAccount",1, true,"commands.CreateAccount")),
+                    List.of(new AggregateServiceCommandType("CreateAccount", 1, true, "commands.CreateAccount")),
                     List.of(new AggregateServiceDomainEventType("AccountCreated", 1, true, false, "domainevents.AccountCreated")),
                     List.of());
             controlProducer.beginTransaction();
@@ -311,35 +291,35 @@ public class AkcesClientTests {
     public void testUnroutableCommand() {
         Assertions.assertNotNull(akcesClient);
         // make sure it's running
-        while(!akcesClient.isRunning()) {
+        while (!akcesClient.isRunning()) {
             Thread.onSpinWait();
         }
         // since we didn't register any services this should give a unroutable error
-        Assertions.assertThrows(UnroutableCommandException.class, () -> akcesClient.send("TEST_TENANT",new UnroutableCommand(UUID.randomUUID().toString())));
+        Assertions.assertThrows(UnroutableCommandException.class, () -> akcesClient.send("TEST_TENANT", new UnroutableCommand(UUID.randomUUID().toString())));
     }
 
     @Test
     public void testInvalidCommand() {
-        while(!akcesClient.isRunning()) {
+        while (!akcesClient.isRunning()) {
             Thread.onSpinWait();
         }
-        Assertions.assertThrows(IllegalArgumentException.class, () -> akcesClient.send("TEST_TENANT",new InvalidCommand(UUID.randomUUID().toString())));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> akcesClient.send("TEST_TENANT", new InvalidCommand(UUID.randomUUID().toString())));
     }
 
     @Test
     public void testValidationError() {
         // make sure it's running
-        while(!akcesClient.isRunning()) {
+        while (!akcesClient.isRunning()) {
             Thread.onSpinWait();
         }
         // since we didn't register any services this should give a unroutable error
-        Assertions.assertThrows(CommandValidationException.class, () -> akcesClient.send("TEST_TENANT",new CreateAccountCommand(UUID.randomUUID().toString(), "NL", "Aike","Christianen",null)));
+        Assertions.assertThrows(CommandValidationException.class, () -> akcesClient.send("TEST_TENANT", new CreateAccountCommand(UUID.randomUUID().toString(), "NL", "Aike", "Christianen", null)));
     }
 
     @Test
     public void testSendCommand() throws InterruptedException, JsonProcessingException {
         // make sure it's running
-        while(!akcesClient.isRunning()) {
+        while (!akcesClient.isRunning()) {
             Thread.onSpinWait();
         }
         String userId = "deb2b2c1-847c-44f3-a2a4-c81bc5ce795d";
@@ -363,7 +343,7 @@ public class AkcesClientTests {
             ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(250));
             List<ProtocolRecord> allRecords = new ArrayList<>();
             // we should have 1 record
-            while(allRecords.isEmpty()) {
+            while (allRecords.isEmpty()) {
                 records.forEach(record -> allRecords.add(record.value()));
                 // wait for the events to be produced
                 records = testConsumer.poll(Duration.ofMillis(250));
@@ -372,8 +352,8 @@ public class AkcesClientTests {
             CommandRecord cr = (CommandRecord) allRecords.getFirst();
 
             testProducer.beginTransaction();
-            List<DomainEventRecord> events = List.of(new DomainEventRecord("TEST_TENANT","AccountCreated",1,objectMapper.writeValueAsBytes(new AccountCreatedEvent(userId,"NL", "Aike","Christianen","aike.christianen@gmail.com")), PayloadEncoding.JSON,userId,null,0));
-            CommandResponseRecord crr = new CommandResponseRecord("TEST_TENANT",userId,cr.correlationId(),cr.id(),events,null);
+            List<DomainEventRecord> events = List.of(new DomainEventRecord("TEST_TENANT", "AccountCreated", 1, objectMapper.writeValueAsBytes(new AccountCreatedEvent(userId, "NL", "Aike", "Christianen", "aike.christianen@gmail.com")), PayloadEncoding.JSON, userId, null, 0));
+            CommandResponseRecord crr = new CommandResponseRecord("TEST_TENANT", userId, cr.correlationId(), cr.id(), events, null);
 
             testProducer.send(new ProducerRecord<>(commandResponsesPartition.topic(), commandResponsesPartition.partition(), crr.commandId(), crr));
             testProducer.commitTransaction();
@@ -397,7 +377,7 @@ public class AkcesClientTests {
     @Test
     public void testSendCommandWithCorrelationId() throws InterruptedException, JsonProcessingException {
         // make sure it's running
-        while(!akcesClient.isRunning()) {
+        while (!akcesClient.isRunning()) {
             Thread.onSpinWait();
         }
         String correlationId = UUID.randomUUID().toString();
@@ -425,7 +405,7 @@ public class AkcesClientTests {
             ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(250));
             List<ProtocolRecord> allRecords = new ArrayList<>();
             // we should have 1 record
-            while(allRecords.isEmpty()) {
+            while (allRecords.isEmpty()) {
                 records.forEach(record -> allRecords.add(record.value()));
                 // wait for the events to be produced
                 records = testConsumer.poll(Duration.ofMillis(250));
@@ -435,8 +415,8 @@ public class AkcesClientTests {
             Assertions.assertEquals(correlationId, cr.correlationId());
 
             testProducer.beginTransaction();
-            List<DomainEventRecord> events = List.of(new DomainEventRecord("TEST_TENANT","AccountCreated",1,objectMapper.writeValueAsBytes(new AccountCreatedEvent(userId,"NL", "Aike","Christianen","aike.christianen@gmail.com")), PayloadEncoding.JSON,userId,null,0));
-            CommandResponseRecord crr = new CommandResponseRecord("TEST_TENANT",userId,cr.correlationId(),cr.id(),events,null);
+            List<DomainEventRecord> events = List.of(new DomainEventRecord("TEST_TENANT", "AccountCreated", 1, objectMapper.writeValueAsBytes(new AccountCreatedEvent(userId, "NL", "Aike", "Christianen", "aike.christianen@gmail.com")), PayloadEncoding.JSON, userId, null, 0));
+            CommandResponseRecord crr = new CommandResponseRecord("TEST_TENANT", userId, cr.correlationId(), cr.id(), events, null);
 
             testProducer.send(new ProducerRecord<>(commandResponsesPartition.topic(), commandResponsesPartition.partition(), crr.commandId(), crr));
             testProducer.commitTransaction();
@@ -460,7 +440,7 @@ public class AkcesClientTests {
     @Test
     public void testGDPRDecryption() throws InterruptedException, JsonProcessingException {
         // make sure it's running
-        while(!akcesClient.isRunning()) {
+        while (!akcesClient.isRunning()) {
             Thread.onSpinWait();
         }
         String userId = "4da5341a-1f69-4995-b5dc-ecd492e940a0";
@@ -485,7 +465,7 @@ public class AkcesClientTests {
             ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(250));
             List<ProtocolRecord> allRecords = new ArrayList<>();
             // we should have 1 record
-            while(allRecords.isEmpty()) {
+            while (allRecords.isEmpty()) {
                 records.forEach(record -> allRecords.add(record.value()));
                 // wait for the events to be produced
                 records = testConsumer.poll(Duration.ofMillis(250));
@@ -494,14 +474,14 @@ public class AkcesClientTests {
             CommandRecord cr = (CommandRecord) allRecords.getFirst();
 
             SecretKeySpec secretKeySpec = GDPRKeyUtils.createKey();
-            EncryptingGDPRContext gdprContext = new EncryptingGDPRContext(userId,secretKeySpec.getEncoded(),GDPRKeyUtils.isUUID(userId));
+            EncryptingGDPRContext gdprContext = new EncryptingGDPRContext(userId, secretKeySpec.getEncoded(), GDPRKeyUtils.isUUID(userId));
             String encryptedFirstName = gdprContext.encrypt("Aike");
             String encryptedLastName = gdprContext.encrypt("Christianen");
             String encryptedEmail = gdprContext.encrypt("aike.christianen@gmail.com");
 
             testProducer.beginTransaction();
-            List<DomainEventRecord> events = List.of(new DomainEventRecord("TEST_TENANT","AccountCreated",1,objectMapper.writeValueAsBytes(new AccountCreatedEvent(userId,"NL", encryptedFirstName,encryptedLastName,encryptedEmail)), PayloadEncoding.JSON,userId,null,0));
-            CommandResponseRecord crr = new CommandResponseRecord("TEST_TENANT",userId,cr.correlationId(),cr.id(),events,secretKeySpec.getEncoded());
+            List<DomainEventRecord> events = List.of(new DomainEventRecord("TEST_TENANT", "AccountCreated", 1, objectMapper.writeValueAsBytes(new AccountCreatedEvent(userId, "NL", encryptedFirstName, encryptedLastName, encryptedEmail)), PayloadEncoding.JSON, userId, null, 0));
+            CommandResponseRecord crr = new CommandResponseRecord("TEST_TENANT", userId, cr.correlationId(), cr.id(), events, secretKeySpec.getEncoded());
 
             testProducer.send(new ProducerRecord<>(commandResponsesPartition.topic(), commandResponsesPartition.partition(), crr.commandId(), crr));
             testProducer.commitTransaction();
@@ -520,5 +500,25 @@ public class AkcesClientTests {
         Assertions.assertEquals("Aike", ace.firstName());
         Assertions.assertEquals("Christianen", ace.lastName());
         Assertions.assertEquals("aike.christianen@gmail.com", ace.email());
+    }
+
+    public static class ContextInitializer
+            implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+
+        @Override
+        public void initialize(ConfigurableApplicationContext applicationContext) {
+            // initialize kafka topics
+            prepareKafka(kafka.getBootstrapServers());
+            prepareCommandSchemas("http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081), List.of(CreateAccountCommand.class));
+            prepareDomainEventSchemas("http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081), List.of(AccountCreatedEvent.class));
+            prepareExternalServices(kafka.getBootstrapServers());
+            //prepareExternalServices(kafka.getBootstrapServers());
+            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
+                    applicationContext,
+                    "spring.kafka.enabled=true",
+                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
+                    "kafka.schemaregistry.url=http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081)
+            );
+        }
     }
 }

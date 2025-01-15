@@ -31,16 +31,16 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.stream.Stream;
 
-public class EventHandlerFunctionAdapter<S extends AggregateState,InputEvent extends DomainEvent, E extends DomainEvent> implements EventHandlerFunction<S,InputEvent,E> {
+public class EventHandlerFunctionAdapter<S extends AggregateState, InputEvent extends DomainEvent, E extends DomainEvent> implements EventHandlerFunction<S, InputEvent, E> {
     private final Aggregate<S> aggregate;
     private final String adapterMethodName;
     private final Class<InputEvent> inputEventClass;
     private final Class<S> stateClass;
-    private Method adapterMethod;
     private final boolean create;
     private final List<DomainEventType<?>> producedDomainEventTypes;
     private final List<DomainEventType<?>> errorEventTypes;
     private final DomainEventInfo domainEventInfo;
+    private Method adapterMethod;
 
     public EventHandlerFunctionAdapter(Aggregate<S> aggregate,
                                        String adapterMethodName,
@@ -76,8 +76,8 @@ public class EventHandlerFunctionAdapter<S extends AggregateState,InputEvent ext
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         } catch (InvocationTargetException e) {
-            if(e.getCause() != null) {
-                if(e.getCause() instanceof RuntimeException) {
+            if (e.getCause() != null) {
+                if (e.getCause() instanceof RuntimeException) {
                     throw (RuntimeException) e.getCause();
                 } else {
                     throw new RuntimeException(e.getCause());

@@ -22,5 +22,6 @@ import jakarta.validation.constraints.NotNull;
 
 public interface DomainEvent {
     @JsonIgnore
-    @NotNull String getAggregateId();
+    @NotNull
+    String getAggregateId();
 }

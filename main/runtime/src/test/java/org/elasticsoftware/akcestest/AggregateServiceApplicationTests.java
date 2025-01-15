@@ -73,7 +73,7 @@ public class AggregateServiceApplicationTests {
 
     @Container
     private static final KafkaContainer kafka =
-            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:"+CONFLUENT_PLATFORM_VERSION))
+            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:" + CONFLUENT_PLATFORM_VERSION))
                     .withKraft()
                     .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false")
                     .withNetwork(network)
@@ -81,36 +81,31 @@ public class AggregateServiceApplicationTests {
 
     @Container
     private static final GenericContainer<?> schemaRegistry =
-            new GenericContainer<>(DockerImageName.parse("confluentinc/cp-schema-registry:"+CONFLUENT_PLATFORM_VERSION))
+            new GenericContainer<>(DockerImageName.parse("confluentinc/cp-schema-registry:" + CONFLUENT_PLATFORM_VERSION))
                     .withNetwork(network)
                     .withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "kafka:9092")
                     .withEnv("SCHEMA_REGISTRY_HOST_NAME", "localhost")
                     .withExposedPorts(8081)
                     .withNetworkAliases("schema-registry")
                     .dependsOn(kafka);
-
-    public static class Initializer
-            implements ApplicationContextInitializer<ConfigurableApplicationContext> {
-
-        @Override
-        public void initialize(ConfigurableApplicationContext applicationContext) {
-            // initialize kafka topics
-            prepareKafka(kafka.getBootstrapServers());
-            prepareExternalSchemas("http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081), List.of(AccountCreatedEvent.class));
-            //prepareExternalServices(kafka.getBootstrapServers());
-            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
-                    applicationContext,
-                    "akces.rocksdb.baseDir=/tmp/akces",
-                    "spring.kafka.enabled=true",
-                    "spring.kafka.bootstrap-servers="+kafka.getBootstrapServers(),
-                    "kafka.schemaregistry.url=http://"+schemaRegistry.getHost()+":"+schemaRegistry.getMappedPort(8081)
-            );
-        }
-    }
+    @Inject
+    ApplicationContext applicationContext;
+    @Inject
+    @Qualifier("AccountAkcesController")
+    AkcesAggregateController akcesAggregateController;
+    @Inject
+    @Qualifier("aggregateServiceConsumerFactory")
+    ConsumerFactory<String, ProtocolRecord> consumerFactory;
+    @Inject
+    @Qualifier("aggregateServiceProducerFactory")
+    ProducerFactory<String, ProtocolRecord> producerFactory;
+    @Inject
+    @Qualifier("aggregateServiceControlConsumerFactory")
+    ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory;
 
     @AfterAll
     public static void cleanUp() throws IOException {
-        if(Files.exists(Paths.get("/tmp/akces"))) {
+        if (Files.exists(Paths.get("/tmp/akces"))) {
             // clean up the rocksdb directory
             Files.walk(Paths.get("/tmp/akces"))
                     .sorted(Comparator.reverseOrder())
@@ -118,21 +113,6 @@ public class AggregateServiceApplicationTests {
                     .forEach(File::delete);
         }
     }
-
-    @Inject
-    ApplicationContext applicationContext;
-
-    @Inject @Qualifier("AccountAkcesController")
-    AkcesAggregateController akcesAggregateController;
-
-    @Inject @Qualifier("aggregateServiceConsumerFactory")
-    ConsumerFactory<String, ProtocolRecord> consumerFactory;
-
-    @Inject @Qualifier("aggregateServiceProducerFactory")
-    ProducerFactory<String, ProtocolRecord> producerFactory;
-
-    @Inject @Qualifier("aggregateServiceControlConsumerFactory")
-    ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory;
 
     @Test
     public void testAggregateLoading() {
@@ -145,14 +125,14 @@ public class AggregateServiceApplicationTests {
         Assertions.assertThrows(NoSuchBeanDefinitionException.class, () -> applicationContext.getBean("WalletAggregateRuntimeFactory"));
         Assertions.assertThrows(NoSuchBeanDefinitionException.class, () -> applicationContext.getBean("OrderProcessManagerAggregateRuntimeFactory"));
 
-        Consumer<String, AkcesControlRecord> controlConsumer = controlConsumerFactory.createConsumer("Test-AkcesControl","test-akces-control");
+        Consumer<String, AkcesControlRecord> controlConsumer = controlConsumerFactory.createConsumer("Test-AkcesControl", "test-akces-control");
 
         controlConsumer.subscribe(List.of("Akces-Control"));
         controlConsumer.poll(Duration.ofMillis(1000));
         controlConsumer.seekToBeginning(controlConsumer.assignment());
 
         ConsumerRecords<String, AkcesControlRecord> controlRecords = new ConsumerRecords<>(Collections.emptyMap());
-        while(controlRecords.isEmpty()) {
+        while (controlRecords.isEmpty()) {
             controlRecords = controlConsumer.poll(Duration.ofMillis(1000));
         }
 
@@ -161,8 +141,27 @@ public class AggregateServiceApplicationTests {
         controlConsumer.close();
 
         // wait until the ackes controller is running
-        while(!akcesAggregateController.isRunning()) {
+        while (!akcesAggregateController.isRunning()) {
             Thread.onSpinWait();
+        }
+    }
+
+    public static class Initializer
+            implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+
+        @Override
+        public void initialize(ConfigurableApplicationContext applicationContext) {
+            // initialize kafka topics
+            prepareKafka(kafka.getBootstrapServers());
+            prepareExternalSchemas("http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081), List.of(AccountCreatedEvent.class));
+            //prepareExternalServices(kafka.getBootstrapServers());
+            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
+                    applicationContext,
+                    "akces.rocksdb.baseDir=/tmp/akces",
+                    "spring.kafka.enabled=true",
+                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
+                    "kafka.schemaregistry.url=http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081)
+            );
         }
     }
 

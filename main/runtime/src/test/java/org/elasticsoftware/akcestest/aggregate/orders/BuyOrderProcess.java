@@ -23,7 +23,8 @@ import org.elasticsoftware.akcestest.aggregate.wallet.InvalidCurrencyErrorEvent;
 
 import java.math.BigDecimal;
 
-public record BuyOrderProcess(String orderId, FxMarket market, BigDecimal quantity, BigDecimal limitPrice, String clientReference) implements OrderProcess {
+public record BuyOrderProcess(String orderId, FxMarket market, BigDecimal quantity, BigDecimal limitPrice,
+                              String clientReference) implements OrderProcess {
     @Override
     public String getProcessId() {
         return orderId();

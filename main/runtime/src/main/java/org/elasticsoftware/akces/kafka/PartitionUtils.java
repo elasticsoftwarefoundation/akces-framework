@@ -38,8 +38,8 @@ public final class PartitionUtils {
             Set<TopicPartition> aggregatePartition = topicPartitions.stream().filter(topicPartition ->
                     topicPartition.partition() == partition &&
                             (topicPartition.topic().endsWith(COMMANDS_SUFFIX) ||
-                            topicPartition.topic().endsWith(DOMAINEVENTS_SUFFIX) ||
-                            topicPartition.topic().endsWith(AGGREGRATESTATE_SUFFIX))).collect(Collectors.toSet());
+                                    topicPartition.topic().endsWith(DOMAINEVENTS_SUFFIX) ||
+                                    topicPartition.topic().endsWith(AGGREGRATESTATE_SUFFIX))).collect(Collectors.toSet());
             if (aggregatePartition.size() == 3) {
                 TopicPartition command = aggregatePartition.stream().filter(topicPartition ->
                         topicPartition.topic().endsWith(COMMANDS_SUFFIX)).findFirst().orElseThrow();
@@ -49,22 +49,22 @@ public final class PartitionUtils {
                         topicPartition.topic().endsWith(AGGREGRATESTATE_SUFFIX)).findFirst().orElseThrow();
                 //aggregatePartitions.put(partition, new AggregatePartition(consumer, producer, partition, command, domainEvent, aggregateState));
             } else {
-                throw new NoSuchElementException("Partition "+partition+" is incomplete, found "+aggregatePartition);
+                throw new NoSuchElementException("Partition " + partition + " is incomplete, found " + aggregatePartition);
             }
         });
         return aggregatePartitions;
     }
 
     public static TopicPartition toCommandTopicPartition(AggregateRuntime aggregate, int partition) {
-        return new TopicPartition(aggregate.getName()+COMMANDS_SUFFIX, partition);
+        return new TopicPartition(aggregate.getName() + COMMANDS_SUFFIX, partition);
     }
 
     public static TopicPartition toDomainEventTopicPartition(AggregateRuntime aggregate, int partition) {
-        return new TopicPartition(aggregate.getName()+DOMAINEVENTS_SUFFIX, partition);
+        return new TopicPartition(aggregate.getName() + DOMAINEVENTS_SUFFIX, partition);
     }
 
     public static TopicPartition toAggregateStateTopicPartition(AggregateRuntime aggregate, int partition) {
-        return new TopicPartition(aggregate.getName()+AGGREGRATESTATE_SUFFIX, partition);
+        return new TopicPartition(aggregate.getName() + AGGREGRATESTATE_SUFFIX, partition);
     }
 
     public static TopicPartition toGDPRKeysTopicPartition(AggregateRuntime aggregate, int partition) {
@@ -73,14 +73,14 @@ public final class PartitionUtils {
 
     public static List<TopicPartition> toExternalDomainEventTopicPartitions(AggregateRuntime aggregate, int partition) {
         return aggregate.getExternalDomainEventTypes().stream().map(externalDomainEvent ->
-                new TopicPartition(externalDomainEvent.typeName()+DOMAINEVENTS_SUFFIX, partition)).collect(Collectors.toList());
+                new TopicPartition(externalDomainEvent.typeName() + DOMAINEVENTS_SUFFIX, partition)).collect(Collectors.toList());
     }
 
     public static TopicPartition parseReplyToTopicPartition(String replyTo) {
         // split by last index of '-'
         int lastIndex = replyTo.lastIndexOf('-');
         String topic = replyTo.substring(0, lastIndex);
-        int partition = Integer.parseInt(replyTo.substring(lastIndex+1));
+        int partition = Integer.parseInt(replyTo.substring(lastIndex + 1));
         return new TopicPartition(topic, partition);
     }
 }

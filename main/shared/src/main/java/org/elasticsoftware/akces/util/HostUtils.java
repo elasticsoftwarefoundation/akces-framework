@@ -28,7 +28,7 @@ public class HostUtils {
         // obtain a hostname. First try to get the host name from docker container (from the "HOSTNAME" environment variable)
         String hostName = System.getenv("HOSTNAME");
         // if the application is not running in a docker container, we can to obtain the hostname using the "java.net.InetAddress" class
-        if(hostName == null || hostName.isEmpty()) {
+        if (hostName == null || hostName.isEmpty()) {
             try {
                 InetAddress addr = InetAddress.getLocalHost();
                 hostName = addr.getHostName();

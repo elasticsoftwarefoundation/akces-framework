@@ -46,7 +46,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     private final CommandHandlerFunction<AggregateState, Command, DomainEvent> commandCreateHandler;
     private final EventHandlerFunction<AggregateState, DomainEvent, DomainEvent> eventCreateHandler;
     private final EventSourcingHandlerFunction<AggregateState, DomainEvent> createStateHandler;
-    private final Map<Class<?>,DomainEventType<?>> domainEvents;
+    private final Map<Class<?>, DomainEventType<?>> domainEvents;
     private final Map<String, List<CommandType<?>>> commandTypes;
     private final Map<CommandType<?>, CommandHandlerFunction<AggregateState, Command, DomainEvent>> commandHandlers;
     private final Map<DomainEventType<?>, EventHandlerFunction<AggregateState, DomainEvent, DomainEvent>> eventHandlers;
@@ -90,7 +90,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     @Override
     public void handleCommandRecord(CommandRecord commandRecord,
                                     Consumer<ProtocolRecord> protocolRecordConsumer,
-                                    BiConsumer<DomainEventRecord,IndexParams> domainEventIndexer,
+                                    BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer,
                                     Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
         // determine command
         CommandType<?> commandType = getCommandType(commandRecord);
@@ -114,7 +114,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                     commandExecutionError(commandRecord, protocolRecordConsumer, "No handler found for command " + commandRecord.name());
                 }
             }
-        } catch(Throwable t) {
+        } catch (Throwable t) {
             // TODO: potentially see if we need to terminate the runtime
             log.error("Exception while handling command, sending CommandExecutionError", t);
             commandExecutionError(commandRecord, protocolRecordConsumer, t);
@@ -175,8 +175,8 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                                             AggregateState state,
                                             BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer,
                                             boolean createIndex) {
-        if(type.indexed()) {
-            domainEventIndexer.accept(domainEventRecord, new IndexParams(type.indexName(),state.getIndexKey(),createIndex));
+        if (type.indexed()) {
+            domainEventIndexer.accept(domainEventRecord, new IndexParams(type.indexName(), state.getIndexKey(), createIndex));
         }
     }
 
@@ -219,7 +219,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         indexDomainEventIfRequired(eventRecord, state, domainEventIndexer, true);
         // if there are more events, handle them as normal events
         AggregateStateRecord currentStateRecord = stateRecord;
-        while(itr.hasNext()) {
+        while (itr.hasNext()) {
             DomainEvent nextDomainEvent = itr.next();
             currentStateRecord = processDomainEvent(
                     commandRecord.correlationId(),
@@ -240,7 +240,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         AggregateStateRecord currentStateRecord = stateRecordSupplier.get();
         AggregateState currentState = materialize(currentStateRecord);
         Stream<DomainEvent> domainEvents = commandHandlers.get(commandType).apply(command, currentState);
-        for(DomainEvent domainEvent : domainEvents.toList())
+        for (DomainEvent domainEvent : domainEvents.toList())
             currentStateRecord = processDomainEvent(commandRecord.correlationId(),
                     protocolRecordConsumer,
                     domainEventIndexer,
@@ -287,7 +287,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         indexDomainEventIfRequired(eventRecord, state, domainEventIndexer, true);
         // if there are more events, handle them as normal events
         AggregateStateRecord currentStateRecord = stateRecord;
-        while(itr.hasNext()) {
+        while (itr.hasNext()) {
             DomainEvent nextDomainEvent = itr.next();
             currentStateRecord = processDomainEvent(
                     domainEventRecord.correlationId(),
@@ -308,7 +308,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         AggregateStateRecord currentStateRecord = stateRecordSupplier.get();
         AggregateState currentState = materialize(currentStateRecord);
         Stream<DomainEvent> domainEvents = eventHandlers.get(eventType).apply(externalEvent, currentState);
-        for(DomainEvent domainEvent : domainEvents.toList())
+        for (DomainEvent domainEvent : domainEvents.toList())
             currentStateRecord = processDomainEvent(
                     domainEventRecord.correlationId(),
                     protocolRecordConsumer,
@@ -326,7 +326,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         AggregateState currentState = materialize(currentStateRecord);
         DomainEventType<?> domainEventType = getDomainEventType(domainEvent.getClass());
         // error events don't change the state
-        if(!(domainEvent instanceof ErrorEvent)) {
+        if (!(domainEvent instanceof ErrorEvent)) {
             AggregateState nextState = eventSourcingHandlers.get(domainEventType).apply(domainEvent, currentState);
             // store the state, increasing the generation by 1
             AggregateStateRecord nextStateRecord = new AggregateStateRecord(
@@ -377,10 +377,10 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         // determine the type to use for the external event
         DomainEventType<?> domainEventType = getDomainEventType(eventRecord);
         // with external domainevents we should look at the handler and not at the type of the external event
-        if(domainEventType != null) {
-            if (eventCreateHandler != null && eventCreateHandler.getEventType().equals(domainEventType) ) {
+        if (domainEventType != null) {
+            if (eventCreateHandler != null && eventCreateHandler.getEventType().equals(domainEventType)) {
                 // if the state already exists, this is an error.
-                if(stateRecordSupplier.get() != null) {
+                if (stateRecordSupplier.get() != null) {
                     // this is an error, log it and generate a AggregateAlreadyExistsError
                     log.warn("External DomainEvent {} wants to create a {} Aggregate with id {}, but the state already exists. Generate a AggregateAlreadyExistsError",
                             eventRecord.name(),
@@ -392,7 +392,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                 }
             } else {
                 // only process the event if we have a handler for it
-                if(eventHandlers.containsKey(domainEventType)) {
+                if (eventHandlers.containsKey(domainEventType)) {
                     handleEvent(domainEventType, eventRecord, protocolRecordConsumer, domainEventIndexer, stateRecordSupplier);
                 }
             }

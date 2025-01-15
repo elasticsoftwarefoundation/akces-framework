@@ -68,15 +68,15 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     private final Map<Integer, AggregatePartition> aggregatePartitions = new HashMap<>();
     private final ExecutorService executorService;
     private final HashFunction hashFunction = Hashing.murmur3_32_fixed();
-    private Integer partitions = null;
-    private Short replicationFactor = null;
     private final Map<String, AggregateServiceRecord> aggregateServices = new ConcurrentHashMap<>();
-    private Consumer<String, AkcesControlRecord> controlConsumer;
     private final AggregateStateRepositoryFactory aggregateStateRepositoryFactory;
-    private volatile AkcesControllerState processState = INITIALIZING;
     private final List<TopicPartition> partitionsToAssign = new ArrayList<>();
     private final List<TopicPartition> partitionsToRevoke = new ArrayList<>();
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
+    private Integer partitions = null;
+    private Short replicationFactor = null;
+    private Consumer<String, AkcesControlRecord> controlConsumer;
+    private volatile AkcesControllerState processState = INITIALIZING;
 
     public AkcesAggregateController(ConsumerFactory<String, ProtocolRecord> consumerFactory,
                                     ProducerFactory<String, ProtocolRecord> producerFactory,
@@ -180,7 +180,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
             }
         } else if (processState == INITIAL_REBALANCING) {
             // we need to load all the service data and then move to REBALANCING
-            if(!partitionsToAssign.isEmpty()) {
+            if (!partitionsToAssign.isEmpty()) {
                 try {
                     // seek to beginning to load all
                     controlConsumer.seekToBeginning(partitionsToAssign);

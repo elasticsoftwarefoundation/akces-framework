@@ -52,4 +52,5 @@ public record Order(
         @JsonProperty("max_floor") String maxFloor,
         @JsonProperty("secondary_order_id") String secondaryOrderId,
         @JsonProperty("stop_limit_price") String stopLimitPrice
-) {}
+) {
+}

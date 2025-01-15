@@ -63,9 +63,7 @@ import static org.elasticsoftware.akces.util.KafkaUtils.getIndexTopicName;
 public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     private static final Logger logger = LoggerFactory.getLogger(AggregatePartition.class);
     private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
-    private Consumer<String, ProtocolRecord> consumer;
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
-    private Producer<String, ProtocolRecord> producer;
     private final AggregateRuntime runtime;
     private final AggregateStateRepository stateRepository;
     private final GDPRContextRepository gdprContextRepository;
@@ -77,11 +75,13 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     private final Set<TopicPartition> externalEventPartitions = new HashSet<>();
     private final Collection<DomainEventType<?>> externalDomainEventTypes;
     private final AkcesRegistry ackesRegistry;
-    private volatile AggregatePartitionState processState;
-    private Map<TopicPartition,Long> initializedEndOffsets = Collections.emptyMap();
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
+    private final BiFunction<String, String, Boolean> indexTopicCreator;
+    private Consumer<String, ProtocolRecord> consumer;
+    private Producer<String, ProtocolRecord> producer;
+    private volatile AggregatePartitionState processState;
+    private Map<TopicPartition, Long> initializedEndOffsets = Collections.emptyMap();
     private volatile Thread aggregatePartitionThread = null;
-    private final BiFunction<String,String,Boolean> indexTopicCreator;
 
 
     public AggregatePartition(ConsumerFactory<String, ProtocolRecord> consumerFactory,
@@ -95,7 +95,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                               TopicPartition gdprKeyPartition,
                               Collection<DomainEventType<?>> externalDomainEventTypes,
                               AkcesRegistry ackesRegistry,
-                              BiFunction<String,String,Boolean> indexTopicCreator) {
+                              BiFunction<String, String, Boolean> indexTopicCreator) {
         this.gdprKeyPartition = gdprKeyPartition;
         this.ackesRegistry = ackesRegistry;
         this.consumerFactory = consumerFactory;
@@ -126,8 +126,8 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             AggregatePartitionCommandBus.registerCommandBus(this);
             logger.info("Starting AggregatePartition {} of {}Aggregate", id, runtime.getName());
             this.consumer = consumerFactory.createConsumer(
-                    runtime.getName() +"Aggregate-partition-" + id,
-                    runtime.getName() +"Aggregate-partition-" + id + "-" + HostUtils.getHostName(),
+                    runtime.getName() + "Aggregate-partition-" + id,
+                    runtime.getName() + "Aggregate-partition-" + id + "-" + HostUtils.getHostName(),
                     null);
             this.producer = producerFactory.createProducer(runtime.getName() + "Aggregate-partition-" + id + "-" + HostUtils.getHostName());
             // resolve the external event partitions
@@ -170,9 +170,9 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         // wait maximum of 10 seconds for the shutdown to complete
         try {
             if (shutdownLatch.await(10, TimeUnit.SECONDS)) {
-                logger.info("AggregatePartition={} has been shutdown",id);
+                logger.info("AggregatePartition={} has been shutdown", id);
             } else {
-                logger.warn("AggregatePartition={} did not shutdown within 10 seconds",id);
+                logger.warn("AggregatePartition={} did not shutdown within 10 seconds", id);
             }
         } catch (InterruptedException e) {
             // ignore
@@ -226,7 +226,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         } else if (protocolRecord instanceof DomainEventRecord der) {
             logger.trace("Sending DomainEventRecord {}:{} with id {} to {}", der.name(), der.version(), der.id(), domainEventPartition);
             KafkaSender.send(producer, new ProducerRecord<>(domainEventPartition.topic(), domainEventPartition.partition(), der.id(), der));
-        } else if(protocolRecord instanceof GDPRKeyRecord gkr) {
+        } else if (protocolRecord instanceof GDPRKeyRecord gkr) {
             logger.trace("Sending GDPRKeyRecord with id {} to {}", gkr.aggregateId(), gdprKeyPartition);
             Future<RecordMetadata> result = KafkaSender.send(producer, new ProducerRecord<>(gdprKeyPartition.topic(), gdprKeyPartition.partition(), gkr.aggregateId(), gkr));
             gdprContextRepository.prepare(gkr, result);
@@ -242,22 +242,22 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
 
     private void index(DomainEventRecord der, IndexParams params) {
         // send to the index topic
-        String topicName = getIndexTopicName(params.indexName(),params.indexKey());
-        if(params.createIndex()) {
-            if(consumer.partitionsFor(topicName).isEmpty()) {
-                if(indexTopicCreator.apply(params.indexName(),params.indexKey())) {
+        String topicName = getIndexTopicName(params.indexName(), params.indexKey());
+        if (params.createIndex()) {
+            if (consumer.partitionsFor(topicName).isEmpty()) {
+                if (indexTopicCreator.apply(params.indexName(), params.indexKey())) {
                     logger.info("Creating DomainEventIndex topic {}", topicName);
                 }
             }
         }
-        logger.trace("Indexing DomainEventRecord {}:{} with id {} to topic {}", der.name(), der.version(), der.id(), topicName+"-0");
+        logger.trace("Indexing DomainEventRecord {}:{} with id {} to topic {}", der.name(), der.version(), der.id(), topicName + "-0");
         // index topics only have one partition
         KafkaSender.send(producer, new ProducerRecord<>(topicName, 0, der.id(), der));
     }
 
     private void setupGDPRContext(String tenantId, String aggregateId, boolean createIfMissing) {
         // avoid accidentally overwriting an existing gdpr key
-        if(!gdprContextRepository.exists(aggregateId) && createIfMissing) {
+        if (!gdprContextRepository.exists(aggregateId) && createIfMissing) {
             logger.trace("Generating GDPR key for aggregate {}", aggregateId);
             // generate a new key record
             GDPRKeyRecord gdprKeyRecord = new GDPRKeyRecord(
@@ -277,7 +277,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
 
     private void handleCommand(CommandRecord commandRecord) {
         try {
-            final List<DomainEventRecord> responseRecords = commandRecord.replyToTopicPartition() != null ?  new ArrayList<>() : null;
+            final List<DomainEventRecord> responseRecords = commandRecord.replyToTopicPartition() != null ? new ArrayList<>() : null;
             java.util.function.Consumer<ProtocolRecord> protocolRecordConsumer = (pr) -> {
                 send(pr);
                 if (responseRecords != null && pr instanceof DomainEventRecord der) {
@@ -286,8 +286,8 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             };
             setupGDPRContext(commandRecord.tenantId(), commandRecord.aggregateId(), runtime.shouldGenerateGPRKey(commandRecord));
             logger.trace("Handling CommandRecord with type {}", commandRecord.name());
-            runtime.handleCommandRecord(commandRecord, protocolRecordConsumer, this::index , () -> stateRepository.get(commandRecord.aggregateId()));
-            if(responseRecords != null) {
+            runtime.handleCommandRecord(commandRecord, protocolRecordConsumer, this::index, () -> stateRepository.get(commandRecord.aggregateId()));
+            if (responseRecords != null) {
                 CommandResponseRecord crr = new CommandResponseRecord(
                         commandRecord.tenantId(),
                         commandRecord.aggregateId(),
@@ -328,7 +328,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                 if (!allRecords.isEmpty()) {
                     processRecords(allRecords);
                 }
-            } else if(processState == LOADING_GDPR_KEYS) {
+            } else if (processState == LOADING_GDPR_KEYS) {
                 ConsumerRecords<String, ProtocolRecord> gdprKeyRecords = consumer.poll(Duration.ofMillis(10));
                 gdprContextRepository.process(gdprKeyRecords.records(gdprKeyPartition));
                 // stop condition
@@ -381,7 +381,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                     consumer.seekToBeginning(singletonList(gdprKeyPartition));
                 }
                 // find the end offsets so we know when to stop
-                initializedEndOffsets = consumer.endOffsets(List.of(gdprKeyPartition,statePartition));
+                initializedEndOffsets = consumer.endOffsets(List.of(gdprKeyPartition, statePartition));
                 logger.info("Loading GDPR Keys for AggregatePartition {} of {}Aggregate", id, runtime.getName());
                 // pause the other topics
                 consumer.pause(Stream.concat(Stream.of(statePartition, commandPartition, domainEventPartition), externalEventPartitions.stream()).toList());
@@ -391,11 +391,11 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             // non-fatal. ignore
         } catch (ProducerFencedException | OutOfOrderSequenceException | AuthorizationException e) {
             // For transactional producers, this is a fatal error and you should close the producer.
-            logger.error("Fatal error during "+processState+" phase, shutting down AggregatePartition "+id+" of "+runtime.getName()+"Aggregate", e);
+            logger.error("Fatal error during " + processState + " phase, shutting down AggregatePartition " + id + " of " + runtime.getName() + "Aggregate", e);
             processState = SHUTTING_DOWN;
         } catch (KafkaException e) {
             // fatal
-            logger.error("Fatal error during "+processState+" phase, shutting down AggregatePartition "+id+" of "+runtime.getName()+"Aggregate", e);
+            logger.error("Fatal error during " + processState + " phase, shutting down AggregatePartition " + id + " of " + runtime.getName() + "Aggregate", e);
             processState = SHUTTING_DOWN;
         }
     }

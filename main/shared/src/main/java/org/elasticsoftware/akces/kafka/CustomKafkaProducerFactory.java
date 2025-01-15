@@ -25,7 +25,7 @@ import org.springframework.kafka.core.ProducerFactory;
 
 import java.util.Map;
 
-public class CustomKafkaProducerFactory<K,V> extends DefaultKafkaProducerFactory<K,V> {
+public class CustomKafkaProducerFactory<K, V> extends DefaultKafkaProducerFactory<K, V> {
 
     public CustomKafkaProducerFactory(Map<String, Object> configs, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
         super(configs, keySerializer, valueSerializer);
@@ -38,12 +38,10 @@ public class CustomKafkaProducerFactory<K,V> extends DefaultKafkaProducerFactory
         Producer<K, V> newProducer = createRawProducer(getTxProducerConfigs(transactionId));
         try {
             newProducer.initTransactions();
-        }
-        catch (RuntimeException ex) {
+        } catch (RuntimeException ex) {
             try {
                 newProducer.close(ProducerFactory.DEFAULT_PHYSICAL_CLOSE_TIMEOUT);
-            }
-            catch (RuntimeException ex2) {
+            } catch (RuntimeException ex2) {
                 KafkaException newEx = new KafkaException("initTransactions() failed and then close() failed", ex);
                 newEx.addSuppressed(ex2);
                 throw newEx; // NOSONAR - lost stack trace

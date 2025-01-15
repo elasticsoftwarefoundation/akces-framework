@@ -28,6 +28,49 @@ import java.util.jar.Manifest;
 import static java.lang.String.format;
 
 public class AkcesGDPRModule extends Module {
+    private static Version extractVersion() {
+        String className = format("/%s.class", AkcesGDPRModule.class.getName().replace('.', '/'));
+        URL resource = AkcesGDPRModule.class.getResource(className);
+        if (resource != null) {
+            String classPath = resource.toString();
+            if (!classPath.startsWith("jar")) {
+                // Class not from JAR, cannot determine version
+                return Version.unknownVersion();
+            }
+
+            String manifestPath = classPath.substring(0, classPath.lastIndexOf("!") + 1) +
+                    "/META-INF/MANIFEST.MF";
+            try {
+                Manifest manifest = new Manifest(new URL(manifestPath).openStream());
+                Attributes attr = manifest.getMainAttributes();
+                String value = attr.getValue("Implementation-Version");
+                if (value != null) {
+                    return generateVersion(Semver.parse(value));
+                } else {
+                    return Version.unknownVersion();
+                }
+            } catch (Exception e) {
+                return Version.unknownVersion();
+            }
+        } else {
+            return Version.unknownVersion();
+        }
+    }
+
+    public static Version generateVersion(Semver semver) {
+        if (semver != null) {
+            return new Version(
+                    semver.getMajor(),
+                    semver.getMinor(),
+                    semver.getPatch(),
+                    !semver.getPreRelease().isEmpty() ? semver.getPreRelease().get(0) : null,
+                    "org.elasticsoftwarefoundation.akces",
+                    "akces-runtime");
+        } else {
+            return Version.unknownVersion();
+        }
+    }
+
     @Override
     public String getModuleName() {
         return "AkcesGDPR";
@@ -42,48 +85,5 @@ public class AkcesGDPRModule extends Module {
     public void setupModule(SetupContext setupContext) {
         setupContext.addBeanSerializerModifier(new GDPRDataSerializerModifier());
         setupContext.addBeanDeserializerModifier(new GDPRDataDeserializerModifier());
-    }
-
-    private static Version extractVersion() {
-        String className = format("/%s.class",AkcesGDPRModule.class.getName().replace('.','/'));
-        URL resource = AkcesGDPRModule.class.getResource(className);
-        if(resource != null) {
-            String classPath = resource.toString();
-            if (!classPath.startsWith("jar")) {
-                // Class not from JAR, cannot determine version
-                return Version.unknownVersion();
-            }
-
-            String manifestPath = classPath.substring(0, classPath.lastIndexOf("!") + 1) +
-                    "/META-INF/MANIFEST.MF";
-            try {
-                Manifest manifest = new Manifest(new URL(manifestPath).openStream());
-                Attributes attr = manifest.getMainAttributes();
-                String value = attr.getValue("Implementation-Version");
-                if(value != null) {
-                    return generateVersion(Semver.parse(value));
-                } else {
-                    return Version.unknownVersion();
-                }
-            } catch(Exception e) {
-                return Version.unknownVersion();
-            }
-        } else {
-            return Version.unknownVersion();
-        }
-    }
-
-    public static Version generateVersion(Semver semver) {
-        if(semver != null) {
-            return new Version(
-                    semver.getMajor(),
-                    semver.getMinor(),
-                    semver.getPatch(),
-                    !semver.getPreRelease().isEmpty() ? semver.getPreRelease().get(0) : null,
-                    "org.elasticsoftwarefoundation.akces",
-                    "akces-runtime");
-        } else {
-            return Version.unknownVersion();
-        }
     }
 }

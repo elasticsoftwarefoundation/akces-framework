@@ -63,14 +63,14 @@ public class CryptoMarket implements Aggregate<CryptoMarketState> {
                 command.defaultCounterPartyId()));
     }
 
-    @CommandHandler(produces = {MarketOrderPlacedEvent.class,MarketOrderFilledEvent.class}, errors = {MarketOrderRejectedErrorEvent.class})
+    @CommandHandler(produces = {MarketOrderPlacedEvent.class, MarketOrderFilledEvent.class}, errors = {MarketOrderRejectedErrorEvent.class})
     public @NotNull Stream<DomainEvent> handle(@NotNull PlaceMarketOrderCommand command, CryptoMarketState currentState) {
-        if(command.side().equals(Side.BUY) && command.funds() == null) {
+        if (command.side().equals(Side.BUY) && command.funds() == null) {
             return Stream.of(new MarketOrderRejectedErrorEvent(command.marketId(),
                     command.orderId(),
                     command.ownerId(),
                     "Funds are required for a BUY order"));
-        } else if(command.side().equals(Side.SELL) && command.size() == null) {
+        } else if (command.side().equals(Side.SELL) && command.size() == null) {
             return Stream.of(new MarketOrderRejectedErrorEvent(command.marketId(),
                     command.orderId(),
                     command.ownerId(),
@@ -81,7 +81,7 @@ public class CryptoMarket implements Aggregate<CryptoMarketState> {
             // An individual looking to sell will receive the bid price while one looking to buy will pay the ask price
             BigDecimal price = command.side().equals(Side.BUY) ? new BigDecimal(currentTicker.ask()) : new BigDecimal(currentTicker.bid());
             // calculate the quantity based on the funds or size
-            BigDecimal quantity = command.side().equals(Side.BUY) ? command.funds().divide(price,mathContext) : command.size();
+            BigDecimal quantity = command.side().equals(Side.BUY) ? command.funds().divide(price, mathContext) : command.size();
             MarketOrderFilledEvent marketOrderFilledEvent = new MarketOrderFilledEvent(command.marketId(),
                     command.orderId(),
                     command.ownerId(),
@@ -91,7 +91,7 @@ public class CryptoMarket implements Aggregate<CryptoMarketState> {
                     currentState.quoteCrypto(),
                     price,
                     quantity);
-            MarketOrderPlacedEvent marketOrderPlacedEvent =  new MarketOrderPlacedEvent(command.marketId(),
+            MarketOrderPlacedEvent marketOrderPlacedEvent = new MarketOrderPlacedEvent(command.marketId(),
                     command.orderId(),
                     command.ownerId(),
                     command.side(),

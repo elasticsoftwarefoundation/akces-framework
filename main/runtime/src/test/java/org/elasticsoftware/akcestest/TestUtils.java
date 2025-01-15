@@ -59,21 +59,21 @@ public class TestUtils {
     }
 
     private static NewTopic createTopic(String name, int numPartitions, long retentionMs) {
-        NewTopic topic = new NewTopic(name, numPartitions , Short.parseShort("1"));
+        NewTopic topic = new NewTopic(name, numPartitions, Short.parseShort("1"));
         return topic.configs(Map.of(
-                "cleanup.policy","delete",
-                "max.message.bytes","20971520",
+                "cleanup.policy", "delete",
+                "max.message.bytes", "20971520",
                 "retention.ms", Long.toString(retentionMs),
-                "segment.ms","604800000"));
+                "segment.ms", "604800000"));
     }
 
     private static NewTopic createCompactedTopic(String name, int numPartitions) {
-        NewTopic topic = new NewTopic(name, numPartitions , Short.parseShort("1"));
+        NewTopic topic = new NewTopic(name, numPartitions, Short.parseShort("1"));
         return topic.configs(Map.of(
-                "cleanup.policy","compact",
-                "max.message.bytes","20971520",
+                "cleanup.policy", "compact",
+                "max.message.bytes", "20971520",
                 "retention.ms", "-1",
-                "segment.ms","604800000",
+                "segment.ms", "604800000",
                 "min.cleanable.dirty.ratio", "0.1",
                 "delete.retention.ms", "604800000",
                 "compression.type", "lz4"));
@@ -90,9 +90,9 @@ public class TestUtils {
         SchemaGeneratorConfig config = configBuilder.build();
         SchemaGenerator jsonSchemaGenerator = new SchemaGenerator(config);
         try {
-            for(Class<E> eventClass : externalDomainEvents) {
+            for (Class<E> eventClass : externalDomainEvents) {
                 DomainEventInfo info = eventClass.getAnnotation(DomainEventInfo.class);
-                src.register("domainevents."+info.type(),
+                src.register("domainevents." + info.type(),
                         new JsonSchema(jsonSchemaGenerator.generateSchema(eventClass), List.of(), Map.of(), info.version()),
                         info.version(),
                         -1);

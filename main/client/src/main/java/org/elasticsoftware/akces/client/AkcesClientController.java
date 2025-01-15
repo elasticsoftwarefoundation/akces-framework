@@ -74,27 +74,27 @@ import static org.elasticsoftware.akces.gdpr.GDPRContextHolder.setCurrentGDPRCon
 
 public class AkcesClientController extends Thread implements AutoCloseable, AkcesClient {
     private static final Logger logger = LoggerFactory.getLogger(AkcesClientController.class);
+    private static final TopicPartition AKCES_CONTROL_PARTITION = new TopicPartition("Akces-Control", 0);
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
     private final ConsumerFactory<String, AkcesControlRecord> controlRecordConsumerFactory;
     private final ConsumerFactory<String, ProtocolRecord> commandResponseConsumerFactory;
     private final KafkaAdminOperations kafkaAdmin;
     private final HashFunction hashFunction = Hashing.murmur3_32_fixed();
-    private Integer partitions = null;
-    private volatile AkcesClientControllerState processState = INITIALIZING;
     private final Map<String, AggregateServiceRecord> aggregateServices = new ConcurrentHashMap<>();
     private final BlockingQueue<CommandRequest> commandQueue = new LinkedBlockingQueue<>();
-    private final Map<String,PendingCommandResponse> pendingCommandResponseMap = new HashMap<>();
+    private final Map<String, PendingCommandResponse> pendingCommandResponseMap = new HashMap<>();
     private final SchemaRegistryClient schemaRegistryClient;
     private final ObjectMapper objectMapper;
     private final Map<Class<? extends Command>, AggregateServiceCommandType> commandTypes = new ConcurrentHashMap<>();
     private final Map<String, TreeMap<Integer, DomainEventType<? extends DomainEvent>>> domainEventClasses = new ConcurrentHashMap<>();
-    private final Map<String, Map<Integer,ParsedSchema>> commandSchemas = new ConcurrentHashMap<>();
-    private final Map<String, Map<Integer,ParsedSchema>> domainEventSchemas = new ConcurrentHashMap<>();
-    private final Map<Class<? extends Command>,ParsedSchema> commandSchemasLookup = new ConcurrentHashMap<>();
-    private static final TopicPartition AKCES_CONTROL_PARTITION = new TopicPartition("Akces-Control",0);
-    private TopicPartition commandResponsePartition;
+    private final Map<String, Map<Integer, ParsedSchema>> commandSchemas = new ConcurrentHashMap<>();
+    private final Map<String, Map<Integer, ParsedSchema>> domainEventSchemas = new ConcurrentHashMap<>();
+    private final Map<Class<? extends Command>, ParsedSchema> commandSchemasLookup = new ConcurrentHashMap<>();
     private final ClassPathScanningCandidateComponentProvider domainEventScanner;
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
+    private Integer partitions = null;
+    private volatile AkcesClientControllerState processState = INITIALIZING;
+    private TopicPartition commandResponsePartition;
 
     public AkcesClientController(ProducerFactory<String, ProtocolRecord> producerFactory,
                                  ConsumerFactory<String, AkcesControlRecord> controlRecordConsumerFactory,
@@ -126,13 +126,13 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
     public void run() {
         try (final Consumer<String, AkcesControlRecord> controlConsumer = controlRecordConsumerFactory.createConsumer(
                 HostUtils.getHostName() + "-AkcesClientController-Control",
-                    HostUtils.getHostName() + "-AkcesClientController-Control",
-                    null);
+                HostUtils.getHostName() + "-AkcesClientController-Control",
+                null);
              final Consumer<String, ProtocolRecord> commandResponseConsumer = commandResponseConsumerFactory.createConsumer(
                      HostUtils.getHostName() + "-AkcesClientController-CommandResponses",
                      HostUtils.getHostName() + "-AkcesClientController-CommandResponses",
                      null);
-            final Producer<String, ProtocolRecord> producer = producerFactory.createProducer(HostUtils.getHostName() + "-AkcesClientController")) {
+             final Producer<String, ProtocolRecord> producer = producerFactory.createProducer(HostUtils.getHostName() + "-AkcesClientController")) {
             // find out about the partitions
             partitions = kafkaAdmin.describeTopics("Akces-Control").get("Akces-Control").partitions().size();
             // always assign the first partition since all control data exists on every partition
@@ -152,8 +152,8 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
             // we need to make sure any pending CommandRequests are properly handled
             List<CommandRequest> pendingRequests = new ArrayList<>();
             commandQueue.drainTo(pendingRequests);
-            for(CommandRequest pendingRequest : pendingRequests) {
-                if(pendingRequest.completableFuture() != null) {
+            for (CommandRequest pendingRequest : pendingRequests) {
+                if (pendingRequest.completableFuture() != null) {
                     pendingRequest.completableFuture().completeExceptionally(new CommandRefusedException(pendingRequest.command().getClass(), SHUTTING_DOWN));
                 }
             }
@@ -180,7 +180,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
     private void process(Consumer<String, AkcesControlRecord> controlConsumer,
                          Consumer<String, ProtocolRecord> commandResponseConsumer,
                          Producer<String, ProtocolRecord> producer) {
-        if(processState == RUNNING) {
+        if (processState == RUNNING) {
             try {
                 // load any updated control data
                 processControlRecords(controlConsumer.poll(Duration.ofMillis(10)));
@@ -195,18 +195,18 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                 logger.error("Unrecoverable exception in AkcesController", e);
                 // drop out of the control loop, this will shut down all resources
                 processState = SHUTTING_DOWN;
-            } catch(IOException | RestClientException e) {
+            } catch (IOException | RestClientException e) {
                 // TODO: make failing on these errors optional (there might not be proper validation however)
                 logger.error("Exception while loading Command (JSON)Schemas from SchemaRegistry", e);
                 processState = SHUTTING_DOWN;
             }
-        } else if(processState == INITIALIZING) {
+        } else if (processState == INITIALIZING) {
             try {
-                Map<TopicPartition,Long> endOffsets = controlConsumer.endOffsets(singletonList(AKCES_CONTROL_PARTITION));
+                Map<TopicPartition, Long> endOffsets = controlConsumer.endOffsets(singletonList(AKCES_CONTROL_PARTITION));
                 ConsumerRecords<String, AkcesControlRecord> consumerRecords = controlConsumer.poll(Duration.ofMillis(10));
                 processControlRecords(consumerRecords);
                 // stop condition
-                if(consumerRecords.isEmpty() && endOffsets.getOrDefault(AKCES_CONTROL_PARTITION,0L) <= controlConsumer.position(AKCES_CONTROL_PARTITION)) {
+                if (consumerRecords.isEmpty() && endOffsets.getOrDefault(AKCES_CONTROL_PARTITION, 0L) <= controlConsumer.position(AKCES_CONTROL_PARTITION)) {
                     processState = RUNNING;
                 }
             } catch (WakeupException | InterruptException e) {
@@ -216,7 +216,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                 logger.error("Unrecoverable exception in AkcesController", e);
                 // drop out of the control loop, this will shut down all resources
                 processState = SHUTTING_DOWN;
-            } catch(IOException | RestClientException e) {
+            } catch (IOException | RestClientException e) {
                 // TODO: make failing on these errors optional (there might not be proper validation however)
                 logger.error("Exception while loading Command (JSON)Schemas from SchemaRegistry", e);
                 processState = SHUTTING_DOWN;
@@ -226,10 +226,10 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
 
     private void processControlRecords(ConsumerRecords<String, AkcesControlRecord> consumerRecords) throws RestClientException, IOException {
         if (!consumerRecords.isEmpty()) {
-            for(ConsumerRecord<String, AkcesControlRecord> record : consumerRecords) {
+            for (ConsumerRecord<String, AkcesControlRecord> record : consumerRecords) {
                 AkcesControlRecord controlRecord = record.value();
                 if (controlRecord instanceof AggregateServiceRecord aggregateServiceRecord) {
-                    if(aggregateServices.putIfAbsent(record.key(), aggregateServiceRecord) == null) {
+                    if (aggregateServices.putIfAbsent(record.key(), aggregateServiceRecord) == null) {
                         logger.info("Discovered service: {}", aggregateServiceRecord.aggregateName());
                         registerSchemas(aggregateServiceRecord);
                     }
@@ -242,10 +242,10 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
 
     private void processCommands(Producer<String, ProtocolRecord> producer) {
         CommandRequest commandRequest = commandQueue.poll();
-        if(commandRequest != null) {
+        if (commandRequest != null) {
             // start a transaction
             producer.beginTransaction();
-            while(commandRequest != null) {
+            while (commandRequest != null) {
                 final CompletableFuture<List<DomainEvent>> completableFuture = commandRequest.completableFuture();
                 final CommandRecord commandRecord = commandRequest.commandRecord();
                 final Class<? extends Command> commandClass = commandRequest.command().getClass();
@@ -278,12 +278,12 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
 
     // process command responses
     private void processCommandResponses(ConsumerRecords<String, ProtocolRecord> consumerRecords) {
-        if(!consumerRecords.isEmpty()) {
-            for(ConsumerRecord<String, ProtocolRecord> record : consumerRecords) {
+        if (!consumerRecords.isEmpty()) {
+            for (ConsumerRecord<String, ProtocolRecord> record : consumerRecords) {
                 ProtocolRecord protocolRecord = record.value();
-                if(protocolRecord instanceof CommandResponseRecord commandResponseRecord) {
+                if (protocolRecord instanceof CommandResponseRecord commandResponseRecord) {
                     PendingCommandResponse pendingCommandResponse = pendingCommandResponseMap.remove(commandResponseRecord.commandId());
-                    if(pendingCommandResponse == null) {
+                    if (pendingCommandResponse == null) {
                         // The Akces-CommandResponses topic is shared between services so this is a normal occurrence
                         logger.trace("Received CommandResponseRecord for unknown commandId: {}", commandResponseRecord.commandId());
                     } else {
@@ -295,7 +295,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                             }
                             // TODO: maybe we should handle ErrorEvent instances differentlu
                             pendingCommandResponse.completableFuture().complete(domainEvents);
-                        } catch(IOException e) {
+                        } catch (IOException e) {
                             // TODO: generate a Framework specific exception
                             pendingCommandResponse.completableFuture().completeExceptionally(e);
                         }
@@ -357,7 +357,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
         this.processState = SHUTTING_DOWN;
         // wait maximum of 10 seconds for the shutdown to complete
         try {
-            if(shutdownLatch.await(10, TimeUnit.SECONDS)) {
+            if (shutdownLatch.await(10, TimeUnit.SECONDS)) {
                 logger.info("AkcesClientController has been shutdown");
             } else {
                 logger.warn("AkcesClientController did not shutdown within 10 seconds");
@@ -387,9 +387,9 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
         List<AggregateServiceRecord> services = aggregateServices.values().stream()
                 .filter(commandServiceRecord -> supportsCommand(commandServiceRecord.supportedCommands(), commandType, version))
                 .toList();
-        if(services.size() == 1) {
+        if (services.size() == 1) {
             return services.get(0).commandTopic();
-        } else if(services.isEmpty()) {
+        } else if (services.isEmpty()) {
             throw new UnroutableCommandException(command.getClass());
         } else {
             // TODO: make more specific exception
@@ -456,25 +456,25 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
 
     private AggregateServiceCommandType registerCommand(Command command) {
         // see if we already know the command class
-        if(!commandTypes.containsKey(command.getClass())) {
+        if (!commandTypes.containsKey(command.getClass())) {
             // we need to add it to the map
             CommandInfo commandInfo = command.getClass().getAnnotation(CommandInfo.class);
-            if(commandInfo != null) {
+            if (commandInfo != null) {
                 // fetch the metadata from the aggregateServices
                 AggregateServiceCommandType commandType = resolveCommandType(commandInfo.type(), commandInfo.version());
-                if(commandType != null) {
+                if (commandType != null) {
                     // see if we have a schema for this command
                     ParsedSchema schema = commandSchemas.getOrDefault(commandType.typeName(), Collections.emptyMap()).get(commandType.version());
-                    if(schema != null) {
+                    if (schema != null) {
                         commandSchemasLookup.put(command.getClass(), schema);
                     } else {
-                        throw new UnknownSchemaException(command.getClass(), "commands."+commandType.typeName());
+                        throw new UnknownSchemaException(command.getClass(), "commands." + commandType.typeName());
                     }
                     // we have a match, add it to the map
                     commandTypes.put(command.getClass(), commandType);
                     // now we need to process the produced DomainEvents
                     // TODO: we only know this for the whole service, not for the specific command
-                    for(AggregateServiceDomainEventType domainEventType : resolveAggregateService(commandType).producedEvents()) {
+                    for (AggregateServiceDomainEventType domainEventType : resolveAggregateService(commandType).producedEvents()) {
                         processDomainEvent(domainEventType);
                     }
                 } else {
@@ -483,7 +483,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                 }
             } else {
                 // a Command class must be annotated with @CommandInfo, this is a programmer error
-                throw new IllegalArgumentException("Command class "+command.getClass().getName()+" is not annotated with @CommandInfo");
+                throw new IllegalArgumentException("Command class " + command.getClass().getName() + " is not annotated with @CommandInfo");
             }
         }
         // return the command type metadata
@@ -498,7 +498,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
         try {
             // get the schema
             ParsedSchema schema = commandSchemasLookup.get(command.getClass());
-            if(schema instanceof JsonSchema jsonSchema) {
+            if (schema instanceof JsonSchema jsonSchema) {
                 JsonNode jsonNode = objectMapper.valueToTree(command);
                 jsonSchema.validate(jsonNode);
                 return objectMapper.writeValueAsBytes(jsonNode);
@@ -512,7 +512,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
         }
     }
 
-    private DomainEvent deserialize(DomainEventRecord der,@Nullable byte[] encryptionKey) throws IOException {
+    private DomainEvent deserialize(DomainEventRecord der, @Nullable byte[] encryptionKey) throws IOException {
         try {
             setCurrentGDPRContext(encryptionKey != null ? new EncryptingGDPRContext(der.aggregateId(), encryptionKey, GDPRKeyUtils.isUUID(der.aggregateId())) : null);
             // find the correct deserializer
@@ -526,7 +526,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
     }
 
     private void checkRunning(Command command) {
-        if(processState != RUNNING) {
+        if (processState != RUNNING) {
             throw new CommandRefusedException(command.getClass(), processState);
         }
     }
@@ -535,7 +535,12 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
         return processState == RUNNING;
     }
 
-    private record CommandRequest(@Nonnull Command command, @Nonnull CommandRecord commandRecord, @Nonnull String topic, CompletableFuture<List<DomainEvent>> completableFuture) { }
-    private record PendingCommandResponse(@Nonnull CommandRecord commandRecord, @Nonnull CompletableFuture<List<DomainEvent>> completableFuture) { }
+    private record CommandRequest(@Nonnull Command command, @Nonnull CommandRecord commandRecord, @Nonnull String topic,
+                                  CompletableFuture<List<DomainEvent>> completableFuture) {
+    }
+
+    private record PendingCommandResponse(@Nonnull CommandRecord commandRecord,
+                                          @Nonnull CompletableFuture<List<DomainEvent>> completableFuture) {
+    }
 
 }

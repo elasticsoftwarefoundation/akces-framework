@@ -43,10 +43,10 @@ import java.util.concurrent.Future;
 
 public class RocksDBAggregateStateRepository implements AggregateStateRepository {
     private static final Logger log = LoggerFactory.getLogger(RocksDBAggregateStateRepository.class);
-    private final TransactionDB db;
-    private final File baseDir;
     // special key to store the kafka offset (long)
     private static final byte[] OFFSET = new byte[]{0x4f, 0x46, 0x46, 0x53, 0x45, 0x54};
+    private final TransactionDB db;
+    private final File baseDir;
     private final Map<String, RecordAndMetadata<AggregateStateRecord>> transactionStateRecordMap = new HashMap<>();
     private final String topicName;
     private final Serializer<ProtocolRecord> serializer;
@@ -97,7 +97,7 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
             if (offsetBytes != null) {
                 lastOffset = Longs.fromByteArray(offsetBytes);
             }
-        } catch(RocksDBException e) {
+        } catch (RocksDBException e) {
             throw new AggregateStateRepositoryException("Error initializing offset", e);
         }
     }
@@ -120,7 +120,7 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
 
     @Override
     public void commit() {
-        if(!transactionStateRecordMap.isEmpty()) {
+        if (!transactionStateRecordMap.isEmpty()) {
             // start writing the transactions (no need to resolve the futures just yet)
             Transaction transaction = db.beginTransaction(new WriteOptions());
             try {
@@ -163,7 +163,7 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
         long offset = consumerRecords.stream()
                 .map(ConsumerRecord::offset)
                 .max(Long::compareTo).orElse(ProduceResponse.INVALID_OFFSET);
-        if(offset > lastOffset) {
+        if (offset > lastOffset) {
             Transaction transaction = db.beginTransaction(new WriteOptions());
             try {
                 for (ConsumerRecord<String, ProtocolRecord> consumerRecord : consumerRecords) {
@@ -183,11 +183,11 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
     public AggregateStateRecord get(String aggregateId) {
         checkAggregateIdType(aggregateId);
         // return from the transaction map if present
-        if(transactionStateRecordMap.containsKey(aggregateId)) {
+        if (transactionStateRecordMap.containsKey(aggregateId)) {
             return transactionStateRecordMap.get(aggregateId).record();
-        } else  {
+        } else {
             byte[] keyBytes = keyBytes(aggregateId);
-            if(db.keyExists(keyBytes)) {
+            if (db.keyExists(keyBytes)) {
                 try {
                     return (AggregateStateRecord) deserializer.deserialize(topicName, db.get(keyBytes));
                 } catch (RocksDBException | SerializationException e) {

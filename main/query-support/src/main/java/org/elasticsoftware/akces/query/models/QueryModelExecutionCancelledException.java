@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.query.models;
 
-public class QueryModelExecutionCancelledException extends QueryModelExecutionException{
+public class QueryModelExecutionCancelledException extends QueryModelExecutionException {
     public QueryModelExecutionCancelledException(Class<?> modelClass) {
         super("Query model execution cancelled", modelClass);
     }

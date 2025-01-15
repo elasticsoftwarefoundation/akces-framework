@@ -22,10 +22,12 @@ import jakarta.validation.constraints.NotNull;
 
 public interface AggregateState {
     @JsonIgnore
-    @NotNull String getAggregateId();
+    @NotNull
+    String getAggregateId();
 
     @JsonIgnore
-    @NotNull default String getIndexKey() {
+    @NotNull
+    default String getIndexKey() {
         return getAggregateId();
     }
 }

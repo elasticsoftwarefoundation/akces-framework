@@ -66,6 +66,15 @@ public class AggregateServiceApplication {
         return new AggregateBeanFactoryPostProcessor();
     }
 
+    public static void main(String[] args) {
+        SpringApplication application = new SpringApplication(AggregateServiceApplication.class);
+        if (args.length > 0) {
+            // this should be a package to scan
+            application.setSources(Set.of(args));
+        }
+        application.run();
+    }
+
     @Bean(name = "aggregateServiceJsonCustomizer")
     public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
         return builder -> {
@@ -83,6 +92,7 @@ public class AggregateServiceApplication {
     public KafkaAdmin kafkaAdmin(@Value("${spring.kafka.bootstrap-servers}") String bootstrapServers) {
         return new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
     }
+
     @Bean(name = "aggregateServiceSchemaRegistryClient")
     public SchemaRegistryClient schemaRegistryClient(@Value("${kafka.schemaregistry.url}") String url) {
         return new CachedSchemaRegistryClient(url, 1000, List.of(new JsonSchemaProvider()), null);
@@ -118,14 +128,5 @@ public class AggregateServiceApplication {
     @Bean(name = "EnvironmentPropertiesPrinter")
     public EnvironmentPropertiesPrinter environmentPropertiesPrinter() {
         return new EnvironmentPropertiesPrinter();
-    }
-
-    public static void main(String[] args) {
-        SpringApplication application = new SpringApplication(AggregateServiceApplication.class);
-        if(args.length > 0) {
-            // this should be a package to scan
-            application.setSources(Set.of(args));
-        }
-        application.run();
     }
 }

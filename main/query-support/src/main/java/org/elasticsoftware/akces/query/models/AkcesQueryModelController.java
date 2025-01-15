@@ -28,16 +28,16 @@ import java.util.stream.Collectors;
 import static org.elasticsoftware.akces.query.models.AkcesQueryModelControllerState.*;
 import static org.elasticsoftware.akces.util.KafkaUtils.getIndexTopicName;
 
-@SuppressWarnings({"rawtypes","unchecked"})
+@SuppressWarnings({"rawtypes", "unchecked"})
 public class AkcesQueryModelController extends Thread implements AutoCloseable, ApplicationContextAware, QueryModels {
     private static final Logger logger = LoggerFactory.getLogger(AkcesQueryModelController.class);
     private final Map<Class<? extends QueryModel>, QueryModelRuntime> enabledRuntimes = new ConcurrentHashMap<>();
     private final Map<Class<? extends QueryModel>, QueryModelRuntime> disabledRuntimes = new ConcurrentHashMap<>();
     private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
-    private volatile AkcesQueryModelControllerState processState = INITIALIZING;
     private final BlockingQueue<HydrationRequest<?>> commandQueue = new LinkedBlockingQueue<>();
     private final Map<TopicPartition, HydrationExecution<?>> hydrationExecutions = new HashMap<>();
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
+    private volatile AkcesQueryModelControllerState processState = INITIALIZING;
 
     public AkcesQueryModelController(ConsumerFactory<String, ProtocolRecord> consumerFactory) {
         super("AkcesQueryModelController");
@@ -48,7 +48,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
         this.enabledRuntimes.putAll(
                 applicationContext.getBeansOfType(QueryModelRuntime.class).values().stream()
-                .collect(Collectors.toMap(runtime -> ((QueryModelRuntime<?>)runtime).getQueryModelClass(), runtime -> runtime)));
+                        .collect(Collectors.toMap(runtime -> ((QueryModelRuntime<?>) runtime).getQueryModelClass(), runtime -> runtime)));
     }
 
 
@@ -57,7 +57,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         return (QueryModelRuntime<S>) this.enabledRuntimes.get(modelClass);
     }
 
-    private  <S extends QueryModelState> boolean isRuntimeDisable(Class<? extends QueryModel<S>> modelClass) {
+    private <S extends QueryModelState> boolean isRuntimeDisable(Class<? extends QueryModel<S>> modelClass) {
         return this.disabledRuntimes.containsKey(modelClass);
     }
 
@@ -67,11 +67,11 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         S currentState = null;
         Long currentOffset = null;
         QueryModelRuntime<S> runtime = getEnabledRuntime(modelClass);
-        if(runtime != null) {
+        if (runtime != null) {
             CompletableFuture<S> completableFuture = new CompletableFuture<>();
             commandQueue.add(new HydrationRequest<>(runtime, completableFuture, id, currentState, currentOffset));
             return completableFuture;
-        } else if(isRuntimeDisable(modelClass)) {
+        } else if (isRuntimeDisable(modelClass)) {
             // TODO: add Schema differences
             return CompletableFuture.failedFuture(new QueryModelExecutionDisabledException(modelClass));
         } else {
@@ -99,7 +99,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
             while (iterator.hasNext()) {
                 HydrationExecution<?> execution = iterator.next();
                 execution.completableFuture.completeExceptionally(
-                    new QueryModelExecutionCancelledException(execution.runtime().getQueryModelClass()));
+                        new QueryModelExecutionCancelledException(execution.runtime().getQueryModelClass()));
                 iterator.remove();
             }
             shutdownLatch.countDown();
@@ -107,9 +107,9 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
     }
 
     private void process(Consumer<String, ProtocolRecord> indexConsumer) {
-        if(processState == RUNNING) {
+        if (processState == RUNNING) {
             try {
-                Map<TopicPartition,HydrationExecution<?>> newExecutions = processHydrationRequests(indexConsumer);
+                Map<TopicPartition, HydrationExecution<?>> newExecutions = processHydrationRequests(indexConsumer);
                 hydrationExecutions.putAll(newExecutions);
                 indexConsumer.assign(hydrationExecutions.keySet());
                 // seek to the correct offset for the new executions
@@ -121,7 +121,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                     }
                 });
                 // only poll if there is something to poll
-                if(!hydrationExecutions.isEmpty()) {
+                if (!hydrationExecutions.isEmpty()) {
                     logger.info("Processing hydrationExecutions {}", hydrationExecutions);
                     ConsumerRecords<String, ProtocolRecord> consumerRecords = indexConsumer.poll(Duration.ofMillis(10));
                     for (TopicPartition partition : consumerRecords.partitions()) {
@@ -132,9 +132,9 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                 }
                 // check for stop condition
                 Iterator<HydrationExecution<?>> itr = hydrationExecutions.values().iterator();
-                while(itr.hasNext()) {
+                while (itr.hasNext()) {
                     HydrationExecution<?> execution = itr.next();
-                    if(execution.endOffset() <= indexConsumer.position(execution.indexPartition())) {
+                    if (execution.endOffset() <= indexConsumer.position(execution.indexPartition())) {
                         // we are done with this execution
                         execution.complete();
                         itr.remove();
@@ -149,7 +149,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                 // drop out of the control loop, this will shut down all resources
                 processState = SHUTTING_DOWN;
             }
-        } else if(processState == INITIALIZING) {
+        } else if (processState == INITIALIZING) {
             try {
                 // TODO: we need to load the initial GDPRKeys here if necessary
                 Iterator<QueryModelRuntime> iterator = enabledRuntimes.values().iterator();
@@ -179,7 +179,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         }
     }
 
-    private Map<TopicPartition,HydrationExecution<?>> processHydrationRequests(Consumer<String,ProtocolRecord> indexConsumer) {
+    private Map<TopicPartition, HydrationExecution<?>> processHydrationRequests(Consumer<String, ProtocolRecord> indexConsumer) {
         Map<TopicPartition, HydrationExecution<?>> newExecutions = new HashMap<>();
         // see if we have new commands to process
         try {
@@ -211,7 +211,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
     }
 
     private <S extends QueryModelState> HydrationExecution<S> processHydrationExecution(HydrationExecution<S> execution,
-                                                                    List<ConsumerRecord<String, ProtocolRecord>> records) {
+                                                                                        List<ConsumerRecord<String, ProtocolRecord>> records) {
         try {
             logger.info(
                     "Processing {} records HydrationExecution on index {} with id {} and runtime {}",
@@ -238,7 +238,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         processState = SHUTTING_DOWN;
         // wait maximum of 10 seconds for the shutdown to complete
         try {
-            if(shutdownLatch.await(10, TimeUnit.SECONDS)) {
+            if (shutdownLatch.await(10, TimeUnit.SECONDS)) {
                 logger.info("AkcesQueryModelController has been shutdown");
             } else {
                 logger.warn("AkcesQueryModelController did not shutdown within 10 seconds");
@@ -252,15 +252,23 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         return processState == RUNNING;
     }
 
-    private record HydrationRequest<S extends QueryModelState>(QueryModelRuntime<S> runtime, CompletableFuture<S> completableFuture, String id, S currentState, Long currentOffset) { }
+    private record HydrationRequest<S extends QueryModelState>(QueryModelRuntime<S> runtime,
+                                                               CompletableFuture<S> completableFuture, String id,
+                                                               S currentState, Long currentOffset) {
+    }
 
-    private record HydrationExecution<S extends QueryModelState>(QueryModelRuntime<S> runtime, CompletableFuture<S> completableFuture, String id, S currentState, Long currentOffset, TopicPartition indexPartition, Long endOffset) {
+    private record HydrationExecution<S extends QueryModelState>(QueryModelRuntime<S> runtime,
+                                                                 CompletableFuture<S> completableFuture, String id,
+                                                                 S currentState, Long currentOffset,
+                                                                 TopicPartition indexPartition, Long endOffset) {
         HydrationExecution<S> withEndOffset(Long endOffset) {
             return new HydrationExecution<>(runtime, completableFuture, id, currentState, currentOffset, indexPartition, endOffset);
         }
+
         HydrationExecution<S> withCurrentState(S currentState) {
             return new HydrationExecution<>(runtime, completableFuture, id, currentState, currentOffset, indexPartition, endOffset);
         }
+
         void complete() {
             completableFuture.complete(currentState);
         }

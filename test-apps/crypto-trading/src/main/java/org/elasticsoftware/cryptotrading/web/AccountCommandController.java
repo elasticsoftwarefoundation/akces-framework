@@ -40,13 +40,13 @@ public class AccountCommandController {
 
     @PostMapping
     public Mono<ResponseEntity<AccountOutput>> createAccount(@RequestBody AccountInput input) {
-    String userId = UUID.randomUUID().toString();
-    return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(userId)))
-            .map(List::getFirst)
-            .map(domainEvent -> {
-                AccountCreatedEvent event = (AccountCreatedEvent) domainEvent;
-                AccountOutput output = new AccountOutput(event.userId(), input.country(), input.firstName(), input.lastName(), input.email());
-                return ResponseEntity.ok(output);
-            });
-}
+        String userId = UUID.randomUUID().toString();
+        return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(userId)))
+                .map(List::getFirst)
+                .map(domainEvent -> {
+                    AccountCreatedEvent event = (AccountCreatedEvent) domainEvent;
+                    AccountOutput output = new AccountOutput(event.userId(), input.country(), input.firstName(), input.lastName(), input.email());
+                    return ResponseEntity.ok(output);
+                });
+    }
 }

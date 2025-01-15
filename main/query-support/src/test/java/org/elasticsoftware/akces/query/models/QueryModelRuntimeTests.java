@@ -147,28 +147,6 @@ public class QueryModelRuntimeTests {
     @Inject
     ApplicationContext applicationContext;
 
-    public static class ContextInitializer
-            implements ApplicationContextInitializer<ConfigurableApplicationContext> {
-
-        @Override
-        public void initialize(ConfigurableApplicationContext applicationContext) {
-            // initialize kafka topics
-            prepareKafka(kafka.getBootstrapServers());
-            prepareDomainEventSchemas("http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081),
-                    List.of(
-                            WalletCreatedEvent.class,
-                            BalanceCreatedEvent.class
-                    ));
-            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
-                    applicationContext,
-                    "akces.rocksdb.baseDir=/tmp/akces",
-                    "spring.kafka.enabled=true",
-                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
-                    "kafka.schemaregistry.url=http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081)
-            );
-        }
-    }
-
     public static void prepareKafka(String bootstrapServers) {
         KafkaAdmin kafkaAdmin = new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
         kafkaAdmin.createOrModifyTopics(
@@ -213,9 +191,9 @@ public class QueryModelRuntimeTests {
         SchemaGeneratorConfig config = configBuilder.build();
         SchemaGenerator jsonSchemaGenerator = new SchemaGenerator(config);
         try {
-            for(Class<?> domainEventClass : domainEventClasses) {
+            for (Class<?> domainEventClass : domainEventClasses) {
                 DomainEventInfo info = domainEventClass.getAnnotation(DomainEventInfo.class);
-                src.register("domainevents."+info.type(),
+                src.register("domainevents." + info.type(),
                         new JsonSchema(jsonSchemaGenerator.generateSchema(domainEventClass), List.of(), Map.of(), info.version()),
                         info.version(),
                         -1);
@@ -333,7 +311,8 @@ public class QueryModelRuntimeTests {
         assertInstanceOf(IllegalArgumentException.class, exception.getCause());
     }
 
-    @Test @Order(5)
+    @Test
+    @Order(5)
     public void testRegisteredSchemas() throws RestClientException, IOException {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
@@ -346,11 +325,11 @@ public class QueryModelRuntimeTests {
         // now we should have all the schemas registered
         List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas("domainevents.WalletCreated", false, false);
         assertFalse(registeredSchemas.isEmpty());
-        assertEquals(1,schemaRegistryClient.getVersion("domainevents.WalletCreated", registeredSchemas.getFirst()));
+        assertEquals(1, schemaRegistryClient.getVersion("domainevents.WalletCreated", registeredSchemas.getFirst()));
 
         registeredSchemas = schemaRegistryClient.getSchemas("domainevents.AccountCreated", false, false);
         assertFalse(registeredSchemas.isEmpty());
-        assertEquals(1,schemaRegistryClient.getVersion("domainevents.AccountCreated", registeredSchemas.getFirst()));
+        assertEquals(1, schemaRegistryClient.getVersion("domainevents.AccountCreated", registeredSchemas.getFirst()));
     }
 
     @Test
@@ -433,6 +412,28 @@ public class QueryModelRuntimeTests {
         for (CompletableFuture<WalletQueryModelState> stateFuture : stateFutures) {
             WalletQueryModelState state = stateFuture.get();
             assertNotNull(state);
+        }
+    }
+
+    public static class ContextInitializer
+            implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+
+        @Override
+        public void initialize(ConfigurableApplicationContext applicationContext) {
+            // initialize kafka topics
+            prepareKafka(kafka.getBootstrapServers());
+            prepareDomainEventSchemas("http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081),
+                    List.of(
+                            WalletCreatedEvent.class,
+                            BalanceCreatedEvent.class
+                    ));
+            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
+                    applicationContext,
+                    "akces.rocksdb.baseDir=/tmp/akces",
+                    "spring.kafka.enabled=true",
+                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
+                    "kafka.schemaregistry.url=http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081)
+            );
         }
     }
 }

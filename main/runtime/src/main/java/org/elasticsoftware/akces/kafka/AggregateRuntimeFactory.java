@@ -83,7 +83,7 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
                         runtimeBuilder.addCommandHandler(type, adapter);
                         runtimeBuilder.addCommand(type);
                     }
-                    for(Object producedDomainEventType : adapter.getProducedDomainEventTypes()) {
+                    for (Object producedDomainEventType : adapter.getProducedDomainEventTypes()) {
                         runtimeBuilder.addDomainEvent((DomainEventType<?>) producedDomainEventType);
                     }
                     for (Object errorEventType : adapter.getErrorEventTypes()) {
@@ -103,7 +103,7 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
                         runtimeBuilder.addExternalEventHandler(type, adapter);
                         runtimeBuilder.addDomainEvent(type);
                     }
-                    for(Object producedDomainEventType : adapter.getProducedDomainEventTypes()) {
+                    for (Object producedDomainEventType : adapter.getProducedDomainEventTypes()) {
                         runtimeBuilder.addDomainEvent((DomainEventType<?>) producedDomainEventType);
                     }
                     for (Object errorEventType : adapter.getErrorEventTypes()) {

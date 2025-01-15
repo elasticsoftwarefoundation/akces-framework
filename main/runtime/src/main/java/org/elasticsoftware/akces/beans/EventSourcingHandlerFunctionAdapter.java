@@ -33,9 +33,9 @@ public class EventSourcingHandlerFunctionAdapter<S extends AggregateState, E ext
     private final String adapterMethodName;
     private final Class<E> domainEventClass;
     private final Class<S> stateClass;
-    private Method adapterMethod;
     private final boolean create;
     private final DomainEventInfo domainEventInfo;
+    private Method adapterMethod;
 
     public EventSourcingHandlerFunctionAdapter(Aggregate<S> aggregate,
                                                String adapterMethodName,
@@ -67,8 +67,8 @@ public class EventSourcingHandlerFunctionAdapter<S extends AggregateState, E ext
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         } catch (InvocationTargetException e) {
-            if(e.getCause() != null) {
-                if(e.getCause() instanceof RuntimeException) {
+            if (e.getCause() != null) {
+                if (e.getCause() instanceof RuntimeException) {
                     throw (RuntimeException) e.getCause();
                 } else {
                     throw new RuntimeException(e.getCause());
@@ -81,7 +81,7 @@ public class EventSourcingHandlerFunctionAdapter<S extends AggregateState, E ext
 
     @Override
     public DomainEventType<E> getEventType() {
-        return new DomainEventType<>(domainEventInfo.type(), domainEventInfo.version(), domainEventClass, create, false,false);
+        return new DomainEventType<>(domainEventInfo.type(), domainEventInfo.version(), domainEventClass, create, false, false);
     }
 
     @Override

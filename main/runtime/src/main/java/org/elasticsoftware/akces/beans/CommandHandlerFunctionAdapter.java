@@ -27,18 +27,18 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.stream.Stream;
 
-public class CommandHandlerFunctionAdapter<S extends AggregateState,C extends Command, E extends DomainEvent>
+public class CommandHandlerFunctionAdapter<S extends AggregateState, C extends Command, E extends DomainEvent>
         implements CommandHandlerFunction<S, C, E> {
     private final Aggregate<S> aggregate;
     private final String adapterMethodName;
     private final Class<C> commandClass;
     private final Class<S> stateClass;
-    private Method adapterMethod;
     private final boolean create;
     private final CommandInfo commandInfo;
     private final CommandType<C> commandType;
     private final List<DomainEventType<?>> producedDomainEventTypes;
     private final List<DomainEventType<?>> errorEventTypes;
+    private Method adapterMethod;
 
     public CommandHandlerFunctionAdapter(Aggregate<S> aggregate,
                                          String adapterMethodName,
@@ -75,8 +75,8 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState,C extends Co
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         } catch (InvocationTargetException e) {
-            if(e.getCause() != null) {
-                if(e.getCause() instanceof RuntimeException) {
+            if (e.getCause() != null) {
+                if (e.getCause() instanceof RuntimeException) {
                     throw (RuntimeException) e.getCause();
                 } else {
                     throw new RuntimeException(e.getCause());

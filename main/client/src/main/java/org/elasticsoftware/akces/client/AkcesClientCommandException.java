@@ -31,7 +31,7 @@ public abstract class AkcesClientCommandException extends RuntimeException {
                                        @Nullable CommandInfo commandInfo,
                                        @Nonnull String causeMessage,
                                        @Nonnull Throwable cause) {
-        super("Problem "+causeMessage+" Command", cause);
+        super("Problem " + causeMessage + " Command", cause);
         this.commandClass = commandClass;
         this.commandType = commandInfo != null ? commandInfo.type() : null;
         this.commandVersion = commandInfo != null ? commandInfo.version() : null;

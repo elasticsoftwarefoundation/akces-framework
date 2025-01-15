@@ -40,24 +40,24 @@ public class KafkaTopicUtils {
     }
 
     public static NewTopic createTopic(String name, int numPartitions, long retentionMs) {
-        NewTopic topic = new NewTopic(name, numPartitions , Short.parseShort("1"));
+        NewTopic topic = new NewTopic(name, numPartitions, Short.parseShort("1"));
         return topic.configs(Map.of(
                 "min.insync.replicas", "2",
-                "cleanup.policy","delete",
-                "max.message.bytes","20971520",
+                "cleanup.policy", "delete",
+                "max.message.bytes", "20971520",
                 "retention.ms", Long.toString(retentionMs),
-                "segment.ms","604800000",
+                "segment.ms", "604800000",
                 "compression.type", "lz4"));
     }
 
     public static NewTopic createCompactedTopic(String name, int numPartitions) {
-        NewTopic topic = new NewTopic(name, numPartitions , Short.parseShort("1"));
+        NewTopic topic = new NewTopic(name, numPartitions, Short.parseShort("1"));
         return topic.configs(Map.of(
                 "min.insync.replicas", "2",
-                "cleanup.policy","compact",
-                "max.message.bytes","20971520",
+                "cleanup.policy", "compact",
+                "max.message.bytes", "20971520",
                 "retention.ms", "-1",
-                "segment.ms","604800000",
+                "segment.ms", "604800000",
                 "min.cleanable.dirty.ratio", "0.1",
                 "delete.retention.ms", "604800000",
                 "compression.type", "lz4"));

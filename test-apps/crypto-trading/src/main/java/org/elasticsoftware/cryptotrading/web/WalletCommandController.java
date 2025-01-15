@@ -43,7 +43,7 @@ public class WalletCommandController {
         return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(walletId, currency)))
                 .map(List::getFirst)
                 .handle((domainEvent, sink) -> {
-                    if(domainEvent instanceof WalletCreditedEvent) {
+                    if (domainEvent instanceof WalletCreditedEvent) {
                         sink.next(ResponseEntity.ok(CreditWalletOutput.from((WalletCreditedEvent) domainEvent)));
                     } else {
                         sink.error(new ErrorEventException((ErrorEvent) domainEvent));

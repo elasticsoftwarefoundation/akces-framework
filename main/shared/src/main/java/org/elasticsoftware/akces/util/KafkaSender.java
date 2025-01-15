@@ -32,11 +32,11 @@ public class KafkaSender {
         // Utility class
     }
 
-    public static <K,V> Future<RecordMetadata> send(Producer<K, V> producer, ProducerRecord<K, V> producerRecord) {
+    public static <K, V> Future<RecordMetadata> send(Producer<K, V> producer, ProducerRecord<K, V> producerRecord) {
         return send(producer, producerRecord, null);
     }
 
-    public static <K,V> Future<RecordMetadata> send(Producer<K, V> producer, ProducerRecord<K, V> producerRecord, Callback callback) {
+    public static <K, V> Future<RecordMetadata> send(Producer<K, V> producer, ProducerRecord<K, V> producerRecord, Callback callback) {
         Future<RecordMetadata> future = producer.send(producerRecord, callback);
         if (future.isDone()) {
             try {
@@ -46,7 +46,7 @@ public class KafkaSender {
             } catch (ExecutionException e) {
                 if (e.getCause() instanceof ApiException) {
                     throw (ApiException) e.getCause();
-                } else if(e.getCause() instanceof RuntimeException) {
+                } else if (e.getCause() instanceof RuntimeException) {
                     throw (RuntimeException) e.getCause();
                 } else {
                     throw new RuntimeException(e.getCause());

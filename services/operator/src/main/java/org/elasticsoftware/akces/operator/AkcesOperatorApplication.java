@@ -26,10 +26,10 @@ import java.security.Security;
 @SpringBootApplication
 public class AkcesOperatorApplication {
 
-	public static void main(String[] args) {
-		Security.setProperty("crypto.policy", "unlimited");
-		Security.insertProviderAt(new BouncyCastleProvider(),1);
-		SpringApplication.run(AkcesOperatorApplication.class, args);
-	}
+    public static void main(String[] args) {
+        Security.setProperty("crypto.policy", "unlimited");
+        Security.insertProviderAt(new BouncyCastleProvider(), 1);
+        SpringApplication.run(AkcesOperatorApplication.class, args);
+    }
 
 }

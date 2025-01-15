@@ -43,7 +43,7 @@ public class ProtocolTests {
     public void testJacksonProtobuf() throws IOException {
         String protobuf = """
                 // org.elasticsoftware.akces.protocol.DomainEventRecord
-                        
+                
                 // Message for org.elasticsoftware.akces.protocol.DomainEventRecord
                 message DomainEventRecord {
                   optional string name = 1;

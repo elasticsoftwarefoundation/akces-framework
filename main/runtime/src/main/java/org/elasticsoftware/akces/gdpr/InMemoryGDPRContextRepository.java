@@ -39,12 +39,11 @@ public class InMemoryGDPRContextRepository implements GDPRContextRepository {
     private static final Logger log = LoggerFactory.getLogger(InMemoryGDPRContextRepository.class);
     private final Map<String, GDPRKeyRecord> stateRecordMap = new HashMap<>();
     private final Map<String, RecordAndMetadata<GDPRKeyRecord>> transactionStateRecordMap = new HashMap<>();
+    private boolean aggregateIdIsUUID = false;
+    private boolean aggregateIdTypeCheckDone = false;
     private final LoadingCache<String, GDPRContext> gdprContexts = Caffeine.newBuilder()
             .maximumSize(1000)
             .build(this::createGDPRContext);
-    private boolean aggregateIdIsUUID = false;
-    private boolean aggregateIdTypeCheckDone = false;
-
     private long offset = -1L;
 
     @Override
@@ -65,7 +64,7 @@ public class InMemoryGDPRContextRepository implements GDPRContextRepository {
     @Override
     public void commit() {
         // commit is always called, even if there are no state updates
-        if(!transactionStateRecordMap.isEmpty()) {
+        if (!transactionStateRecordMap.isEmpty()) {
             // now we need to find the highest offset in this batch
             this.offset = transactionStateRecordMap.values().stream()
                     .map(RecordAndMetadata::metadata)
@@ -120,7 +119,7 @@ public class InMemoryGDPRContextRepository implements GDPRContextRepository {
 
     private GDPRContext createGDPRContext(String aggregateId) {
         GDPRKeyRecord record = getGDPRKeyRecord(aggregateId);
-        if(record != null) {
+        if (record != null) {
             checkAggregateIdType(aggregateId);
             return new EncryptingGDPRContext(record.aggregateId(), record.payload(), aggregateIdIsUUID);
         } else {
@@ -130,7 +129,7 @@ public class InMemoryGDPRContextRepository implements GDPRContextRepository {
 
     private GDPRKeyRecord getGDPRKeyRecord(String aggregateId) {
         // if we have one in the transactional map, that one is the most recent
-        if(transactionStateRecordMap.containsKey(aggregateId)) {
+        if (transactionStateRecordMap.containsKey(aggregateId)) {
             return transactionStateRecordMap.get(aggregateId).record();
         } else {
             return stateRecordMap.get(aggregateId);

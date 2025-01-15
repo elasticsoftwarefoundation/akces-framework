@@ -23,6 +23,7 @@ import org.elasticsoftware.akces.commands.Command;
 
 public class UnknownSchemaException extends AkcesClientCommandException {
     private final String schemaIdentifier;
+
     public UnknownSchemaException(@Nonnull Class<? extends Command> commandClass, String schemaIdentifier) {
         super(commandClass, commandClass.getAnnotation(CommandInfo.class), "Unknown Schema");
         this.schemaIdentifier = schemaIdentifier;

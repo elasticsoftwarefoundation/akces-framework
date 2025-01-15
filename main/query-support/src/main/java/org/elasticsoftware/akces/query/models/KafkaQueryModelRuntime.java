@@ -54,7 +54,7 @@ public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryM
     private final Map<Class<? extends DomainEvent>, JsonSchema> domainEventSchemas = new HashMap<>();
     private final QueryModelStateType<?> type;
     private final Class<? extends QueryModel<S>> queryModelClass;
-    private final Map<Class<?>,DomainEventType<?>> domainEvents;
+    private final Map<Class<?>, DomainEventType<?>> domainEvents;
     private final QueryModelEventHandlerFunction<S, DomainEvent> createStateHandler;
     private final Map<DomainEventType<?>, QueryModelEventHandlerFunction<S, DomainEvent>> queryModelEventHandlers;
 
@@ -63,7 +63,7 @@ public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryM
                                    QueryModelStateType<?> type,
                                    Class<? extends QueryModel<S>> queryModelClass,
                                    QueryModelEventHandlerFunction<S, DomainEvent> createStateHandler,
-                                   Map<Class<?>,DomainEventType<?>> domainEvents,
+                                   Map<Class<?>, DomainEventType<?>> domainEvents,
                                    Map<DomainEventType<?>, QueryModelEventHandlerFunction<S, DomainEvent>> queryModelEventHandlers) {
         this.schemaRegistryClient = schemaRegistryClient;
         this.objectMapper = objectMapper;
@@ -117,13 +117,13 @@ public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryM
             // determine the type to use for the external event
             DomainEventType<?> domainEventType = getDomainEventType(eventRecord);
             // with external domainevents we should look at the handler and not at the type of the external event
-            if(domainEventType != null) {
-                if (state == null && createStateHandler != null && createStateHandler.getEventType().equals(domainEventType) ) {
+            if (domainEventType != null) {
+                if (state == null && createStateHandler != null && createStateHandler.getEventType().equals(domainEventType)) {
                     state = createStateHandler.apply(materialize(domainEventType, eventRecord), null);
-                } else if(state != null) { // we first need to see the create handler
+                } else if (state != null) { // we first need to see the create handler
                     // only process the event if we have a handler for it
                     QueryModelEventHandlerFunction<S, DomainEvent> eventHandler = queryModelEventHandlers.get(domainEventType);
-                    if(eventHandler != null) {
+                    if (eventHandler != null) {
                         state = eventHandler.apply(materialize(domainEventType, eventRecord), state);
                     }
                 }
@@ -158,8 +158,8 @@ public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryM
                             List<Difference> violatingDifferences = differences.stream()
                                     .filter(difference -> !difference.getType().equals(Difference.Type.PROPERTY_REMOVED_FROM_CLOSED_CONTENT_MODEL))
                                     .toList();
-                            if(!violatingDifferences.isEmpty()) {
-                               // our implementaion class is incompatible with the registered schema
+                            if (!violatingDifferences.isEmpty()) {
+                                // our implementaion class is incompatible with the registered schema
                                 throw new IncompatibleSchemaException(
                                         "domainevents." + domainEventType.typeName(),
                                         domainEventType.version(),
@@ -192,7 +192,7 @@ public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryM
 
     private int getSchemaVersion(DomainEventType<?> domainEventType, ParsedSchema parsedSchema) {
         try {
-            return schemaRegistryClient.getVersion("domainevents."+domainEventType.typeName(), parsedSchema);
+            return schemaRegistryClient.getVersion("domainevents." + domainEventType.typeName(), parsedSchema);
         } catch (IOException | RestClientException e) {
             throw new RuntimeException(e);
         }
@@ -213,13 +213,13 @@ public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryM
     }
 
     public static class Builder {
+        private final Map<Class<?>, DomainEventType<?>> domainEvents = new HashMap<>();
+        private final Map<DomainEventType<?>, QueryModelEventHandlerFunction<QueryModelState, DomainEvent>> queryModelEventHandlers = new HashMap<>();
         private SchemaRegistryClient schemaRegistryClient;
         private ObjectMapper objectMapper;
         private QueryModelStateType<?> stateType;
         private Class<? extends QueryModel> queryModelClass;
         private QueryModelEventHandlerFunction<QueryModelState, DomainEvent> createStateHandler;
-        private final Map<Class<?>, DomainEventType<?>> domainEvents = new HashMap<>();
-        private final Map<DomainEventType<?>, QueryModelEventHandlerFunction<QueryModelState, DomainEvent>> queryModelEventHandlers = new HashMap<>();
 
         public Builder setSchemaRegistryClient(SchemaRegistryClient schemaRegistryClient) {
             this.schemaRegistryClient = schemaRegistryClient;

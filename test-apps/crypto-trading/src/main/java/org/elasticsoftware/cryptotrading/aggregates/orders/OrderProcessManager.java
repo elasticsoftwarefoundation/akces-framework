@@ -72,14 +72,14 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
                     event.market(),
                     event.amount(),
                     event.clientReference()));
-        }} );
+        }});
     }
 
     @EventSourcingHandler
     public OrderProcessManagerState handle(BuyOrderRejectedEvent event, OrderProcessManagerState state) {
         return new OrderProcessManagerState(state.userId(), new ArrayList<>(state.runningProcesses()) {{
             removeIf(process -> process.orderId().equals(event.orderId()));
-        }} );
+        }});
     }
 
     @EventSourcingHandler
@@ -87,7 +87,7 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
         // TODO: we should not remove it but mark it as placed
         return new OrderProcessManagerState(state.userId(), new ArrayList<>(state.runningProcesses()) {{
             removeIf(process -> process.orderId().equals(event.orderId()));
-        }} );
+        }});
     }
 
     /**
@@ -118,7 +118,7 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
 
     @CommandHandler(produces = BuyOrderRejectedEvent.class, errors = {})
     public Stream<BuyOrderRejectedEvent> rejectOrder(RejectOrderCommand command, OrderProcessManagerState state) {
-        if(state.hasAkcesProcess(command.orderId())) {
+        if (state.hasAkcesProcess(command.orderId())) {
             return Stream.of(state.getAkcesProcess(command.orderId()).handle(command));
         } else {
             return Stream.empty();
@@ -129,7 +129,7 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
     public Stream<DomainEvent> handle(AmountReservedEvent event, OrderProcessManagerState state) {
         // happy path, need to send a command to the market to place the order
         OrderProcess orderProcess = state.getAkcesProcess(event.referenceId());
-        if(orderProcess != null) {
+        if (orderProcess != null) {
             getCommandBus().send(new PlaceMarketOrderCommand(
                     orderProcess.market().id(),
                     orderProcess.orderId(),
@@ -146,7 +146,7 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
 
     @EventHandler(produces = BuyOrderRejectedEvent.class, errors = {})
     public Stream<DomainEvent> handle(InsufficientFundsErrorEvent errorEvent, OrderProcessManagerState state) {
-        if(state.hasAkcesProcess(errorEvent.referenceId())) {
+        if (state.hasAkcesProcess(errorEvent.referenceId())) {
             return Stream.of(state.getAkcesProcess(errorEvent.referenceId()).handle(errorEvent));
         } else {
             return Stream.empty();
@@ -155,7 +155,7 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
 
     @EventHandler(produces = BuyOrderRejectedEvent.class, errors = {})
     public Stream<DomainEvent> handle(InvalidCryptoCurrencyErrorEvent errorEvent, OrderProcessManagerState state) {
-        if(state.hasAkcesProcess(errorEvent.referenceId())) {
+        if (state.hasAkcesProcess(errorEvent.referenceId())) {
             return Stream.of(state.getAkcesProcess(errorEvent.referenceId()).handle(errorEvent));
         } else {
             return Stream.empty();

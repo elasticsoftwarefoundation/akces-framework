@@ -40,7 +40,7 @@ public class ServiceDependentResource extends CRUDKubernetesDependentResource<Se
         final String aggregateName = aggregateMetadata.getName();
         return new ServiceBuilder(ReconcilerUtils.loadYaml(Service.class, getClass(), "service.yaml"))
                 .editMetadata()
-                .withName(aggregateName+"-service")
+                .withName(aggregateName + "-service")
                 .withNamespace(aggregateMetadata.getNamespace())
                 .addToLabels("app.kubernetes.io/part-of", aggregateName)
                 .addToLabels("app.kubernetes.io/managed-by", "akces-operator")

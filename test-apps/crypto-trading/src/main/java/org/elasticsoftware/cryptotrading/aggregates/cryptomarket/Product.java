@@ -40,4 +40,5 @@ public record Product(
         @JsonProperty("max_slippage_percentage") String maxSlippagePercentage,
         @NotNull @JsonProperty("auction_mode") Boolean auctionMode,
         @JsonProperty("high_bid_limit_percentage") String highBidLimitPercentage
-) {}
+) {
+}

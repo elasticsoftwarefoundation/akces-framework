@@ -30,7 +30,8 @@ public record CreateAccountCommand(
         @NotNull String lastName,
         @NotNull String email
 ) implements Command {
-    @Override @NotNull
+    @Override
+    @NotNull
     public String getAggregateId() {
         return userId();
     }

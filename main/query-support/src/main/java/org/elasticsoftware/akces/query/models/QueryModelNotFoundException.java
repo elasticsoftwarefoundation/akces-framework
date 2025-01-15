@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.query.models;
 
-public class QueryModelNotFoundException extends QueryModelExecutionException{
+public class QueryModelNotFoundException extends QueryModelExecutionException {
     public QueryModelNotFoundException(Class<?> modelClass) {
         super("Query model not found", modelClass);
     }

@@ -55,14 +55,14 @@ public final class EncryptingGDPRContext implements GDPRContext {
         IvParameterSpec ivParameterSpec = null;
         String aesMode = "ECB";
         // use cbc mode if the aggregateId is a UUID, with UUID bytes as IV
-        if(aggregateIsUUID) {
+        if (aggregateIsUUID) {
             UUID aggregateUUID = UUID.fromString(aggregateId);
             ivParameterSpec = new IvParameterSpec(ByteBuffer.wrap(new byte[16]).putLong(aggregateUUID.getMostSignificantBits()).putLong(aggregateUUID.getLeastSignificantBits()).array());
             aesMode = "CBC";
         }
         try {
-            encryptingCipher = Cipher.getInstance("AES/"+aesMode+"/PKCS5PADDING");
-            decryptingCipher = Cipher.getInstance("AES/"+aesMode+"/PKCS5PADDING");
+            encryptingCipher = Cipher.getInstance("AES/" + aesMode + "/PKCS5PADDING");
+            decryptingCipher = Cipher.getInstance("AES/" + aesMode + "/PKCS5PADDING");
             encryptingCipher.init(Cipher.ENCRYPT_MODE, keySpec, ivParameterSpec, GDPRKeyUtils.secureRandom());
             decryptingCipher.init(Cipher.DECRYPT_MODE, keySpec, ivParameterSpec, GDPRKeyUtils.secureRandom());
         } catch (NoSuchPaddingException | NoSuchAlgorithmException | InvalidAlgorithmParameterException e) {

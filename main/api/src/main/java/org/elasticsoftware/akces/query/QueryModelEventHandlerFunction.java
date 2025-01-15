@@ -22,8 +22,9 @@ import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 @FunctionalInterface
-public interface QueryModelEventHandlerFunction<S extends QueryModelState,E extends DomainEvent> {
-    @NotNull S apply(@NotNull E event, S state);
+public interface QueryModelEventHandlerFunction<S extends QueryModelState, E extends DomainEvent> {
+    @NotNull
+    S apply(@NotNull E event, S state);
 
     default DomainEventType<E> getEventType() {
         throw new UnsupportedOperationException("When implementing QueryModelEventHandlerFunction directly, you must override getEventType()");

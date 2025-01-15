@@ -67,7 +67,7 @@ public class JsonSchemaTests {
 
         schema2.validate(schema2.toJson(new AccountCreatedEvent("1", "Musk", AccountTypeV1.PREMIUM)));
 
-        schema2.validate(schema2.toJson(new AccountCreatedEventV2("1","Musk",AccountTypeV2.PREMIUM, "Elon", "US")));
+        schema2.validate(schema2.toJson(new AccountCreatedEventV2("1", "Musk", AccountTypeV2.PREMIUM, "Elon", "US")));
 
         // schema2.validate(new AccountCreatedEvent("1", null, AccountTypeV1.PREMIUM));
 
@@ -138,7 +138,7 @@ public class JsonSchemaTests {
                     ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
                 } else
                     collectedTypeAttributes.put("type", "string");
-                }
+            }
         });
 
         SchemaGeneratorConfig config = configBuilder.build();

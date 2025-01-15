@@ -31,6 +31,7 @@ public record OrderProcessManagerState(
     public OrderProcessManagerState(@NotNull String userId) {
         this(userId, List.of());
     }
+
     @Override
     public String getAggregateId() {
         return userId();

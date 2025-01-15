@@ -21,8 +21,9 @@ import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 @FunctionalInterface
-public interface EventSourcingHandlerFunction<S extends AggregateState,E extends DomainEvent> {
-    @NotNull S apply(@NotNull E event, S state);
+public interface EventSourcingHandlerFunction<S extends AggregateState, E extends DomainEvent> {
+    @NotNull
+    S apply(@NotNull E event, S state);
 
     default DomainEventType<E> getEventType() {
         throw new UnsupportedOperationException("When implementing EventSourcingHandlerFunction directly, you must override getEventType()");

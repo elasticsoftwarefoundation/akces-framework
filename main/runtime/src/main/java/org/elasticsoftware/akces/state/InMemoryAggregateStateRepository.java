@@ -32,7 +32,7 @@ import java.util.concurrent.Future;
 
 public class InMemoryAggregateStateRepository implements AggregateStateRepository {
     private static final Logger log = LoggerFactory.getLogger(InMemoryAggregateStateRepository.class);
-    private final Map<String,AggregateStateRecord> stateRecordMap = new HashMap<>();
+    private final Map<String, AggregateStateRecord> stateRecordMap = new HashMap<>();
     private final Map<String, RecordAndMetadata<AggregateStateRecord>> transactionStateRecordMap = new HashMap<>();
     private long offset = -1L;
 
@@ -50,7 +50,7 @@ public class InMemoryAggregateStateRepository implements AggregateStateRepositor
     @Override
     public void commit() {
         // commit is always called, even if there are no state updates
-        if(!transactionStateRecordMap.isEmpty()) {
+        if (!transactionStateRecordMap.isEmpty()) {
             // now we need to find the highest offset in this batch
             this.offset = transactionStateRecordMap.values().stream()
                     .map(RecordAndMetadata::metadata)
@@ -91,7 +91,7 @@ public class InMemoryAggregateStateRepository implements AggregateStateRepositor
     @Override
     public AggregateStateRecord get(String aggregateId) {
         // if we have one in the transactional map, that one is the most recent
-        if(transactionStateRecordMap.containsKey(aggregateId)) {
+        if (transactionStateRecordMap.containsKey(aggregateId)) {
             return transactionStateRecordMap.get(aggregateId).record();
         } else {
             return stateRecordMap.get(aggregateId);

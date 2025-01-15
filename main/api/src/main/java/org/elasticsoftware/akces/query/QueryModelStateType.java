@@ -17,5 +17,6 @@
 
 package org.elasticsoftware.akces.query;
 
-public record QueryModelStateType<C extends QueryModelState>(String typeName, int version, Class<C> typeClass, String indexName) {
+public record QueryModelStateType<C extends QueryModelState>(String typeName, int version, Class<C> typeClass,
+                                                             String indexName) {
 }
