@@ -67,6 +67,7 @@
 
     <modules>
         <module>aggregates</module>
+        <module>commands</module>
     </modules>
 
     <build>

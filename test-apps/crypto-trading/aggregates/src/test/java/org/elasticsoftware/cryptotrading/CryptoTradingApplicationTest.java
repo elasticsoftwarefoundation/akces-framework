@@ -37,12 +37,14 @@ import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreditWallet
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.support.TestPropertySourceUtils;
+import org.springframework.test.web.reactive.server.WebTestClient;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.Network;
@@ -116,6 +118,10 @@ public class CryptoTradingApplicationTest {
     @Inject
     @Qualifier("aggregateServiceConsumerFactory")
     ConsumerFactory<String, ProtocolRecord> consumerFactory;
+    @LocalServerPort
+    private int port;
+    @Inject
+    private WebTestClient webTestClient;
 
     @AfterAll
     @BeforeAll
@@ -127,6 +133,26 @@ public class CryptoTradingApplicationTest {
                     .map(Path::toFile)
                     .forEach(File::delete);
         }
+    }
+
+    @Test
+    void healthReadinessEndpointShouldBeEnabled() {
+        webTestClient.get()
+                .uri("/actuator/health/readiness")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(response -> assertThat(response).contains("{\"status\":\"UP\"}"));
+    }
+
+    @Test
+    void healthLivenessEndpointShouldBeEnabled() {
+        webTestClient.get()
+                .uri("/actuator/health/liveness")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(response -> assertThat(response).contains("{\"status\":\"UP\"}"));
     }
 
     @Test
@@ -233,14 +259,6 @@ public class CryptoTradingApplicationTest {
                     count++;
                 }
             }
-        }
-
-        System.out.println("Waiting for 10 seconds");
-
-        try {
-            Thread.sleep(10 * 1000);
-        } catch (InterruptedException e) {
-            // ignore
         }
     }
 
