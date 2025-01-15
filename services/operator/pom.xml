@@ -112,6 +112,15 @@
 				<artifactId>crd-generator-maven-plugin</artifactId>
 				<executions>
 					<execution>
+						<id>generate-resources</id>
+						<configuration>
+							<outputDirectory>${project.basedir}/src/main/resources/META-INF/fabric8/</outputDirectory>
+						</configuration>
+						<goals>
+							<goal>generate</goal>
+						</goals>
+					</execution>
+					<execution>
 						<goals>
 							<goal>generate</goal>
 						</goals>

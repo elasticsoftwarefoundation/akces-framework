@@ -19,6 +19,8 @@ package org.elasticsoftware.akces.operator;
 
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.elasticsoftware.akces.operator.aggregate.AggregateReconciler;
+import org.elasticsoftware.akces.operator.command.CommandServiceReconciler;
+import org.elasticsoftware.akces.operator.query.QueryServiceReconciler;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,5 +39,15 @@ public class AkcesOperatorConfig {
     @Bean
     public AggregateReconciler aggregateReconciler(KafkaAdmin kafkaAdmin) {
         return new AggregateReconciler(kafkaAdmin);
+    }
+
+    @Bean
+    public CommandServiceReconciler commandServiceReconciler() {
+        return new CommandServiceReconciler();
+    }
+
+    @Bean
+    public QueryServiceReconciler queryServiceReconciler() {
+        return new QueryServiceReconciler();
     }
 }

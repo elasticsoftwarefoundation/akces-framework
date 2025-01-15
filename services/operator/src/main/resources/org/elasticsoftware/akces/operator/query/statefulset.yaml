@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ""
+  labels:
+    app.kubernetes.io/part-of: ""
+    app.kubernetes.io/managed-by: ""
+spec:
+  serviceName: ""
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: ""
+  template:
+    metadata:
+      labels:
+        app: ""
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: akces-aggregate-service
+          image: ""
+          env:
+            - name: SPRING_CONFIG_LOCATION
+              value: "file:/config/application.properties"
+            - name: LOGGING_CONFIG
+              value: "file:/config/logback.xml"
+            - name: BPL_JVM_THREAD_COUNT
+              value: "100"
+          lifecycle:
+            preStop:
+              exec:
+                command: [ "/bin/sh", "-c", "sleep 10" ]
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: actuator/health/liveness
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+            - name: akces-data
+              mountPath: /var/lib/akces-data
+              readOnly: false
+      volumes:
+        - name: config-volume
+          configMap:
+            name: ""
+  volumeClaimTemplates:
+    - metadata:
+        name: akces-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: "akces-data-hyperdisk-balanced"
+        resources:
+          requests:
+            storage: 4Gi
