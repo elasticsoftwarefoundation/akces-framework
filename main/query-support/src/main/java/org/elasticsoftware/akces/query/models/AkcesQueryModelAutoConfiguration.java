@@ -74,7 +74,7 @@ public class AkcesQueryModelAutoConfiguration {
     }
 
     @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
-    @Bean(name = "ackesQueryModelController", initMethod = "start")
+    @Bean(name = "ackesQueryModelController", initMethod = "start", destroyMethod = "close")
     public AkcesQueryModelController queryModelRuntimes(@Qualifier("akcesQueryModelConsumerFactory") ConsumerFactory<String, ProtocolRecord> consumerFactory) {
         return new AkcesQueryModelController(consumerFactory);
     }

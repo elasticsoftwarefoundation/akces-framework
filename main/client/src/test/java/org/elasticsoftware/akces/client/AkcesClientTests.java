@@ -70,6 +70,7 @@ import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.support.TestPropertySourceUtils;
 import org.testcontainers.containers.GenericContainer;
@@ -91,9 +92,10 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-@Testcontainers
 @SpringBootTest(classes = AkcesClientTestConfiguration.class, properties = "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration")
 @ContextConfiguration(initializers = AkcesClientTests.ContextInitializer.class)
+@Testcontainers
+@DirtiesContext
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class AkcesClientTests {
     private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";

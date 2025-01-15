@@ -21,10 +21,7 @@ import org.springframework.kafka.core.ConsumerFactory;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
@@ -40,6 +37,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
     private volatile AkcesQueryModelControllerState processState = INITIALIZING;
     private final BlockingQueue<HydrationRequest<?>> commandQueue = new LinkedBlockingQueue<>();
     private final Map<TopicPartition, HydrationExecution<?>> hydrationExecutions = new HashMap<>();
+    private final CountDownLatch shutdownLatch = new CountDownLatch(1);
 
     public AkcesQueryModelController(ConsumerFactory<String, ProtocolRecord> consumerFactory) {
         super("AkcesQueryModelController");
@@ -91,6 +89,20 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
             while (processState != SHUTTING_DOWN) {
                 process(indexConsumer);
             }
+            // handle all pending requests
+            List<HydrationRequest<?>> pendingRequests = new ArrayList<>();
+            commandQueue.drainTo(pendingRequests);
+            pendingRequests.forEach(request -> request.completableFuture.completeExceptionally(
+                    new QueryModelExecutionCancelledException(request.runtime().getQueryModelClass())));
+            // handle all pending executions
+            Iterator<HydrationExecution<?>> iterator = hydrationExecutions.values().iterator();
+            while (iterator.hasNext()) {
+                HydrationExecution<?> execution = iterator.next();
+                execution.completableFuture.completeExceptionally(
+                    new QueryModelExecutionCancelledException(execution.runtime().getQueryModelClass()));
+                iterator.remove();
+            }
+            shutdownLatch.countDown();
         }
     }
 
@@ -223,7 +235,17 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
 
     @Override
     public void close() throws Exception {
-
+        processState = SHUTTING_DOWN;
+        // wait maximum of 10 seconds for the shutdown to complete
+        try {
+            if(shutdownLatch.await(10, TimeUnit.SECONDS)) {
+                logger.info("AkcesQueryModelController has been shutdown");
+            } else {
+                logger.warn("AkcesQueryModelController did not shutdown within 10 seconds");
+            }
+        } catch (InterruptedException e) {
+            // ignore
+        }
     }
 
     public boolean isRunning() {

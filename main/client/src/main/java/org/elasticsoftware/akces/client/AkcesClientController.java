@@ -94,6 +94,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
     private static final TopicPartition AKCES_CONTROL_PARTITION = new TopicPartition("Akces-Control",0);
     private TopicPartition commandResponsePartition;
     private final ClassPathScanningCandidateComponentProvider domainEventScanner;
+    private final CountDownLatch shutdownLatch = new CountDownLatch(1);
 
     public AkcesClientController(ProducerFactory<String, ProtocolRecord> producerFactory,
                                  ConsumerFactory<String, AkcesControlRecord> controlRecordConsumerFactory,
@@ -156,6 +157,8 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                     pendingRequest.completableFuture().completeExceptionally(new CommandRefusedException(pendingRequest.command().getClass(), SHUTTING_DOWN));
                 }
             }
+            // signal that we are done
+            shutdownLatch.countDown();
         }
     }
 
@@ -200,7 +203,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
         } else if(processState == INITIALIZING) {
             try {
                 Map<TopicPartition,Long> endOffsets = controlConsumer.endOffsets(singletonList(AKCES_CONTROL_PARTITION));
-                ConsumerRecords<String, AkcesControlRecord> consumerRecords = controlConsumer.poll(Duration.ZERO);
+                ConsumerRecords<String, AkcesControlRecord> consumerRecords = controlConsumer.poll(Duration.ofMillis(10));
                 processControlRecords(consumerRecords);
                 // stop condition
                 if(consumerRecords.isEmpty() && endOffsets.getOrDefault(AKCES_CONTROL_PARTITION,0L) <= controlConsumer.position(AKCES_CONTROL_PARTITION)) {
@@ -351,7 +354,17 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
 
     @Override
     public void close() throws Exception {
-
+        this.processState = SHUTTING_DOWN;
+        // wait maximum of 10 seconds for the shutdown to complete
+        try {
+            if(shutdownLatch.await(10, TimeUnit.SECONDS)) {
+                logger.info("AkcesClientController has been shutdown");
+            } else {
+                logger.warn("AkcesClientController did not shutdown within 10 seconds");
+            }
+        } catch (InterruptedException e) {
+            // ignore
+        }
     }
 
     private AggregateServiceCommandType resolveCommandType(String type, int version) {

@@ -50,6 +50,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -140,12 +141,15 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             while (processState != SHUTTING_DOWN) {
                 process();
             }
+            logger.info("Shutting down AggregatePartition {} of {}Aggregate", id, runtime.getName());
         } catch (Throwable t) {
             logger.error("Unexpected error in AggregatePartition {} of {}Aggregate", id, runtime.getName(), t);
         } finally {
             try {
-                consumer.close();
-                producer.close();
+                consumer.close(Duration.ofSeconds(5));
+                producer.close(Duration.ofSeconds(5));
+            } catch (InterruptException e) {
+                // ignore
             } catch (KafkaException e) {
                 logger.error("Error closing consumer/producer", e);
             }
@@ -155,15 +159,24 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                 logger.error("Error closing state repository", e);
             }
             AggregatePartitionCommandBus.registerCommandBus(null);
-            logger.info("Finished Shutting down AggregatePartition {} of {}Aggregate", id, runtime.getName());
-            shutdownLatch.countDown();
         }
+        logger.info("Finished Shutting down AggregatePartition {} of {}Aggregate", id, runtime.getName());
+        shutdownLatch.countDown();
     }
 
     @Override
     public void close() throws InterruptedException {
         processState = SHUTTING_DOWN;
-        shutdownLatch.await();
+        // wait maximum of 10 seconds for the shutdown to complete
+        try {
+            if (shutdownLatch.await(10, TimeUnit.SECONDS)) {
+                logger.info("AggregatePartition={} has been shutdown",id);
+            } else {
+                logger.warn("AggregatePartition={} did not shutdown within 10 seconds",id);
+            }
+        } catch (InterruptedException e) {
+            // ignore
+        }
     }
 
     @Override

@@ -100,6 +100,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                                     //.addConstructorArgReference(beanFactory.getBeanNamesForType(KafkaAdminOperations.class)[0])
                                     .addConstructorArgReference("aggregateServiceKafkaAdmin")
                                     .setInitMethodName("start")
+                                    .setDestroyMethodName("close")
                                     .getBeanDefinition());
                 }
             });

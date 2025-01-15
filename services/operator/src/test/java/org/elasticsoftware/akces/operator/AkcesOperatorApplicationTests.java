@@ -35,6 +35,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.kafka.core.KafkaAdmin;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.support.TestPropertySourceUtils;
 import org.testcontainers.containers.KafkaContainer;
@@ -54,10 +55,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.boot.test.context.SpringBootTest.UseMainMethod.WHEN_AVAILABLE;
 
-@Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, useMainMethod = WHEN_AVAILABLE)
 @ContextConfiguration(initializers = AkcesOperatorApplicationTests.KafkaInitializer.class)
 @EnableMockOperator(crdPaths = {"classpath:META-INF/fabric8/aggregates.akces.elasticsoftwarefoundation.org-v1.yml"})
+@Testcontainers
+@DirtiesContext
 class AkcesOperatorApplicationTests {
 	private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";
 

@@ -36,6 +36,7 @@ import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.support.TestPropertySourceUtils;
 import org.testcontainers.containers.GenericContainer;
@@ -64,6 +65,7 @@ import static org.elasticsoftware.akcestest.TestUtils.prepareKafka;
         useMainMethod = SpringBootTest.UseMainMethod.ALWAYS)
 @ContextConfiguration(initializers = AggregateServiceApplicationTests.Initializer.class)
 @Testcontainers
+@DirtiesContext
 public class AggregateServiceApplicationTests {
     private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";
 

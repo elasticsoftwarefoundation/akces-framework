@@ -40,6 +40,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.support.TestPropertySourceUtils;
 import org.testcontainers.containers.GenericContainer;
@@ -71,6 +72,7 @@ import static org.elasticsoftware.cryptotrading.TestUtils.prepareKafka;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ContextConfiguration(initializers = CryptoTradingApplicationTest.Initializer.class)
 @Testcontainers
+@DirtiesContext
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class CryptoTradingApplicationTest {
     private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";

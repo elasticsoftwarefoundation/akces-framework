@@ -7,7 +7,6 @@ data:
     # Spring application properties
     spring.kafka.enabled=true
     spring.kafka.bootstrap-servers=akces-kafka-bootstrap.kafka:9092
-    #spring.kafka.consumer.properties.group.instance.id=${HOSTNAME}
     spring.kafka.consumer.properties.session.timeout.ms=30000
     kafka.schemaregistry.url=http://akces-schema-registry.kafka:8081
     akces.rocksdb.baseDir=/var/lib/akces-data
@@ -21,15 +20,15 @@ data:
             </layout>
         </appender>
         
-        <logger name="org.apache.kafka" level="info" additivity="false">
+        <logger name="org.apache.kafka" level="warn" additivity="false">
             <appender-ref ref="CONSOLE"/>
         </logger>
         
-        <logger name="org.apache.kafka.clients.producer" level="debug" additivity="false">
+        <logger name="org.apache.kafka.clients.producer" level="warn" additivity="false">
             <appender-ref ref="CONSOLE"/>
         </logger>
         
-        <logger name="org.apache.kafka.clients.consumer" level="debug" additivity="false">
+        <logger name="org.apache.kafka.clients.consumer" level="warn" additivity="false">
             <appender-ref ref="CONSOLE"/>
         </logger>
         

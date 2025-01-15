@@ -107,7 +107,7 @@ public class AkcesClientAutoConfiguration {
         return provider;
     }
 
-    @Bean(name = "akcesClient", initMethod = "start")
+    @Bean(name = "akcesClient", initMethod = "start", destroyMethod = "close")
     public AkcesClientController akcesClient(@Qualifier("akcesClientProducerFactory") ProducerFactory<String, ProtocolRecord> producerFactory,
                                              @Qualifier("akcesClientControlConsumerFactory") ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory,
                                              @Qualifier("akcesClientCommandResponseConsumerFactory") ConsumerFactory<String, ProtocolRecord> commandResponseConsumerFactory,

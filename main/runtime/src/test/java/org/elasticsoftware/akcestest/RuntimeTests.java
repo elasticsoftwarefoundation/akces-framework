@@ -63,6 +63,7 @@ import org.springframework.kafka.KafkaException;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.support.TestPropertySourceUtils;
 import org.testcontainers.containers.GenericContainer;
@@ -92,13 +93,20 @@ import static org.elasticsoftware.akcestest.TestUtils.prepareExternalSchemas;
 import static org.elasticsoftware.akcestest.TestUtils.prepareKafka;
 import static org.junit.jupiter.api.Assertions.*;
 
-@Testcontainers
+//@ExtendWith(SpringBootCleanup.class)
+//@ExtendWith(value = {
+//        SpringExtension.class,
+//        SpringBootCleanup.class,
+//        TestcontainersExtension.class
+//})
 @SpringBootTest(
         classes = AggregateServiceApplication.class,
         args = "org.elasticsoftware.akcestest.RuntimeConfiguration",
         useMainMethod = SpringBootTest.UseMainMethod.ALWAYS)
+@Testcontainers
 @ContextConfiguration(initializers = RuntimeTests.DataSourceInitializer.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@DirtiesContext
 public class RuntimeTests  {
 
     private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";
