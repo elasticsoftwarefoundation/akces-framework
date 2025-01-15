@@ -11,7 +11,7 @@ spec:
     shortNames:
     - "cs"
     singular: "commandservice"
-  scope: "Cluster"
+  scope: "Namespaced"
   versions:
   - name: "v1"
     schema:
