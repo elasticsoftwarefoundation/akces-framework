@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ""
+data:
+  application.properties: |
+    # Spring application properties
+    spring.kafka.enabled=true
+    spring.kafka.bootstrap-servers=akces-kafka-bootstrap.kafka:9092
+    spring.kafka.consumer.properties.session.timeout.ms=30000
+    kafka.schemaregistry.url=http://akces-schema-registry.kafka:8081
+    akces.rocksdb.baseDir=/var/lib/akces-data
+  logback.xml: |
+    <configuration>
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <layout class="ch.qos.logback.classic.PatternLayout">
+                <Pattern>
+                    %d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n
+                </Pattern>
+            </layout>
+        </appender>
+        
+        <logger name="org.apache.kafka" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+        
+        <logger name="org.apache.kafka.clients.producer" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+        
+        <logger name="org.apache.kafka.clients.consumer" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+        
+        <root level="info">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </configuration>

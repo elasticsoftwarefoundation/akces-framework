@@ -27,6 +27,12 @@ import org.apache.kafka.clients.admin.TopicDescription;
 import org.elasticsoftware.akces.operator.aggregate.Aggregate;
 import org.elasticsoftware.akces.operator.aggregate.AggregateReconciler;
 import org.elasticsoftware.akces.operator.aggregate.AggregateSpec;
+import org.elasticsoftware.akces.operator.command.CommandService;
+import org.elasticsoftware.akces.operator.command.CommandServiceReconciler;
+import org.elasticsoftware.akces.operator.command.CommandServiceSpec;
+import org.elasticsoftware.akces.operator.query.QueryService;
+import org.elasticsoftware.akces.operator.query.QueryServiceReconciler;
+import org.elasticsoftware.akces.operator.query.QueryServiceSpec;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -81,7 +87,14 @@ class AkcesOperatorApplicationTests {
 
 	@Autowired
 	private AggregateReconciler aggregateReconciler;
-    @Autowired
+
+	@Autowired
+	private CommandServiceReconciler commandServiceReconciler;
+
+	@Autowired
+	private QueryServiceReconciler queryServiceReconciler;
+
+	@Autowired
     private KafkaAdmin kafkaAdmin;
 
 	public static class KafkaInitializer
@@ -125,7 +138,7 @@ class AkcesOperatorApplicationTests {
 	}
 
 	@Test
-	void testReconciliation() throws Exception {
+	void testAggregateReconciliation() throws Exception {
 		Aggregate aggregate = new Aggregate();
 		aggregate.setMetadata(new ObjectMetaBuilder()
 				.withName("test-aggregate")
@@ -155,8 +168,44 @@ class AkcesOperatorApplicationTests {
 		assertThat(reconciledTopics.get("Wallet-Commands").partitions().size()).isEqualTo(3);
 		assertThat(reconciledTopics.get("Wallet-AggregateState").partitions().size()).isEqualTo(3);
 
+	}
 
+	@Test
+	void testCommandServiceReconciliation() throws Exception {
+		CommandService commandService = new CommandService();
+		commandService.setMetadata(new ObjectMetaBuilder()
+				.withName("test-command-service")
+				.withNamespace("akces")
+				.build());
+		commandService.setSpec(new CommandServiceSpec());
+		commandService.getSpec().setReplicas(3);
+		commandService.getSpec().setImage("test-image");
 
+		Context<CommandService> mockContext = mock(Context.class);
+		when(mockContext.getSecondaryResource(StatefulSet.class)).thenReturn(Optional.empty());
+		UpdateControl<CommandService> updateControl = commandServiceReconciler.reconcile(commandService, mockContext);
+
+		assertThat(updateControl.isNoUpdate()).isTrue();
+		assertThat(updateControl.getResource().isPresent()).isFalse();
+	}
+
+	@Test
+	void testQueryServiceReconciliation() throws Exception {
+		QueryService queryService = new QueryService();
+		queryService.setMetadata(new ObjectMetaBuilder()
+				.withName("test-query-service")
+				.withNamespace("akces")
+				.build());
+		queryService.setSpec(new QueryServiceSpec());
+		queryService.getSpec().setReplicas(3);
+		queryService.getSpec().setImage("test-image");
+
+		Context<QueryService> mockContext = mock(Context.class);
+		when(mockContext.getSecondaryResource(StatefulSet.class)).thenReturn(Optional.empty());
+		UpdateControl<QueryService> updateControl = queryServiceReconciler.reconcile(queryService, mockContext);
+
+		assertThat(updateControl.isNoUpdate()).isTrue();
+		assertThat(updateControl.getResource().isPresent()).isFalse();
 	}
 
 }
