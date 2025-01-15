@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces.operator.query;
 
+import io.fabric8.kubernetes.api.model.Namespaced;
 import io.fabric8.kubernetes.client.CustomResource;
 import io.fabric8.kubernetes.model.annotation.Group;
 import io.fabric8.kubernetes.model.annotation.Kind;
@@ -27,5 +28,5 @@ import io.fabric8.kubernetes.model.annotation.Version;
 @Version("v1")
 @Kind("QueryService")
 @ShortNames("qs")
-public class QueryService extends CustomResource<QueryServiceSpec, QueryServiceStatus> {
+public class QueryService extends CustomResource<QueryServiceSpec, QueryServiceStatus> implements Namespaced {
 }

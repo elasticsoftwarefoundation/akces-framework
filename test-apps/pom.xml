@@ -77,6 +77,17 @@
     <modules>
         <module>crypto-trading</module>
     </modules>
+    <build>
+        <plugins>
+            <plugin>
+                <!-- don't deploy any artifacts for this project -->
+                <artifactId>maven-deploy-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
     <profiles>
         <profile>
             <id>maven-release</id>
