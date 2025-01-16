@@ -15,7 +15,7 @@
  *
  */
 
-package org.elasticsoftware.cryptotrading.web;
+package org.elasticsoftware.cryptotrading.web.errors;
 
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.ErrorEvent;

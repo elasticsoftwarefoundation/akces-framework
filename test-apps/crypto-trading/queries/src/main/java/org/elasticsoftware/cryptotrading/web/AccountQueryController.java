@@ -17,11 +17,19 @@
 
 package org.elasticsoftware.cryptotrading.web;
 
-import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreateBalanceCommand;
+import org.elasticsoftware.cryptotrading.web.dto.AccountOutput;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
 
-public record CreateBalanceInput(@NotNull String currency) {
-    public CreateBalanceCommand toCommand(String walletId) {
-        return new CreateBalanceCommand(walletId, this.currency);
+@RestController
+@RequestMapping("/v{version:1}/accounts")
+public class AccountQueryController {
+    @GetMapping("/{accountId}")
+    Mono<AccountOutput> getAccount(@PathVariable("accountId") String accountId) {
+        // TODO: implement properly
+        return Mono.just(new AccountOutput(accountId, "US", "John", "Doe", "john.doe@example.com"));
     }
 }

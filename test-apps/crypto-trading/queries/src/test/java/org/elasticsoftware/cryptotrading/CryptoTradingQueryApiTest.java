@@ -21,7 +21,11 @@ import jakarta.inject.Inject;
 import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.client.AkcesClientController;
-import org.elasticsoftware.cryptotrading.web.*;
+import org.elasticsoftware.cryptotrading.web.AccountCommandController;
+import org.elasticsoftware.cryptotrading.web.AccountQueryController;
+import org.elasticsoftware.cryptotrading.web.WalletCommandController;
+import org.elasticsoftware.cryptotrading.web.dto.*;
+import org.elasticsoftware.cryptotrading.web.errors.ErrorEventResponse;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -62,10 +66,10 @@ import static org.elasticsoftware.cryptotrading.TestUtils.prepareKafka;
         useMainMethod = SpringBootTest.UseMainMethod.ALWAYS,
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @PropertySource("classpath:akces-aggregateservice.properties")
-@ContextConfiguration(initializers = CryptoTradingWebApiTest.Initializer.class)
+@ContextConfiguration(initializers = CryptoTradingQueryApiTest.Initializer.class)
 @Testcontainers
 @DirtiesContext
-public class CryptoTradingWebApiTest {
+public class CryptoTradingQueryApiTest {
     private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";
 
     private static final Network network = Network.newNetwork();
@@ -105,6 +109,8 @@ public class CryptoTradingWebApiTest {
     AccountCommandController accountWebController;
     @Inject
     WalletCommandController walletWebController;
+    @Inject
+    AccountQueryController accountQueryController;
     @LocalServerPort
     private int port;
     @Inject
@@ -132,6 +138,7 @@ public class CryptoTradingWebApiTest {
 
         assertThat(accountWebController).isNotNull();
         assertThat(walletWebController).isNotNull();
+        assertThat(accountQueryController).isNotNull();
 
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||

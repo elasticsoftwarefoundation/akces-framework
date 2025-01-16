@@ -15,20 +15,13 @@
  *
  */
 
-package org.elasticsoftware.cryptotrading.web;
+package org.elasticsoftware.cryptotrading.web.dto;
 
-import org.elasticsoftware.akces.events.ErrorEvent;
+import jakarta.validation.constraints.NotNull;
 
-public class ErrorEventException extends RuntimeException {
-    private final ErrorEvent errorEvent;
-
-    public ErrorEventException(ErrorEvent errorEvent) {
-        super();
-        this.errorEvent = errorEvent;
-    }
-
-    public ErrorEvent getErrorEvent() {
-        return errorEvent;
-    }
-
+public record AccountOutput(@NotNull String userId,
+                            @NotNull String country,
+                            @NotNull String firstName,
+                            @NotNull String lastName,
+                            @NotNull String email) {
 }

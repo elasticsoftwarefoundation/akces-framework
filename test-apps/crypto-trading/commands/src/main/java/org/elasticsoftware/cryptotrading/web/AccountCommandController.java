@@ -19,6 +19,8 @@ package org.elasticsoftware.cryptotrading.web;
 
 import org.elasticsoftware.akces.client.AkcesClient;
 import org.elasticsoftware.cryptotrading.aggregates.account.AccountCreatedEvent;
+import org.elasticsoftware.cryptotrading.web.dto.AccountInput;
+import org.elasticsoftware.cryptotrading.web.dto.AccountOutput;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;

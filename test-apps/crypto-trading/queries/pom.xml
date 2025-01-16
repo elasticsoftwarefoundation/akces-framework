@@ -23,23 +23,35 @@
         <artifactId>akces-crypto-trading-parent</artifactId>
         <version>0.5.5-SNAPSHOT</version>
     </parent>
-    <artifactId>akces-crypto-trading-commands</artifactId>
-    <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Command Service</name>
+    <artifactId>akces-crypto-trading-queries</artifactId>
+    <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Query Service</name>
     <description>Crypto Trading Akces Test Application</description>
     <properties>
     </properties>
     <dependencies>
-        <!-- we need this at compile time -->
+
+        <dependency>
+            <groupId>org.elasticsoftwarefoundation.akces</groupId>
+            <artifactId>akces-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.elasticsoftwarefoundation.akces</groupId>
+            <artifactId>akces-query-support</artifactId>
+        </dependency>
+
+        <!-- we need this at compile time, it's actually a test only dependency -->
         <dependency>
             <groupId>org.elasticsoftwarefoundation.akces</groupId>
             <artifactId>akces-crypto-trading-aggregates</artifactId>
             <scope>provided</scope>
             <version>${project.version}</version>
         </dependency>
+        <!-- we need this at compile time, it's actually a test only dependency -->
         <dependency>
             <groupId>org.elasticsoftwarefoundation.akces</groupId>
-            <artifactId>akces-crypto-trading-aggregates</artifactId>
-            <classifier>commands</classifier>
+            <artifactId>akces-crypto-trading-commands</artifactId>
+            <scope>provided</scope>
             <version>${project.version}</version>
         </dependency>
         <dependency>
@@ -48,6 +60,13 @@
             <classifier>events</classifier>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.elasticsoftwarefoundation.akces</groupId>
+            <artifactId>akces-crypto-trading-commands</artifactId>
+            <classifier>shared-web</classifier>
+            <version>${project.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
@@ -75,12 +94,8 @@
 
         <dependency>
             <groupId>org.elasticsoftwarefoundation.akces</groupId>
-            <artifactId>akces-api</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.elasticsoftwarefoundation.akces</groupId>
             <artifactId>akces-client</artifactId>
+            <scope>test</scope>
         </dependency>
 
     </dependencies>
@@ -90,27 +105,6 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <version>3.4.2</version>
-                <executions>
-                    <execution>
-                        <id>shared-web-jar</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                        <configuration>
-                            <classifier>shared-web</classifier>
-                            <includes>
-                                <include>**/dto/*</include>
-                                <include>**/errors/*</include>
-                            </includes>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>

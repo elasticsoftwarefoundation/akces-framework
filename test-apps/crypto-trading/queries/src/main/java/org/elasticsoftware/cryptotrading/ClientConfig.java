@@ -15,16 +15,14 @@
  *
  */
 
-package org.elasticsoftware.cryptotrading.web;
+package org.elasticsoftware.cryptotrading;
 
-import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.cryptotrading.aggregates.account.CreateAccountCommand;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
 
-public record AccountInput(@NotNull String country,
-                           @NotNull String firstName,
-                           @NotNull String lastName,
-                           @NotNull String email) {
-    public CreateAccountCommand toCommand(String userId) {
-        return new CreateAccountCommand(userId, country(), firstName(), lastName(), email());
-    }
+@Configuration
+@ComponentScan(basePackages = {
+        "org.elasticsoftware.cryptotrading.web"
+})
+public class ClientConfig {
 }

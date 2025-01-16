@@ -15,7 +15,7 @@
  *
  */
 
-package org.elasticsoftware.cryptotrading.web;
+package org.elasticsoftware.cryptotrading.web.dto;
 
 import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreditWalletCommand;
 

@@ -15,7 +15,13 @@
  *
  */
 
-package org.elasticsoftware.cryptotrading.web;
+package org.elasticsoftware.cryptotrading.web.dto;
 
-public record ErrorEventResponse(String eventType) {
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreateBalanceCommand;
+
+public record CreateBalanceInput(@NotNull String currency) {
+    public CreateBalanceCommand toCommand(String walletId) {
+        return new CreateBalanceCommand(walletId, this.currency);
+    }
 }

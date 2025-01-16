@@ -83,7 +83,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @Testcontainers
 @SpringBootTest(
-        classes = AggregateServiceApplication.class,
+        classes = AggregateServiceApplication.class,  // we need to use AggregateServiceApplication in order to load the Aggregate beeans for the test
         args = "org.elasticsoftware.akces.query.models.QueryModelTestConfiguration",
         useMainMethod = SpringBootTest.UseMainMethod.ALWAYS)
 @ContextConfiguration(initializers = QueryModelRuntimeTests.ContextInitializer.class)

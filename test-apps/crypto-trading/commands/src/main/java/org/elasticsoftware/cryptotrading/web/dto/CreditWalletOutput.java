@@ -15,7 +15,7 @@
  *
  */
 
-package org.elasticsoftware.cryptotrading.web;
+package org.elasticsoftware.cryptotrading.web.dto;
 
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletCreditedEvent;
 
@@ -25,7 +25,7 @@ public record CreditWalletOutput(String id,
                                  String currency,
                                  BigDecimal amount,
                                  BigDecimal balance) {
-    static CreditWalletOutput from(WalletCreditedEvent event) {
+    public static CreditWalletOutput from(WalletCreditedEvent event) {
         return new CreditWalletOutput(event.id(), event.currency(), event.amount(), event.balance());
     }
 }
