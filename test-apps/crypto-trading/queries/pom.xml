@@ -40,31 +40,24 @@
             <artifactId>akces-query-support</artifactId>
         </dependency>
 
-        <!-- we need this at compile time, it's actually a test only dependency -->
-        <dependency>
-            <groupId>org.elasticsoftwarefoundation.akces</groupId>
-            <artifactId>akces-crypto-trading-aggregates</artifactId>
-            <scope>provided</scope>
-            <version>${project.version}</version>
-        </dependency>
-        <!-- we need this at compile time, it's actually a test only dependency -->
-        <dependency>
-            <groupId>org.elasticsoftwarefoundation.akces</groupId>
-            <artifactId>akces-crypto-trading-commands</artifactId>
-            <scope>provided</scope>
-            <version>${project.version}</version>
-        </dependency>
         <dependency>
             <groupId>org.elasticsoftwarefoundation.akces</groupId>
             <artifactId>akces-crypto-trading-aggregates</artifactId>
             <classifier>events</classifier>
             <version>${project.version}</version>
         </dependency>
+
         <dependency>
             <groupId>org.elasticsoftwarefoundation.akces</groupId>
             <artifactId>akces-crypto-trading-commands</artifactId>
             <classifier>shared-web</classifier>
             <version>${project.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.elasticsoftwarefoundation.akces</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
@@ -96,6 +89,18 @@
             <groupId>org.elasticsoftwarefoundation.akces</groupId>
             <artifactId>akces-client</artifactId>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsoftwarefoundation.akces</groupId>
+            <artifactId>akces-crypto-trading-commands</artifactId>
+            <scope>test</scope>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsoftwarefoundation.akces</groupId>
+            <artifactId>akces-crypto-trading-aggregates</artifactId>
+            <scope>test</scope>
+            <version>${project.version}</version>
         </dependency>
 
     </dependencies>
