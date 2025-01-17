@@ -21,7 +21,6 @@ import com.github.victools.jsonschema.generator.*;
 import com.github.victools.jsonschema.module.jackson.JacksonModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
-import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
@@ -79,8 +78,7 @@ public class TestUtils {
                 "compression.type", "lz4"));
     }
 
-    public static <E extends DomainEvent> void prepareExternalSchemas(String url, List<Class<E>> externalDomainEvents) {
-        SchemaRegistryClient src = new CachedSchemaRegistryClient(url, 100);
+    public static <E extends DomainEvent> void prepareExternalSchemas(SchemaRegistryClient src, List<Class<E>> externalDomainEvents) {
         SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(SchemaVersion.DRAFT_7, OptionPreset.PLAIN_JSON);
         configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS, JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
         configBuilder.with(new JacksonModule());

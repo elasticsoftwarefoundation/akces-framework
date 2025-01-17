@@ -15,18 +15,24 @@
  *
  */
 
-package org.elasticsoftware.akces.query.models;
+package org.elasticsoftware.akcestest.old;
 
-public class SchemaVersionNotFoundException extends SchemaException {
-    private final int schemaVersion;
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.AggregateIdentifier;
+import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akcestest.aggregate.orders.FxMarket;
 
-    public SchemaVersionNotFoundException(String schemaIdentifier, int schemaVersion, Class<?> implementationClass) {
-        super("Schema Version Not Found", schemaIdentifier, implementationClass);
-        this.schemaVersion = schemaVersion;
+import java.math.BigDecimal;
+
+public record BuyOrderPlacedEvent(
+        @NotNull @AggregateIdentifier String userId,
+        String orderId,
+        FxMarket market,
+        BigDecimal quantity,
+        BigDecimal limitPrice
+) implements DomainEvent {
+    @Override
+    public String getAggregateId() {
+        return orderId();
     }
-
-    public int getSchemaVersion() {
-        return schemaVersion;
-    }
-
 }

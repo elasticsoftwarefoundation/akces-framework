@@ -18,25 +18,25 @@
 package org.elasticsoftware.akces.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.annotations.AggregateInfo;
+import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.springframework.beans.factory.FactoryBean;
 import org.springframework.beans.factory.ListableBeanFactory;
 
 public class AggregateRuntimeFactory<S extends AggregateState> implements FactoryBean<AggregateRuntime> {
     private final ListableBeanFactory applicationContext;
     private final ObjectMapper objectMapper;
-    private final SchemaRegistryClient schemaRegistryClient;
+    private final KafkaSchemaRegistry schemaRegistry;
     private final Aggregate<S> aggregate;
 
     public AggregateRuntimeFactory(ListableBeanFactory applicationContext,
                                    ObjectMapper objectMapper,
-                                   SchemaRegistryClient schemaRegistryClient,
+                                   KafkaSchemaRegistry schemaRegistry,
                                    Aggregate<S> aggregate) {
         this.applicationContext = applicationContext;
         this.objectMapper = objectMapper;
-        this.schemaRegistryClient = schemaRegistryClient;
+        this.schemaRegistry = schemaRegistry;
         this.aggregate = aggregate;
     }
 
@@ -124,6 +124,6 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
                     }
                 });
 
-        return runtimeBuilder.setSchemaRegistryClient(schemaRegistryClient).build();
+        return runtimeBuilder.setSchemaRegistry(schemaRegistry).build();
     }
 }

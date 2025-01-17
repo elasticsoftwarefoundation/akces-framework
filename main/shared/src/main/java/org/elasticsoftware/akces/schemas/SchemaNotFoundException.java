@@ -15,23 +15,12 @@
  *
  */
 
-package org.elasticsoftware.akces.query.models;
+package org.elasticsoftware.akces.schemas;
 
-public class SchemaException extends RuntimeException {
-    private final String schemaIdentifier;
-    private final Class<?> implementationClass;
+public class SchemaNotFoundException extends SchemaException {
 
-    public SchemaException(String message, String schemaIdentifier, Class<?> implementationClass) {
-        super(message);
-        this.schemaIdentifier = schemaIdentifier;
-        this.implementationClass = implementationClass;
+    public SchemaNotFoundException(String schemaIdentifier, Class<?> implementationClass) {
+        super("Schema Not Found", schemaIdentifier, implementationClass);
     }
 
-    public String getSchemaIdentifier() {
-        return schemaIdentifier;
-    }
-
-    public Class<?> getImplementationClass() {
-        return implementationClass;
-    }
 }

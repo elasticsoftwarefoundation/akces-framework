@@ -55,7 +55,7 @@ public class QueryModelBeanFactoryPostProcessor implements BeanFactoryPostProces
                         BeanDefinitionBuilder.genericBeanDefinition(QueryModelRuntimeFactory.class)
                                 .addConstructorArgValue(beanFactory)
                                 .addConstructorArgReference(beanFactory.getBeanNamesForType(ObjectMapper.class)[0])
-                                .addConstructorArgReference("akcesQueryModelSchemaRegistryClient")
+                                .addConstructorArgReference("akcesQueryModelSchemaRegistry")
                                 .addConstructorArgReference(beanName)
                                 .getBeanDefinition());
             });

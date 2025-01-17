@@ -15,31 +15,18 @@
  *
  */
 
-package org.elasticsoftware.akces.query.models;
+package org.elasticsoftware.akces.schemas;
 
-import io.confluent.kafka.schemaregistry.json.diff.Difference;
-
-import java.util.List;
-
-public class IncompatibleSchemaException extends SchemaException {
+public class SchemaVersionNotFoundException extends SchemaException {
     private final int schemaVersion;
-    private final List<Difference> differences;
 
-    public IncompatibleSchemaException(String schemaIdentifier,
-                                       int schemaVersion,
-                                       Class<?> implementationClass,
-                                       List<Difference> differences) {
-        super("Registered Schema incompatible with local implementation", schemaIdentifier, implementationClass);
+    public SchemaVersionNotFoundException(String schemaIdentifier, int schemaVersion, Class<?> implementationClass) {
+        super("Schema Version Not Found", schemaIdentifier, implementationClass);
         this.schemaVersion = schemaVersion;
-        this.differences = differences;
     }
 
     public int getSchemaVersion() {
         return schemaVersion;
-    }
-
-    public List<Difference> getDifferences() {
-        return differences;
     }
 
 }

@@ -26,5 +26,14 @@ public record CommandType<C extends Command>(
         @JsonIgnore Class<C> typeClass,
         boolean create,
         boolean external
-) {
+) implements SchemaType {
+    @Override
+    public String getSchemaPrefix() {
+        return "commands.";
+    }
+
+    @Override
+    public boolean relaxExternalValidation() {
+        return false;
+    }
 }

@@ -15,12 +15,19 @@
  *
  */
 
-package org.elasticsoftware.akces.query.models;
+package org.elasticsoftware.akcestest.old;
 
-public class SchemaNotFoundException extends SchemaException {
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.AggregateIdentifier;
+import org.elasticsoftware.akces.commands.Command;
 
-    public SchemaNotFoundException(String schemaIdentifier, Class<?> implementationClass) {
-        super("Schema Not Found", schemaIdentifier, implementationClass);
+public record CreateWalletCommand(
+        @AggregateIdentifier String id,
+        String currency
+) implements Command {
+    @NotNull
+    @Override
+    public String getAggregateId() {
+        return id();
     }
-
 }

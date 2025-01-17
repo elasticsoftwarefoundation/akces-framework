@@ -27,5 +27,14 @@ public record DomainEventType<T extends DomainEvent>(
         boolean create,
         boolean external,
         boolean error
-) {
+) implements SchemaType {
+    @Override
+    public String getSchemaPrefix() {
+        return "domainevents.";
+    }
+
+    @Override
+    public boolean relaxExternalValidation() {
+        return true;
+    }
 }

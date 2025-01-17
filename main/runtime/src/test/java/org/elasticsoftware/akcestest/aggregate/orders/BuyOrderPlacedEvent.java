@@ -27,10 +27,10 @@ import java.math.BigDecimal;
 @DomainEventInfo(type = "BuyOrderPlaced", version = 1)
 public record BuyOrderPlacedEvent(
         @NotNull @AggregateIdentifier String userId,
-        String orderId,
-        FxMarket market,
-        BigDecimal quantity,
-        BigDecimal limitPrice
+        @NotNull String orderId,
+        @NotNull FxMarket market,
+        @NotNull BigDecimal quantity,
+        @NotNull BigDecimal limitPrice
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {

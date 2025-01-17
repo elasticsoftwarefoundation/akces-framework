@@ -17,6 +17,8 @@
 
 package org.elasticsoftware.akcestest;
 
+import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
+import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import jakarta.inject.Inject;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -153,7 +155,8 @@ public class AggregateServiceApplicationTests {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
-            prepareExternalSchemas("http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081), List.of(AccountCreatedEvent.class));
+            SchemaRegistryClient src = new CachedSchemaRegistryClient("http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081), 100);
+            prepareExternalSchemas(src, List.of(AccountCreatedEvent.class));
             //prepareExternalServices(kafka.getBootstrapServers());
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
                     applicationContext,

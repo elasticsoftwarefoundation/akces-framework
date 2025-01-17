@@ -157,6 +157,11 @@
                 <version>1.9.0</version>
             </dependency>
             <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-compress</artifactId>
+                <version>1.26.2</version>
+            </dependency>
+            <dependency>
                 <groupId>io.confluent</groupId>
                 <artifactId>kafka-json-serializer</artifactId>
                 <version>${confluent.version}</version>

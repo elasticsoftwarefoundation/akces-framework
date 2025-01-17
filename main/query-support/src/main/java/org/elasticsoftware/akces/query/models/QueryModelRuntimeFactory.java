@@ -18,29 +18,29 @@
 package org.elasticsoftware.akces.query.models;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.annotations.QueryModelInfo;
 import org.elasticsoftware.akces.query.QueryModel;
 import org.elasticsoftware.akces.query.QueryModelEventHandlerFunction;
 import org.elasticsoftware.akces.query.QueryModelState;
 import org.elasticsoftware.akces.query.QueryModelStateType;
+import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.springframework.beans.factory.FactoryBean;
 import org.springframework.beans.factory.ListableBeanFactory;
 
 public class QueryModelRuntimeFactory<S extends QueryModelState> implements FactoryBean<QueryModelRuntime<S>> {
     private final ListableBeanFactory applicationContext;
     private final ObjectMapper objectMapper;
-    private final SchemaRegistryClient schemaRegistryClient;
+    private final KafkaSchemaRegistry schemaRegistry;
     private final QueryModel<S> queryModel;
 
     public QueryModelRuntimeFactory(ListableBeanFactory applicationContext,
                                     ObjectMapper objectMapper,
-                                    SchemaRegistryClient schemaRegistryClient,
+                                    KafkaSchemaRegistry schemaRegistry,
                                     QueryModel<S> queryModel) {
         this.applicationContext = applicationContext;
         this.objectMapper = objectMapper;
-        this.schemaRegistryClient = schemaRegistryClient;
+        this.schemaRegistry = schemaRegistry;
         this.queryModel = queryModel;
     }
 
@@ -85,6 +85,6 @@ public class QueryModelRuntimeFactory<S extends QueryModelState> implements Fact
                     }
                 });
 
-        return runtimeBuilder.setSchemaRegistryClient(schemaRegistryClient).build();
+        return runtimeBuilder.setSchemaRegistry(schemaRegistry).build();
     }
 }

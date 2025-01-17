@@ -17,19 +17,8 @@
 
 package org.elasticsoftware.akces.query.models;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.github.victools.jsonschema.generator.*;
-import com.github.victools.jsonschema.module.jackson.JacksonModule;
-import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
-import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
-import io.confluent.kafka.schemaregistry.ParsedSchema;
-import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
-import io.confluent.kafka.schemaregistry.json.diff.Difference;
-import io.confluent.kafka.schemaregistry.json.diff.SchemaDiff;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
@@ -37,6 +26,7 @@ import org.elasticsoftware.akces.query.QueryModel;
 import org.elasticsoftware.akces.query.QueryModelEventHandlerFunction;
 import org.elasticsoftware.akces.query.QueryModelState;
 import org.elasticsoftware.akces.query.QueryModelStateType;
+import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,8 +38,7 @@ import java.util.Map;
 
 public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryModelRuntime<S> {
     private static final Logger logger = LoggerFactory.getLogger(KafkaQueryModelRuntime.class);
-    private final SchemaRegistryClient schemaRegistryClient;
-    private final SchemaGenerator jsonSchemaGenerator;
+    private final KafkaSchemaRegistry schemaRegistry;
     private final ObjectMapper objectMapper;
     private final Map<Class<? extends DomainEvent>, JsonSchema> domainEventSchemas = new HashMap<>();
     private final QueryModelStateType<?> type;
@@ -58,41 +47,20 @@ public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryM
     private final QueryModelEventHandlerFunction<S, DomainEvent> createStateHandler;
     private final Map<DomainEventType<?>, QueryModelEventHandlerFunction<S, DomainEvent>> queryModelEventHandlers;
 
-    private KafkaQueryModelRuntime(SchemaRegistryClient schemaRegistryClient,
+    private KafkaQueryModelRuntime(KafkaSchemaRegistry schemaRegistry,
                                    ObjectMapper objectMapper,
                                    QueryModelStateType<?> type,
                                    Class<? extends QueryModel<S>> queryModelClass,
                                    QueryModelEventHandlerFunction<S, DomainEvent> createStateHandler,
                                    Map<Class<?>, DomainEventType<?>> domainEvents,
                                    Map<DomainEventType<?>, QueryModelEventHandlerFunction<S, DomainEvent>> queryModelEventHandlers) {
-        this.schemaRegistryClient = schemaRegistryClient;
+        this.schemaRegistry = schemaRegistry;
         this.objectMapper = objectMapper;
         this.type = type;
         this.queryModelClass = queryModelClass;
         this.domainEvents = domainEvents;
         this.createStateHandler = createStateHandler;
         this.queryModelEventHandlers = queryModelEventHandlers;
-        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(objectMapper,
-                SchemaVersion.DRAFT_7,
-                OptionPreset.PLAIN_JSON);
-        configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
-                JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
-        configBuilder.with(new JacksonModule());
-        configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
-        configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
-        configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
-        // we need to override the default behavior of the generator to write BigDecimal as type = number
-        configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
-            if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
-                JsonNode typeNode = collectedTypeAttributes.get("type");
-                if (typeNode.isArray()) {
-                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
-                } else
-                    collectedTypeAttributes.put("type", "string");
-            }
-        });
-        SchemaGeneratorConfig config = configBuilder.build();
-        this.jsonSchemaGenerator = new SchemaGenerator(config);
     }
 
     @Override
@@ -135,66 +103,7 @@ public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryM
     @Override
     public void validateDomainEventSchemas() {
         for (DomainEventType<?> domainEventType : domainEvents.values()) {
-            try {
-                logger.info("Validating schema for domain event {}", domainEventType.typeName());
-                JsonSchema localSchema = generateJsonSchema(domainEventType);
-                // check if the type exists in the registry
-                List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas("domainevents." + domainEventType.typeName(), false, false);
-                if (!registeredSchemas.isEmpty()) {
-                    logger.trace("Found {} schemas for domain event {}", registeredSchemas.size(), domainEventType.typeName());
-                    // see if it is an existing schema
-                    ParsedSchema registeredSchema = registeredSchemas.stream()
-                            .filter(parsedSchema -> getSchemaVersion(domainEventType, parsedSchema) == domainEventType.version())
-                            .findFirst().orElse(null);
-                    if (registeredSchema != null) {
-                        logger.trace("Found schema for domain event {} version {}", domainEventType.typeName(), domainEventType.version());
-                        // localSchema has to be a subset of registeredSchema
-                        // TODO: this needs to be implemented to make sure we
-                        // TODO: need to check a range of schema's here
-                        List<Difference> differences = SchemaDiff.compare(((JsonSchema) registeredSchema).rawSchema(), localSchema.rawSchema());
-                        if (!differences.isEmpty()) {
-                            // we need to check if any properties were removed, removed properties are allowed
-                            // adding properties is not allowed, as well as changing the type etc
-                            List<Difference> violatingDifferences = differences.stream()
-                                    .filter(difference -> !difference.getType().equals(Difference.Type.PROPERTY_REMOVED_FROM_CLOSED_CONTENT_MODEL))
-                                    .toList();
-                            if (!violatingDifferences.isEmpty()) {
-                                // our implementaion class is incompatible with the registered schema
-                                throw new IncompatibleSchemaException(
-                                        "domainevents." + domainEventType.typeName(),
-                                        domainEventType.version(),
-                                        domainEventType.typeClass(),
-                                        violatingDifferences);
-                            }
-                        }
-                    } else {
-                        // did not find the specific version
-                        throw new SchemaVersionNotFoundException(
-                                "domainevents." + domainEventType.typeName(),
-                                domainEventType.version(),
-                                domainEventType.typeClass());
-                    }
-                } else {
-                    // do not find any schemas
-                    throw new SchemaNotFoundException(
-                            "domainevents." + domainEventType.typeName(),
-                            domainEventType.typeClass());
-                }
-            } catch (IOException | RestClientException | RuntimeException e) {
-                logger.error("Error generating schema for domain event {}", domainEventType.typeName(), e);
-            }
-        }
-    }
-
-    private JsonSchema generateJsonSchema(DomainEventType<?> domainEventType) {
-        return new JsonSchema(jsonSchemaGenerator.generateSchema(domainEventType.typeClass()), List.of(), Map.of(), domainEventType.version());
-    }
-
-    private int getSchemaVersion(DomainEventType<?> domainEventType, ParsedSchema parsedSchema) {
-        try {
-            return schemaRegistryClient.getVersion("domainevents." + domainEventType.typeName(), parsedSchema);
-        } catch (IOException | RestClientException e) {
-            throw new RuntimeException(e);
+            schemaRegistry.validate(domainEventType);
         }
     }
 
@@ -215,14 +124,14 @@ public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryM
     public static class Builder {
         private final Map<Class<?>, DomainEventType<?>> domainEvents = new HashMap<>();
         private final Map<DomainEventType<?>, QueryModelEventHandlerFunction<QueryModelState, DomainEvent>> queryModelEventHandlers = new HashMap<>();
-        private SchemaRegistryClient schemaRegistryClient;
+        private KafkaSchemaRegistry schemaRegistry;
         private ObjectMapper objectMapper;
         private QueryModelStateType<?> stateType;
         private Class<? extends QueryModel> queryModelClass;
         private QueryModelEventHandlerFunction<QueryModelState, DomainEvent> createStateHandler;
 
-        public Builder setSchemaRegistryClient(SchemaRegistryClient schemaRegistryClient) {
-            this.schemaRegistryClient = schemaRegistryClient;
+        public Builder setSchemaRegistry(KafkaSchemaRegistry schemaRegistry) {
+            this.schemaRegistry = schemaRegistry;
             return this;
         }
 
@@ -258,7 +167,8 @@ public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryM
         }
 
         public KafkaQueryModelRuntime build() {
-            return new KafkaQueryModelRuntime(schemaRegistryClient,
+            return new KafkaQueryModelRuntime(
+                    schemaRegistry,
                     objectMapper,
                     stateType,
                     queryModelClass,

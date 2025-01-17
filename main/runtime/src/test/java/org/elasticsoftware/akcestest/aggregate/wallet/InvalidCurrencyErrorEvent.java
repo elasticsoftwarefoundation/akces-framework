@@ -17,7 +17,6 @@
 
 package org.elasticsoftware.akcestest.aggregate.wallet;
 
-import jakarta.annotation.Nullable;
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
@@ -29,7 +28,7 @@ import javax.annotation.Nonnull;
 public record InvalidCurrencyErrorEvent(
         @NotNull @AggregateIdentifier String walletId,
         @NotNull String currency,
-        @Nullable String referenceId
+        String referenceId
 ) implements ErrorEvent {
     public InvalidCurrencyErrorEvent(@NotNull String walletId, @NotNull String currency) {
         this(walletId, currency, null);

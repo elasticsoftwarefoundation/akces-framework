@@ -34,6 +34,7 @@ import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akcestest.aggregate.wallet.InvalidAmountErrorEvent;
 import org.everit.json.schema.Schema;
 import org.everit.json.schema.ValidationException;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
@@ -48,11 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class JsonSchemaTests {
     @Test
     public void testSchemaCompatibility() throws IOException {
-        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(SchemaVersion.DRAFT_7, OptionPreset.PLAIN_JSON);
-        configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS, JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
-        configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
-        SchemaGeneratorConfig config = configBuilder.build();
-        SchemaGenerator generator = new SchemaGenerator(config);
+        SchemaGenerator generator = createSchemaGenerator();
 
         JsonNode schemaV1 = generator.generateSchema(AccountCreatedEvent.class);
         JsonNode schemaV2 = generator.generateSchema(AccountCreatedEventV2.class);
@@ -74,6 +71,32 @@ public class JsonSchemaTests {
         //Assert.assertEquals(schema2.isBackwardCompatible(schema1).size(), 0);
     }
 
+    private static @NotNull SchemaGenerator createSchemaGenerator() {
+        Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
+        objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
+        objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(objectMapperBuilder.build(),
+                SchemaVersion.DRAFT_7,
+                OptionPreset.PLAIN_JSON);
+        configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
+                JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
+        configBuilder.with(new JacksonModule());
+        configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
+        configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
+        configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
+        // we need to override the default behavior of the generator to write BigDecimal as type = number
+        configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
+            if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
+                JsonNode typeNode = collectedTypeAttributes.get("type");
+                if (typeNode.isArray()) {
+                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
+                } else
+                    collectedTypeAttributes.put("type", "string");
+            }
+        });
+        return new SchemaGenerator(configBuilder.build());
+    }
+
     @Test
     public void testNullableString() throws IOException {
         SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(SchemaVersion.DRAFT_7, OptionPreset.PLAIN_JSON);
@@ -93,14 +116,7 @@ public class JsonSchemaTests {
 
     @Test
     public void testNullForNotNullField() {
-        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(SchemaVersion.DRAFT_7, OptionPreset.PLAIN_JSON);
-        configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS, JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
-        configBuilder.with(new JacksonModule());
-        configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
-        configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
-        configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
-        SchemaGeneratorConfig config = configBuilder.build();
-        SchemaGenerator generator = new SchemaGenerator(config);
+        SchemaGenerator generator = createSchemaGenerator();
 
         JsonNode schema = generator.generateSchema(InvalidAmountErrorEvent.class);
         JsonSchema jsonSchema = new JsonSchema(schema);
@@ -120,29 +136,7 @@ public class JsonSchemaTests {
         builder.modulesToInstall(new AkcesGDPRModule());
         builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
         ObjectMapper objectMapper = builder.build();
-        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(
-                objectMapper,
-                SchemaVersion.DRAFT_7,
-                OptionPreset.PLAIN_JSON);
-        configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
-                JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
-        configBuilder.with(new JacksonModule());
-        configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
-        configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
-        configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
-        // we need to override the default behavior of the generator to write BigDecimal as type = number
-        configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
-            if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
-                JsonNode typeNode = collectedTypeAttributes.get("type");
-                if (typeNode.isArray()) {
-                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
-                } else
-                    collectedTypeAttributes.put("type", "string");
-            }
-        });
-
-        SchemaGeneratorConfig config = configBuilder.build();
-        SchemaGenerator generator = new SchemaGenerator(config);
+        SchemaGenerator generator = createSchemaGenerator();
 
         JsonNode schema = generator.generateSchema(CreditWalletCommand.class);
         System.out.println(schema);

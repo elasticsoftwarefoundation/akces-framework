@@ -15,24 +15,18 @@
  *
  */
 
-package org.elasticsoftware.akcestest.aggregate.wallet;
+package org.elasticsoftware.akces.schemas;
 
-import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.akces.annotations.AggregateIdentifier;
-import org.elasticsoftware.akces.annotations.CommandInfo;
-import org.elasticsoftware.akces.commands.Command;
+public class PreviousSchemaVersionMissingException extends SchemaException {
+    private final int schemaVersion;
 
-import java.math.BigDecimal;
-
-@CommandInfo(type = "CreditWallet", version = 1)
-public record CreditWalletCommand(
-        @AggregateIdentifier @NotNull String id,
-        @NotNull String currency,
-        @NotNull BigDecimal amount
-) implements Command {
-    @NotNull
-    @Override
-    public String getAggregateId() {
-        return id();
+    public PreviousSchemaVersionMissingException(String schemaIdentifier, int schemaVersion, Class<?> implementationClass) {
+        super("Missing Previous Schema version(s)", schemaIdentifier, implementationClass);
+        this.schemaVersion = schemaVersion;
     }
+
+    public int getSchemaVersion() {
+        return schemaVersion;
+    }
+
 }

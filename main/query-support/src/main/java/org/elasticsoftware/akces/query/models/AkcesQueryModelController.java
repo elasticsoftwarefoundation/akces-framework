@@ -157,7 +157,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                     QueryModelRuntime queryModelRuntime = iterator.next();
                     try {
                         queryModelRuntime.validateDomainEventSchemas();
-                    } catch (SchemaException e) {
+                    } catch (org.elasticsoftware.akces.schemas.SchemaException e) {
                         logger.error(
                                 "SchemaException while validating DomainEventSchemas for QueryModel {}. Disabling QueryModel",
                                 queryModelRuntime.getName(),

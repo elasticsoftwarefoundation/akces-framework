@@ -30,6 +30,7 @@ import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.kafka.CustomKafkaConsumerFactory;
 import org.elasticsoftware.akces.kafka.CustomKafkaProducerFactory;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
@@ -94,8 +95,14 @@ public class AggregateServiceApplication {
     }
 
     @Bean(name = "aggregateServiceSchemaRegistryClient")
-    public SchemaRegistryClient schemaRegistryClient(@Value("${kafka.schemaregistry.url}") String url) {
+    public SchemaRegistryClient schemaRegistryClient(@Value("${kafka.schemaregistry.url}") String    url) {
         return new CachedSchemaRegistryClient(url, 1000, List.of(new JsonSchemaProvider()), null);
+    }
+
+    @Bean(name = "aggregateServiceSchemaRegistry")
+    public KafkaSchemaRegistry schemaRegistry(@Qualifier("aggregateServiceSchemaRegistryClient") SchemaRegistryClient schemaRegistryClient,
+                                              ObjectMapper objectMapper) {
+        return new KafkaSchemaRegistry(schemaRegistryClient, objectMapper);
     }
 
     @Bean(name = "aggregateServiceConsumerFactory")

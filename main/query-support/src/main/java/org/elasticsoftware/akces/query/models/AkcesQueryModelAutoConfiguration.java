@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces.query.models;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.json.JsonSchemaProvider;
@@ -24,6 +25,7 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.kafka.CustomKafkaConsumerFactory;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -65,6 +67,12 @@ public class AkcesQueryModelAutoConfiguration {
     @Bean(name = "akcesQueryModelSchemaRegistryClient")
     public SchemaRegistryClient createSchemaRegistryClient(@Value("${kafka.schemaregistry.url}") String url) {
         return new CachedSchemaRegistryClient(url, 1000, List.of(new JsonSchemaProvider()), null);
+    }
+
+    @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
+    @Bean(name = "akcesQueryModelSchemaRegistry")
+    public KafkaSchemaRegistry createSchemaRegistry(@Value("${kafka.schemaregistry.url}") String url, ObjectMapper objectMapper) {
+        return new KafkaSchemaRegistry(new CachedSchemaRegistryClient(url, 1000, List.of(new JsonSchemaProvider()), null), objectMapper);
     }
 
     @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)

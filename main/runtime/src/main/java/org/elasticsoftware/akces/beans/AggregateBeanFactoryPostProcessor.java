@@ -80,7 +80,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                         BeanDefinitionBuilder.genericBeanDefinition(AggregateRuntimeFactory.class)
                                 .addConstructorArgValue(beanFactory)
                                 .addConstructorArgReference(beanFactory.getBeanNamesForType(ObjectMapper.class)[0])
-                                .addConstructorArgReference("aggregateServiceSchemaRegistryClient")
+                                .addConstructorArgReference("aggregateServiceSchemaRegistry")
                                 .addConstructorArgReference(beanName)
                                 .getBeanDefinition());
                 // and create a AkcesController bean to kickstart kafka (if kafka is configured)

@@ -23,7 +23,10 @@ import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 @DomainEventInfo(type = "BalanceCreated")
-public record BalanceCreatedEvent(@AggregateIdentifier @NotNull String id, String currency) implements DomainEvent {
+public record BalanceCreatedEvent(
+        @AggregateIdentifier @NotNull String id,
+        @NotNull String currency
+) implements DomainEvent {
     @Override
     public String getAggregateId() {
         return id();

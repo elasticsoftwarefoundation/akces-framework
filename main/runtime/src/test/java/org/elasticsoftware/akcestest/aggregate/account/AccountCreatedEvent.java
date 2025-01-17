@@ -27,10 +27,10 @@ import org.elasticsoftware.akces.events.DomainEvent;
 @DomainEventInfo(type = "AccountCreated")
 public record AccountCreatedEvent(
         @AggregateIdentifier @NotNull String userId,
-        String country,
-        @GDPRData String firstName,
-        @GDPRData String lastName,
-        @GDPRData String email
+        @NotNull String country,
+        @NotNull @GDPRData String firstName,
+        @NotNull @GDPRData String lastName,
+        @NotNull @GDPRData String email
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {
