@@ -58,7 +58,7 @@ public class StatefulSetDependentResource extends CRUDKubernetesDependentResourc
                 .addToImagePullSecrets(new LocalObjectReference("github-packages-cfg"))  // TODO: needs to be configurable
                 .editFirstContainer()
                 .withImage(aggregate.getSpec().getImage())
-                .withName("akces-commands")
+                .withName("akces-command-service")
                 .withArgs(aggregate.getSpec().getArgs())
                 .withResources(aggregate.getSpec().getResources())
                 .endContainer()
