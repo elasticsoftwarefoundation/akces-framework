@@ -47,30 +47,6 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class JsonSchemaTests {
-    @Test
-    public void testSchemaCompatibility() throws IOException {
-        SchemaGenerator generator = createSchemaGenerator();
-
-        JsonNode schemaV1 = generator.generateSchema(AccountCreatedEvent.class);
-        JsonNode schemaV2 = generator.generateSchema(AccountCreatedEventV2.class);
-
-        System.out.println(schemaV1.toString());
-        System.out.println(schemaV2.toString());
-
-        JsonSchema schema1 = new JsonSchema(schemaV1);
-        JsonSchema schema2 = new JsonSchema(schemaV2);
-
-        assertEquals(schema2.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE, List.of(new SimpleParsedSchemaHolder(schema1))).size(), 0);
-
-        schema2.validate(schema2.toJson(new AccountCreatedEvent("1", "Musk", AccountTypeV1.PREMIUM)));
-
-        schema2.validate(schema2.toJson(new AccountCreatedEventV2("1", "Musk", AccountTypeV2.PREMIUM, "Elon", "US")));
-
-        // schema2.validate(new AccountCreatedEvent("1", null, AccountTypeV1.PREMIUM));
-
-        //Assert.assertEquals(schema2.isBackwardCompatible(schema1).size(), 0);
-    }
-
     private static @NotNull SchemaGenerator createSchemaGenerator() {
         Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
         objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
@@ -95,6 +71,30 @@ public class JsonSchemaTests {
             }
         });
         return new SchemaGenerator(configBuilder.build());
+    }
+
+    @Test
+    public void testSchemaCompatibility() throws IOException {
+        SchemaGenerator generator = createSchemaGenerator();
+
+        JsonNode schemaV1 = generator.generateSchema(AccountCreatedEvent.class);
+        JsonNode schemaV2 = generator.generateSchema(AccountCreatedEventV2.class);
+
+        System.out.println(schemaV1.toString());
+        System.out.println(schemaV2.toString());
+
+        JsonSchema schema1 = new JsonSchema(schemaV1);
+        JsonSchema schema2 = new JsonSchema(schemaV2);
+
+        assertEquals(schema2.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE, List.of(new SimpleParsedSchemaHolder(schema1))).size(), 0);
+
+        schema2.validate(schema2.toJson(new AccountCreatedEvent("1", "Musk", AccountTypeV1.PREMIUM)));
+
+        schema2.validate(schema2.toJson(new AccountCreatedEventV2("1", "Musk", AccountTypeV2.PREMIUM, "Elon", "US")));
+
+        // schema2.validate(new AccountCreatedEvent("1", null, AccountTypeV1.PREMIUM));
+
+        //Assert.assertEquals(schema2.isBackwardCompatible(schema1).size(), 0);
     }
 
     @Test

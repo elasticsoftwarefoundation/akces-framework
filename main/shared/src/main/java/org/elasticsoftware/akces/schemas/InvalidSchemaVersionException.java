@@ -24,7 +24,7 @@ public class InvalidSchemaVersionException extends SchemaException {
                                          int highestRegisteredSchemaVersion,
                                          int schemaVersion,
                                          Class<?> implementationClass) {
-        super("Invalid Schema Version, highest registered schema version is "+highestRegisteredSchemaVersion,
+        super("Invalid Schema Version, highest registered schema version is " + highestRegisteredSchemaVersion,
                 schemaIdentifier,
                 implementationClass);
         this.schemaVersion = schemaVersion;

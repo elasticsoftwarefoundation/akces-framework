@@ -22,5 +22,6 @@ public enum AkcesControllerState {
     INITIAL_REBALANCING,
     REBALANCING,
     RUNNING,
-    SHUTTING_DOWN
+    SHUTTING_DOWN,
+    ERROR
 }

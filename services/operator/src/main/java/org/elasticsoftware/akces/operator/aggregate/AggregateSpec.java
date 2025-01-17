@@ -27,6 +27,7 @@ public class AggregateSpec {
     private List<String> aggregateNames;
     private List<String> args;
     private ResourceRequirements resources;
+    private Boolean enableSchemaOverwrites = Boolean.FALSE;
 
     public List<String> getAggregateNames() {
         return aggregateNames;
@@ -66,5 +67,13 @@ public class AggregateSpec {
 
     public void setResources(ResourceRequirements resources) {
         this.resources = resources;
+    }
+
+    public Boolean getEnableSchemaOverwrites() {
+        return enableSchemaOverwrites;
+    }
+
+    public void setEnableSchemaOverwrites(Boolean enableSchemaOverwrites) {
+        this.enableSchemaOverwrites = enableSchemaOverwrites;
     }
 }

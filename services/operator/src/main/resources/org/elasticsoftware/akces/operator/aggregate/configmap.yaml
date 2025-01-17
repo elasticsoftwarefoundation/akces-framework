@@ -10,6 +10,7 @@ data:
     spring.kafka.consumer.properties.session.timeout.ms=30000
     kafka.schemaregistry.url=http://akces-schema-registry.kafka:8081
     akces.rocksdb.baseDir=/var/lib/akces-data
+    akces.aggregate.schemas.forceRegister=${ENABLE_SCHEMA_OVERWRITES}
   logback.xml: |
     <configuration>
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">

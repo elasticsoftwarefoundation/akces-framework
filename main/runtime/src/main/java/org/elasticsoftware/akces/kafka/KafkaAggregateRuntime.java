@@ -74,17 +74,17 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
     }
 
     @Override
-    public void registerAndValidate(DomainEventType<?> domainEventType) throws SchemaException {
+    public void registerAndValidate(DomainEventType<?> domainEventType, boolean forceRegisterOnIncompatible) throws SchemaException {
         // generate the local schema version
-        JsonSchema localSchema = schemaRegistry.registerAndValidate(domainEventType);
+        JsonSchema localSchema = schemaRegistry.registerAndValidate(domainEventType, forceRegisterOnIncompatible);
         // schema is fine, add to map
         domainEventSchemas.put(domainEventType.typeClass(), localSchema);
     }
 
     @Override
-    public void registerAndValidate(CommandType<?> commandType) throws Exception {
+    public void registerAndValidate(CommandType<?> commandType,  boolean forceRegisterOnIncompatible) throws SchemaException {
         if (!commandSchemas.containsKey(commandType.typeClass())) {
-            JsonSchema localSchema = schemaRegistry.registerAndValidate(commandType);
+            JsonSchema localSchema = schemaRegistry.registerAndValidate(commandType, forceRegisterOnIncompatible);
             commandSchemas.put(commandType.typeClass(), localSchema);
             if (commandType.external()) addCommand(commandType);
         }

@@ -27,6 +27,8 @@ spec:
                 items:
                   type: "string"
                 type: "array"
+              enableSchemaOverwrites:
+                type: "boolean"
               image:
                 type: "string"
               replicas:
