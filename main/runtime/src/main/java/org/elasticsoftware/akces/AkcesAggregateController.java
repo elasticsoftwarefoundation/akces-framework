@@ -23,6 +23,7 @@ import jakarta.annotation.Nonnull;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -33,10 +34,12 @@ import org.apache.kafka.common.errors.WakeupException;
 import org.elasticsoftware.akces.aggregate.AggregateRuntime;
 import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
+import org.elasticsoftware.akces.aggregate.SchemaType;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.control.*;
 import org.elasticsoftware.akces.kafka.AggregatePartition;
+import org.elasticsoftware.akces.kafka.PartitionUtils;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.schemas.IncompatibleSchemaException;
 import org.elasticsoftware.akces.schemas.SchemaException;
@@ -54,6 +57,8 @@ import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.BiFunction;
+import java.util.stream.IntStream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsoftware.akces.AkcesControllerState.*;
@@ -167,9 +172,13 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                     // our schema is not compatible with the existing schema
                     // if no DomainEvents of the type/version have been produced yet, we can just update the schema
                     if (forceRegisterOnIncompatible) {
-                        // TODO: check if an instance of the event was ever produced
-                        // TODO: if not, we can just update the schema
-                        aggregateRuntime.registerAndValidate(domainEventType, true);
+                        if (protocolRecordTypeNotYetProduced(domainEventType, PartitionUtils::toDomainEventTopicPartition)) {
+                            aggregateRuntime.registerAndValidate(domainEventType, true);
+                        } else {
+                            logger.warn("Cannot update schema for DomainEvent {} v{} because it has already been produced",
+                                    domainEventType.typeName(), domainEventType.version());
+                            throw e;
+                        }
                     } else {
                         throw e;
                     }
@@ -183,9 +192,13 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                     // our schema is not compatible with the existing schema
                     // if no Commands of the type/version have been produced yet, we can just update the schema
                     if (forceRegisterOnIncompatible) {
-                        // TODO: check if an instance of the command was ever produced
-                        // TODO: if not, we can just update the schema
-                        aggregateRuntime.registerAndValidate(commandType, true);
+                        if (protocolRecordTypeNotYetProduced(commandType, PartitionUtils::toCommandTopicPartition)) {
+                            aggregateRuntime.registerAndValidate(commandType, true);
+                        } else {
+                            logger.warn("Cannot update schema for Command {} v{} because it has already been produced",
+                                    commandType.typeName(), commandType.version());
+                            throw e;
+                        }
                     } else {
                         throw e;
                     }
@@ -294,6 +307,57 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
             // move back to running
             processState = RUNNING;
         }
+    }
+
+    private boolean protocolRecordTypeNotYetProduced(SchemaType schemaType,
+                                                     BiFunction<AggregateRuntime, Integer, TopicPartition> createTopicPartition) {
+        try (Consumer<String, ProtocolRecord> consumer = consumerFactory.createConsumer(
+                aggregateRuntime.getName() + "-Akces-Control-TypeCheck",
+                aggregateRuntime.getName() + "-" + HostUtils.getHostName() + "-Akces-Control-TypeCheck",
+                null)) {
+            List<TopicPartition> partitionsList = IntStream.range(0, partitions)
+                    .mapToObj(i -> createTopicPartition.apply(aggregateRuntime, i))
+                    .toList();
+            consumer.assign(partitionsList);
+            consumer.seekToBeginning(partitionsList);
+            // get end offsets
+            Map<TopicPartition, Long> endOffsets = consumer.endOffsets(partitionsList);
+            while (!endOffsets.isEmpty()) {
+                try {
+                    for (ConsumerRecord<String, ProtocolRecord> record : consumer.poll(Duration.ofMillis(10))) {
+                        if (record.value().name().equals(schemaType.typeName()) &&
+                                record.value().version() == schemaType.version()) {
+                            // the event was produced, we cannot update the schema
+                            return false;
+                        }
+                    }
+                    // check for the stopcondition
+                    endOffsets.entrySet().removeIf(entry -> entry.getValue() <= consumer.position(entry.getKey()));
+                } catch (WakeupException | InterruptException e) {
+                    // ignore
+                } catch (KafkaException e) {
+                    // this is an unrecoverable exception
+                    logger.error(
+                            "KafkaException while checking if ProtocolRecord {} v{} has already been produced",
+                            schemaType.typeName(),
+                            schemaType.version(),
+                            e);
+                    // due to the exception we cannot determine whether the event has been produced so we need to return false
+                    return false;
+                }
+            }
+        } catch (KafkaException e) {
+            // this is an unrecoverable exception
+            logger.error(
+                    "KafkaException while checking if ProtocolRecord {} v{} has already been produced",
+                    schemaType.typeName(),
+                    schemaType.version(),
+                    e);
+            // due to the exception we cannot determine whether the event has been produced so we need to return false
+            return false;
+        }
+        // if we make it till here we didn't find any records
+        return true;
     }
 
     private void processControlRecords() {
