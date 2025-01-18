@@ -24,7 +24,7 @@ import org.elasticsoftware.akces.events.ErrorEvent;
 
 @DomainEventInfo(type = "BalanceAlreadyExistsError")
 public record BalanceAlreadyExistsErrorEvent(@AggregateIdentifier @NotNull String walletId,
-                                             String currency) implements ErrorEvent {
+                                             @NotNull String currency) implements ErrorEvent {
     @Override
     public String getAggregateId() {
         return walletId();

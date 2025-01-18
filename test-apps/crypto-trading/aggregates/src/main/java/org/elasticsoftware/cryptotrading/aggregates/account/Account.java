@@ -22,6 +22,8 @@ import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.annotations.AggregateInfo;
 import org.elasticsoftware.akces.annotations.CommandHandler;
 import org.elasticsoftware.akces.annotations.EventSourcingHandler;
+import org.elasticsoftware.cryptotrading.aggregates.account.commands.CreateAccountCommand;
+import org.elasticsoftware.cryptotrading.aggregates.account.events.AccountCreatedEvent;
 
 import java.util.stream.Stream;
 

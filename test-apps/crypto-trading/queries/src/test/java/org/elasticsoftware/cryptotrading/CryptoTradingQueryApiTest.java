@@ -55,6 +55,7 @@ import java.nio.file.Paths;
 import java.util.Comparator;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsoftware.cryptotrading.TestUtils.prepareAggregateServiceRecords;
 import static org.elasticsoftware.cryptotrading.TestUtils.prepareKafka;
 
 @SpringBootTest(
@@ -356,6 +357,11 @@ public class CryptoTradingQueryApiTest {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
+            try {
+                prepareAggregateServiceRecords(kafka.getBootstrapServers());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
                     applicationContext,
                     "akces.rocksdb.baseDir=/tmp/akces",

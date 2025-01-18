@@ -26,9 +26,9 @@ import java.math.BigDecimal;
 
 @CommandInfo(type = "CreditWallet", version = 1)
 public record CreditWalletCommand(
-        @AggregateIdentifier String id,
-        String currency,
-        BigDecimal amount
+        @NotNull @AggregateIdentifier String id,
+        @NotNull String currency,
+        @NotNull BigDecimal amount
 ) implements Command {
     @NotNull
     @Override

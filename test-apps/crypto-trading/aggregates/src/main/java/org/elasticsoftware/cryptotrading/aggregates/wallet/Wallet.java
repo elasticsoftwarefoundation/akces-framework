@@ -24,7 +24,7 @@ import org.elasticsoftware.akces.annotations.CommandHandler;
 import org.elasticsoftware.akces.annotations.EventHandler;
 import org.elasticsoftware.akces.annotations.EventSourcingHandler;
 import org.elasticsoftware.akces.events.DomainEvent;
-import org.elasticsoftware.cryptotrading.aggregates.account.AccountCreatedEvent;
+import org.elasticsoftware.cryptotrading.aggregates.account.events.AccountCreatedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreateBalanceCommand;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreateWalletCommand;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreditWalletCommand;

@@ -28,9 +28,9 @@ import java.math.BigDecimal;
 @DomainEventInfo(type = "BuyOrderPlaced", version = 1)
 public record BuyOrderPlacedEvent(
         @NotNull @AggregateIdentifier String userId,
-        String orderId,
-        CryptoMarket market,
-        BigDecimal quantity,
+        @NotNull String orderId,
+        @NotNull CryptoMarket market,
+        @NotNull BigDecimal amount,
         BigDecimal limitPrice
 ) implements DomainEvent {
     @Override

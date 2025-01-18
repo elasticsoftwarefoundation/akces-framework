@@ -17,16 +17,20 @@
 
 package org.elasticsoftware.cryptotrading;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.inject.Inject;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.common.TopicPartition;
 import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.client.AkcesClientController;
+import org.elasticsoftware.akces.control.AggregateServiceRecord;
+import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
-import org.elasticsoftware.cryptotrading.aggregates.account.CreateAccountCommand;
+import org.elasticsoftware.cryptotrading.aggregates.account.commands.CreateAccountCommand;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.CoinbaseService;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.Product;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.CreateCryptoMarketCommand;
@@ -60,11 +64,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
-import java.util.Collection;
-import java.util.Comparator;
+import java.util.*;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsoftware.cryptotrading.TestUtils.prepareAggregateServiceRecords;
 import static org.elasticsoftware.cryptotrading.TestUtils.prepareKafka;
 
 @SpringBootTest(
@@ -118,10 +122,15 @@ public class CryptoTradingApplicationTest {
     @Inject
     @Qualifier("aggregateServiceConsumerFactory")
     ConsumerFactory<String, ProtocolRecord> consumerFactory;
+    @Inject
+    @Qualifier("aggregateServiceControlConsumerFactory")
+    ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory;
     @LocalServerPort
     private int port;
     @Inject
     private WebTestClient webTestClient;
+    @Inject
+    private ObjectMapper objectMapper;
 
     @AfterAll
     @BeforeAll
@@ -157,7 +166,7 @@ public class CryptoTradingApplicationTest {
 
     @Test
     @Order(1)
-    void contextLoads() {
+    void contextLoads() throws IOException {
         assertThat(walletController).isNotNull();
         assertThat(accountController).isNotNull();
         assertThat(prderProcessManagerController).isNotNull();
@@ -170,6 +179,30 @@ public class CryptoTradingApplicationTest {
                 !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
+        }
+
+        try (Consumer<String, AkcesControlRecord> controlConsumer = controlConsumerFactory.createConsumer("Test-AkcesControl", "test-akces-control")) {
+            TopicPartition controlPartition = new TopicPartition("Akces-Control", 0);
+            controlConsumer.assign(List.of(controlPartition));
+            controlConsumer.seekToBeginning(controlConsumer.assignment());
+            Map<TopicPartition, Long> endOffsets = controlConsumer.endOffsets(controlConsumer.assignment());
+
+            Map<String, AggregateServiceRecord> serviceRecords = new HashMap<>();
+
+            while (endOffsets.getOrDefault(controlPartition, 0L) > controlConsumer.position(controlPartition)) {
+                ConsumerRecords<String, AkcesControlRecord> controlRecords = controlConsumer.poll(Duration.ofMillis(1000));
+                if (!controlRecords.isEmpty()) {
+                    for (ConsumerRecord<String, AkcesControlRecord> record : controlRecords.records(controlPartition)) {
+                        if (record.value() instanceof AggregateServiceRecord aggregateServiceRecord) {
+                            System.out.println(objectMapper.writeValueAsString(aggregateServiceRecord));
+                            serviceRecords.put(record.key(), aggregateServiceRecord);
+                        }
+                    }
+                }
+            }
+
+            Assertions.assertEquals(4, serviceRecords.size());
+
         }
     }
 
@@ -269,6 +302,11 @@ public class CryptoTradingApplicationTest {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
+            try {
+                prepareAggregateServiceRecords(kafka.getBootstrapServers());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
                     applicationContext,
                     "akces.rocksdb.baseDir=/tmp/akces",

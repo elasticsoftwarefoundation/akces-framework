@@ -17,14 +17,15 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.wallet.commands;
 
+import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
 @CommandInfo(type = "CreateBalance", version = 1)
 public record CreateBalanceCommand(
-        @AggregateIdentifier String id,
-        String currency
+        @NotNull @AggregateIdentifier String id,
+        @NotNull String currency
 ) implements Command {
     @Override
     public String getAggregateId() {

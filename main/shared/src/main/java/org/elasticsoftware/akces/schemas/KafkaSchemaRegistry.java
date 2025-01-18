@@ -281,7 +281,7 @@ public class KafkaSchemaRegistry {
         }
     }
 
-    public JsonSchema generateJsonSchema(SchemaType schemaType) {
+    public synchronized JsonSchema generateJsonSchema(SchemaType schemaType) {
         return new JsonSchema(jsonSchemaGenerator.generateSchema(schemaType.typeClass()), List.of(), Map.of(), schemaType.version());
     }
 

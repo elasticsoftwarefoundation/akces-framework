@@ -15,24 +15,23 @@
  *
  */
 
-package org.elasticsoftware.cryptotrading.aggregates.account;
+package org.elasticsoftware.cryptotrading.aggregates.account.commands;
 
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
-import org.elasticsoftware.akces.annotations.DomainEventInfo;
-import org.elasticsoftware.akces.annotations.GDPRData;
-import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.annotations.CommandInfo;
+import org.elasticsoftware.akces.commands.Command;
 
-
-@DomainEventInfo(type = "AccountCreated")
-public record AccountCreatedEvent(
+@CommandInfo(type = "CreateAccount")
+public record CreateAccountCommand(
         @AggregateIdentifier @NotNull String userId,
-        String country,
-        @GDPRData String firstName,
-        @GDPRData String lastName,
-        @GDPRData String email
-) implements DomainEvent {
+        @NotNull String country,
+        @NotNull String firstName,
+        @NotNull String lastName,
+        @NotNull String email
+) implements Command {
     @Override
+    @NotNull
     public String getAggregateId() {
         return userId();
     }

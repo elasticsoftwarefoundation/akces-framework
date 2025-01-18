@@ -24,8 +24,8 @@ import org.elasticsoftware.akces.commands.Command;
 
 @CommandInfo(type = "CreateWallet", version = 1)
 public record CreateWalletCommand(
-        @AggregateIdentifier String id,
-        String currency
+        @NotNull @AggregateIdentifier String id,
+        @NotNull String currency
 ) implements Command {
     @NotNull
     @Override

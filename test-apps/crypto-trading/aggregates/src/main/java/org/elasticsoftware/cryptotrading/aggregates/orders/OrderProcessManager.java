@@ -23,7 +23,7 @@ import org.elasticsoftware.akces.annotations.CommandHandler;
 import org.elasticsoftware.akces.annotations.EventHandler;
 import org.elasticsoftware.akces.annotations.EventSourcingHandler;
 import org.elasticsoftware.akces.events.DomainEvent;
-import org.elasticsoftware.cryptotrading.aggregates.account.AccountCreatedEvent;
+import org.elasticsoftware.cryptotrading.aggregates.account.events.AccountCreatedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.Side;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.PlaceMarketOrderCommand;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderRejectedErrorEvent;
@@ -136,8 +136,8 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
                     state.userId(),
                     Side.BUY,
                     orderProcess.amount(),
-                    orderProcess.size()));
-            return Stream.of(new BuyOrderPlacedEvent(state.userId(), orderProcess.orderId(), orderProcess.market(), orderProcess.size(), orderProcess.amount()));
+                    null));
+            return Stream.of(new BuyOrderPlacedEvent(state.userId(), orderProcess.orderId(), orderProcess.market(), orderProcess.amount(), null));
         } else {
             // TODO: this cannot happen
             return Stream.empty();

@@ -29,6 +29,7 @@ import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -58,8 +59,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-import static org.elasticsoftware.akcestest.TestUtils.prepareExternalSchemas;
-import static org.elasticsoftware.akcestest.TestUtils.prepareKafka;
+import static org.elasticsoftware.akcestest.TestUtils.*;
 
 @SpringBootTest(
         classes = AggregateServiceApplication.class,
@@ -105,6 +105,7 @@ public class AggregateServiceApplicationTests {
     @Qualifier("aggregateServiceControlConsumerFactory")
     ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory;
 
+    @BeforeAll
     @AfterAll
     public static void cleanUp() throws IOException {
         if (Files.exists(Paths.get("/tmp/akces"))) {
@@ -157,6 +158,11 @@ public class AggregateServiceApplicationTests {
             prepareKafka(kafka.getBootstrapServers());
             SchemaRegistryClient src = new CachedSchemaRegistryClient("http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081), 100);
             prepareExternalSchemas(src, List.of(AccountCreatedEvent.class));
+            try {
+                prepareAggregateServiceRecords(kafka.getBootstrapServers());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
             //prepareExternalServices(kafka.getBootstrapServers());
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
                     applicationContext,

@@ -27,9 +27,9 @@ import java.math.BigDecimal;
 @DomainEventInfo(type = "WalletCredited")
 public record WalletCreditedEvent(
         @AggregateIdentifier @NotNull String id,
-        String currency,
-        BigDecimal amount,
-        BigDecimal balance
+        @NotNull String currency,
+        @NotNull BigDecimal amount,
+        @NotNull BigDecimal balance
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {

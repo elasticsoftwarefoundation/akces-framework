@@ -31,10 +31,10 @@ public record MarketOrderFilledEvent(
         @NotNull String ownerId,
         @NotNull String counterpartyId,
         @NotNull Side side,
-        String baseCurrency,
-        String quoteCurrency,
-        BigDecimal price,
-        BigDecimal quantity
+        @NotNull String baseCurrency,
+        @NotNull String quoteCurrency,
+        @NotNull BigDecimal price,
+        @NotNull BigDecimal quantity
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {

@@ -18,7 +18,7 @@
 package org.elasticsoftware.cryptotrading.web.dto;
 
 import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.cryptotrading.aggregates.account.CreateAccountCommand;
+import org.elasticsoftware.cryptotrading.aggregates.account.commands.CreateAccountCommand;
 
 public record AccountInput(@NotNull String country,
                            @NotNull String firstName,

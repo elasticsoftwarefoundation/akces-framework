@@ -229,10 +229,13 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
             for (ConsumerRecord<String, AkcesControlRecord> record : consumerRecords) {
                 AkcesControlRecord controlRecord = record.value();
                 if (controlRecord instanceof AggregateServiceRecord aggregateServiceRecord) {
-                    if (aggregateServices.putIfAbsent(record.key(), aggregateServiceRecord) == null) {
+                    if (!aggregateServices.containsKey(record.key())) {
                         logger.info("Discovered service: {}", aggregateServiceRecord.aggregateName());
-                        registerSchemas(aggregateServiceRecord);
                     }
+                    // always overwrite the record
+                    aggregateServices.put(record.key(), aggregateServiceRecord);
+                    // we always need to register the schemas because there could be new types and versions
+                    registerSchemas(aggregateServiceRecord);
                 } else {
                     logger.info("Received unknown AkcesControlRecord type: {}", controlRecord.getClass().getSimpleName());
                 }
@@ -420,8 +423,9 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
         // process the commands to retrieve the schemas
         for (AggregateServiceCommandType commandType : aggregateServiceRecord.supportedCommands()) {
             // check if we already have the schema
-            if (!commandSchemas.containsKey(commandType.typeName()) ||
-                    !commandSchemas.get(commandType.typeName()).containsKey(commandType.version())) {
+            // in certain cases (on dev) a schema may be overwritten. So to be safe we overwrite.
+//            if (!commandSchemas.containsKey(commandType.typeName()) ||
+//                    !commandSchemas.get(commandType.typeName()).containsKey(commandType.version())) {
                 // just register all versions at once
                 List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas(commandType.schemaName(), false, false);
                 // ensure we have an ordered list of schemas
@@ -432,13 +436,14 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                 for (ParsedSchema parsedSchema : registeredSchemas) {
                     schemaMap.put(schemaRegistryClient.getVersion(commandType.schemaName(), parsedSchema), parsedSchema);
                 }
-            }
+            // }
         }
         // process the events that can be produced by this service
         for (AggregateServiceDomainEventType domainEventType : aggregateServiceRecord.producedEvents()) {
             // check if we already have the domainevent schema
-            if (!domainEventSchemas.containsKey(domainEventType.typeName()) ||
-                    !domainEventSchemas.get(domainEventType.typeName()).containsKey(domainEventType.version())) {
+            // in certain cases (on dev) a schema may be overwritten. So to be safe we overwrite.
+//            if (!domainEventSchemas.containsKey(domainEventType.typeName()) ||
+//                    !domainEventSchemas.get(domainEventType.typeName()).containsKey(domainEventType.version())) {
                 // just register all versions at once
                 List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas(domainEventType.schemaName(), false, false);
                 // ensure we have an ordered list of schemas
@@ -449,7 +454,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                 for (ParsedSchema parsedSchema : registeredSchemas) {
                     schemaMap.put(schemaRegistryClient.getVersion(domainEventType.schemaName(), parsedSchema), parsedSchema);
                 }
-            }
+            //}
         }
 
     }
