@@ -420,31 +420,29 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
     }
 
     private void registerSchemas(AggregateServiceRecord aggregateServiceRecord) throws RestClientException, IOException {
+        logger.trace("Fetching schemas for service: {}", aggregateServiceRecord.aggregateName());
         // process the commands to retrieve the schemas
         for (AggregateServiceCommandType commandType : aggregateServiceRecord.supportedCommands()) {
             // check if we already have the schema
             // in certain cases (on dev) a schema may be overwritten. So to be safe we overwrite.
-//            if (!commandSchemas.containsKey(commandType.typeName()) ||
-//                    !commandSchemas.get(commandType.typeName()).containsKey(commandType.version())) {
                 // just register all versions at once
-                List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas(commandType.schemaName(), false, false);
-                // ensure we have an ordered list of schemas
-                registeredSchemas.sort(Comparator.comparingInt(ParsedSchema::version));
-                // ensure we have a Map
-                commandSchemas.computeIfAbsent(commandType.typeName(), k -> new ConcurrentHashMap<>());
-                Map<Integer, ParsedSchema> schemaMap = commandSchemas.get(commandType.typeName());
-                for (ParsedSchema parsedSchema : registeredSchemas) {
-                    schemaMap.put(schemaRegistryClient.getVersion(commandType.schemaName(), parsedSchema), parsedSchema);
-                }
-            // }
+            logger.trace("Fetching schema(s) for command: {}", commandType.schemaName());
+            List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas(commandType.schemaName(), false, false);
+            // ensure we have an ordered list of schemas
+            registeredSchemas.sort(Comparator.comparingInt(ParsedSchema::version));
+            // ensure we have a Map
+            commandSchemas.computeIfAbsent(commandType.typeName(), k -> new ConcurrentHashMap<>());
+            Map<Integer, ParsedSchema> schemaMap = commandSchemas.get(commandType.typeName());
+            for (ParsedSchema parsedSchema : registeredSchemas) {
+                Integer version = schemaRegistryClient.getVersion(commandType.schemaName(), parsedSchema);
+                logger.trace("Storing schema: {} v{}", commandType.schemaName(), version);
+                schemaMap.put(version, parsedSchema);
+            }
         }
         // process the events that can be produced by this service
         for (AggregateServiceDomainEventType domainEventType : aggregateServiceRecord.producedEvents()) {
             // check if we already have the domainevent schema
             // in certain cases (on dev) a schema may be overwritten. So to be safe we overwrite.
-//            if (!domainEventSchemas.containsKey(domainEventType.typeName()) ||
-//                    !domainEventSchemas.get(domainEventType.typeName()).containsKey(domainEventType.version())) {
-                // just register all versions at once
                 List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas(domainEventType.schemaName(), false, false);
                 // ensure we have an ordered list of schemas
                 registeredSchemas.sort(Comparator.comparingInt(ParsedSchema::version));
@@ -454,7 +452,6 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                 for (ParsedSchema parsedSchema : registeredSchemas) {
                     schemaMap.put(schemaRegistryClient.getVersion(domainEventType.schemaName(), parsedSchema), parsedSchema);
                 }
-            //}
         }
 
     }

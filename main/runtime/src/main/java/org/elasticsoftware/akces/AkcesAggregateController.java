@@ -105,40 +105,6 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     public void run() {
         // make sure all our events and commands are registered and validated
         try {
-            // first register and validate all local (= owned) domain events
-            for (DomainEventType<?> domainEventType : aggregateRuntime.getProducedDomainEventTypes()) {
-                try {
-                    aggregateRuntime.registerAndValidate(domainEventType);
-                } catch (IncompatibleSchemaException e) {
-                    // our schema is not compatible with the existing schema
-                    // if no DomainEvents of the type/version have been produced yet, we can just update the schema
-                    if (forceRegisterOnIncompatible) {
-                        aggregateRuntime.registerAndValidate(domainEventType, true);
-                    } else {
-                        throw e;
-                    }
-                }
-            }
-            // register and validate all local commands
-            for (CommandType<?> commandType : aggregateRuntime.getLocalCommandTypes()) {
-                try {
-                    aggregateRuntime.registerAndValidate(commandType);
-                } catch (IncompatibleSchemaException e) {
-                    // our schema is not compatible with the existing schema
-                    // if no Commands of the type/version have been produced yet, we can just update the schema
-                    if (forceRegisterOnIncompatible) {
-                        aggregateRuntime.registerAndValidate(commandType, true);
-                    } else {
-                        throw e;
-                    }
-                }
-            }
-            // find out about the cluster
-            TopicDescription controlTopicDescription = kafkaAdmin.describeTopics("Akces-Control").get("Akces-Control");
-            partitions = controlTopicDescription.partitions().size();
-            replicationFactor = (short) controlTopicDescription.partitions().getFirst().replicas().size();
-            // publish our own record
-            publishControlRecord(partitions);
             // and start consuming
             controlConsumer =
                     controlRecordConsumerFactory.createConsumer(
@@ -146,7 +112,6 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                             aggregateRuntime.getName() + "-" + HostUtils.getHostName() + "-Akces-Control",
                             null);
             controlConsumer.subscribe(List.of("Akces-Control"), this);
-            //controlConsumer.enforceRebalance();
             while (processState != SHUTTING_DOWN) {
                 process();
             }
@@ -178,26 +143,9 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     }
 
     private void process() {
-        if (processState == RUNNING || processState == INITIALIZING) {
+        if (processState == RUNNING) {
             try {
-                // the data on the AkcesControl topics are broadcasted to all partitions
-                // so we only need to read one partition actually
-                // for simplicity we just read them all for now
-                ConsumerRecords<String, AkcesControlRecord> consumerRecords = controlConsumer.poll(Duration.ofMillis(100));
-                if (!consumerRecords.isEmpty()) {
-                    consumerRecords.forEach(record -> {
-                        AkcesControlRecord controlRecord = record.value();
-                        if (controlRecord instanceof AggregateServiceRecord aggregateServiceRecord) {
-                            if (!aggregateServices.containsKey(record.key())) {
-                                logger.info("Discovered service: {}", aggregateServiceRecord.aggregateName());
-                            }
-                            // always overwrite with the latest version
-                            aggregateServices.put(record.key(), aggregateServiceRecord);
-                        } else {
-                            logger.info("Received unknown AkcesControlRecord type: {}", controlRecord.getClass().getSimpleName());
-                        }
-                    });
-                }
+                processControlRecords();
             } catch (WakeupException | InterruptException e) {
                 // ignore
             } catch (KafkaException e) {
@@ -206,6 +154,48 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                 // drop out of the control loop, this will shut down all resources
                 processState = SHUTTING_DOWN;
             }
+        } else if (processState == INITIALIZING) {
+            // find out about the cluster
+            TopicDescription controlTopicDescription = kafkaAdmin.describeTopics("Akces-Control").get("Akces-Control");
+            partitions = controlTopicDescription.partitions().size();
+            replicationFactor = (short) controlTopicDescription.partitions().getFirst().replicas().size();
+            // first register and validate all local (= owned) domain events
+            for (DomainEventType<?> domainEventType : aggregateRuntime.getProducedDomainEventTypes()) {
+                try {
+                    aggregateRuntime.registerAndValidate(domainEventType);
+                } catch (IncompatibleSchemaException e) {
+                    // our schema is not compatible with the existing schema
+                    // if no DomainEvents of the type/version have been produced yet, we can just update the schema
+                    if (forceRegisterOnIncompatible) {
+                        // TODO: check if an instance of the event was ever produced
+                        // TODO: if not, we can just update the schema
+                        aggregateRuntime.registerAndValidate(domainEventType, true);
+                    } else {
+                        throw e;
+                    }
+                }
+            }
+            // register and validate all local commands
+            for (CommandType<?> commandType : aggregateRuntime.getLocalCommandTypes()) {
+                try {
+                    aggregateRuntime.registerAndValidate(commandType);
+                } catch (IncompatibleSchemaException e) {
+                    // our schema is not compatible with the existing schema
+                    // if no Commands of the type/version have been produced yet, we can just update the schema
+                    if (forceRegisterOnIncompatible) {
+                        // TODO: check if an instance of the command was ever produced
+                        // TODO: if not, we can just update the schema
+                        aggregateRuntime.registerAndValidate(commandType, true);
+                    } else {
+                        throw e;
+                    }
+                }
+            }
+            // publish our own record
+            publishControlRecord(partitions);
+            processControlRecords();
+            // we don't switch to the running state because we wait for the INITIAL_REBALANCING state
+            // which should be triggered by the processControlRecords() method
         } else if (processState == INITIAL_REBALANCING) {
             // we need to load all the service data and then move to REBALANCING
             if (!partitionsToAssign.isEmpty()) {
@@ -303,6 +293,27 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
             partitionsToAssign.clear();
             // move back to running
             processState = RUNNING;
+        }
+    }
+
+    private void processControlRecords() {
+        // the data on the AkcesControl topics are broadcasted to all partitions
+        // so we only need to read one partition actually
+        // for simplicity we just read them all for now
+        ConsumerRecords<String, AkcesControlRecord> consumerRecords = controlConsumer.poll(Duration.ofMillis(100));
+        if (!consumerRecords.isEmpty()) {
+            consumerRecords.forEach(record -> {
+                AkcesControlRecord controlRecord = record.value();
+                if (controlRecord instanceof AggregateServiceRecord aggregateServiceRecord) {
+                    if (!aggregateServices.containsKey(record.key())) {
+                        logger.info("Discovered service: {}", aggregateServiceRecord.aggregateName());
+                    }
+                    // always overwrite with the latest version
+                    aggregateServices.put(record.key(), aggregateServiceRecord);
+                } else {
+                    logger.info("Received unknown AkcesControlRecord type: {}", controlRecord.getClass().getSimpleName());
+                }
+            });
         }
     }
 
