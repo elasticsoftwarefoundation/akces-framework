@@ -118,6 +118,9 @@
                                 <env>
                                     <BP_JVM_VERSION>${java.version}</BP_JVM_VERSION>
                                     <BP_JVM_JLINK_ENABLED>false</BP_JVM_JLINK_ENABLED>
+<!--                                    <BP_SPRING_AOT_ENABLED>true</BP_SPRING_AOT_ENABLED>-->
+<!--                                    <BP_JVM_CDS_ENABLED>true</BP_JVM_CDS_ENABLED>-->
+<!--                                    <JAVA_TOOL_OPTIONS>-XX:+UseZGC -XX:+ZGenerational</JAVA_TOOL_OPTIONS>-->
                                 </env>
                                 <buildpacks>
                                     <buildpack>gcr.io/paketo-buildpacks/ca-certificates</buildpack>
@@ -128,6 +131,13 @@
                                 </buildpacks>
                             </image>
                         </configuration>
+                        <executions>
+<!--                            <execution>-->
+<!--                                <goals>-->
+<!--                                    <goal>process-aot</goal>-->
+<!--                                </goals>-->
+<!--                            </execution>-->
+                        </executions>
                     </plugin>
                 </plugins>
             </build>
