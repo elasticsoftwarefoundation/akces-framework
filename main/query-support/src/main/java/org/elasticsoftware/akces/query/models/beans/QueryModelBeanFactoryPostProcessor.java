@@ -25,18 +25,22 @@ import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.query.QueryModelState;
 import org.elasticsoftware.akces.query.models.QueryModelRuntimeFactory;
 import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.aot.BeanFactoryInitializationAotContribution;
+import org.springframework.beans.factory.aot.BeanFactoryInitializationAotProcessor;
+import org.springframework.beans.factory.aot.BeanRegistrationExcludeFilter;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionBuilder;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
+import org.springframework.beans.factory.support.RegisteredBean;
 import org.springframework.context.ApplicationContextException;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
 
-public class QueryModelBeanFactoryPostProcessor implements BeanFactoryPostProcessor {
+public class QueryModelBeanFactoryPostProcessor implements BeanFactoryPostProcessor, BeanFactoryInitializationAotProcessor, BeanRegistrationExcludeFilter {
     @Override
     public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
         if (beanFactory instanceof BeanDefinitionRegistry bdr) {
@@ -87,5 +91,15 @@ public class QueryModelBeanFactoryPostProcessor implements BeanFactoryPostProces
         } else {
             throw new ApplicationContextException("Invalid QueryModelEventHandler method signature: " + queryModelEventHandlerMethod);
         }
+    }
+
+    @Override
+    public BeanFactoryInitializationAotContribution processAheadOfTime(ConfigurableListableBeanFactory beanFactory) {
+        return null;
+    }
+
+    @Override
+    public boolean isExcludedFromAotProcessing(RegisteredBean registeredBean) {
+        return false;
     }
 }

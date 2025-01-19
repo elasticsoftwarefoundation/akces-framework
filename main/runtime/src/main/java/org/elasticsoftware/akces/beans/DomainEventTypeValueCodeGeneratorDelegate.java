@@ -18,25 +18,18 @@
 package org.elasticsoftware.akces.beans;
 
 import org.elasticsoftware.akces.aggregate.DomainEventType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.aot.generate.ValueCodeGenerator;
 import org.springframework.javapoet.CodeBlock;
 
 public class DomainEventTypeValueCodeGeneratorDelegate implements ValueCodeGenerator.Delegate {
-    private static final Logger logger = LoggerFactory.getLogger(DomainEventTypeValueCodeGeneratorDelegate.class);
-
     public DomainEventTypeValueCodeGeneratorDelegate() {
-        //logger.info("Creating DomainEventTypeValueCodeGeneratorDelegate instance");
     }
 
     @Override
     public CodeBlock generateCode(ValueCodeGenerator valueCodeGenerator, Object value) {
-        //logger.info("Generating CodeBlock for value {}", value);
         if (value instanceof DomainEventType<?>(
                 String typeName, int version, Class<?> typeClass, boolean create, boolean external, boolean error
         )) {
-            logger.info("Generating CodeBlock for DomainEventType");
             return CodeBlock.builder()
                     .add("new $T($S, $L, $T.class, $L, $L, $L)",
                             DomainEventType.class,
