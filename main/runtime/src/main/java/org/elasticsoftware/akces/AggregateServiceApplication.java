@@ -95,7 +95,7 @@ public class AggregateServiceApplication {
     }
 
     @Bean(name = "aggregateServiceSchemaRegistryClient")
-    public SchemaRegistryClient schemaRegistryClient(@Value("${kafka.schemaregistry.url}") String url) {
+    public SchemaRegistryClient schemaRegistryClient(@Value("${kafka.schemaregistry.url:http://localhost:8081}") String url) {
         return new CachedSchemaRegistryClient(url, 1000, List.of(new JsonSchemaProvider()), null);
     }
 
@@ -128,7 +128,7 @@ public class AggregateServiceApplication {
     }
 
     @Bean(name = "aggregateStateRepositoryFactory")
-    public AggregateStateRepositoryFactory aggregateStateRepositoryFactory(@Value("${akces.rocksdb.baseDir}") String baseDir) {
+    public AggregateStateRepositoryFactory aggregateStateRepositoryFactory(@Value("${akces.rocksdb.baseDir:/tmp/akces}") String baseDir) {
         return new RocksDBAggregateStateRepositoryFactory(serde, baseDir);
     }
 
