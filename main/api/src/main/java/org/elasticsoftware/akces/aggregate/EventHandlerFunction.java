@@ -43,11 +43,11 @@ public interface EventHandlerFunction<S extends AggregateState, InputEvent exten
         throw new UnsupportedOperationException("When implementing EventHandlerFunction directly, you must override isCreate()");
     }
 
-    default List<DomainEventType<?>> getProducedDomainEventTypes() {
+    default List<DomainEventType<E>> getProducedDomainEventTypes() {
         throw new UnsupportedOperationException("When implementing EventHandlerFunction directly, you must override getProducedDomainEventTypes()");
     }
 
-    default List<DomainEventType<?>> getErrorEventTypes() {
+    default List<DomainEventType<E>> getErrorEventTypes() {
         throw new UnsupportedOperationException("When implementing EventHandlerFunction directly, you must override getErrorEventTypes()");
     }
 

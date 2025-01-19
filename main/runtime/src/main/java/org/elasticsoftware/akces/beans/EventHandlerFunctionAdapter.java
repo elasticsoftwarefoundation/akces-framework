@@ -22,7 +22,6 @@ import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.aggregate.EventHandlerFunction;
-import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.events.ErrorEvent;
 
@@ -37,9 +36,9 @@ public class EventHandlerFunctionAdapter<S extends AggregateState, InputEvent ex
     private final Class<InputEvent> inputEventClass;
     private final Class<S> stateClass;
     private final boolean create;
-    private final List<DomainEventType<?>> producedDomainEventTypes;
-    private final List<DomainEventType<?>> errorEventTypes;
-    private final DomainEventInfo domainEventInfo;
+    private final List<DomainEventType<E>> producedDomainEventTypes;
+    private final List<DomainEventType<E>> errorEventTypes;
+    private final DomainEventType<InputEvent> domainEventType;
     private Method adapterMethod;
 
     public EventHandlerFunctionAdapter(Aggregate<S> aggregate,
@@ -47,9 +46,10 @@ public class EventHandlerFunctionAdapter<S extends AggregateState, InputEvent ex
                                        Class<InputEvent> inputEventClass,
                                        Class<S> stateClass,
                                        boolean create,
-                                       List<DomainEventType<?>> producedDomainEventTypes,
-                                       List<DomainEventType<?>> errorEventTypes,
-                                       DomainEventInfo domainEventInfo) {
+                                       List<DomainEventType<E>> producedDomainEventTypes,
+                                       List<DomainEventType<E>> errorEventTypes,
+                                       String typeName,
+                                       int version) {
         this.aggregate = aggregate;
         this.adapterMethodName = adapterMethodName;
         this.inputEventClass = inputEventClass;
@@ -57,7 +57,13 @@ public class EventHandlerFunctionAdapter<S extends AggregateState, InputEvent ex
         this.create = create;
         this.producedDomainEventTypes = producedDomainEventTypes;
         this.errorEventTypes = errorEventTypes;
-        this.domainEventInfo = domainEventInfo;
+        this.domainEventType = new DomainEventType<>(
+                typeName,
+                version,
+                inputEventClass,
+                create,
+                true,
+                ErrorEvent.class.isAssignableFrom(inputEventClass));
     }
 
     @SuppressWarnings("unused")
@@ -90,13 +96,7 @@ public class EventHandlerFunctionAdapter<S extends AggregateState, InputEvent ex
 
     @Override
     public DomainEventType<InputEvent> getEventType() {
-        return new DomainEventType<>(
-                domainEventInfo.type(),
-                domainEventInfo.version(),
-                inputEventClass,
-                create,
-                true,
-                ErrorEvent.class.isAssignableFrom(inputEventClass));
+        return domainEventType;
     }
 
     @Override
@@ -110,12 +110,12 @@ public class EventHandlerFunctionAdapter<S extends AggregateState, InputEvent ex
     }
 
     @Override
-    public List<DomainEventType<?>> getProducedDomainEventTypes() {
+    public List<DomainEventType<E>> getProducedDomainEventTypes() {
         return producedDomainEventTypes;
     }
 
     @Override
-    public List<DomainEventType<?>> getErrorEventTypes() {
+    public List<DomainEventType<E>> getErrorEventTypes() {
         return errorEventTypes;
     }
 }

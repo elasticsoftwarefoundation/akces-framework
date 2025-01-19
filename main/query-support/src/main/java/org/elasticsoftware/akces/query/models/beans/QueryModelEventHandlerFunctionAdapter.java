@@ -15,11 +15,10 @@
  *
  */
 
-package org.elasticsoftware.akces.query.models;
+package org.elasticsoftware.akces.query.models.beans;
 
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
-import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.query.QueryModel;
 import org.elasticsoftware.akces.query.QueryModelEventHandlerFunction;
@@ -35,7 +34,7 @@ public class QueryModelEventHandlerFunctionAdapter<S extends QueryModelState, E 
     private final Class<E> domainEventClass;
     private final Class<S> stateClass;
     private final boolean create;
-    private final DomainEventInfo domainEventInfo;
+    private final DomainEventType<E> domainEventType;
     private Method adapterMethod;
 
     public QueryModelEventHandlerFunctionAdapter(QueryModel<S> queryModel,
@@ -43,13 +42,20 @@ public class QueryModelEventHandlerFunctionAdapter<S extends QueryModelState, E 
                                                  Class<E> domainEventClass,
                                                  Class<S> stateClass,
                                                  boolean create,
-                                                 DomainEventInfo domainEventInfo) {
+                                                 String typeName,
+                                                 int version) {
         this.queryModel = queryModel;
         this.adapterMethodName = adapterMethodName;
         this.domainEventClass = domainEventClass;
         this.stateClass = stateClass;
         this.create = create;
-        this.domainEventInfo = domainEventInfo;
+        this.domainEventType = new DomainEventType<>(
+                typeName,
+                version,
+                domainEventClass,
+                create,
+                true,
+                false);
     }
 
     @SuppressWarnings("unused")
@@ -82,7 +88,7 @@ public class QueryModelEventHandlerFunctionAdapter<S extends QueryModelState, E 
 
     @Override
     public DomainEventType<E> getEventType() {
-        return new DomainEventType<>(domainEventInfo.type(), domainEventInfo.version(), domainEventClass, create, true, false);
+        return domainEventType;
     }
 
     @Override

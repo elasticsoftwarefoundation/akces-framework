@@ -135,6 +135,9 @@
                                 <goals>
                                     <goal>process-aot</goal>
                                 </goals>
+                                <configuration>
+
+                                </configuration>
                             </execution>
                         </executions>
                     </plugin>

@@ -43,11 +43,11 @@ public interface CommandHandlerFunction<S extends AggregateState, C extends Comm
         throw new UnsupportedOperationException("When implementing CommandHandlerFunction directly, you must override getAggregate()");
     }
 
-    default List<DomainEventType<?>> getProducedDomainEventTypes() {
+    default List<DomainEventType<E>> getProducedDomainEventTypes() {
         throw new UnsupportedOperationException("When implementing CommandHandlerFunction directly, you must override getProducedDomainEventTypes()");
     }
 
-    default List<DomainEventType<?>> getErrorEventTypes() {
+    default List<DomainEventType<E>> getErrorEventTypes() {
         throw new UnsupportedOperationException("When implementing CommandHandlerFunction directly, you must override getErrorEventTypes()");
     }
 

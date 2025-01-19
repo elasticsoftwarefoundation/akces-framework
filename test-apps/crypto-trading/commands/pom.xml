@@ -93,6 +93,19 @@
                 <configuration>
                     <mainClass>org.elasticsoftware.akces.client.CommandServiceApplication</mainClass>
                 </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>process-aot</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>org.elasticsoftware.akces.client.CommandServiceApplication</mainClass>
+                            <arguments>
+                                <argument>org.elasticsoftware.cryptotrading.ClientConfig</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

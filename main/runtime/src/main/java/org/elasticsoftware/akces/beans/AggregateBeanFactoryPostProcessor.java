@@ -27,12 +27,18 @@ import org.elasticsoftware.akces.errors.AggregateAlreadyExistsErrorEvent;
 import org.elasticsoftware.akces.errors.CommandExecutionErrorEvent;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.kafka.AggregateRuntimeFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.aot.BeanFactoryInitializationAotContribution;
+import org.springframework.beans.factory.aot.BeanFactoryInitializationAotProcessor;
+import org.springframework.beans.factory.aot.BeanRegistrationExcludeFilter;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionBuilder;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
+import org.springframework.beans.factory.support.RegisteredBean;
 import org.springframework.context.ApplicationContextException;
 
 import java.lang.reflect.Method;
@@ -41,7 +47,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcessor {
+public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcessor, BeanFactoryInitializationAotProcessor, BeanRegistrationExcludeFilter {
+    private static final Logger logger = LoggerFactory.getLogger(AggregateBeanFactoryPostProcessor.class);
     public static final List<DomainEventType<? extends DomainEvent>> COMMAND_HANDLER_CREATE_SYSTEM_ERRORS = List.of(
             new DomainEventType<>("AggregateAlreadyExistsError", 1, AggregateAlreadyExistsErrorEvent.class, false, false, true),
             new DomainEventType<>("CommandExecutionError", 1, CommandExecutionErrorEvent.class, false, false, true)
@@ -56,7 +63,9 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
     @Override
     public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
         if (beanFactory instanceof BeanDefinitionRegistry bdr) {
+            logger.info("Processing Aggregate beans");
             Arrays.asList(beanFactory.getBeanNamesForAnnotation(AggregateInfo.class)).forEach(beanName -> {
+                logger.info("Processing Aggregate bean {}", beanName);
                 BeanDefinition bd = beanFactory.getBeanDefinition(beanName);
                 try {
                     Class<?> aggregateClass = Class.forName(bd.getBeanClassName());
@@ -78,7 +87,6 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                 // now we need to add a bean definition for the AggregateRuntimeFactory
                 bdr.registerBeanDefinition(beanName + "AggregateRuntimeFactory",
                         BeanDefinitionBuilder.genericBeanDefinition(AggregateRuntimeFactory.class)
-                                .addConstructorArgValue(beanFactory)
                                 .addConstructorArgReference(beanFactory.getBeanNamesForType(ObjectMapper.class)[0])
                                 .addConstructorArgReference("aggregateServiceSchemaRegistry")
                                 .addConstructorArgReference(beanName)
@@ -125,7 +133,8 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .addConstructorArgValue(eventSourcingHandlerMethod.getParameterTypes()[0])
                             .addConstructorArgValue(eventSourcingHandlerMethod.getParameterTypes()[1])
                             .addConstructorArgValue(eventSourcingHandler.create())
-                            .addConstructorArgValue(eventInfo)
+                            .addConstructorArgValue(eventInfo.type())
+                            .addConstructorArgValue(eventInfo.version())
                             .setInitMethodName("init")
                             .getBeanDefinition());
         } else {
@@ -151,7 +160,8 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .addConstructorArgValue(eventHandler.create())
                             .addConstructorArgValue(generateDomainEventTypes(eventHandler.produces(), eventHandler.create()))
                             .addConstructorArgValue(generateEventHandlerErrorEventTypes(eventHandler.errors(), eventHandler.create()))
-                            .addConstructorArgValue(eventInfo)
+                            .addConstructorArgValue(eventInfo.type())
+                            .addConstructorArgValue(eventInfo.version())
                             .setInitMethodName("init")
                             .getBeanDefinition());
         } else {
@@ -178,7 +188,8 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .addConstructorArgValue(commandHandler.create())
                             .addConstructorArgValue(generateDomainEventTypes(commandHandler.produces(), commandHandler.create()))
                             .addConstructorArgValue(generateCommandHandlerErrorEventTypes(commandHandler.errors(), commandHandler.create()))
-                            .addConstructorArgValue(commandInfo)
+                            .addConstructorArgValue(commandInfo.type())
+                            .addConstructorArgValue(commandInfo.version())
                             .setInitMethodName("init").getBeanDefinition()
             );
         } else {
@@ -210,4 +221,14 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
         }), systemErrorEvents).collect(Collectors.toList());
     }
 
+    @Override
+    public BeanFactoryInitializationAotContribution processAheadOfTime(ConfigurableListableBeanFactory beanFactory) {
+        logger.info("Processing Aggregate beans for AOT");
+        return null;
+    }
+
+    @Override
+    public boolean isExcludedFromAotProcessing(RegisteredBean registeredBean) {
+        return false;
+    }
 }

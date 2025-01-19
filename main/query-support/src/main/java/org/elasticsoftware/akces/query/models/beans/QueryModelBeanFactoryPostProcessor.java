@@ -15,7 +15,7 @@
  *
  */
 
-package org.elasticsoftware.akces.query.models;
+package org.elasticsoftware.akces.query.models.beans;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
@@ -23,6 +23,7 @@ import org.elasticsoftware.akces.annotations.QueryModelEventHandler;
 import org.elasticsoftware.akces.annotations.QueryModelInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.query.QueryModelState;
+import org.elasticsoftware.akces.query.models.QueryModelRuntimeFactory;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
@@ -53,7 +54,6 @@ public class QueryModelBeanFactoryPostProcessor implements BeanFactoryPostProces
                 // now we need to add a bean definition for the AggregateRuntimeFactory
                 bdr.registerBeanDefinition(beanName + "QueryModelRuntime",
                         BeanDefinitionBuilder.genericBeanDefinition(QueryModelRuntimeFactory.class)
-                                .addConstructorArgValue(beanFactory)
                                 .addConstructorArgReference(beanFactory.getBeanNamesForType(ObjectMapper.class)[0])
                                 .addConstructorArgReference("akcesQueryModelSchemaRegistry")
                                 .addConstructorArgReference(beanName)
@@ -80,7 +80,8 @@ public class QueryModelBeanFactoryPostProcessor implements BeanFactoryPostProces
                             .addConstructorArgValue(queryModelEventHandlerMethod.getParameterTypes()[0])
                             .addConstructorArgValue(queryModelEventHandlerMethod.getParameterTypes()[1])
                             .addConstructorArgValue(queryModelEventHandler.create())
-                            .addConstructorArgValue(eventInfo)
+                            .addConstructorArgValue(eventInfo.type())
+                            .addConstructorArgValue(eventInfo.version())
                             .setInitMethodName("init")
                             .getBeanDefinition());
         } else {

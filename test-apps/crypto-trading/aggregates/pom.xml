@@ -80,6 +80,26 @@
                 <configuration>
                     <mainClass>org.elasticsoftware.akces.AggregateServiceApplication</mainClass>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>process-aot</id>
+                        <goals>
+                            <goal>process-aot</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>org.elasticsoftware.akces.AggregateServiceApplication</mainClass>
+                            <arguments>
+                                <argument>org.elasticsoftware.cryptotrading.AggregateConfig</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <!--                    <execution>-->
+                    <!--                        <id>process-test-aot</id>-->
+                    <!--                        <goals>-->
+                    <!--                            <goal>process-test-aot</goal>-->
+                    <!--                        </goals>-->
+                    <!--                    </execution>-->
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -114,6 +134,12 @@
                     </execution>
                 </executions>
             </plugin>
+            <!--            <plugin>-->
+            <!--                 <artifactId>maven-surefire-plugin</artifactId>-->
+            <!--                <configuration>-->
+            <!--                    <argLine>-Dspring.aot.enabled=true</argLine>-->
+            <!--                </configuration>-->
+            <!--            </plugin>-->
         </plugins>
     </build>
 

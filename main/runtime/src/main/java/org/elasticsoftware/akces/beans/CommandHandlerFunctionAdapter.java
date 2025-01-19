@@ -18,7 +18,6 @@
 package org.elasticsoftware.akces.beans;
 
 import org.elasticsoftware.akces.aggregate.*;
-import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.events.DomainEvent;
 
@@ -34,10 +33,9 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState, C extends C
     private final Class<C> commandClass;
     private final Class<S> stateClass;
     private final boolean create;
-    private final CommandInfo commandInfo;
     private final CommandType<C> commandType;
-    private final List<DomainEventType<?>> producedDomainEventTypes;
-    private final List<DomainEventType<?>> errorEventTypes;
+    private final List<DomainEventType<E>> producedDomainEventTypes;
+    private final List<DomainEventType<E>> errorEventTypes;
     private Method adapterMethod;
 
     public CommandHandlerFunctionAdapter(Aggregate<S> aggregate,
@@ -45,18 +43,18 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState, C extends C
                                          Class<C> commandClass,
                                          Class<S> stateClass,
                                          boolean create,
-                                         List<DomainEventType<?>> producedDomainEventTypes,
-                                         List<DomainEventType<?>> errorEventTypes,
-                                         CommandInfo commandInfo) {
+                                         List<DomainEventType<E>> producedDomainEventTypes,
+                                         List<DomainEventType<E>> errorEventTypes,
+                                         String typeName,
+                                         int version) {
         this.aggregate = aggregate;
         this.adapterMethodName = adapterMethodName;
         this.commandClass = commandClass;
         this.stateClass = stateClass;
         this.create = create;
-        this.commandInfo = commandInfo;
         this.producedDomainEventTypes = producedDomainEventTypes;
         this.errorEventTypes = errorEventTypes;
-        this.commandType = new CommandType<>(commandInfo.type(), commandInfo.version(), commandClass, create, false);
+        this.commandType = new CommandType<>(typeName, version, commandClass, create, false);
     }
 
     @SuppressWarnings("unused")
@@ -103,12 +101,12 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState, C extends C
     }
 
     @Override
-    public List<DomainEventType<?>> getProducedDomainEventTypes() {
+    public List<DomainEventType<E>> getProducedDomainEventTypes() {
         return producedDomainEventTypes;
     }
 
     @Override
-    public List<DomainEventType<?>> getErrorEventTypes() {
+    public List<DomainEventType<E>> getErrorEventTypes() {
         return errorEventTypes;
     }
 }

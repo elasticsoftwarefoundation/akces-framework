@@ -22,7 +22,6 @@ import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.aggregate.EventSourcingHandlerFunction;
-import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 import java.lang.reflect.InvocationTargetException;
@@ -34,7 +33,7 @@ public class EventSourcingHandlerFunctionAdapter<S extends AggregateState, E ext
     private final Class<E> domainEventClass;
     private final Class<S> stateClass;
     private final boolean create;
-    private final DomainEventInfo domainEventInfo;
+    private final DomainEventType<E> domainEventType;
     private Method adapterMethod;
 
     public EventSourcingHandlerFunctionAdapter(Aggregate<S> aggregate,
@@ -42,13 +41,14 @@ public class EventSourcingHandlerFunctionAdapter<S extends AggregateState, E ext
                                                Class<E> domainEventClass,
                                                Class<S> stateClass,
                                                boolean create,
-                                               DomainEventInfo domainEventInfo) {
+                                               String typeName,
+                                               int version) {
         this.aggregate = aggregate;
         this.adapterMethodName = adapterMethodName;
         this.domainEventClass = domainEventClass;
         this.stateClass = stateClass;
         this.create = create;
-        this.domainEventInfo = domainEventInfo;
+        this.domainEventType = new DomainEventType<>(typeName, version, domainEventClass, create, false, false);
     }
 
     @SuppressWarnings("unused")
@@ -81,7 +81,7 @@ public class EventSourcingHandlerFunctionAdapter<S extends AggregateState, E ext
 
     @Override
     public DomainEventType<E> getEventType() {
-        return new DomainEventType<>(domainEventInfo.type(), domainEventInfo.version(), domainEventClass, create, false, false);
+        return domainEventType;
     }
 
     @Override

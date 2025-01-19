@@ -21,23 +21,28 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.annotations.AggregateInfo;
 import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
+import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.FactoryBean;
-import org.springframework.beans.factory.ListableBeanFactory;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 
-public class AggregateRuntimeFactory<S extends AggregateState> implements FactoryBean<AggregateRuntime> {
-    private final ListableBeanFactory applicationContext;
+public class AggregateRuntimeFactory<S extends AggregateState> implements FactoryBean<AggregateRuntime>, ApplicationContextAware {
+    private ApplicationContext applicationContext;
     private final ObjectMapper objectMapper;
     private final KafkaSchemaRegistry schemaRegistry;
     private final Aggregate<S> aggregate;
 
-    public AggregateRuntimeFactory(ListableBeanFactory applicationContext,
-                                   ObjectMapper objectMapper,
+    public AggregateRuntimeFactory(ObjectMapper objectMapper,
                                    KafkaSchemaRegistry schemaRegistry,
                                    Aggregate<S> aggregate) {
-        this.applicationContext = applicationContext;
         this.objectMapper = objectMapper;
         this.schemaRegistry = schemaRegistry;
         this.aggregate = aggregate;
+    }
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.applicationContext = applicationContext;
     }
 
     @Override
