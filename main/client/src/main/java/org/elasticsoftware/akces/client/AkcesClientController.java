@@ -23,7 +23,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import io.confluent.kafka.schemaregistry.ParsedSchema;
-import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import jakarta.annotation.Nonnull;
@@ -50,6 +49,8 @@ import org.elasticsoftware.akces.events.ErrorEvent;
 import org.elasticsoftware.akces.gdpr.EncryptingGDPRContext;
 import org.elasticsoftware.akces.gdpr.GDPRKeyUtils;
 import org.elasticsoftware.akces.protocol.*;
+import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
+import org.elasticsoftware.akces.schemas.SchemaException;
 import org.elasticsoftware.akces.util.HostUtils;
 import org.elasticsoftware.akces.util.KafkaSender;
 import org.everit.json.schema.ValidationException;
@@ -83,7 +84,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
     private final Map<String, AggregateServiceRecord> aggregateServices = new ConcurrentHashMap<>();
     private final BlockingQueue<CommandRequest> commandQueue = new LinkedBlockingQueue<>();
     private final Map<String, PendingCommandResponse> pendingCommandResponseMap = new HashMap<>();
-    private final SchemaRegistryClient schemaRegistryClient;
+    private final KafkaSchemaRegistry schemaRegistry;
     private final ObjectMapper objectMapper;
     private final Map<Class<? extends Command>, AggregateServiceCommandType> commandTypes = new ConcurrentHashMap<>();
     private final Map<String, TreeMap<Integer, DomainEventType<? extends DomainEvent>>> domainEventClasses = new ConcurrentHashMap<>();
@@ -100,7 +101,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                                  ConsumerFactory<String, AkcesControlRecord> controlRecordConsumerFactory,
                                  ConsumerFactory<String, ProtocolRecord> commandResponseConsumerFactory,
                                  KafkaAdminOperations kafkaAdmin,
-                                 SchemaRegistryClient schemaRegistryClient,
+                                 KafkaSchemaRegistry schemaRegistry,
                                  ObjectMapper objectMapper,
                                  ClassPathScanningCandidateComponentProvider domainEventScanner,
                                  String basePackage) {
@@ -109,7 +110,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
         this.controlRecordConsumerFactory = controlRecordConsumerFactory;
         this.commandResponseConsumerFactory = commandResponseConsumerFactory;
         this.kafkaAdmin = kafkaAdmin;
-        this.schemaRegistryClient = schemaRegistryClient;
+        this.schemaRegistry = schemaRegistry;
         this.objectMapper = objectMapper;
         this.domainEventScanner = domainEventScanner;
         loadSupportedDomainEvents(basePackage);
@@ -162,6 +163,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void loadSupportedDomainEvents(String basePackage) {
         for (BeanDefinition beanDefinition : domainEventScanner.findCandidateComponents(basePackage)) {
             try {
@@ -234,10 +236,8 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                     }
                     // always overwrite the record
                     aggregateServices.put(record.key(), aggregateServiceRecord);
-                    // we always need to register the schemas because there could be new types and versions
-                    registerSchemas(aggregateServiceRecord);
                 } else {
-                    logger.info("Received unknown AkcesControlRecord type: {}", controlRecord.getClass().getSimpleName());
+                    logger.warn("Received unknown AkcesControlRecord type: {}", controlRecord.getClass().getSimpleName());
                 }
             }
         }
@@ -419,43 +419,6 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
         return Math.abs(hashFunction.hashString(hostname, UTF_8).asInt()) % partitions;
     }
 
-    private void registerSchemas(AggregateServiceRecord aggregateServiceRecord) throws RestClientException, IOException {
-        logger.trace("Fetching schemas for service: {}", aggregateServiceRecord.aggregateName());
-        // process the commands to retrieve the schemas
-        for (AggregateServiceCommandType commandType : aggregateServiceRecord.supportedCommands()) {
-            // check if we already have the schema
-            // in certain cases (on dev) a schema may be overwritten. So to be safe we overwrite.
-                // just register all versions at once
-            logger.trace("Fetching schema(s) for command: {}", commandType.schemaName());
-            List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas(commandType.schemaName(), false, false);
-            // ensure we have an ordered list of schemas
-            registeredSchemas.sort(Comparator.comparingInt(ParsedSchema::version));
-            // ensure we have a Map
-            commandSchemas.computeIfAbsent(commandType.typeName(), k -> new ConcurrentHashMap<>());
-            Map<Integer, ParsedSchema> schemaMap = commandSchemas.get(commandType.typeName());
-            for (ParsedSchema parsedSchema : registeredSchemas) {
-                Integer version = schemaRegistryClient.getVersion(commandType.schemaName(), parsedSchema);
-                logger.trace("Storing schema: {} v{}", commandType.schemaName(), version);
-                schemaMap.put(version, parsedSchema);
-            }
-        }
-        // process the events that can be produced by this service
-        for (AggregateServiceDomainEventType domainEventType : aggregateServiceRecord.producedEvents()) {
-            // check if we already have the domainevent schema
-            // in certain cases (on dev) a schema may be overwritten. So to be safe we overwrite.
-                List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas(domainEventType.schemaName(), false, false);
-                // ensure we have an ordered list of schemas
-                registeredSchemas.sort(Comparator.comparingInt(ParsedSchema::version));
-                // ensure we have a Map
-                domainEventSchemas.computeIfAbsent(domainEventType.typeName(), k -> new ConcurrentHashMap<>());
-                Map<Integer, ParsedSchema> schemaMap = domainEventSchemas.get(domainEventType.typeName());
-                for (ParsedSchema parsedSchema : registeredSchemas) {
-                    schemaMap.put(schemaRegistryClient.getVersion(domainEventType.schemaName(), parsedSchema), parsedSchema);
-                }
-        }
-
-    }
-
     private AggregateServiceCommandType registerCommand(Command command) {
         // see if we already know the command class
         if (!commandTypes.containsKey(command.getClass())) {
@@ -466,18 +429,19 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                 AggregateServiceCommandType commandType = resolveCommandType(commandInfo.type(), commandInfo.version());
                 if (commandType != null) {
                     // see if we have a schema for this command
-                    ParsedSchema schema = commandSchemas.getOrDefault(commandType.typeName(), Collections.emptyMap()).get(commandType.version());
-                    if (schema != null) {
-                        commandSchemasLookup.put(command.getClass(), schema);
-                    } else {
-                        throw new UnknownSchemaException(command.getClass(), "commands." + commandType.typeName());
-                    }
+                    ParsedSchema schema = schemaRegistry.validate(commandType.toLocalCommandType(command.getClass()));
+                    commandSchemas.computeIfAbsent(
+                            commandType.typeName(),
+                            k -> new ConcurrentHashMap<>()).put(commandType.version(), schema);
+                    logger.trace("Stored schema: {} v{}", commandType.schemaName(), commandType.version());
+                    // add to index for quick lookup
+                    commandSchemasLookup.put(command.getClass(), schema);
                     // we have a match, add it to the map
                     commandTypes.put(command.getClass(), commandType);
                     // now we need to process the produced DomainEvents
                     // TODO: we only know this for the whole service, not for the specific command
                     for (AggregateServiceDomainEventType domainEventType : resolveAggregateService(commandType).producedEvents()) {
-                        processDomainEvent(domainEventType);
+                        processDomainEvent(command.getClass(), domainEventType);
                     }
                 } else {
                     // the command is not known within the system, there is no way to route the command
@@ -492,8 +456,24 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
         return commandTypes.get(command.getClass());
     }
 
-    private void processDomainEvent(AggregateServiceDomainEventType domainEventType) {
-        // create a mapping for each domainevent type that can be return
+    private void processDomainEvent(Class<? extends Command> commandClass, AggregateServiceDomainEventType aggregateServiceDomainEventType) throws SchemaException {
+        // first we need to find the local class
+        DomainEventType<? extends DomainEvent> domainEventType =
+                domainEventClasses.get(aggregateServiceDomainEventType.typeName()).floorEntry(aggregateServiceDomainEventType.version()).getValue();
+        if (domainEventType != null) {
+            // we have the local event, now we need to ensure it's valid according to the schema
+            domainEventSchemas.computeIfAbsent(
+                    domainEventType.typeName(),
+                    k -> new ConcurrentHashMap<>()).put(
+                    domainEventType.version(),
+                    schemaRegistry.validate(domainEventType));
+            logger.trace("Stored schema for: {} v{}", domainEventType.getSchemaName(), domainEventType.version());
+        } else {
+            throw new MissingDomainEventException(
+                    commandClass,
+                    aggregateServiceDomainEventType.typeName(),
+                    aggregateServiceDomainEventType.version());
+        }
     }
 
     private byte[] serialize(Command command) {

@@ -30,6 +30,7 @@ import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.kafka.CustomKafkaConsumerFactory;
 import org.elasticsoftware.akces.kafka.CustomKafkaProducerFactory;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
@@ -83,6 +84,11 @@ public class AkcesClientAutoConfiguration {
         return new CachedSchemaRegistryClient(url, 1000, List.of(new JsonSchemaProvider()), null);
     }
 
+    @Bean(name = "akcesClientSchemaRegistry")
+    public KafkaSchemaRegistry createSchemaRegistry(@Qualifier("akcesClientSchemaRegistryClient") SchemaRegistryClient schemaRegistryClient, ObjectMapper objectMapper) {
+        return new KafkaSchemaRegistry(schemaRegistryClient, objectMapper);
+    }
+
     @Bean(name = "akcesClientProducerFactory")
     public ProducerFactory<String, ProtocolRecord> producerFactory(KafkaProperties properties) {
         return new CustomKafkaProducerFactory<>(properties.buildProducerProperties(null), new StringSerializer(), serde.serializer());
@@ -112,7 +118,7 @@ public class AkcesClientAutoConfiguration {
                                              @Qualifier("akcesClientControlConsumerFactory") ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory,
                                              @Qualifier("akcesClientCommandResponseConsumerFactory") ConsumerFactory<String, ProtocolRecord> commandResponseConsumerFactory,
                                              @Qualifier("akcesClientKafkaAdmin") KafkaAdminOperations kafkaAdmin,
-                                             @Qualifier("akcesClientSchemaRegistryClient") SchemaRegistryClient schemaRegistryClient,
+                                             @Qualifier("akcesClientSchemaRegistry") KafkaSchemaRegistry schemaRegistry,
                                              ObjectMapper objectMapper,
                                              @Qualifier("domainEventScanner") ClassPathScanningCandidateComponentProvider domainEventScanner,
                                              @Value("${akces.client.domainEventsPackage}") String domainEventsPackage) {
@@ -120,7 +126,7 @@ public class AkcesClientAutoConfiguration {
                 controlConsumerFactory,
                 commandResponseConsumerFactory,
                 kafkaAdmin,
-                schemaRegistryClient,
+                schemaRegistry,
                 objectMapper,
                 domainEventScanner,
                 domainEventsPackage);

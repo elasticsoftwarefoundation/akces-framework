@@ -17,10 +17,16 @@
 
 package org.elasticsoftware.akces.control;
 
+import org.elasticsoftware.akces.aggregate.CommandType;
+import org.elasticsoftware.akces.commands.Command;
+
 public record AggregateServiceCommandType(
         String typeName,
         int version,
         boolean create,
         String schemaName
 ) {
+    public <C extends Command> CommandType<C> toLocalCommandType(Class<C> typeClass) {
+        return new CommandType<>(typeName, version, typeClass, create, true);
+    }
 }

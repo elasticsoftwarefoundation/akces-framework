@@ -20,6 +20,10 @@ package org.elasticsoftware.akces.aggregate;
 public interface SchemaType {
     String getSchemaPrefix();
 
+    default String getSchemaName() {
+        return getSchemaPrefix() + typeName();
+    }
+
     boolean relaxExternalValidation();
 
     String typeName();

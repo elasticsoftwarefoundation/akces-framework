@@ -32,6 +32,7 @@ import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientExcept
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import io.confluent.kafka.schemaregistry.json.diff.Difference;
 import io.confluent.kafka.schemaregistry.json.diff.SchemaDiff;
+import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.aggregate.SchemaType;
 import org.slf4j.Logger;
@@ -47,84 +48,82 @@ import java.util.stream.Collectors;
 public class KafkaSchemaRegistry {
     private static final Logger logger = LoggerFactory.getLogger(KafkaSchemaRegistry.class);
     private final SchemaRegistryClient schemaRegistryClient;
-    private final SchemaGenerator jsonSchemaGenerator;
+    // schema generator is not thread safe
+    private final ThreadLocal<SchemaGenerator> schemaGeneratorTheadLocal;
 
     public KafkaSchemaRegistry(SchemaRegistryClient schemaRegistryClient, ObjectMapper objectMapper) {
         this.schemaRegistryClient = schemaRegistryClient;
-        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(objectMapper,
-                SchemaVersion.DRAFT_7,
-                OptionPreset.PLAIN_JSON);
-        configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
-                JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
-        configBuilder.with(new JacksonModule());
-        configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
-        configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
-        configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
-        // we need to override the default behavior of the generator to write BigDecimal as type = number
-        configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
-            if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
-                JsonNode typeNode = collectedTypeAttributes.get("type");
-                if (typeNode.isArray()) {
-                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
-                } else
-                    collectedTypeAttributes.put("type", "string");
-            }
-        });
-        SchemaGeneratorConfig config = configBuilder.build();
-        this.jsonSchemaGenerator = new SchemaGenerator(config);
+        this.schemaGeneratorTheadLocal = ThreadLocal.withInitial(() -> createJsonSchemaGenerator(objectMapper));
     }
 
-    public void validate(DomainEventType<?> domainEventType) throws SchemaException {
+    public JsonSchema validate(CommandType<?> commandType) throws SchemaException {
+        return validate(commandType, true);
+    }
+
+    public JsonSchema validate(DomainEventType<?> domainEventType) throws SchemaException {
+        return validate(domainEventType, false);
+    }
+
+    private JsonSchema validate(SchemaType schemaType, boolean strict) throws SchemaException {
         try {
-            logger.info("Validating schema for domain event {}", domainEventType.typeName());
-            JsonSchema localSchema = generateJsonSchema(domainEventType);
+            logger.info("Validating schema {} v{}", schemaType.getSchemaName(), schemaType.version());
+            JsonSchema localSchema = generateJsonSchema(schemaType);
             // check if the type exists in the registry
-            List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas("domainevents." + domainEventType.typeName(), false, false);
+            List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas(schemaType.getSchemaName(), false, false);
             if (!registeredSchemas.isEmpty()) {
-                logger.trace("Found {} schemas for domain event {}", registeredSchemas.size(), domainEventType.typeName());
+                logger.trace("Found {} schemas for type {}", registeredSchemas.size(), schemaType.typeName());
                 // see if it is an existing schema
                 ParsedSchema registeredSchema = registeredSchemas.stream()
-                        .filter(parsedSchema -> getSchemaVersion(domainEventType, parsedSchema) == domainEventType.version())
+                        .filter(parsedSchema -> getSchemaVersion(schemaType, parsedSchema) == schemaType.version())
                         .findFirst().orElse(null);
                 if (registeredSchema != null) {
-                    logger.trace("Found schema for domain event {} version {}", domainEventType.typeName(), domainEventType.version());
+                    logger.trace("Found schema for type {} v{}", schemaType.typeName(), schemaType.version());
                     // localSchema has to be a subset of registeredSchema
                     // TODO: this needs to be implemented to make sure we
                     // TODO: need to check a range of schema's here
                     List<Difference> differences = SchemaDiff.compare(((JsonSchema) registeredSchema).rawSchema(), localSchema.rawSchema());
                     if (!differences.isEmpty()) {
-                        // we need to check if any properties were removed, removed properties are allowed
-                        // adding properties is not allowed, as well as changing the type etc
-                        List<Difference> violatingDifferences = differences.stream()
-                                .filter(difference -> !difference.getType().equals(Difference.Type.PROPERTY_REMOVED_FROM_CLOSED_CONTENT_MODEL))
-                                .toList();
-                        if (!violatingDifferences.isEmpty()) {
-                            // our implementaion class is incompatible with the registered schema
+                        if (!strict) {
+                            // we need to check if any properties were removed, removed properties are allowed
+                            // adding properties is not allowed, as well as changing the type etc
+                            List<Difference> violatingDifferences = differences.stream()
+                                    .filter(difference -> !difference.getType().equals(Difference.Type.PROPERTY_REMOVED_FROM_CLOSED_CONTENT_MODEL))
+                                    .toList();
+                            if (!violatingDifferences.isEmpty()) {
+                                // our implementaion class is incompatible with the registered schema
+                                throw new IncompatibleSchemaException(
+                                        schemaType.getSchemaName(),
+                                        schemaType.version(),
+                                        schemaType.typeClass(),
+                                        violatingDifferences);
+                            }
+                        } else {
                             throw new IncompatibleSchemaException(
-                                    "domainevents." + domainEventType.typeName(),
-                                    domainEventType.version(),
-                                    domainEventType.typeClass(),
-                                    violatingDifferences);
+                                    schemaType.getSchemaName(),
+                                    schemaType.version(),
+                                    schemaType.typeClass(),
+                                    differences);
                         }
                     }
+                    return localSchema;
                 } else {
                     // did not find the specific version
                     throw new SchemaVersionNotFoundException(
-                            "domainevents." + domainEventType.typeName(),
-                            domainEventType.version(),
-                            domainEventType.typeClass());
+                            schemaType.getSchemaName(),
+                            schemaType.version(),
+                            schemaType.typeClass());
                 }
             } else {
                 // do not find any schemas
                 throw new SchemaNotFoundException(
-                        "domainevents." + domainEventType.typeName(),
-                        domainEventType.typeClass());
+                        schemaType.getSchemaName(),
+                        schemaType.typeClass());
             }
         } catch (IOException | RestClientException e) {
             throw new SchemaException(
                     "Unexpected Error while validating schema",
-                    "domainevents." + domainEventType.typeName(),
-                    domainEventType.typeClass(),
+                    schemaType.getSchemaName(),
+                    schemaType.typeClass(),
                     e);
         }
     }
@@ -134,7 +133,7 @@ public class KafkaSchemaRegistry {
             // generate the local schema version
             JsonSchema localSchema = generateJsonSchema(schemaType);
             // check if the type exists in the registry
-            String schemaName = schemaType.getSchemaPrefix() + schemaType.typeName();
+            String schemaName = schemaType.getSchemaName();
             List<ParsedSchema> registeredSchemas = schemaRegistryClient.getSchemas(
                     schemaName,
                     false,
@@ -275,22 +274,45 @@ public class KafkaSchemaRegistry {
         } catch (IOException | RestClientException e) {
             throw new SchemaException(
                     "Unexpected Error while validating schema",
-                    "domainevents." + schemaType.typeName(),
+                    schemaType.getSchemaName(),
                     schemaType.typeClass(),
                     e);
         }
     }
 
-    public synchronized JsonSchema generateJsonSchema(SchemaType schemaType) {
-        return new JsonSchema(jsonSchemaGenerator.generateSchema(schemaType.typeClass()), List.of(), Map.of(), schemaType.version());
+    public JsonSchema generateJsonSchema(SchemaType schemaType) {
+        return new JsonSchema(schemaGeneratorTheadLocal.get().generateSchema(schemaType.typeClass()), List.of(), Map.of(), schemaType.version());
     }
 
     private int getSchemaVersion(SchemaType schemaType, ParsedSchema parsedSchema) {
         try {
-            return schemaRegistryClient.getVersion(schemaType.getSchemaPrefix() + schemaType.typeName(), parsedSchema);
+            return schemaRegistryClient.getVersion(schemaType.getSchemaName(), parsedSchema);
         } catch (IOException | RestClientException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private SchemaGenerator createJsonSchemaGenerator(ObjectMapper objectMapper) {
+        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(objectMapper,
+                SchemaVersion.DRAFT_7,
+                OptionPreset.PLAIN_JSON);
+        configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
+                JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
+        configBuilder.with(new JacksonModule());
+        configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
+        configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
+        configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
+        // we need to override the default behavior of the generator to write BigDecimal as type = number
+        configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
+            if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
+                JsonNode typeNode = collectedTypeAttributes.get("type");
+                if (typeNode.isArray()) {
+                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
+                } else
+                    collectedTypeAttributes.put("type", "string");
+            }
+        });
+        return new SchemaGenerator(configBuilder.build());
     }
 
 }
