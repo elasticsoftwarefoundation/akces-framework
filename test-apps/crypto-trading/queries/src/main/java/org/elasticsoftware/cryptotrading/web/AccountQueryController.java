@@ -17,7 +17,11 @@
 
 package org.elasticsoftware.cryptotrading.web;
 
+import org.elasticsoftware.akces.query.models.QueryModelNotFoundException;
+import org.elasticsoftware.akces.query.models.QueryModels;
+import org.elasticsoftware.cryptotrading.query.AccountQueryModel;
 import org.elasticsoftware.cryptotrading.web.dto.AccountOutput;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,9 +31,25 @@ import reactor.core.publisher.Mono;
 @RestController
 @RequestMapping("/v{version:1}/accounts")
 public class AccountQueryController {
+    private final QueryModels queryModels;
+
+    public AccountQueryController(QueryModels queryModels) {
+        this.queryModels = queryModels;
+    }
+
     @GetMapping("/{accountId}")
-    Mono<AccountOutput> getAccount(@PathVariable("accountId") String accountId) {
-        // TODO: implement properly
-        return Mono.just(new AccountOutput(accountId, "US", "John", "Doe", "john.doe@example.com"));
+    Mono<ResponseEntity<AccountOutput>> getAccount(@PathVariable("accountId") String accountId) {
+        return Mono.fromCompletionStage(queryModels.getHydratedState(AccountQueryModel.class, accountId))
+            .map(state -> ResponseEntity.ok(new AccountOutput(state.accountId(),
+                    state.country(),
+                    state.firstName(),
+                    state.lastName(),
+                    state.email()))).onErrorResume(throwable -> {
+                        if(throwable instanceof QueryModelNotFoundException) {
+                            return Mono.just(ResponseEntity.notFound().build());
+                        } else {
+                            return Mono.just(ResponseEntity.internalServerError().build());
+                        }
+                    });
     }
 }

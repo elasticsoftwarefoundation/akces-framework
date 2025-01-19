@@ -22,7 +22,8 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 @ComponentScan(basePackages = {
-        "org.elasticsoftware.cryptotrading.web"
+        "org.elasticsoftware.cryptotrading.web",
+        "org.elasticsoftware.cryptotrading.query"
 })
 public class ClientConfig {
 }

@@ -102,7 +102,6 @@
                         <groupId>org.springframework.boot</groupId>
                         <artifactId>spring-boot-maven-plugin</artifactId>
                         <configuration>
-                            <mainClass>org.elasticsoftware.akces.AggregateServiceApplication</mainClass>
                             <docker>
                                 <publishRegistry>
                                     <username>${env.GITHUB_ACTOR}</username>
