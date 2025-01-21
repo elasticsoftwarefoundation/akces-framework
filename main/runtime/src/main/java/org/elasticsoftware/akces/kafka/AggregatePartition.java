@@ -33,8 +33,8 @@ import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.control.AkcesRegistry;
 import org.elasticsoftware.akces.gdpr.GDPRContextHolder;
 import org.elasticsoftware.akces.gdpr.GDPRContextRepository;
+import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
 import org.elasticsoftware.akces.gdpr.GDPRKeyUtils;
-import org.elasticsoftware.akces.gdpr.InMemoryGDPRContextRepository;
 import org.elasticsoftware.akces.protocol.*;
 import org.elasticsoftware.akces.state.AggregateStateRepository;
 import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
@@ -88,6 +88,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                               ProducerFactory<String, ProtocolRecord> producerFactory,
                               AggregateRuntime runtime,
                               AggregateStateRepositoryFactory stateRepositoryFactory,
+                              GDPRContextRepositoryFactory gdprContextRepositoryFactory,
                               Integer id,
                               TopicPartition commandPartition,
                               TopicPartition domainEventPartition,
@@ -109,8 +110,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         this.statePartition = statePartition;
         this.externalDomainEventTypes = externalDomainEventTypes;
         this.processState = INITIALIZING;
-        // TODO: create this via a factory
-        this.gdprContextRepository = new InMemoryGDPRContextRepository();
+        this.gdprContextRepository = gdprContextRepositoryFactory.create(runtime, id);
     }
 
     public Integer getId() {

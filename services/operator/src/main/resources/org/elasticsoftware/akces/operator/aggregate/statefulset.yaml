@@ -33,6 +33,8 @@ spec:
               value: "100"
             - name: ENABLE_SCHEMA_OVERWRITES
               value: "false"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:+UseZGC -XX:+ZGenerational"
           lifecycle:
             preStop:
               exec:

@@ -31,6 +31,8 @@ spec:
               value: "file:/config/logback.xml"
             - name: BPL_JVM_THREAD_COUNT
               value: "100"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:+UseZGC -XX:+ZGenerational"
           lifecycle:
             preStop:
               exec:
