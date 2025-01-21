@@ -20,7 +20,7 @@ package org.elasticsoftware.akces.client.events;
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
-import org.elasticsoftware.akces.annotations.GDPRData;
+import org.elasticsoftware.akces.annotations.PIIData;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 
@@ -28,9 +28,9 @@ import org.elasticsoftware.akces.events.DomainEvent;
 public record AccountCreatedEvent(
         @AggregateIdentifier @NotNull String userId,
         String country,
-        @GDPRData String firstName,
-        @GDPRData String lastName,
-        @GDPRData String email
+        @PIIData String firstName,
+        @PIIData String lastName,
+        @PIIData String email
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {
