@@ -31,10 +31,10 @@ spec:
               value: "file:/config/logback.xml"
             - name: BPL_JVM_THREAD_COUNT
               value: "100"
-            - name: ENABLE_SCHEMA_OVERWRITES
-              value: "false"
             - name: JAVA_TOOL_OPTIONS
               value: "-XX:+UseZGC -XX:+ZGenerational"
+            - name: ENABLE_SCHEMA_OVERWRITES
+              value: "false"
           lifecycle:
             preStop:
               exec:
