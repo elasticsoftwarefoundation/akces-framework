@@ -19,7 +19,7 @@
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-main</artifactId>
-        <version>0.6.8-SNAPSHOT</version>
+        <version>0.6.8</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
