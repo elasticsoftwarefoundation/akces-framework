@@ -127,8 +127,16 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                         new QueryModelExecutionCancelledException(execution.runtime().getQueryModelClass()));
                 iterator.remove();
             }
-            shutdownLatch.countDown();
+            // close the GDPRContextRepositories
+            for (GDPRContextRepository gdprContextRepository : gdprContextRepositories.values()) {
+                try {
+                    gdprContextRepository.close();
+                } catch (IOException e) {
+                    // ignore
+                }
+            }
         }
+        shutdownLatch.countDown();
     }
 
     private void process(Consumer<String, ProtocolRecord> indexConsumer) {
