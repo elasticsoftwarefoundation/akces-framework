@@ -20,7 +20,7 @@
 
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-framework-parent</artifactId>
-    <version>0.6.7-SNAPSHOT</version>
+    <version>0.7.0-SNAPSHOT</version>
 
     <packaging>pom</packaging>
 
@@ -133,7 +133,7 @@
                 </plugin>
                 <plugin>
                     <artifactId>maven-javadoc-plugin</artifactId>
-                    <version>3.11.1</version>
+                    <version>3.11.2</version>
                     <configuration>
                         <source>21</source>
                     </configuration>

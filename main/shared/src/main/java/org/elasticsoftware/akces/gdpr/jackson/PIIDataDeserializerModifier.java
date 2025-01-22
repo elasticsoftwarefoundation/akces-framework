@@ -23,12 +23,12 @@ import com.fasterxml.jackson.databind.deser.BeanDeserializerBuilder;
 import com.fasterxml.jackson.databind.deser.BeanDeserializerModifier;
 import com.fasterxml.jackson.databind.deser.SettableBeanProperty;
 import com.fasterxml.jackson.databind.deser.std.StdValueInstantiator;
-import org.elasticsoftware.akces.annotations.GDPRData;
+import org.elasticsoftware.akces.annotations.PIIData;
 
 import java.util.Iterator;
 
-public class GDPRDataDeserializerModifier extends BeanDeserializerModifier {
-    private final GDPRDataJsonDeserializer instance = new GDPRDataJsonDeserializer();
+public class PIIDataDeserializerModifier extends BeanDeserializerModifier {
+    private final PIIDataJsonDeserializer instance = new PIIDataJsonDeserializer();
 
     @Override
     public BeanDeserializerBuilder updateBuilder(DeserializationConfig config,
@@ -38,7 +38,7 @@ public class GDPRDataDeserializerModifier extends BeanDeserializerModifier {
 
         while (it.hasNext()) {
             SettableBeanProperty p = it.next();
-            if (p.getAnnotation(GDPRData.class) != null) {
+            if (p.getAnnotation(PIIData.class) != null) {
                 builder.addOrReplaceProperty(p.withValueDeserializer(instance), true);
             }
         }
@@ -48,7 +48,7 @@ public class GDPRDataDeserializerModifier extends BeanDeserializerModifier {
             if (constructorArguments != null) {
                 SettableBeanProperty[] updatedArguments = new SettableBeanProperty[constructorArguments.length];
                 for (int i = 0; i < constructorArguments.length; i++) {
-                    if (constructorArguments[i].getAnnotation(GDPRData.class) != null) {
+                    if (constructorArguments[i].getAnnotation(PIIData.class) != null) {
                         updatedArguments[i] = constructorArguments[i].withValueDeserializer(instance);
                     } else {
                         updatedArguments[i] = constructorArguments[i];

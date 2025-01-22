@@ -25,7 +25,7 @@ import org.elasticsoftware.akces.gdpr.GDPRContextHolder;
 
 import java.io.IOException;
 
-public class GDPRDataJsonDeserializer extends StringDeserializer {
+public class PIIDataJsonDeserializer extends StringDeserializer {
 
     @Override
     public String deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {

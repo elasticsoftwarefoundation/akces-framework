@@ -52,6 +52,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     private final Map<DomainEventType<?>, EventHandlerFunction<AggregateState, DomainEvent, DomainEvent>> eventHandlers;
     private final Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers;
     private final boolean generateGDPRKeyOnCreate;
+    private final boolean shouldHandlePIIData;
 
     public AggregateRuntimeBase(AggregateStateType<?> type,
                                 Class<? extends Aggregate> aggregateClass,
@@ -63,7 +64,8 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                                 Map<CommandType<?>, CommandHandlerFunction<AggregateState, Command, DomainEvent>> commandHandlers,
                                 Map<DomainEventType<?>, EventHandlerFunction<AggregateState, DomainEvent, DomainEvent>> eventHandlers,
                                 Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers,
-                                boolean generateGDPRKeyOnCreate) {
+                                boolean generateGDPRKeyOnCreate,
+                                boolean shouldHandlePIIData) {
         this.type = type;
         this.aggregateClass = aggregateClass;
         this.commandCreateHandler = commandCreateHandler;
@@ -75,6 +77,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         this.eventHandlers = eventHandlers;
         this.eventSourcingHandlers = eventSourcingHandlers;
         this.generateGDPRKeyOnCreate = generateGDPRKeyOnCreate;
+        this.shouldHandlePIIData = shouldHandlePIIData;
     }
 
     @Override
@@ -461,6 +464,11 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     public boolean shouldGenerateGPRKey(DomainEventRecord eventRecord) {
         return Optional.ofNullable(getDomainEventType(eventRecord))
                 .map(domainEventType -> domainEventType.create() && generateGDPRKeyOnCreate).orElse(false);
+    }
+
+    @Override
+    public boolean shouldHandlePIIData() {
+        return shouldHandlePIIData || generateGDPRKeyOnCreate;
     }
 
     protected abstract DomainEvent materialize(DomainEventType<?> domainEventType, DomainEventRecord eventRecord) throws IOException;

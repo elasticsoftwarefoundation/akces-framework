@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-parent</artifactId>
-        <version>0.6.7-SNAPSHOT</version>
+        <version>0.7.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>akces-framework-main</artifactId>
@@ -51,8 +51,8 @@
         <awaitility.version>4.2.2</awaitility.version>
         <persistence-api.version>2.2</persistence-api.version>
         <plexus-utils.version>4.0.2</plexus-utils.version>
-        <netty.version>4.1.112.Final</netty.version>
-        <micrometer.version>1.13.3</micrometer.version>
+        <netty.version>4.1.117.Final</netty.version>
+        <micrometer.version>1.14.3</micrometer.version>
         <fast-uuid.version>0.2.0</fast-uuid.version>
         <confluent.version>7.8.0</confluent.version>
         <victools.version>4.37.0</victools.version>

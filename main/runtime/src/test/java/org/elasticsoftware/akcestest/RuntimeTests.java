@@ -217,6 +217,11 @@ public class RuntimeTests {
     public static void cleanUp() throws IOException {
         // clean up the rocksdb directory
         if (Files.exists(Paths.get("/tmp/akces"))) {
+            Files.walk(Paths.get("/tmp/akces"))
+                    .sorted(Comparator.reverseOrder())
+                    .map(Path::toFile)
+                    .filter(File::isDirectory)
+                    .forEach(file -> System.out.println(file.getAbsolutePath()));
             // clean up the rocksdb directory
             Files.walk(Paths.get("/tmp/akces"))
                     .sorted(Comparator.reverseOrder())
