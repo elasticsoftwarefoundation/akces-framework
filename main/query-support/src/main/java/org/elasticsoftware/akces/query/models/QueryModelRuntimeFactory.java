@@ -60,7 +60,7 @@ public class QueryModelRuntimeFactory<S extends QueryModelState> implements Fact
     }
 
     private QueryModelRuntime<S> createRuntime(QueryModel<S> queryModel) {
-        KafkaQueryModelRuntime.Builder runtimeBuilder = new KafkaQueryModelRuntime.Builder();
+        KafkaQueryModelRuntime.Builder<S> runtimeBuilder = new KafkaQueryModelRuntime.Builder<>();
 
         QueryModelInfo queryModelInfo = queryModel.getClass().getAnnotation(QueryModelInfo.class);
 
@@ -74,7 +74,7 @@ public class QueryModelRuntimeFactory<S extends QueryModelState> implements Fact
         } else {
             throw new IllegalStateException("Class implementing Aggregate must be annotated with @AggregateInfo");
         }
-        runtimeBuilder.setQueryModelClass(queryModel.getClass());
+        runtimeBuilder.setQueryModelClass((Class<? extends QueryModel<S>>) queryModel.getClass());
         runtimeBuilder.setObjectMapper(objectMapper);
         // QueryModelEventHandlers
         applicationContext.getBeansOfType(QueryModelEventHandlerFunction.class).values().stream()

@@ -17,23 +17,14 @@
 
 package org.elasticsoftware.akces.query.models;
 
-import org.apache.kafka.clients.admin.AdminClientConfig;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.kafka.core.KafkaAdmin;
-
-import java.util.Map;
 
 @Configuration
 @ComponentScan(basePackages = {
         "org.elasticsoftware.akcestest.aggregate",
-        "org.elasticsoftware.akces.query.models.wallet"
+        "org.elasticsoftware.akces.query.models.wallet",
+        "org.elasticsoftware.akces.query.models.account"
 })
 public class QueryModelTestConfiguration {
-    @Bean(name = "akcesQueryModelKafkaAdmin")
-    public KafkaAdmin createKafkaAdmin(@Value("${spring.kafka.bootstrap-servers}") String bootstrapServers) {
-        return new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
-    }
 }

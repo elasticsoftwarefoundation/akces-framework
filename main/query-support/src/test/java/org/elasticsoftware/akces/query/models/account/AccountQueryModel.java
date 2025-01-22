@@ -17,10 +17,13 @@
 
 package org.elasticsoftware.akces.query.models.account;
 
+import org.elasticsoftware.akces.annotations.QueryModelEventHandler;
+import org.elasticsoftware.akces.annotations.QueryModelInfo;
 import org.elasticsoftware.akces.query.QueryModel;
+import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
 
 // we cannot set the value of QueryModelInfo to Account because it will clash with the Account aggregate bean name
-//@QueryModelInfo(value = "AccountQueryModel", version = 1, indexName = "Users")
+@QueryModelInfo(value = "AccountQueryModel", version = 1, indexName = "Users")
 public class AccountQueryModel implements QueryModel<AccountQueryModelState> {
     @Override
     public String getName() {
@@ -35,5 +38,10 @@ public class AccountQueryModel implements QueryModel<AccountQueryModelState> {
     @Override
     public String getIndexName() {
         return "Users";
+    }
+
+    @QueryModelEventHandler(create = true)
+    public AccountQueryModelState create(AccountCreatedEvent event, AccountQueryModelState isNull) {
+        return new AccountQueryModelState(event.userId(), event.country(), event.firstName(), event.lastName(), event.email());
     }
 }

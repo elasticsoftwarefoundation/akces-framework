@@ -329,10 +329,10 @@ public class CryptoTradingQueryApiTest {
                                 assertThat(retrievedAccount).isNotNull();
                                 assertThat(retrievedAccount.userId()).isEqualTo(accountOutput.userId());
                                 // TODO: implement GDPR feature for querymodels
-//                                assertThat(retrievedAccount.country()).isEqualTo("US");
-//                                assertThat(retrievedAccount.firstName()).isEqualTo("John");
-//                                assertThat(retrievedAccount.lastName()).isEqualTo("Doe");
-//                                assertThat(retrievedAccount.email()).isEqualTo("john.doe@example.com");
+                                assertThat(retrievedAccount.country()).isEqualTo("US");
+                                assertThat(retrievedAccount.firstName()).isEqualTo("John");
+                                assertThat(retrievedAccount.lastName()).isEqualTo("Doe");
+                                assertThat(retrievedAccount.email()).isEqualTo("john.doe@example.com");
                             });
                 });
     }

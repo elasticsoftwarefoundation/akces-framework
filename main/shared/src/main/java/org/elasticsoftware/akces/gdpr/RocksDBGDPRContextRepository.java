@@ -27,9 +27,9 @@ import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.requests.ProduceResponse;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serializer;
+import org.elasticsoftware.akces.kafka.RecordAndMetadata;
 import org.elasticsoftware.akces.protocol.GDPRKeyRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
-import org.elasticsoftware.akces.kafka.RecordAndMetadata;
 import org.rocksdb.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -177,6 +177,7 @@ public class RocksDBGDPRContextRepository implements GDPRContextRepository {
                     if(consumerRecord.value() != null) {
                         // write
                         transaction.put(keyBytes(consumerRecord.key()), serializer.serialize(topicName, consumerRecord.value()));
+                        log.trace("{} Wrote record with key {}", rocksDBDataDir.getAbsolutePath(), consumerRecord.key());
                     } else {
                         // record was removed because the Aggregate needs to be forgotten. remove the key
                         transaction.delete(keyBytes(consumerRecord.key()));
@@ -216,6 +217,7 @@ public class RocksDBGDPRContextRepository implements GDPRContextRepository {
     }
 
     private GDPRKeyRecord getGDPRKeyRecord(String aggregateId) {
+        log.trace("{} Getting record for aggregateId {}",rocksDBDataDir.getAbsolutePath(), aggregateId);
         checkAggregateIdType(aggregateId);
         // return from the transaction map if present
         if (transactionStateRecordMap.containsKey(aggregateId)) {
@@ -235,6 +237,7 @@ public class RocksDBGDPRContextRepository implements GDPRContextRepository {
     }
 
     private byte[] keyBytes(String aggregateId) {
+        checkAggregateIdType(aggregateId);
         if (aggregateIdIsUUID) {
             UUID aggregateUUID = UUID.fromString(aggregateId);
             return ByteBuffer.wrap(new byte[16]).putLong(aggregateUUID.getMostSignificantBits()).putLong(aggregateUUID.getLeastSignificantBits()).array();

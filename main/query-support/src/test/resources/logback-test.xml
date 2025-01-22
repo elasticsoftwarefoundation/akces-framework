@@ -42,6 +42,10 @@
         <appender-ref ref="CONSOLE"/>
     </logger>
 
+    <logger name="org.elasticsoftware.akces.gdpr" level="trace" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
     <root level="info">
         <appender-ref ref="CONSOLE"/>
     </root>

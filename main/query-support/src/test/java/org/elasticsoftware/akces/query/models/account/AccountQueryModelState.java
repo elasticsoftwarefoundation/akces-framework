@@ -17,10 +17,17 @@
 
 package org.elasticsoftware.akces.query.models.account;
 
+import org.elasticsoftware.akces.annotations.QueryModelStateInfo;
 import org.elasticsoftware.akces.query.QueryModelState;
 
-//@QueryModelStateInfo(type = "Account")
-public record AccountQueryModelState(String accountId) implements QueryModelState {
+@QueryModelStateInfo(type = "Account")
+public record AccountQueryModelState(
+        String accountId,
+        String country,
+        String firstName,
+        String lastName,
+        String email
+) implements QueryModelState {
     @Override
     public String getIndexKey() {
         return accountId();

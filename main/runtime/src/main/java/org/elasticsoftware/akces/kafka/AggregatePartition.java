@@ -161,6 +161,11 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             } catch (IOException e) {
                 logger.error("Error closing state repository", e);
             }
+            try {
+                gdprContextRepository.close();
+            } catch (IOException e) {
+                logger.error("Error closing gdpr context repository", e);
+            }
             AggregatePartitionCommandBus.registerCommandBus(null);
         }
         logger.info("Finished Shutting down AggregatePartition {} of {}Aggregate", id, runtime.getName());

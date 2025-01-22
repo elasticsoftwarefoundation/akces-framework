@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
 import org.elasticsoftware.akces.query.QueryModel;
 import org.elasticsoftware.akces.query.QueryModelEventHandlerFunction;
@@ -46,14 +47,15 @@ public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryM
     private final Map<Class<?>, DomainEventType<?>> domainEvents;
     private final QueryModelEventHandlerFunction<S, DomainEvent> createStateHandler;
     private final Map<DomainEventType<?>, QueryModelEventHandlerFunction<S, DomainEvent>> queryModelEventHandlers;
+    private final boolean shouldHandlePIIData;
 
     private KafkaQueryModelRuntime(KafkaSchemaRegistry schemaRegistry,
                                    ObjectMapper objectMapper,
-                                   QueryModelStateType<?> type,
+                                   QueryModelStateType<S> type,
                                    Class<? extends QueryModel<S>> queryModelClass,
                                    QueryModelEventHandlerFunction<S, DomainEvent> createStateHandler,
                                    Map<Class<?>, DomainEventType<?>> domainEvents,
-                                   Map<DomainEventType<?>, QueryModelEventHandlerFunction<S, DomainEvent>> queryModelEventHandlers) {
+                                   Map<DomainEventType<?>, QueryModelEventHandlerFunction<S, DomainEvent>> queryModelEventHandlers, boolean shouldHandlePIIData) {
         this.schemaRegistry = schemaRegistry;
         this.objectMapper = objectMapper;
         this.type = type;
@@ -61,6 +63,7 @@ public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryM
         this.domainEvents = domainEvents;
         this.createStateHandler = createStateHandler;
         this.queryModelEventHandlers = queryModelEventHandlers;
+        this.shouldHandlePIIData = shouldHandlePIIData;
     }
 
     @Override
@@ -107,6 +110,11 @@ public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryM
         }
     }
 
+    @Override
+    public boolean shouldHandlePIIData() {
+        return shouldHandlePIIData;
+    }
+
     private DomainEvent materialize(DomainEventType<?> domainEventType, DomainEventRecord eventRecord) throws IOException {
         return objectMapper.readValue(eventRecord.payload(), domainEventType.typeClass());
     }
@@ -121,60 +129,63 @@ public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryM
                 .map(Map.Entry::getValue).orElse(null);
     }
 
-    public static class Builder {
+    public static class Builder<S extends QueryModelState> {
         private final Map<Class<?>, DomainEventType<?>> domainEvents = new HashMap<>();
-        private final Map<DomainEventType<?>, QueryModelEventHandlerFunction<QueryModelState, DomainEvent>> queryModelEventHandlers = new HashMap<>();
+        private final Map<DomainEventType<?>, QueryModelEventHandlerFunction<S, DomainEvent>> queryModelEventHandlers = new HashMap<>();
         private KafkaSchemaRegistry schemaRegistry;
         private ObjectMapper objectMapper;
-        private QueryModelStateType<?> stateType;
-        private Class<? extends QueryModel> queryModelClass;
-        private QueryModelEventHandlerFunction<QueryModelState, DomainEvent> createStateHandler;
+        private QueryModelStateType<S> stateType;
+        private Class<? extends QueryModel<S>> queryModelClass;
+        private QueryModelEventHandlerFunction<S, DomainEvent> createStateHandler;
 
-        public Builder setSchemaRegistry(KafkaSchemaRegistry schemaRegistry) {
+        public Builder<S> setSchemaRegistry(KafkaSchemaRegistry schemaRegistry) {
             this.schemaRegistry = schemaRegistry;
             return this;
         }
 
-        public Builder setObjectMapper(ObjectMapper objectMapper) {
+        public Builder<S> setObjectMapper(ObjectMapper objectMapper) {
             this.objectMapper = objectMapper;
             return this;
         }
 
-        public Builder setStateType(QueryModelStateType<?> stateType) {
+        public Builder<S> setStateType(QueryModelStateType<S> stateType) {
             this.stateType = stateType;
             return this;
         }
 
-        public Builder setQueryModelClass(Class<? extends QueryModel> queryModelClass) {
+        public Builder<S> setQueryModelClass(Class<? extends QueryModel<S>> queryModelClass) {
             this.queryModelClass = queryModelClass;
             return this;
         }
 
-        public Builder setCreateHandler(QueryModelEventHandlerFunction<QueryModelState, DomainEvent> createStateHandler) {
+        public Builder<S> setCreateHandler(QueryModelEventHandlerFunction<S, DomainEvent> createStateHandler) {
             this.createStateHandler = createStateHandler;
             return this;
         }
 
-        public Builder addDomainEvent(DomainEventType<?> domainEvent) {
+        public Builder<S> addDomainEvent(DomainEventType<?> domainEvent) {
             this.domainEvents.put(domainEvent.typeClass(), domainEvent);
             return this;
         }
 
-        public Builder addQueryModelEventHandler(DomainEventType<?> eventType,
-                                                 QueryModelEventHandlerFunction<QueryModelState, DomainEvent> eventSourcingHandler) {
+        public Builder<S> addQueryModelEventHandler(DomainEventType<?> eventType,
+                                                 QueryModelEventHandlerFunction<S, DomainEvent> eventSourcingHandler) {
             this.queryModelEventHandlers.put(eventType, eventSourcingHandler);
             return this;
         }
 
-        public KafkaQueryModelRuntime build() {
-            return new KafkaQueryModelRuntime(
+        public KafkaQueryModelRuntime<S> build() {
+            final boolean shouldHandlePIIData = domainEvents.values().stream().map(DomainEventType::typeClass)
+                    .anyMatch(GDPRAnnotationUtils::hasPIIDataAnnotation);
+            return new KafkaQueryModelRuntime<>(
                     schemaRegistry,
                     objectMapper,
                     stateType,
                     queryModelClass,
                     createStateHandler,
                     domainEvents,
-                    queryModelEventHandlers);
+                    queryModelEventHandlers,
+                    shouldHandlePIIData);
         }
     }
 }

@@ -34,4 +34,6 @@ public interface QueryModelRuntime<S extends QueryModelState> {
     S apply(List<DomainEventRecord> eventRecords, S currentState) throws IOException;
 
     void validateDomainEventSchemas();
+
+    boolean shouldHandlePIIData();
 }

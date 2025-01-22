@@ -40,9 +40,13 @@ import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.query.QueryModelEventHandlerFunction;
+import org.elasticsoftware.akces.query.models.account.AccountQueryModel;
+import org.elasticsoftware.akces.query.models.account.AccountQueryModelState;
 import org.elasticsoftware.akces.query.models.wallet.WalletQueryModel;
 import org.elasticsoftware.akces.query.models.wallet.WalletQueryModelState;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
+import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
+import org.elasticsoftware.akcestest.aggregate.account.CreateAccountCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.BalanceCreatedEvent;
 import org.elasticsoftware.akcestest.aggregate.wallet.CreateWalletCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.WalletCreatedEvent;
@@ -56,6 +60,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.support.TestPropertySourceUtils;
 import org.testcontainers.containers.GenericContainer;
@@ -79,6 +84,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Testcontainers
@@ -88,6 +94,7 @@ import static org.junit.jupiter.api.Assertions.*;
         useMainMethod = SpringBootTest.UseMainMethod.ALWAYS)
 @ContextConfiguration(initializers = QueryModelRuntimeTests.ContextInitializer.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@DirtiesContext
 public class QueryModelRuntimeTests {
     private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";
 
@@ -266,13 +273,22 @@ public class QueryModelRuntimeTests {
     @Test
     @Order(2)
     public void testFindBeans() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
+                !akcesClientController.isRunning() ||
+                !akcesQueryModelController.isRunning()) {
+            Thread.onSpinWait();
+        }
         assertNotNull(applicationContext);
-        assertEquals(2, applicationContext.getBeansOfType(QueryModelEventHandlerFunction.class).size());
+        assertEquals(3, applicationContext.getBeansOfType(QueryModelEventHandlerFunction.class).size());
         assertNotNull(applicationContext.getBean("WalletQueryModel_qmeh_create_WalletCreated_1"));
         assertNotNull(applicationContext.getBean("WalletQueryModel_qmeh_createBalance_BalanceCreated_1"));
-        assertEquals(1, applicationContext.getBeansOfType(QueryModelRuntimeFactory.class).size());
+        assertNotNull(applicationContext.getBean("AccountQueryModel_qmeh_create_AccountCreated_1"));
+        assertEquals(2, applicationContext.getBeansOfType(QueryModelRuntimeFactory.class).size());
         assertNotNull(applicationContext.getBean("WalletQueryModelQueryModelRuntime"));
-        assertEquals(1, applicationContext.getBeansOfType(QueryModelRuntime.class).size());
+        assertNotNull(applicationContext.getBean("AccountQueryModelQueryModelRuntime"));
+        assertEquals(2, applicationContext.getBeansOfType(QueryModelRuntime.class).size());
     }
 
     @Test
@@ -415,6 +431,38 @@ public class QueryModelRuntimeTests {
         }
     }
 
+    @Test
+    public void testAccountQueryModel() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
+                !akcesClientController.isRunning() ||
+                !akcesQueryModelController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        String userId = "4117b11f-3dde-4b71-b80c-fa20a12d9add";
+        List<DomainEvent> result;
+
+        CreateAccountCommand createAccountCommand = new CreateAccountCommand(userId, "US", "John", "Doe", "john.doe@example.com");
+        result = assertDoesNotThrow(() -> akcesClientController.send("TEST_TENANT", createAccountCommand).toCompletableFuture().get(10, TimeUnit.SECONDS));
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(1, result.size());
+        assertInstanceOf(AccountCreatedEvent.class, result.getFirst());
+
+        CompletableFuture<AccountQueryModelState> stateFuture = akcesQueryModelController.getHydratedState(AccountQueryModel.class, userId)
+                .toCompletableFuture();
+
+        assertNotNull(stateFuture);
+        AccountQueryModelState state = assertDoesNotThrow(() -> stateFuture.get(10, TimeUnit.SECONDS));
+        assertNotNull(state);
+        assertThat(state.country()).isEqualTo("US");
+        assertThat(state.firstName()).isEqualTo("John");
+        assertThat(state.lastName()).isEqualTo("Doe");
+        assertThat(state.email()).isEqualTo("john.doe@example.com");
+    }
+
     public static class ContextInitializer
             implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
@@ -425,7 +473,8 @@ public class QueryModelRuntimeTests {
             prepareDomainEventSchemas("http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081),
                     List.of(
                             WalletCreatedEvent.class,
-                            BalanceCreatedEvent.class
+                            BalanceCreatedEvent.class,
+                            AccountCreatedEvent.class
                     ));
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
                     applicationContext,

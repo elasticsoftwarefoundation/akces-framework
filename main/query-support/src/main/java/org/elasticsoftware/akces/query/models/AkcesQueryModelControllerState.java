@@ -19,6 +19,7 @@ package org.elasticsoftware.akces.query.models;
 
 public enum AkcesQueryModelControllerState {
     INITIALIZING,
+    LOADING_GDPR_KEYS,
     RUNNING,
     SHUTTING_DOWN
 }

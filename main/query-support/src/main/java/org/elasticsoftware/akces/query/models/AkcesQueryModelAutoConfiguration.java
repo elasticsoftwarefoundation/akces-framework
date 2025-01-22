@@ -21,7 +21,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.json.JsonSchemaProvider;
+import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
+import org.elasticsoftware.akces.gdpr.RocksDBGDPRContextRepositoryFactory;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.kafka.CustomKafkaConsumerFactory;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
@@ -40,9 +43,11 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.kafka.core.KafkaAdmin;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @Configuration
 @PropertySource("classpath:akces-querymodel.properties")
@@ -83,8 +88,23 @@ public class AkcesQueryModelAutoConfiguration {
     }
 
     @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
+    @Bean(name = "akcesQueryModelGDPRContextRepositoryFactory")
+    public GDPRContextRepositoryFactory gdprContextRepositoryFactory(@Value("${akces.rocksdb.baseDir:/tmp/akces}") String baseDir) {
+        return new RocksDBGDPRContextRepositoryFactory(serde, baseDir);
+        //return new InMemoryGDPRContextRepositoryFactory();
+    }
+
+    @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
+    @Bean(name = "akcesQueryModelKafkaAdmin")
+    public KafkaAdmin kafkaAdmin(@Value("${spring.kafka.bootstrap-servers}") String bootstrapServers) {
+        return new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
+    }
+
+    @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
     @Bean(name = "ackesQueryModelController", initMethod = "start", destroyMethod = "close")
-    public AkcesQueryModelController queryModelRuntimes(@Qualifier("akcesQueryModelConsumerFactory") ConsumerFactory<String, ProtocolRecord> consumerFactory) {
-        return new AkcesQueryModelController(consumerFactory);
+    public AkcesQueryModelController queryModelRuntimes(@Qualifier("akcesQueryModelKafkaAdmin") KafkaAdmin kafkaAdmin,
+                                                        @Qualifier("akcesQueryModelConsumerFactory") ConsumerFactory<String, ProtocolRecord> consumerFactory,
+                                                        @Qualifier("akcesQueryModelGDPRContextRepositoryFactory") GDPRContextRepositoryFactory gdprContextRepositoryFactory) {
+        return new AkcesQueryModelController(kafkaAdmin, consumerFactory, gdprContextRepositoryFactory);
     }
 }

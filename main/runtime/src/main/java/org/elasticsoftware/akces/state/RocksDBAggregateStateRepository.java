@@ -201,6 +201,7 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
     }
 
     private byte[] keyBytes(String aggregateId) {
+        checkAggregateIdType(aggregateId);
         if (aggregateIdIsUUID) {
             UUID aggregateUUID = UUID.fromString(aggregateId);
             return ByteBuffer.wrap(new byte[16]).putLong(aggregateUUID.getMostSignificantBits()).putLong(aggregateUUID.getLeastSignificantBits()).array();
