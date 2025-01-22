@@ -80,4 +80,6 @@ public interface AggregateRuntime {
     boolean shouldGenerateGPRKey(CommandRecord commandRecord);
 
     boolean shouldGenerateGPRKey(DomainEventRecord eventRecord);
+
+    boolean shouldHandlePIIData();
 }

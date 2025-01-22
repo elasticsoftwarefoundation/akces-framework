@@ -25,6 +25,7 @@ import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.CommandRecord;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
@@ -57,7 +58,8 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                                   Map<CommandType<?>, CommandHandlerFunction<AggregateState, Command, DomainEvent>> commandHandlers,
                                   Map<DomainEventType<?>, EventHandlerFunction<AggregateState, DomainEvent, DomainEvent>> eventHandlers,
                                   Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers,
-                                  boolean generateGDPRKeyOnCreate) {
+                                  boolean generateGDPRKeyOnCreate,
+                                  boolean shouldHandlePIIData) {
         super(stateType,
                 aggregateClass,
                 commandCreateHandler,
@@ -68,7 +70,8 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                 commandHandlers,
                 eventHandlers,
                 eventSourcingHandlers,
-                generateGDPRKeyOnCreate);
+                generateGDPRKeyOnCreate,
+                shouldHandlePIIData);
         this.schemaRegistry = schemaRegistry;
         this.objectMapper = objectMapper;
     }
@@ -233,6 +236,12 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
         }
 
         public KafkaAggregateRuntime build() {
+            // see if we have a command and/or domain event with PIIData
+            final boolean shouldHandlePIIData = domainEvents.values().stream().map(DomainEventType::typeClass)
+                    .anyMatch(GDPRAnnotationUtils::hasPIIDataAnnotation) ||
+                    commandTypes.values().stream().flatMap(List::stream).map(CommandType::typeClass)
+                            .anyMatch(GDPRAnnotationUtils::hasPIIDataAnnotation);
+
             return new KafkaAggregateRuntime(
                     schemaRegistry,
                     objectMapper,
@@ -246,7 +255,8 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                     commandHandlers,
                     eventHandlers,
                     eventSourcingHandlers,
-                    generateGDPRKeyOnCreate);
+                    generateGDPRKeyOnCreate,
+                    shouldHandlePIIData);
         }
     }
 }

@@ -15,18 +15,21 @@
  *
  */
 
-package org.elasticsoftware.akces.state;
+package org.elasticsoftware.akces.gdpr;
 
-import com.google.common.base.Charsets;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.primitives.Longs;
+import jakarta.annotation.Nonnull;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.requests.ProduceResponse;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serializer;
-import org.elasticsoftware.akces.protocol.AggregateStateRecord;
+import org.elasticsoftware.akces.protocol.GDPRKeyRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.state.RecordAndMetadata;
 import org.rocksdb.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.List;
@@ -41,25 +45,28 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Future;
 
-public class RocksDBAggregateStateRepository implements AggregateStateRepository {
-    private static final Logger log = LoggerFactory.getLogger(RocksDBAggregateStateRepository.class);
+public class RocksDBGDPRContextRepository implements GDPRContextRepository {
+    private static final Logger log = LoggerFactory.getLogger(RocksDBGDPRContextRepository.class);
     // special key to store the kafka offset (long)
     private static final byte[] OFFSET = new byte[]{0x4f, 0x46, 0x46, 0x53, 0x45, 0x54};
     private final TransactionDB db;
     private final File rocksDBDataDir;
-    private final Map<String, RecordAndMetadata<AggregateStateRecord>> transactionStateRecordMap = new HashMap<>();
+    private final Map<String, RecordAndMetadata<GDPRKeyRecord>> transactionStateRecordMap = new HashMap<>();
     private final String topicName;
     private final Serializer<ProtocolRecord> serializer;
     private final Deserializer<ProtocolRecord> deserializer;
     private boolean aggregateIdIsUUID = false;
     private boolean aggregateIdTypeCheckDone = false;
+    private final LoadingCache<String, GDPRContext> gdprContexts = Caffeine.newBuilder()
+            .maximumSize(1000)
+            .build(this::createGDPRContext);
     private long lastOffset = ProduceResponse.INVALID_OFFSET;
 
-    public RocksDBAggregateStateRepository(String baseDir,
-                                           String partitionId,
-                                           String topicName,
-                                           Serializer<ProtocolRecord> serializer,
-                                           Deserializer<ProtocolRecord> deserializer) {
+    public RocksDBGDPRContextRepository(String baseDir,
+                                        String partitionId,
+                                        String topicName,
+                                        Serializer<ProtocolRecord> serializer,
+                                        Deserializer<ProtocolRecord> deserializer) {
         this.topicName = topicName;
         this.serializer = serializer;
         this.deserializer = deserializer;
@@ -75,9 +82,9 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
             // see if we need to initialize the keyspaces
             // initialize the offset
             initializeOffset();
-            log.info("RocksDB for partition {} initialized in folder {}", partitionId, this.rocksDBDataDir.getAbsolutePath());
+            log.info("RocksDBGDPRContextRepository for partition {} initialized in folder {}", partitionId, this.rocksDBDataDir.getAbsolutePath());
         } catch (IOException | RocksDBException e) {
-            throw new AggregateStateRepositoryException("Error initializing RocksDB", e);
+            throw new GDPRContextRepositoryException("Error initializing RocksDB", e);
         }
     }
 
@@ -98,7 +105,7 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
                 lastOffset = Longs.fromByteArray(offsetBytes);
             }
         } catch (RocksDBException e) {
-            throw new AggregateStateRepositoryException("Error initializing offset", e);
+            throw new GDPRContextRepositoryException("Error initializing offset", e);
         }
     }
 
@@ -113,9 +120,9 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
     }
 
     @Override
-    public void prepare(AggregateStateRecord record, Future<RecordMetadata> recordMetadataFuture) {
+    public void prepare(GDPRKeyRecord record, Future<RecordMetadata> recordMetadataFuture) {
         checkAggregateIdType(record.aggregateId());
-        transactionStateRecordMap.put(record.aggregateId(), new RecordAndMetadata(record, recordMetadataFuture));
+        transactionStateRecordMap.put(record.aggregateId(), new RecordAndMetadata<>(record, recordMetadataFuture));
     }
 
     @Override
@@ -124,7 +131,7 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
             // start writing the transactions (no need to resolve the futures just yet)
             Transaction transaction = db.beginTransaction(new WriteOptions());
             try {
-                for (RecordAndMetadata recordAndMetadata : transactionStateRecordMap.values()) {
+                for (RecordAndMetadata<?> recordAndMetadata : transactionStateRecordMap.values()) {
                     transaction.put(keyBytes(recordAndMetadata.record().aggregateId()), serializer.serialize(topicName, recordAndMetadata.record()));
                 }
                 // now we need to find the highest offset in this batch
@@ -145,7 +152,7 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
                 transaction.close();
                 updateOffset(offset);
             } catch (RocksDBException e) {
-                throw new AggregateStateRepositoryException("Error committing records", e);
+                throw new GDPRContextRepositoryException("Error committing records", e);
             } finally {
                 transactionStateRecordMap.clear();
             }
@@ -167,20 +174,48 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
             Transaction transaction = db.beginTransaction(new WriteOptions());
             try {
                 for (ConsumerRecord<String, ProtocolRecord> consumerRecord : consumerRecords) {
-                    transaction.put(keyBytes(consumerRecord.key()), serializer.serialize(topicName, consumerRecord.value()));
+                    if(consumerRecord.value() != null) {
+                        // write
+                        transaction.put(keyBytes(consumerRecord.key()), serializer.serialize(topicName, consumerRecord.value()));
+                    } else {
+                        // record was removed because the Aggregate needs to be forgotten. remove the key
+                        transaction.delete(keyBytes(consumerRecord.key()));
+                    }
                 }
                 transaction.put(OFFSET, Longs.toByteArray(offset));
                 transaction.commit();
                 transaction.close();
+                // invalidate any cached entries
+                consumerRecords.forEach(consumerRecord -> gdprContexts.invalidate(consumerRecord.key()));
                 updateOffset(offset);
             } catch (RocksDBException e) {
-                throw new AggregateStateRepositoryException("Error processing records", e);
+                throw new GDPRContextRepositoryException("Error processing records", e);
             }
         }
     }
 
     @Override
-    public AggregateStateRecord get(String aggregateId) {
+    public boolean exists(String aggregateId) {
+        return transactionStateRecordMap.containsKey(aggregateId) || db.keyExists(keyBytes(aggregateId));
+    }
+
+    @Override
+    @Nonnull
+    public GDPRContext get(String aggregateId) {
+        return gdprContexts.get(aggregateId);
+    }
+
+    private GDPRContext createGDPRContext(String aggregateId) {
+        GDPRKeyRecord record = getGDPRKeyRecord(aggregateId);
+        if (record != null) {
+            checkAggregateIdType(aggregateId);
+            return new EncryptingGDPRContext(record.aggregateId(), record.payload(), aggregateIdIsUUID);
+        } else {
+            return new NoopGDPRContext(aggregateId);
+        }
+    }
+
+    private GDPRKeyRecord getGDPRKeyRecord(String aggregateId) {
         checkAggregateIdType(aggregateId);
         // return from the transaction map if present
         if (transactionStateRecordMap.containsKey(aggregateId)) {
@@ -189,9 +224,9 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
             byte[] keyBytes = keyBytes(aggregateId);
             if (db.keyExists(keyBytes)) {
                 try {
-                    return (AggregateStateRecord) deserializer.deserialize(topicName, db.get(keyBytes));
+                    return (GDPRKeyRecord) deserializer.deserialize(topicName, db.get(keyBytes));
                 } catch (RocksDBException | SerializationException e) {
-                    throw new AggregateStateRepositoryException("Problem reading record with aggregateId " + aggregateId, e);
+                    throw new GDPRContextRepositoryException("Problem reading record with aggregateId " + aggregateId, e);
                 }
             } else {
                 return null;
@@ -204,7 +239,7 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
             UUID aggregateUUID = UUID.fromString(aggregateId);
             return ByteBuffer.wrap(new byte[16]).putLong(aggregateUUID.getMostSignificantBits()).putLong(aggregateUUID.getLeastSignificantBits()).array();
         } else
-            return aggregateId.getBytes(Charsets.UTF_8);
+            return aggregateId.getBytes(StandardCharsets.UTF_8);
     }
 
     private void checkAggregateIdType(String aggregateId) {

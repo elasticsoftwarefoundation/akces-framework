@@ -72,9 +72,10 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
         } else {
             throw new IllegalStateException("Class implementing Aggregate must be annotated with @AggregateInfo");
         }
-        runtimeBuilder.setAggregateClass(aggregate.getClass());
-        runtimeBuilder.setObjectMapper(objectMapper);
-        runtimeBuilder.setGenerateGDPRKeyOnCreate(aggregateInfo.generateGDPRKeyOnCreate());
+        runtimeBuilder
+                .setAggregateClass(aggregate.getClass())
+                .setObjectMapper(objectMapper)
+                .setGenerateGDPRKeyOnCreate(aggregateInfo.generateGDPRKeyOnCreate());
 
         applicationContext.getBeansOfType(CommandHandlerFunction.class).values().stream()
                 // we only want the adapters for this Aggregate
@@ -82,11 +83,13 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
                 .forEach(adapter -> {
                     CommandType<?> type = adapter.getCommandType();
                     if (adapter.isCreate()) {
-                        runtimeBuilder.setCommandCreateHandler(adapter);
-                        runtimeBuilder.addCommand(type);
+                        runtimeBuilder
+                                .setCommandCreateHandler(adapter)
+                                .addCommand(type);
                     } else {
-                        runtimeBuilder.addCommandHandler(type, adapter);
-                        runtimeBuilder.addCommand(type);
+                        runtimeBuilder
+                                .addCommandHandler(type, adapter)
+                                .addCommand(type);
                     }
                     for (Object producedDomainEventType : adapter.getProducedDomainEventTypes()) {
                         runtimeBuilder.addDomainEvent((DomainEventType<?>) producedDomainEventType);
@@ -102,11 +105,13 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
                 .forEach(adapter -> {
                     DomainEventType<?> type = adapter.getEventType();
                     if (adapter.isCreate()) {
-                        runtimeBuilder.setEventCreateHandler(adapter);
-                        runtimeBuilder.addDomainEvent(type);
+                        runtimeBuilder
+                                .setEventCreateHandler(adapter)
+                                .addDomainEvent(type);
                     } else {
-                        runtimeBuilder.addExternalEventHandler(type, adapter);
-                        runtimeBuilder.addDomainEvent(type);
+                        runtimeBuilder
+                                .addExternalEventHandler(type, adapter)
+                                .addDomainEvent(type);
                     }
                     for (Object producedDomainEventType : adapter.getProducedDomainEventTypes()) {
                         runtimeBuilder.addDomainEvent((DomainEventType<?>) producedDomainEventType);
@@ -121,11 +126,13 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
                 .forEach(adapter -> {
                     DomainEventType<?> type = adapter.getEventType();
                     if (adapter.isCreate()) {
-                        runtimeBuilder.setEventSourcingCreateHandler(adapter);
-                        runtimeBuilder.addDomainEvent(type);
+                        runtimeBuilder
+                                .setEventSourcingCreateHandler(adapter)
+                                .addDomainEvent(type);
                     } else {
-                        runtimeBuilder.addEventSourcingHandler(type, adapter);
-                        runtimeBuilder.addDomainEvent(type);
+                        runtimeBuilder
+                                .addEventSourcingHandler(type, adapter)
+                                .addDomainEvent(type);
                     }
                 });
 

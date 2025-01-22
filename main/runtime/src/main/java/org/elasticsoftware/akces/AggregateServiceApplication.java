@@ -26,6 +26,8 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.elasticsoftware.akces.beans.AggregateBeanFactoryPostProcessor;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
+import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
+import org.elasticsoftware.akces.gdpr.RocksDBGDPRContextRepositoryFactory;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.kafka.CustomKafkaConsumerFactory;
 import org.elasticsoftware.akces.kafka.CustomKafkaProducerFactory;
@@ -127,9 +129,14 @@ public class AggregateServiceApplication {
         return new CustomKafkaProducerFactory<>(properties.buildProducerProperties(null), new StringSerializer(), controlSerde.serializer());
     }
 
-    @Bean(name = "aggregateStateRepositoryFactory")
+    @Bean(name = "aggregateServiceAggregateStateRepositoryFactory")
     public AggregateStateRepositoryFactory aggregateStateRepositoryFactory(@Value("${akces.rocksdb.baseDir:/tmp/akces}") String baseDir) {
         return new RocksDBAggregateStateRepositoryFactory(serde, baseDir);
+    }
+
+    @Bean(name = "aggregateServiceGDPRContextRepositoryFactory")
+    public GDPRContextRepositoryFactory gdprContextRepositoryFactory(@Value("${akces.rocksdb.baseDir:/tmp/akces}") String baseDir) {
+        return new RocksDBGDPRContextRepositoryFactory(serde, baseDir);
     }
 
     @Bean(name = "EnvironmentPropertiesPrinter")

@@ -96,14 +96,15 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                 if (beanFactory.containsBeanDefinition("aggregateServiceConsumerFactory") &&
                         beanFactory.containsBeanDefinition("aggregateServiceProducerFactory") &&
                         beanFactory.containsBeanDefinition("aggregateServiceControlProducerFactory") &&
-                        beanFactory.containsBeanDefinition("aggregateStateRepositoryFactory")) {
+                        beanFactory.containsBeanDefinition("aggregateServiceAggregateStateRepositoryFactory")) {
                     bdr.registerBeanDefinition(beanName + "AkcesController",
                             BeanDefinitionBuilder.genericBeanDefinition(AkcesAggregateController.class)
                                     .addConstructorArgReference("aggregateServiceConsumerFactory")
                                     .addConstructorArgReference("aggregateServiceProducerFactory")
                                     .addConstructorArgReference("aggregateServiceControlConsumerFactory")
                                     .addConstructorArgReference("aggregateServiceControlProducerFactory")
-                                    .addConstructorArgReference("aggregateStateRepositoryFactory")
+                                    .addConstructorArgReference("aggregateServiceAggregateStateRepositoryFactory")
+                                    .addConstructorArgReference("aggregateServiceGDPRContextRepositoryFactory")
                                     .addConstructorArgReference(beanName + "AggregateRuntimeFactory")
                                     //.addConstructorArgReference(beanFactory.getBeanNamesForType(KafkaAdminOperations.class)[0])
                                     .addConstructorArgReference("aggregateServiceKafkaAdmin")
