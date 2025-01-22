@@ -135,8 +135,11 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                 String topic = ackesRegistry.resolveTopic(domainEventType);
                 externalEventPartitions.add(new TopicPartition(topic, id));
             });
-            // make a hard assignment
-            consumer.assign(Stream.concat(Stream.of(commandPartition, domainEventPartition, statePartition, gdprKeyPartition), externalEventPartitions.stream()).toList());
+            // make a hard assignment, only assign the gdprKeyPartition if needed
+            consumer.assign(Stream.concat(Stream.concat(
+                                    Stream.of(commandPartition, domainEventPartition, statePartition), runtime.shouldHandlePIIData() ? Stream.of(gdprKeyPartition) : Stream.empty()),
+                                    externalEventPartitions.stream())
+                    .toList());
             logger.info("Assigned partitions {} for AggregatePartition {} of {}Aggregate", consumer.assignment(), id, runtime.getName());
             while (processState != SHUTTING_DOWN) {
                 process();
@@ -358,34 +361,70 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                 // stop condition
                 if (stateRecords.isEmpty() && initializedEndOffsets.getOrDefault(statePartition, 0L) <= consumer.position(statePartition)) {
                     // done loading the state, enable the other topics
-                    consumer.resume(Stream.concat(Stream.of(gdprKeyPartition, commandPartition, domainEventPartition), externalEventPartitions.stream()).toList());
+                    consumer.resume(Stream.concat(
+                            Stream.concat(Stream.of(commandPartition, domainEventPartition),runtime.shouldHandlePIIData() ? Stream.of(gdprKeyPartition) : Stream.empty()),
+                            externalEventPartitions.stream()).toList());
                     // and move to processing state
                     processState = PROCESSING;
                 }
             } else if (processState == INITIALIZING) {
-                logger.info("Initializing AggregatePartition {} of {}Aggregate", id, runtime.getName());
+                logger.info(
+                        "Initializing AggregatePartition {} of {}Aggregate. Will {}",
+                        id,
+                        runtime.getName(),
+                        runtime.shouldHandlePIIData() ? "Handle PII Data" : "Not Handle PII Data");
                 // find the right offset to start reading the state from
                 long stateRepositoryOffset = stateRepository.getOffset();
                 if (stateRepositoryOffset >= 0) {
-                    logger.info("Resuming State from offset {} for AggregatePartition {} of {}Aggregate", stateRepositoryOffset, id, runtime.getName());
+                    logger.info(
+                            "Resuming State from offset {} for AggregatePartition {} of {}Aggregate",
+                            stateRepositoryOffset,
+                            id,
+                            runtime.getName());
                     consumer.seek(statePartition, stateRepository.getOffset() + 1);
                 } else {
                     consumer.seekToBeginning(singletonList(statePartition));
                 }
-                // find the right offset to start reading the gdpr keys from
-                long gdprKeyRepositoryOffset = gdprContextRepository.getOffset();
-                if (gdprKeyRepositoryOffset >= 0) {
-                    logger.info("Resuming GDPRKeys from offset {} for AggregatePartition {} of {}Aggregate", gdprKeyRepositoryOffset, id, runtime.getName());
-                    consumer.seek(gdprKeyPartition, gdprContextRepository.getOffset() + 1);
+                if(runtime.shouldHandlePIIData()) {
+                    // find the right offset to start reading the gdpr keys from
+                    long gdprKeyRepositoryOffset = gdprContextRepository.getOffset();
+                    if (gdprKeyRepositoryOffset >= 0) {
+                        logger.info(
+                                "Resuming GDPRKeys from offset {} for AggregatePartition {} of {}Aggregate",
+                                gdprKeyRepositoryOffset,
+                                id,
+                                runtime.getName());
+                        consumer.seek(gdprKeyPartition, gdprContextRepository.getOffset() + 1);
+                    } else {
+                        consumer.seekToBeginning(singletonList(gdprKeyPartition));
+                    }
+                    // find the end offsets so we know when to stop
+                    initializedEndOffsets = consumer.endOffsets(List.of(gdprKeyPartition, statePartition));
+                    logger.info("Loading GDPR Keys for AggregatePartition {} of {}Aggregate", id, runtime.getName());
+                    // pause the other topics
+                    consumer.pause(Stream.concat(Stream.of(statePartition, commandPartition, domainEventPartition), externalEventPartitions.stream()).toList());
+                    processState = LOADING_GDPR_KEYS;
                 } else {
-                    consumer.seekToBeginning(singletonList(gdprKeyPartition));
+                    // we should skip the LOADING_GDPR_KEYS phase and go directly to LOADING_STATE
+                    initializedEndOffsets = consumer.endOffsets(List.of(statePartition));
+                    // special case, there is no data yet so no need to load anything
+                    if (initializedEndOffsets.getOrDefault(statePartition, 0L) == 0L) {
+                        // we need to ensure we are not missing any commands or external events in this case
+                        // see if we need to commit the initial offsets
+                        commitInitialOffsetsIfNecessary();
+                        logger.info("No state found in Kafka for AggregatePartition {} of {}Aggregate", id, runtime.getName());
+                        // resume the other topics
+                        consumer.resume(Stream.concat(Stream.of(statePartition, commandPartition, domainEventPartition), externalEventPartitions.stream()).toList());
+                        // go immediately to processing
+                        processState = PROCESSING;
+                    } else {
+                        logger.info("Loading state for AggregatePartition {} of {}Aggregate", id, runtime.getName());
+                        // resume the state topic
+                        consumer.resume(singletonList(statePartition));
+                        // no need to pause the gdpr key topic since it is not assigned to the consumer in this case
+                        processState = LOADING_STATE;
+                    }
                 }
-                // find the end offsets so we know when to stop
-                initializedEndOffsets = consumer.endOffsets(List.of(gdprKeyPartition, statePartition));
-                logger.info("Loading GDPR Keys for AggregatePartition {} of {}Aggregate", id, runtime.getName());
-                // pause the other topics
-                consumer.pause(Stream.concat(Stream.of(statePartition, commandPartition, domainEventPartition), externalEventPartitions.stream()).toList());
-                processState = LOADING_GDPR_KEYS;
             }
         } catch (WakeupException | InterruptException ignore) {
             // non-fatal. ignore
@@ -430,7 +469,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                 logger.trace("Processing {} records in a single transaction", allRecords.count());
                 logger.trace("Processing {} gdpr key records", allRecords.records(gdprKeyPartition).size());
                 logger.trace("Processing {} command records", allRecords.records(commandPartition).size());
-                if (externalEventPartitions.size() > 0) {
+                if (!externalEventPartitions.isEmpty()) {
                     logger.trace("Processing {} external event records", externalEventPartitions.stream()
                             .map(externalEventPartition -> allRecords.records(externalEventPartition).size())
                             .mapToInt(Integer::intValue).sum());
