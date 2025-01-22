@@ -20,7 +20,7 @@
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-parent</artifactId>
-        <version>0.6.7-SNAPSHOT</version>
+        <version>0.7.0-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -81,7 +81,7 @@
             <dependency>
                 <groupId>org.bouncycastle</groupId>
                 <artifactId>bcprov-jdk18on</artifactId>
-                <version>1.79</version>
+                <version>1.80</version>
             </dependency>
             <dependency>
                 <groupId>org.bouncycastle</groupId>

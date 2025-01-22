@@ -83,7 +83,7 @@ public class AkcesGDPRModule extends Module {
 
     @Override
     public void setupModule(SetupContext setupContext) {
-        setupContext.addBeanSerializerModifier(new GDPRDataSerializerModifier());
-        setupContext.addBeanDeserializerModifier(new GDPRDataDeserializerModifier());
+        setupContext.addBeanSerializerModifier(new PIIDataSerializerModifier());
+        setupContext.addBeanDeserializerModifier(new PIIDataDeserializerModifier());
     }
 }

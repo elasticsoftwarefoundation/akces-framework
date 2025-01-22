@@ -38,6 +38,7 @@ import org.elasticsoftware.akces.aggregate.SchemaType;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.control.*;
+import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
 import org.elasticsoftware.akces.kafka.AggregatePartition;
 import org.elasticsoftware.akces.kafka.PartitionUtils;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
@@ -79,6 +80,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     private final HashFunction hashFunction = Hashing.murmur3_32_fixed();
     private final Map<String, AggregateServiceRecord> aggregateServices = new ConcurrentHashMap<>();
     private final AggregateStateRepositoryFactory aggregateStateRepositoryFactory;
+    private final GDPRContextRepositoryFactory gdprContextRepositoryFactory;
     private final List<TopicPartition> partitionsToAssign = new ArrayList<>();
     private final List<TopicPartition> partitionsToRevoke = new ArrayList<>();
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
@@ -93,6 +95,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                                     ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory,
                                     ProducerFactory<String, AkcesControlRecord> controlProducerFactory,
                                     AggregateStateRepositoryFactory aggregateStateRepositoryFactory,
+                                    GDPRContextRepositoryFactory gdprContextRepositoryFactory,
                                     AggregateRuntime aggregateRuntime,
                                     KafkaAdminOperations kafkaAdmin) {
         super(aggregateRuntime.getName() + "-AkcesController");
@@ -101,6 +104,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
         this.controlProducerFactory = controlProducerFactory;
         this.controlRecordConsumerFactory = controlConsumerFactory;
         this.aggregateStateRepositoryFactory = aggregateStateRepositoryFactory;
+        this.gdprContextRepositoryFactory = gdprContextRepositoryFactory;
         this.aggregateRuntime = aggregateRuntime;
         this.kafkaAdmin = kafkaAdmin;
         this.executorService = Executors.newCachedThreadPool(new CustomizableThreadFactory(aggregateRuntime.getName() + "AggregatePartitionThread-"));
@@ -291,6 +295,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                         producerFactory,
                         aggregateRuntime,
                         aggregateStateRepositoryFactory,
+                        gdprContextRepositoryFactory,
                         topicPartition.partition(),
                         toCommandTopicPartition(aggregateRuntime, topicPartition.partition()),
                         toDomainEventTopicPartition(aggregateRuntime, topicPartition.partition()),

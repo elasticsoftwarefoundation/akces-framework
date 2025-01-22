@@ -22,13 +22,13 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializationConfig;
 import com.fasterxml.jackson.databind.ser.BeanPropertyWriter;
 import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
-import org.elasticsoftware.akces.annotations.GDPRData;
+import org.elasticsoftware.akces.annotations.PIIData;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class GDPRDataSerializerModifier extends BeanSerializerModifier {
-    private final GDPRDataJsonSerializer instance = new GDPRDataJsonSerializer();
+public class PIIDataSerializerModifier extends BeanSerializerModifier {
+    private final PIIDataJsonSerializer instance = new PIIDataJsonSerializer();
 
     @Override
     public List<BeanPropertyWriter> changeProperties(final SerializationConfig config,
@@ -37,7 +37,7 @@ public class GDPRDataSerializerModifier extends BeanSerializerModifier {
         List<BeanPropertyWriter> newWriters = new ArrayList<>();
 
         for (final BeanPropertyWriter writer : beanProperties) {
-            if (null == writer.getAnnotation(GDPRData.class)) {
+            if (null == writer.getAnnotation(PIIData.class)) {
                 newWriters.add(writer);
             } else {
                 newWriters.add(new PersonalDataPropertyWriter(writer, instance));

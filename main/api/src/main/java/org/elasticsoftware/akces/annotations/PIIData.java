@@ -27,5 +27,5 @@ import java.lang.annotation.Target;
 @JacksonAnnotation
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER})
-public @interface GDPRData {
+public @interface PIIData {
 }
