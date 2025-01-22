@@ -110,7 +110,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         this.statePartition = statePartition;
         this.externalDomainEventTypes = externalDomainEventTypes;
         this.processState = INITIALIZING;
-        this.gdprContextRepository = gdprContextRepositoryFactory.create(runtime, id);
+        this.gdprContextRepository = gdprContextRepositoryFactory.create(runtime.getName(), id);
     }
 
     public Integer getId() {

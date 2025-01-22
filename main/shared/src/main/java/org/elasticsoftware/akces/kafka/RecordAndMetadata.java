@@ -15,10 +15,12 @@
  *
  */
 
-package org.elasticsoftware.akces.gdpr;
+package org.elasticsoftware.akces.kafka;
 
-import org.elasticsoftware.akces.aggregate.AggregateRuntime;
+import org.apache.kafka.clients.producer.RecordMetadata;
+import org.elasticsoftware.akces.protocol.ProtocolRecord;
 
-public interface GDPRContextRepositoryFactory {
-    GDPRContextRepository create(AggregateRuntime aggregateRuntime, Integer partitionId);
+import java.util.concurrent.Future;
+
+public record RecordAndMetadata<PR extends ProtocolRecord>(PR record, Future<RecordMetadata> metadata) {
 }

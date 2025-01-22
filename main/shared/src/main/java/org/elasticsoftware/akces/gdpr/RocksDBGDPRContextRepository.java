@@ -29,7 +29,7 @@ import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serializer;
 import org.elasticsoftware.akces.protocol.GDPRKeyRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
-import org.elasticsoftware.akces.state.RecordAndMetadata;
+import org.elasticsoftware.akces.kafka.RecordAndMetadata;
 import org.rocksdb.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

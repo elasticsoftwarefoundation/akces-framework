@@ -17,11 +17,7 @@
 
 package org.elasticsoftware.akces.gdpr;
 
-import org.elasticsoftware.akces.aggregate.AggregateRuntime;
 
-public class InMemoryGDPRContextRepositoryFactory implements GDPRContextRepositoryFactory {
-    @Override
-    public GDPRContextRepository create(AggregateRuntime aggregateRuntime, Integer partitionId) {
-        return new InMemoryGDPRContextRepository();
-    }
+public interface GDPRContextRepositoryFactory {
+    GDPRContextRepository create(String runtimeName, Integer partitionId);
 }

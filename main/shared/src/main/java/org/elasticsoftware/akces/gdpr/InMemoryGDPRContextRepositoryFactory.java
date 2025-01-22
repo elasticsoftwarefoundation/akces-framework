@@ -15,12 +15,11 @@
  *
  */
 
-package org.elasticsoftware.akces.state;
+package org.elasticsoftware.akces.gdpr;
 
-import org.apache.kafka.clients.producer.RecordMetadata;
-import org.elasticsoftware.akces.protocol.ProtocolRecord;
-
-import java.util.concurrent.Future;
-
-public record RecordAndMetadata<PR extends ProtocolRecord>(PR record, Future<RecordMetadata> metadata) {
+public class InMemoryGDPRContextRepositoryFactory implements GDPRContextRepositoryFactory {
+    @Override
+    public GDPRContextRepository create(String runtimeName, Integer partitionId) {
+        return new InMemoryGDPRContextRepository();
+    }
 }

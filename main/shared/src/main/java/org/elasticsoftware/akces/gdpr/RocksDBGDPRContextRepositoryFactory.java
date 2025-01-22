@@ -17,7 +17,6 @@
 
 package org.elasticsoftware.akces.gdpr;
 
-import org.elasticsoftware.akces.aggregate.AggregateRuntime;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
 
 public class RocksDBGDPRContextRepositoryFactory implements GDPRContextRepositoryFactory {
@@ -30,10 +29,10 @@ public class RocksDBGDPRContextRepositoryFactory implements GDPRContextRepositor
     }
 
     @Override
-    public GDPRContextRepository create(AggregateRuntime aggregateRuntime, Integer partitionId) {
+    public GDPRContextRepository create(String runtimeName, Integer partitionId) {
         return new RocksDBGDPRContextRepository(
                 baseDir,
-                aggregateRuntime.getName() + "-Akces-GDPRKeys-" + partitionId.toString(),
+                runtimeName + "-Akces-GDPRKeys-" + partitionId.toString(),
                 "Akces-GDPRKeys",
                 serde.serializer(),
                 serde.deserializer());

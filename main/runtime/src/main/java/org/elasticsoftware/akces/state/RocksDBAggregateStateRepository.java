@@ -25,6 +25,7 @@ import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.requests.ProduceResponse;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serializer;
+import org.elasticsoftware.akces.kafka.RecordAndMetadata;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.rocksdb.*;

@@ -25,7 +25,7 @@ import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.requests.ProduceResponse;
 import org.elasticsoftware.akces.protocol.GDPRKeyRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
-import org.elasticsoftware.akces.state.RecordAndMetadata;
+import org.elasticsoftware.akces.kafka.RecordAndMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

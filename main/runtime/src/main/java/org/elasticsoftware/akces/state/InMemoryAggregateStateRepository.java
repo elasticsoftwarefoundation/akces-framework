@@ -20,6 +20,7 @@ package org.elasticsoftware.akces.state;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.requests.ProduceResponse;
+import org.elasticsoftware.akces.kafka.RecordAndMetadata;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.slf4j.Logger;
