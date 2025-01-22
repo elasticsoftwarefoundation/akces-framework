@@ -174,11 +174,19 @@ public class RocksDBGDPRContextRepository implements GDPRContextRepository {
             Transaction transaction = db.beginTransaction(new WriteOptions());
             try {
                 for (ConsumerRecord<String, ProtocolRecord> consumerRecord : consumerRecords) {
-                    transaction.put(keyBytes(consumerRecord.key()), serializer.serialize(topicName, consumerRecord.value()));
+                    if(consumerRecord.value() != null) {
+                        // write
+                        transaction.put(keyBytes(consumerRecord.key()), serializer.serialize(topicName, consumerRecord.value()));
+                    } else {
+                        // record was removed because the Aggregate needs to be forgotten. remove the key
+                        transaction.delete(keyBytes(consumerRecord.key()));
+                    }
                 }
                 transaction.put(OFFSET, Longs.toByteArray(offset));
                 transaction.commit();
                 transaction.close();
+                // invalidate any cached entries
+                consumerRecords.forEach(consumerRecord -> gdprContexts.invalidate(consumerRecord.key()));
                 updateOffset(offset);
             } catch (RocksDBException e) {
                 throw new GDPRContextRepositoryException("Error processing records", e);
