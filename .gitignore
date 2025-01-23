@@ -21,3 +21,5 @@ target/
 *.versionsBackup
 *.releaseBackup
 release.properties
+
+.run/

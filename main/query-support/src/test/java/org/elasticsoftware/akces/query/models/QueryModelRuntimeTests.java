@@ -306,7 +306,7 @@ public class QueryModelRuntimeTests {
                 WalletQueryModel.class, "unknown-id").toCompletableFuture();
         assertNotNull(stateFuture);
         ExecutionException exception = assertThrows(ExecutionException.class, stateFuture::get);
-        assertInstanceOf(IllegalArgumentException.class, exception.getCause());
+        assertInstanceOf(QueryModelIdNotFoundException.class, exception.getCause());
     }
 
     @Test
@@ -324,7 +324,7 @@ public class QueryModelRuntimeTests {
                 .toCompletableFuture();
         assertNotNull(stateFuture);
         ExecutionException exception = assertThrows(ExecutionException.class, stateFuture::get);
-        assertInstanceOf(IllegalArgumentException.class, exception.getCause());
+        assertInstanceOf(QueryModelIdNotFoundException.class, exception.getCause());
     }
 
     @Test

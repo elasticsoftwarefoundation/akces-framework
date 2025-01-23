@@ -302,8 +302,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                     newExecutions.put(indexPartition, new HydrationExecution<>(runtime, request.completableFuture(), request.id(), request.currentState(), request.currentOffset(), indexPartition, null));
                 } else {
                     logger.warn("KafkaTopic {} not found for HydrationRequest on index {} with id {}", topicName, request.runtime().getIndexName(), request.id());
-                    // TODO: return a proper error here
-                    request.completableFuture().completeExceptionally(new IllegalArgumentException("KafkaTopic not found"));
+                    request.completableFuture().completeExceptionally(new QueryModelIdNotFoundException(request.runtime().getQueryModelClass(), request.id()));
                 }
                 request = commandQueue.poll();
             }

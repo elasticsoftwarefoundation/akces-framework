@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.web;
 
+import org.elasticsoftware.akces.query.models.QueryModelIdNotFoundException;
 import org.elasticsoftware.akces.query.models.QueryModelNotFoundException;
 import org.elasticsoftware.akces.query.models.QueryModels;
 import org.elasticsoftware.cryptotrading.query.AccountQueryModel;
@@ -45,7 +46,7 @@ public class AccountQueryController {
                     state.firstName(),
                     state.lastName(),
                     state.email()))).onErrorResume(throwable -> {
-                        if(throwable instanceof QueryModelNotFoundException) {
+                        if(throwable instanceof QueryModelNotFoundException || throwable instanceof QueryModelIdNotFoundException) {
                             return Mono.just(ResponseEntity.notFound().build());
                         } else {
                             return Mono.just(ResponseEntity.internalServerError().build());
