@@ -57,7 +57,7 @@ public class CryptoTradingE2ETests {
                 .value(retrievedAccount -> {
                     assertThat(retrievedAccount).isNotNull();
                     assertThat(retrievedAccount.userId()).isEqualTo(userId);
-                    assertThat(retrievedAccount.country()).isEqualTo("US");
+                    assertThat(retrievedAccount.country()).isEqualTo("NL");
                     assertThat(retrievedAccount.firstName()).isEqualTo("John");
                     assertThat(retrievedAccount.lastName()).isEqualTo("Doe");
                     assertThat(retrievedAccount.email()).isEqualTo("john.doe@example.com");

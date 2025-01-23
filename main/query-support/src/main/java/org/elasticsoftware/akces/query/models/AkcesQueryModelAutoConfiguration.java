@@ -60,7 +60,6 @@ public class AkcesQueryModelAutoConfiguration {
         return new QueryModelBeanFactoryPostProcessor();
     }
 
-    @ConditionalOnMissingBean(Jackson2ObjectMapperBuilderCustomizer.class)
     @Bean(name = "akcesQueryModelJsonCustomizer")
     public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
         return builder -> {
