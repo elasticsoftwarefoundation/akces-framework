@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-main</artifactId>
-        <version>0.7.2-SNAPSHOT</version>
+        <version>0.7.2</version>
     </parent>
 
     <name>Elastic Software Foundation :: Akces :: Shared Classes</name>
