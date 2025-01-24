@@ -149,9 +149,10 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         if (processState == RUNNING) {
             try {
                 Map<TopicPartition, HydrationExecution<?>> newExecutions = processHydrationRequests(indexConsumer);
-                logger.info("Processing {} new HydrationExecutions", newExecutions.size());
+                if(!newExecutions.isEmpty()){
+                    logger.info("Processing {} new HydrationExecutions", newExecutions.size());
+                }
                 hydrationExecutions.putAll(newExecutions);
-                logger.info("Processing {} HydrationExecutions in total", hydrationExecutions.size());
                 // assign all the hydrationExecution partition and the gdpKeyPartitions (if any)
                 indexConsumer.assign(Stream.of(hydrationExecutions.keySet(), gdprKeyPartitions).flatMap(Set::stream).collect(toSet()));
                 // seek to the correct offset for the new executions
