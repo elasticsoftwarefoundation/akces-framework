@@ -149,7 +149,9 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         if (processState == RUNNING) {
             try {
                 Map<TopicPartition, HydrationExecution<?>> newExecutions = processHydrationRequests(indexConsumer);
+                logger.info("Processing {} new HydrationExecutions", newExecutions.size());
                 hydrationExecutions.putAll(newExecutions);
+                logger.info("Processing {} HydrationExecutions in total", hydrationExecutions.size());
                 // assign all the hydrationExecution partition and the gdpKeyPartitions (if any)
                 indexConsumer.assign(Stream.of(hydrationExecutions.keySet(), gdprKeyPartitions).flatMap(Set::stream).collect(toSet()));
                 // seek to the correct offset for the new executions
@@ -189,6 +191,11 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                 while (itr.hasNext()) {
                     HydrationExecution<?> execution = itr.next();
                     if (execution.endOffset() <= indexConsumer.position(execution.indexPartition())) {
+                        logger.info(
+                                "HydrationExecution on index {} with id {} and runtime {} is complete",
+                                execution.runtime().getIndexName(),
+                                execution.id(),
+                                execution.runtime().getName());
                         // we are done with this execution
                         execution.complete();
                         itr.remove();
@@ -320,7 +327,9 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
             });
             return newExecutions;
         } catch (InterruptedException e) {
+            logger.warn("Interrupted while processing HydrationRequests", e);
             // ignore
+            Thread.currentThread().interrupt();
         }
         return newExecutions;
     }
