@@ -33,7 +33,10 @@ public final class KafkaUtils {
 
     public static NewTopic createCompactedTopic(String name, int numPartitions, short replicationFactor) {
         NewTopic topic = new NewTopic(name, numPartitions, replicationFactor);
+        // calculate the min.insync.replicas based on the replication factor
+        String minInSyncReplicas = String.valueOf(calculateQuorum(replicationFactor));
         return topic.configs(Map.of(
+                "min.insync.replicas", minInSyncReplicas,
                 "cleanup.policy", "compact",
                 "max.message.bytes", "20971520",
                 "retention.ms", "-1",
@@ -41,6 +44,10 @@ public final class KafkaUtils {
                 "min.cleanable.dirty.ratio", "0.1",
                 "delete.retention.ms", "604800000",
                 "compression.type", "lz4"));
+    }
+
+    public static int calculateQuorum(short replicationFactor) {
+        return (replicationFactor / 2) + 1;
     }
 
 }
