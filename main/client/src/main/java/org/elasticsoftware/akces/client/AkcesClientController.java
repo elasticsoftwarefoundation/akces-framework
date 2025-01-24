@@ -56,7 +56,12 @@ import org.elasticsoftware.akces.util.KafkaSender;
 import org.everit.json.schema.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.boot.availability.AvailabilityChangeEvent;
+import org.springframework.boot.availability.LivenessState;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdminOperations;
@@ -73,7 +78,7 @@ import static org.elasticsoftware.akces.client.AkcesClientControllerState.*;
 import static org.elasticsoftware.akces.gdpr.GDPRContextHolder.resetCurrentGDPRContext;
 import static org.elasticsoftware.akces.gdpr.GDPRContextHolder.setCurrentGDPRContext;
 
-public class AkcesClientController extends Thread implements AutoCloseable, AkcesClient {
+public class AkcesClientController extends Thread implements AutoCloseable, AkcesClient, ApplicationContextAware {
     private static final Logger logger = LoggerFactory.getLogger(AkcesClientController.class);
     private static final TopicPartition AKCES_CONTROL_PARTITION = new TopicPartition("Akces-Control", 0);
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
@@ -96,6 +101,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
     private Integer partitions = null;
     private volatile AkcesClientControllerState processState = INITIALIZING;
     private TopicPartition commandResponsePartition;
+    private ApplicationContext applicationContext;
 
     public AkcesClientController(ProducerFactory<String, ProtocolRecord> producerFactory,
                                  ConsumerFactory<String, AkcesControlRecord> controlRecordConsumerFactory,
@@ -158,6 +164,8 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                     pendingRequest.completableFuture().completeExceptionally(new CommandRefusedException(pendingRequest.command().getClass(), SHUTTING_DOWN));
                 }
             }
+            // raise an error for the liveness check
+            applicationContext.publishEvent(new AvailabilityChangeEvent<>(this, LivenessState.BROKEN));
             // signal that we are done
             shutdownLatch.countDown();
         }
@@ -515,6 +523,11 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
 
     public boolean isRunning() {
         return processState == RUNNING;
+    }
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.applicationContext = applicationContext;
     }
 
     private record CommandRequest(@Nonnull Command command, @Nonnull CommandRecord commandRecord, @Nonnull String topic,

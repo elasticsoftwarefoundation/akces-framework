@@ -48,6 +48,11 @@ import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.util.HostUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeansException;
+import org.springframework.boot.availability.AvailabilityChangeEvent;
+import org.springframework.boot.availability.LivenessState;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.core.env.Environment;
 import org.springframework.kafka.core.ConsumerFactory;
@@ -67,7 +72,7 @@ import static org.elasticsoftware.akces.kafka.PartitionUtils.*;
 import static org.elasticsoftware.akces.util.KafkaUtils.createCompactedTopic;
 import static org.elasticsoftware.akces.util.KafkaUtils.getIndexTopicName;
 
-public class AkcesAggregateController extends Thread implements AutoCloseable, ConsumerRebalanceListener, AkcesRegistry, EnvironmentAware {
+public class AkcesAggregateController extends Thread implements AutoCloseable, ConsumerRebalanceListener, AkcesRegistry, EnvironmentAware, ApplicationContextAware {
     private static final Logger logger = LoggerFactory.getLogger(AkcesAggregateController.class);
     private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
@@ -89,6 +94,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     private Consumer<String, AkcesControlRecord> controlConsumer;
     private volatile AkcesControllerState processState = INITIALIZING;
     private boolean forceRegisterOnIncompatible = false;
+    private ApplicationContext applicationContext;
 
     public AkcesAggregateController(ConsumerFactory<String, ProtocolRecord> consumerFactory,
                                     ProducerFactory<String, ProtocolRecord> producerFactory,
@@ -143,6 +149,8 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
             } catch (KafkaException e) {
                 logger.error("Error closing controlConsumer", e);
             }
+            // raise an error for the liveness check
+            applicationContext.publishEvent(new AvailabilityChangeEvent<>(this, LivenessState.BROKEN));
             // signal done
             shutdownLatch.countDown();
         } catch (Exception e) {
@@ -590,5 +598,10 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     @Override
     public void setEnvironment(Environment environment) {
         this.forceRegisterOnIncompatible = environment.getProperty("akces.aggregate.schemas.forceRegister", Boolean.class, false);
+    }
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.applicationContext = applicationContext;
     }
 }

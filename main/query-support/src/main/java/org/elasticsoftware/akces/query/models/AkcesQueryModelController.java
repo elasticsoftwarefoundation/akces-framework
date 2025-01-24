@@ -23,6 +23,8 @@ import org.elasticsoftware.akces.util.HostUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
+import org.springframework.boot.availability.AvailabilityChangeEvent;
+import org.springframework.boot.availability.LivenessState;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.kafka.core.ConsumerFactory;
@@ -57,6 +59,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
     private Map<TopicPartition, Long> initializedEndOffsets = Collections.emptyMap();
     private final HashFunction hashFunction = Hashing.murmur3_32_fixed();
     private int totalPartitions;
+    private ApplicationContext applicationContext;
 
     public AkcesQueryModelController(KafkaAdminOperations kafkaAdmin,
                                      ConsumerFactory<String, ProtocolRecord> consumerFactory,
@@ -69,6 +72,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
 
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.applicationContext = applicationContext;
         this.enabledRuntimes.putAll(
                 applicationContext.getBeansOfType(QueryModelRuntime.class).values().stream()
                         .collect(Collectors.toMap(runtime -> ((QueryModelRuntime<?>) runtime).getQueryModelClass(), runtime -> runtime)));
@@ -135,6 +139,8 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                     // ignore
                 }
             }
+            // raise an error for the liveness check
+            applicationContext.publishEvent(new AvailabilityChangeEvent<>(this, LivenessState.BROKEN));
         }
         shutdownLatch.countDown();
     }
@@ -243,8 +249,10 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                         disabledRuntimes.put(queryModelRuntime.getQueryModelClass(), queryModelRuntime);
                     }
                 }
-                // see if we have an enabledRuntime with shouldHandlePIIData set to true
-                if (enabledRuntimes.values().stream().anyMatch(QueryModelRuntime::shouldHandlePIIData)) {
+                if(enabledRuntimes.isEmpty() && !disabledRuntimes.isEmpty()) {
+                    logger.error("No QueryModelRuntimes enabled. This is an error. Shutting down");
+                    processState = SHUTTING_DOWN;
+                } else if (enabledRuntimes.values().stream().anyMatch(QueryModelRuntime::shouldHandlePIIData)) {
                     // we need to load the gdpr keys
                     logger.info("Loading GDPR keys");
                     // first find out about the cluster
