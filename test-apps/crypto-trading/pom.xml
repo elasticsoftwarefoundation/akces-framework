@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-test-apps</artifactId>
-        <version>0.7.13-SNAPSHOT</version>
+        <version>0.7.13</version>
     </parent>
     <artifactId>akces-crypto-trading-parent</artifactId>
     <packaging>pom</packaging>
