@@ -19,10 +19,12 @@ package org.elasticsoftware.cryptotrading;
 
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.PropertySource;
 
 @Configuration
 @ComponentScan(basePackages = {
         "org.elasticsoftware.cryptotrading.web"
 })
+@PropertySource("classpath:akces-framework.properties")
 public class ClientConfig {
 }
