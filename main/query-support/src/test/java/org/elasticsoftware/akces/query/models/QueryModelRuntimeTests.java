@@ -48,6 +48,7 @@ import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
 import org.elasticsoftware.akcestest.aggregate.account.CreateAccountCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.BalanceCreatedEvent;
+import org.elasticsoftware.akcestest.aggregate.wallet.CreateBalanceCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.CreateWalletCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.WalletCreatedEvent;
 import org.junit.jupiter.api.*;
@@ -431,7 +432,7 @@ public class QueryModelRuntimeTests {
         }
     }
 
-    @Test
+    @Test @Order(8)
     public void testAccountQueryModel() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
@@ -441,7 +442,7 @@ public class QueryModelRuntimeTests {
             Thread.onSpinWait();
         }
 
-        String userId = "4117b11f-3dde-4b71-b80c-fa20a12d9add";
+        String userId = "7ee48409-f381-4bb1-8115-0a7bbfd30e9c";
         List<DomainEvent> result;
 
         CreateAccountCommand createAccountCommand = new CreateAccountCommand(userId, "US", "John", "Doe", "john.doe@example.com");
@@ -461,6 +462,88 @@ public class QueryModelRuntimeTests {
         assertThat(state.firstName()).isEqualTo("John");
         assertThat(state.lastName()).isEqualTo("Doe");
         assertThat(state.email()).isEqualTo("john.doe@example.com");
+    }
+
+    @Test @Order(8)
+    public void testAccountQueryModelUsingCache() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
+                !akcesClientController.isRunning() ||
+                !akcesQueryModelController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        String userId = "4117b11f-3dde-4b71-b80c-fa20a12d9add";
+        List<DomainEvent> result;
+
+        CreateAccountCommand createAccountCommand = new CreateAccountCommand(userId, "US", "John", "Doe", "john.doe@example.com");
+        result = assertDoesNotThrow(() -> akcesClientController.send("TEST_TENANT", createAccountCommand).toCompletableFuture().get(10, TimeUnit.SECONDS));
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(1, result.size());
+        assertInstanceOf(AccountCreatedEvent.class, result.getFirst());
+
+        CompletableFuture<AccountQueryModelState> stateFuture1 = akcesQueryModelController.getHydratedState(AccountQueryModel.class, userId)
+                .toCompletableFuture();
+
+        assertNotNull(stateFuture1);
+        AccountQueryModelState state1 = assertDoesNotThrow(() -> stateFuture1.get(10, TimeUnit.SECONDS));
+        assertNotNull(state1);
+        assertThat(state1.country()).isEqualTo("US");
+        assertThat(state1.firstName()).isEqualTo("John");
+        assertThat(state1.lastName()).isEqualTo("Doe");
+        assertThat(state1.email()).isEqualTo("john.doe@example.com");
+
+        CompletableFuture<AccountQueryModelState> stateFuture2 = akcesQueryModelController.getHydratedState(AccountQueryModel.class, userId)
+                .toCompletableFuture();
+
+        assertNotNull(stateFuture2);
+        AccountQueryModelState state2 = assertDoesNotThrow(() -> stateFuture2.get(10, TimeUnit.SECONDS));
+        assertNotNull(state2);
+        assertThat(state2.country()).isEqualTo("US");
+        assertThat(state2.firstName()).isEqualTo("John");
+        assertThat(state2.lastName()).isEqualTo("Doe");
+        assertThat(state2.email()).isEqualTo("john.doe@example.com");
+
+        // fetch the wallet model state
+        CompletableFuture<WalletQueryModelState> walletStateFuture = akcesQueryModelController.getHydratedState(WalletQueryModel.class, userId)
+                .toCompletableFuture();
+        assertNotNull(walletStateFuture);
+        WalletQueryModelState walletState = assertDoesNotThrow(() -> walletStateFuture.get(10, TimeUnit.SECONDS));
+        assertNotNull(walletState);
+        assertEquals(1, walletState.balances().size());
+        assertEquals("EUR", walletState.balances().getFirst().currency());
+
+        // and again, should come straight from the cache
+        CompletableFuture<WalletQueryModelState> walletStateFuture2 = akcesQueryModelController.getHydratedState(WalletQueryModel.class, userId)
+                .toCompletableFuture();
+        assertNotNull(walletStateFuture2);
+        WalletQueryModelState walletState2 = assertDoesNotThrow(() -> walletStateFuture2.get(10, TimeUnit.SECONDS));
+        assertNotNull(walletState2);
+        assertEquals(1, walletState2.balances().size());
+        assertEquals("EUR", walletState2.balances().getFirst().currency());
+
+        // now create a new BTC balance
+        CompletableFuture<List<DomainEvent>> resultFuture = akcesClientController.send("TEST_TENANT", new CreateBalanceCommand(userId, "ETH"))
+                .toCompletableFuture();
+
+        result = assertDoesNotThrow(() -> akcesClientController.send("TEST_TENANT", new CreateBalanceCommand(userId, "BTC"))
+                .toCompletableFuture().get(10, TimeUnit.SECONDS));
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(1, result.size());
+        assertInstanceOf(BalanceCreatedEvent.class, result.getFirst());
+
+        CompletableFuture<WalletQueryModelState> walletStateFuture3 = akcesQueryModelController.getHydratedState(WalletQueryModel.class, userId)
+                .toCompletableFuture();
+        assertNotNull(walletStateFuture3);
+        WalletQueryModelState walletState3 = assertDoesNotThrow(() -> walletStateFuture3.get(10, TimeUnit.SECONDS));
+        assertNotNull(walletState3);
+        assertEquals(2, walletState3.balances().size());
+        assertEquals("EUR", walletState3.balances().getFirst().currency());
+        assertEquals("BTC", walletState3.balances().getLast().currency());
+
     }
 
     public static class ContextInitializer

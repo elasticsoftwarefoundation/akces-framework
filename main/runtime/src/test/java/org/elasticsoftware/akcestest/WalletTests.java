@@ -54,12 +54,13 @@ public class WalletTests {
 
     @Test
     public void testFindBeans() {
-        assertEquals(3, applicationContext.getBeansOfType(CommandHandlerFunction.class).size());
+        assertEquals(4, applicationContext.getBeansOfType(CommandHandlerFunction.class).size());
         assertEquals(1, applicationContext.getBeansOfType(EventHandlerFunction.class).size());
         assertEquals(4, applicationContext.getBeansOfType(EventSourcingHandlerFunction.class).size());
         Assertions.assertNotNull(applicationContext.getBean("Wallet_ch_create_CreateWallet_1"));
         Assertions.assertNotNull(applicationContext.getBean("Wallet_ch_credit_CreditWallet_1"));
         Assertions.assertNotNull(applicationContext.getBean("Wallet_ch_makeReservation_ReserveAmount_1"));
+        Assertions.assertNotNull(applicationContext.getBean("Wallet_ch_createBalance_CreateBalance_1"));
         Assertions.assertNotNull(applicationContext.getBean("Wallet_eh_create_AccountCreated_1"));
         Assertions.assertNotNull(applicationContext.getBean("Wallet_esh_create_WalletCreated_1"));
         Assertions.assertNotNull(applicationContext.getBean("Wallet_esh_createBalance_BalanceCreated_1"));

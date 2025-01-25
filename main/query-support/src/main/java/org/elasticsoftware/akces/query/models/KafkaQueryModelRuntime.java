@@ -188,4 +188,9 @@ public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryM
                     shouldHandlePIIData);
         }
     }
+
+    @Override
+    public String toString() {
+        return "KafkaQueryModelRuntime{"+getName()+"}";
+    }
 }

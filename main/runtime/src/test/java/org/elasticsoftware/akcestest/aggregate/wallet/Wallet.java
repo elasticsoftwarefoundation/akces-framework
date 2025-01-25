@@ -56,6 +56,16 @@ public final class Wallet implements Aggregate<WalletState> {
         return Stream.of(new WalletCreatedEvent(event.getAggregateId()), new BalanceCreatedEvent(event.getAggregateId(), "EUR"));
     }
 
+    @CommandHandler(produces = BalanceCreatedEvent.class, errors = {BalanceAlreadyExistsErrorEvent.class})
+    public @NotNull Stream<DomainEvent> createBalance(@NotNull CreateBalanceCommand cmd, @NotNull WalletState currentState) {
+        boolean balanceExists = currentState.balances().stream()
+                .anyMatch(balance -> balance.currency().equals(cmd.currency()));
+        if (balanceExists) {
+            return Stream.of(new BalanceAlreadyExistsErrorEvent(cmd.id(), cmd.currency()));
+        }
+        return Stream.of(new BalanceCreatedEvent(cmd.id(), cmd.currency()));
+    }
+
     @CommandHandler(produces = WalletCreditedEvent.class, errors = {InvalidCurrencyErrorEvent.class, InvalidAmountErrorEvent.class})
     @NotNull
     public Stream<DomainEvent> credit(@NotNull CreditWalletCommand cmd, @NotNull WalletState currentState) {

@@ -1,5 +1,7 @@
 package org.elasticsoftware.akces.query.models;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import jakarta.annotation.Nullable;
@@ -38,7 +40,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.stream.Collectors.toSet;
 import static org.elasticsoftware.akces.query.models.AkcesQueryModelControllerState.*;
 import static org.elasticsoftware.akces.util.KafkaUtils.getIndexTopicName;
 
@@ -60,6 +61,9 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
     private final HashFunction hashFunction = Hashing.murmur3_32_fixed();
     private int totalPartitions;
     private ApplicationContext applicationContext;
+    private final Cache<String, CachedQueryModelState<?>> queryModelStateCache = Caffeine.newBuilder()
+            .maximumSize(1000)
+            .build();
 
     public AkcesQueryModelController(KafkaAdminOperations kafkaAdmin,
                                      ConsumerFactory<String, ProtocolRecord> consumerFactory,
@@ -90,11 +94,11 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
 
     @Override
     public <S extends QueryModelState> CompletionStage<S> getHydratedState(Class<? extends QueryModel<S>> modelClass, String id) {
-        // TODO: get state and offset from a cache
-        S currentState = null;
-        Long currentOffset = null;
         QueryModelRuntime<S> runtime = getEnabledRuntime(modelClass);
         if (runtime != null) {
+            CachedQueryModelState<S> cachedQueryModelState = (CachedQueryModelState<S>) queryModelStateCache.getIfPresent(runtime.getName()+"-"+id);
+            S currentState = cachedQueryModelState != null ? cachedQueryModelState.state() : null;
+            Long currentOffset = cachedQueryModelState != null ? cachedQueryModelState.offset() : null;
             CompletableFuture<S> completableFuture = new CompletableFuture<>();
             commandQueue.add(new HydrationRequest<>(runtime, completableFuture, id, currentState, currentOffset));
             return completableFuture;
@@ -217,7 +221,11 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                         // we are done with this execution
                         execution.complete();
                         itr.remove();
-                        // TODO: store the state and offset in a cache
+                        queryModelStateCache.put(
+                                execution.runtime().getName()+"-"+execution.id(),
+                                new CachedQueryModelState<>(
+                                        execution.currentState(),
+                                        indexConsumer.position(execution.indexPartition())+1));
                     }
                 }
             } catch (WakeupException | InterruptException e) {
@@ -423,5 +431,8 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                 completableFuture.completeExceptionally(new QueryModelIdNotFoundException(runtime.getQueryModelClass(), id));
             }
         }
+    }
+
+    private record CachedQueryModelState<S extends QueryModelState>(S state, Long offset) {
     }
 }

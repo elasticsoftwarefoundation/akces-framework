@@ -20,13 +20,12 @@ package org.elasticsoftware.akces.query.models.wallet;
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.QueryModelStateInfo;
 import org.elasticsoftware.akces.query.QueryModelState;
-import org.elasticsoftware.akcestest.aggregate.wallet.WalletState;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 @QueryModelStateInfo(type = "Wallet")
-public record WalletQueryModelState(String walletId, List<WalletState.Balance> balances) implements QueryModelState {
+public record WalletQueryModelState(String walletId, List<Balance> balances) implements QueryModelState {
     @Override
     public String getIndexKey() {
         return walletId();

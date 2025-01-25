@@ -23,6 +23,8 @@ import org.elasticsoftware.akces.query.QueryModel;
 import org.elasticsoftware.akcestest.aggregate.wallet.BalanceCreatedEvent;
 import org.elasticsoftware.akcestest.aggregate.wallet.WalletCreatedEvent;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 @QueryModelInfo(value = "WalletQueryModel", version = 1, indexName = "Users")
@@ -49,6 +51,9 @@ public class WalletQueryModel implements QueryModel<WalletQueryModelState> {
 
     @QueryModelEventHandler(create = false)
     public WalletQueryModelState createBalance(BalanceCreatedEvent event, WalletQueryModelState currentState) {
-        return new WalletQueryModelState(event.id(), List.of());
+        WalletQueryModelState.Balance balance = new WalletQueryModelState.Balance(event.currency(), BigDecimal.ZERO);
+        List<WalletQueryModelState.Balance> balances = new ArrayList<>(currentState.balances());
+        balances.add(balance);
+        return new WalletQueryModelState(currentState.walletId(), balances);
     }
 }
