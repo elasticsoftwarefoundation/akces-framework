@@ -149,15 +149,19 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         if (processState == RUNNING) {
             try {
                 Map<TopicPartition, HydrationExecution<?>> newExecutions = processHydrationRequests(indexConsumer);
+                // assign all the hydrationExecution partition and the gdpKeyPartitions (if any)
+                hydrationExecutions.putAll(newExecutions);
+                indexConsumer.assign(Stream.of(hydrationExecutions.keySet(), gdprKeyPartitions).flatMap(Set::stream).collect(toSet()));
                 if(!newExecutions.isEmpty()){
                     logger.info("Processing {} new HydrationExecutions", newExecutions.size());
+                    // we need to get the endoffsets for all the partitions
+                    indexConsumer.endOffsets(newExecutions.keySet()).forEach((partition, endOffset) -> {
+                        hydrationExecutions.computeIfPresent(partition, (topicPartition, hydrationExecution) -> hydrationExecution.withEndOffset(endOffset));
+                    });
                 }
-                hydrationExecutions.putAll(newExecutions);
                 if(!hydrationExecutions.isEmpty()) {
                     logger.info("Processing HydrationExecutions {}", hydrationExecutions);
                 }
-                // assign all the hydrationExecution partition and the gdpKeyPartitions (if any)
-                indexConsumer.assign(Stream.of(hydrationExecutions.keySet(), gdprKeyPartitions).flatMap(Set::stream).collect(toSet()));
                 // seek to the correct offset for the new executions
                 newExecutions.forEach((partition, execution) -> {
                     if (execution.currentOffset() != null) {
@@ -328,10 +332,6 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                 }
                 request = commandQueue.poll();
             }
-            // we need to get the endoffsets for all the partitions
-            indexConsumer.endOffsets(newExecutions.keySet()).forEach((partition, endOffset) -> {
-                newExecutions.computeIfPresent(partition, (topicPartition, hydrationExecution) -> hydrationExecution.withEndOffset(endOffset));
-            });
             return newExecutions;
         } catch (InterruptedException e) {
             logger.warn("Interrupted while processing HydrationRequests", e);
