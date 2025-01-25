@@ -49,7 +49,7 @@
         <developerConnection>scm:git:git@github.com:elasticsoftwarefoundation/akces-framework.git
         </developerConnection>
         <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
-        <tag>v0.3.4</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <distributionManagement>
@@ -74,6 +74,8 @@
         <java.version>21</java.version>
         <!-- this is needed for surefire, needs to be kept in sync with the mockito-core version in spring-boot -->
         <mockito.version>5.14.2</mockito.version>
+        <spring.version>6.2.2</spring.version>
+        <spring-boot.version>3.4.2</spring-boot.version>
     </properties>
 
     <modules>

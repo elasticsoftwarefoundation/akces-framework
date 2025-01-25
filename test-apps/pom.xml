@@ -30,8 +30,6 @@
     <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
 
     <properties>
-        <spring.version>6.2.1</spring.version>
-        <spring-boot.version>3.4.1</spring-boot.version>
         <akces-framework.version>${project.version}</akces-framework.version>
     </properties>
 
