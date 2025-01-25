@@ -139,7 +139,7 @@ public class AggregateServiceApplication {
         return new RocksDBGDPRContextRepositoryFactory(serde, baseDir);
     }
 
-    @Bean(name = "EnvironmentPropertiesPrinter")
+    @Bean(name = "environmentPropertiesPrinter")
     public EnvironmentPropertiesPrinter environmentPropertiesPrinter() {
         return new EnvironmentPropertiesPrinter();
     }

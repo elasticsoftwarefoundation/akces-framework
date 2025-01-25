@@ -152,9 +152,6 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                 // assign all the hydrationExecution partition and the gdpKeyPartitions (if any)
                 hydrationExecutions.putAll(newExecutions);
                 indexConsumer.assign(Stream.of(hydrationExecutions.keySet(), gdprKeyPartitions).flatMap(Set::stream).collect(toSet()));
-                if(!hydrationExecutions.isEmpty()) {
-                    logger.info("Processing HydrationExecutions {}", hydrationExecutions);
-                }
                 // seek to the correct offset for the new executions
                 newExecutions.forEach((partition, execution) -> {
                     if (execution.currentOffset() != null) {
@@ -170,6 +167,9 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                     indexConsumer.endOffsets(newExecutions.keySet()).forEach((partition, endOffset) -> {
                         hydrationExecutions.computeIfPresent(partition, (topicPartition, hydrationExecution) -> hydrationExecution.withEndOffset(endOffset));
                     });
+                }
+                if(!hydrationExecutions.isEmpty()) {
+                    logger.info("Processing HydrationExecutions {}", hydrationExecutions);
                 }
                 ConsumerRecords<String, ProtocolRecord> consumerRecords = indexConsumer.poll(Duration.ofMillis(100));
                 // first update the gdpr keys

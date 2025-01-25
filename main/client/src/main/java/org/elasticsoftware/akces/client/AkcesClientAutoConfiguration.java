@@ -34,8 +34,10 @@ import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
+import org.elasticsoftware.akces.util.EnvironmentPropertiesPrinter;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
@@ -111,6 +113,12 @@ public class AkcesClientAutoConfiguration {
         provider.addIncludeFilter(new AnnotationTypeFilter(DomainEventInfo.class));
         provider.setEnvironment(environment);
         return provider;
+    }
+
+    @ConditionalOnMissingBean(EnvironmentPropertiesPrinter.class)
+    @Bean(name = "environmentPropertiesPrinter")
+    public EnvironmentPropertiesPrinter environmentPropertiesPrinter() {
+        return new EnvironmentPropertiesPrinter();
     }
 
     @Bean(name = "akcesClient", initMethod = "start", destroyMethod = "close")

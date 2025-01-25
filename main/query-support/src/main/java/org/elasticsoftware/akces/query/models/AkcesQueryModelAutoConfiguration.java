@@ -32,6 +32,7 @@ import org.elasticsoftware.akces.query.models.beans.QueryModelBeanFactoryPostPro
 import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
+import org.elasticsoftware.akces.util.EnvironmentPropertiesPrinter;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -105,5 +106,11 @@ public class AkcesQueryModelAutoConfiguration {
                                                         @Qualifier("akcesQueryModelConsumerFactory") ConsumerFactory<String, ProtocolRecord> consumerFactory,
                                                         @Qualifier("akcesQueryModelGDPRContextRepositoryFactory") GDPRContextRepositoryFactory gdprContextRepositoryFactory) {
         return new AkcesQueryModelController(kafkaAdmin, consumerFactory, gdprContextRepositoryFactory);
+    }
+
+    @ConditionalOnMissingBean(EnvironmentPropertiesPrinter.class)
+    @Bean(name = "environmentPropertiesPrinter")
+    public EnvironmentPropertiesPrinter environmentPropertiesPrinter() {
+        return new EnvironmentPropertiesPrinter();
     }
 }
