@@ -23,6 +23,8 @@ spec:
                 items:
                   type: "string"
                 type: "array"
+              applicationName:
+                type: "string"
               args:
                 items:
                   type: "string"

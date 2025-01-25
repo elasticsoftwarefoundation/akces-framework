@@ -26,6 +26,7 @@ public class QueryServiceSpec {
     private String image;
     private List<String> args;
     private ResourceRequirements resources;
+    private String applicationName;
 
     public Integer getReplicas() {
         return replicas;
@@ -57,5 +58,13 @@ public class QueryServiceSpec {
 
     public void setResources(ResourceRequirements resources) {
         this.resources = resources;
+    }
+
+    public String getApplicationName() {
+        return applicationName;
+    }
+
+    public void setApplicationName(String applicationName) {
+        this.applicationName = applicationName;
     }
 }

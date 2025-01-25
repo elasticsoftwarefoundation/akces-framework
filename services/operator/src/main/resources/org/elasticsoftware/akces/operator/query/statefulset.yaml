@@ -25,6 +25,8 @@ spec:
         - name: akces-query-service
           image: ""
           env:
+            - name: SPRING_APPLICATION_NAME
+              value: "Akces Query Service"
             - name: SPRING_CONFIG_LOCATION
               value: "file:/config/application.properties"
             - name: LOGGING_CONFIG

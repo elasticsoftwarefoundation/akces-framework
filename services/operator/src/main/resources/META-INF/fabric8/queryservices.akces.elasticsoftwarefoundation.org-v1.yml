@@ -19,6 +19,8 @@ spec:
         properties:
           spec:
             properties:
+              applicationName:
+                type: "string"
               args:
                 items:
                   type: "string"

@@ -5,6 +5,7 @@ metadata:
 data:
   application.properties: |
     # Spring application properties
+    spring.application.name=${SPRING_APPLICATION_NAME}
     spring.kafka.enabled=true
     spring.kafka.bootstrap-servers=akces-kafka-bootstrap.kafka:9092
     spring.kafka.consumer.properties.session.timeout.ms=45000
