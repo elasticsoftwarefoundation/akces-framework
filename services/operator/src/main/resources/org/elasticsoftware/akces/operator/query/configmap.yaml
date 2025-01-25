@@ -8,6 +8,11 @@ data:
     spring.kafka.enabled=true
     spring.kafka.bootstrap-servers=akces-kafka-bootstrap.kafka:9092
     spring.kafka.consumer.properties.session.timeout.ms=45000
+    management.endpoint.health.probes.enabled=true
+    management.health.livenessState.enabled=true
+    management.health.readinessState.enabled=true
+    server.shutdown=graceful
+    spring.mvc.problemdetails.enabled=true
     akces.schemaregistry.url=http://akces-schema-registry.kafka:8081
     akces.rocksdb.baseDir=/var/lib/akces-data
   logback.xml: |

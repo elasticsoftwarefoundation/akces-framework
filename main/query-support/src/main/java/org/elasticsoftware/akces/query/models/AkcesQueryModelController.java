@@ -151,7 +151,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                 Map<TopicPartition, HydrationExecution<?>> newExecutions = processHydrationRequests(indexConsumer);
                 // assign all the hydrationExecution partition and the gdpKeyPartitions (if any)
                 hydrationExecutions.putAll(newExecutions);
-                indexConsumer.assign(Stream.of(hydrationExecutions.keySet(), gdprKeyPartitions).flatMap(Set::stream).collect(toSet()));
+                indexConsumer.assign(Stream.concat(hydrationExecutions.keySet().stream(), gdprKeyPartitions.stream()).toList());
                 // seek to the correct offset for the new executions
                 newExecutions.forEach((partition, execution) -> {
                     if (execution.currentOffset() != null) {
@@ -171,22 +171,23 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                 if(!hydrationExecutions.isEmpty()) {
                     logger.info("Processing HydrationExecutions {}", hydrationExecutions);
                 }
-                ConsumerRecords<String, ProtocolRecord> consumerRecords = indexConsumer.poll(Duration.ofMillis(100));
+                ConsumerRecords<String, ProtocolRecord> consumerRecords = indexConsumer.poll(Duration.ofMillis(10));
                 // first update the gdpr keys
                 // iterate over all of the gdpr partitions
                 if(!gdprKeyPartitions.isEmpty() && !consumerRecords.isEmpty()) {
-                    List<TopicPartition> gdprRecords = consumerRecords.partitions().stream()
+                    List<TopicPartition> gdprKeyPartitions = consumerRecords.partitions().stream()
                             .filter(topicPartition -> topicPartition.topic().equals("Akces-GDPRKeys")).toList();
-                    logger.info("Processing {} GDPRKeyRecords", gdprRecords.size());
-                    for (TopicPartition gdprKeyPartition : gdprRecords) {
+                    logger.info("Processing {} GDPRKeyPartitions", gdprKeyPartitions.size());
+                    for (TopicPartition gdprKeyPartition : gdprKeyPartitions) {
                         gdprContextRepositories.get(gdprKeyPartition).process(consumerRecords.records(gdprKeyPartition));
                     }
                 }
                 // only process if there is something to poll
                 if (!hydrationExecutions.isEmpty() && !consumerRecords.isEmpty()) {
-                    logger.info("Processing {} hydrationExecutions", hydrationExecutions.size());
+                    logger.info("Processing {}", consumerRecords.partitions());
                     for (TopicPartition partition : consumerRecords.partitions().stream().filter(partition ->
-                            !partition.topic().equals("Akces-GDPRKeys")).collect(toSet())) {
+                            !partition.topic().equals("Akces-GDPRKeys")).toList()) {
+                        logger.info("Processing {} hydrationExecutions", hydrationExecutions.size());
                         hydrationExecutions.computeIfPresent(partition,
                                 (topicPartition, hydrationExecution) ->
                                         processHydrationExecution(

@@ -49,11 +49,7 @@ public class CryptoTradingE2ETests {
                     assertThat(accountOutput.email()).isEqualTo("john.doe@example.com");
                 }).returnResult().getResponseBody().userId();
 
-//        try {
-//            Thread.sleep(5000);
-//        } catch (InterruptedException e) {
-//            // ignore
-//        }
+        System.out.println("Created account with userId: " + userId);
 
         e2eTestClient.get()
                 .uri("/v1/accounts/" + userId)
