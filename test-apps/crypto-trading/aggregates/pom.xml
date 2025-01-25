@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-crypto-trading-parent</artifactId>
-        <version>0.7.9-SNAPSHOT</version>
+        <version>0.7.9</version>
     </parent>
     <artifactId>akces-crypto-trading-aggregates</artifactId>
     <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Aggregates</name>

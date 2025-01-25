@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-parent</artifactId>
-        <version>0.7.9-SNAPSHOT</version>
+        <version>0.7.9</version>
     </parent>
 
     <artifactId>akces-framework-main</artifactId>
@@ -66,7 +66,7 @@
         <developerConnection>scm:git:git@github.com:elasticsoftwarefoundation/elasticactors.git
         </developerConnection>
         <url>https://github.com/elasticsoftwarefoundation/elasticactors</url>
-        <tag>v0.3.4</tag>
+        <tag>v0.7.9</tag>
     </scm>
 
     <distributionManagement>
