@@ -66,7 +66,8 @@ import static org.elasticsoftware.cryptotrading.TestUtils.*;
                 "org.elasticsoftware.cryptotrading.ClientConfig"
         },
         useMainMethod = SpringBootTest.UseMainMethod.ALWAYS,
-        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {"akces.client.domainEventsPackage=org.elasticsoftware.cryptotrading.aggregates"})
 @PropertySource("classpath:akces-aggregateservice.properties")
 @ContextConfiguration(initializers = CryptoTradingQueryApiTest.Initializer.class)
 @Testcontainers
