@@ -152,13 +152,6 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                 // assign all the hydrationExecution partition and the gdpKeyPartitions (if any)
                 hydrationExecutions.putAll(newExecutions);
                 indexConsumer.assign(Stream.of(hydrationExecutions.keySet(), gdprKeyPartitions).flatMap(Set::stream).collect(toSet()));
-                if(!newExecutions.isEmpty()){
-                    logger.info("Processing {} new HydrationExecutions", newExecutions.size());
-                    // we need to get the endoffsets for all the partitions
-                    indexConsumer.endOffsets(newExecutions.keySet()).forEach((partition, endOffset) -> {
-                        hydrationExecutions.computeIfPresent(partition, (topicPartition, hydrationExecution) -> hydrationExecution.withEndOffset(endOffset));
-                    });
-                }
                 if(!hydrationExecutions.isEmpty()) {
                     logger.info("Processing HydrationExecutions {}", hydrationExecutions);
                 }
@@ -170,7 +163,15 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                         indexConsumer.seekToBeginning(List.of(partition));
                     }
                 });
-                ConsumerRecords<String, ProtocolRecord> consumerRecords = indexConsumer.poll(Duration.ofMillis(10));
+                // set the correct end offset
+                if(!newExecutions.isEmpty()){
+                    logger.info("Processing {} new HydrationExecutions", newExecutions.size());
+                    // we need to get the endoffsets for all the partitions
+                    indexConsumer.endOffsets(newExecutions.keySet()).forEach((partition, endOffset) -> {
+                        hydrationExecutions.computeIfPresent(partition, (topicPartition, hydrationExecution) -> hydrationExecution.withEndOffset(endOffset));
+                    });
+                }
+                ConsumerRecords<String, ProtocolRecord> consumerRecords = indexConsumer.poll(Duration.ofMillis(100));
                 // first update the gdpr keys
                 // iterate over all of the gdpr partitions
                 if(!gdprKeyPartitions.isEmpty() && !consumerRecords.isEmpty()) {
@@ -181,7 +182,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                         gdprContextRepositories.get(gdprKeyPartition).process(consumerRecords.records(gdprKeyPartition));
                     }
                 }
-                // only poll if there is something to poll
+                // only process if there is something to poll
                 if (!hydrationExecutions.isEmpty() && !consumerRecords.isEmpty()) {
                     logger.info("Processing {} hydrationExecutions", hydrationExecutions.size());
                     for (TopicPartition partition : consumerRecords.partitions().stream().filter(partition ->
@@ -409,7 +410,12 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         }
 
         void complete() {
-            completableFuture.complete(currentState);
+            if(currentState != null) {
+                completableFuture.complete(currentState);
+            } else {
+                // TODO: this should not happen because we only create the index topic when there is an event to write
+                completableFuture.completeExceptionally(new QueryModelIdNotFoundException(runtime.getQueryModelClass(), id));
+            }
         }
     }
 }
