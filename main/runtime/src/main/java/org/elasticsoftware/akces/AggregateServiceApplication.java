@@ -97,7 +97,7 @@ public class AggregateServiceApplication {
     }
 
     @Bean(name = "aggregateServiceSchemaRegistryClient")
-    public SchemaRegistryClient schemaRegistryClient(@Value("${kafka.schemaregistry.url:http://localhost:8081}") String url) {
+    public SchemaRegistryClient schemaRegistryClient(@Value("${akces.schemaregistry.url:http://localhost:8081}") String url) {
         return new CachedSchemaRegistryClient(url, 1000, List.of(new JsonSchemaProvider()), null);
     }
 

@@ -7,8 +7,8 @@ data:
     # Spring application properties
     spring.kafka.enabled=true
     spring.kafka.bootstrap-servers=akces-kafka-bootstrap.kafka:9092
-    spring.kafka.consumer.properties.session.timeout.ms=30000
-    kafka.schemaregistry.url=http://akces-schema-registry.kafka:8081
+    spring.kafka.consumer.properties.session.timeout.ms=45000
+    akces.schemaregistry.url=http://akces-schema-registry.kafka:8081
     akces.rocksdb.baseDir=/var/lib/akces-data
     akces.aggregate.schemas.forceRegister=${ENABLE_SCHEMA_OVERWRITES}
   logback.xml: |

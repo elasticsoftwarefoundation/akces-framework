@@ -909,7 +909,7 @@ public class RuntimeTests {
                     "akces.rocksdb.baseDir=/tmp/akces",
                     "spring.kafka.enabled=true",
                     "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
-                    "kafka.schemaregistry.url=http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081)
+                    "akces.schemaregistry.url=http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081)
             );
         }
     }

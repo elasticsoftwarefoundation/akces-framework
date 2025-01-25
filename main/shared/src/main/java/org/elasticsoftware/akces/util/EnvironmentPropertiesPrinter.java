@@ -39,7 +39,10 @@ public class EnvironmentPropertiesPrinter {
                 .map(ps -> ((MapPropertySource) ps).getSource().keySet())
                 .flatMap(Collection::stream)
                 .distinct()
-                .filter(key -> key.startsWith("akces.") || key.startsWith("spring."))
+                .filter(key -> key.startsWith("akces.") ||
+                        key.startsWith("spring.") ||
+                        key.startsWith("management.") ||
+                        key.startsWith("server."))
                 .sorted()
                 .forEach(key -> logger.info("{}={}", key, env.getProperty(key)));
         logger.info("**************************************");

@@ -71,7 +71,7 @@ public class AkcesQueryModelAutoConfiguration {
 
     @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
     @Bean(name = "akcesQueryModelSchemaRegistryClient")
-    public SchemaRegistryClient createSchemaRegistryClient(@Value("${kafka.schemaregistry.url:http://localhost:8081}") String url) {
+    public SchemaRegistryClient createSchemaRegistryClient(@Value("${akces.schemaregistry.url:http://localhost:8081}") String url) {
         return new CachedSchemaRegistryClient(url, 1000, List.of(new JsonSchemaProvider()), null);
     }
 
