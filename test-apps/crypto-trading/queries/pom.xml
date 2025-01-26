@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-crypto-trading-parent</artifactId>
-        <version>0.7.18</version>
+        <version>0.7.19-SNAPSHOT</version>
     </parent>
     <artifactId>akces-crypto-trading-queries</artifactId>
     <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Query Service</name>
