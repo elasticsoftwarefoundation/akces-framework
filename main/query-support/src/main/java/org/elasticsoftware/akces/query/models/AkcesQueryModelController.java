@@ -225,7 +225,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                                 execution.runtime().getName()+"-"+execution.id(),
                                 new CachedQueryModelState<>(
                                         execution.currentState(),
-                                        indexConsumer.position(execution.indexPartition())+1));
+                                        indexConsumer.position(execution.indexPartition())));
                     }
                 }
             } catch (WakeupException | InterruptException e) {

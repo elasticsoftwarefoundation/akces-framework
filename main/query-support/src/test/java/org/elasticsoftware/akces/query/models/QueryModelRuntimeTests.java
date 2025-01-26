@@ -55,10 +55,7 @@ import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
 import org.elasticsoftware.akcestest.aggregate.account.CreateAccountCommand;
-import org.elasticsoftware.akcestest.aggregate.wallet.BalanceCreatedEvent;
-import org.elasticsoftware.akcestest.aggregate.wallet.CreateBalanceCommand;
-import org.elasticsoftware.akcestest.aggregate.wallet.CreateWalletCommand;
-import org.elasticsoftware.akcestest.aggregate.wallet.WalletCreatedEvent;
+import org.elasticsoftware.akcestest.aggregate.wallet.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -532,16 +529,13 @@ public class QueryModelRuntimeTests {
         assertEquals(1, walletState2.balances().size());
         assertEquals("EUR", walletState2.balances().getFirst().currency());
 
-        // now create a new BTC balance
-        CompletableFuture<List<DomainEvent>> resultFuture = akcesClientController.send("TEST_TENANT", new CreateBalanceCommand(userId, "ETH"))
-                .toCompletableFuture();
-
         result = assertDoesNotThrow(() -> akcesClientController.send("TEST_TENANT", new CreateBalanceCommand(userId, "BTC"))
                 .toCompletableFuture().get(10, TimeUnit.SECONDS));
 
         Assertions.assertNotNull(result);
         Assertions.assertEquals(1, result.size());
         assertInstanceOf(BalanceCreatedEvent.class, result.getFirst());
+        assertEquals("BTC", ((BalanceCreatedEvent) result.getFirst()).currency());
 
         CompletableFuture<WalletQueryModelState> walletStateFuture3 = akcesQueryModelController.getHydratedState(WalletQueryModel.class, userId)
                 .toCompletableFuture();
@@ -551,6 +545,44 @@ public class QueryModelRuntimeTests {
         assertEquals(2, walletState3.balances().size());
         assertEquals("EUR", walletState3.balances().getFirst().currency());
         assertEquals("BTC", walletState3.balances().getLast().currency());
+
+        // add an ETH balance
+        result = assertDoesNotThrow(() -> akcesClientController.send("TEST_TENANT", new CreateBalanceCommand(userId, "ETH"))
+                .toCompletableFuture().get(10, TimeUnit.SECONDS));
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(1, result.size());
+        assertInstanceOf(BalanceCreatedEvent.class, result.get(0));
+
+        CompletableFuture<WalletQueryModelState> walletStateFuture4 = akcesQueryModelController.getHydratedState(WalletQueryModel.class, userId)
+                .toCompletableFuture();
+        assertNotNull(walletStateFuture4);
+        WalletQueryModelState walletState4 = assertDoesNotThrow(() -> walletStateFuture4.get(10, TimeUnit.SECONDS));
+        assertNotNull(walletState4);
+        assertEquals(3, walletState4.balances().size());
+        assertEquals("EUR", walletState4.balances().get(0).currency());
+        assertEquals("BTC", walletState4.balances().get(1).currency());
+        assertEquals("ETH", walletState4.balances().get(2).currency());
+
+        // Credit the EUR wallet with 1000 euros
+        result = assertDoesNotThrow(() -> akcesClientController.send("TEST_TENANT", new CreditWalletCommand(userId, "EUR", new BigDecimal("1000.00")))
+                .toCompletableFuture().get(10, TimeUnit.SECONDS));
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(1, result.size());
+        assertInstanceOf(WalletCreditedEvent.class, result.get(0));
+        assertEquals("EUR", ((WalletCreditedEvent) result.get(0)).currency());
+        assertEquals(new BigDecimal("1000.00"), ((WalletCreditedEvent) result.get(0)).amount());
+
+        CompletableFuture<WalletQueryModelState> walletStateFuture5 = akcesQueryModelController.getHydratedState(WalletQueryModel.class, userId)
+                .toCompletableFuture();
+        assertNotNull(walletStateFuture5);
+        WalletQueryModelState walletState5 = assertDoesNotThrow(() -> walletStateFuture5.get(10, TimeUnit.SECONDS));
+        assertNotNull(walletState5);
+        assertEquals(3, walletState5.balances().size());
+        assertEquals("EUR", walletState5.balances().getFirst().currency());
+        assertEquals(new BigDecimal("1000.00"), walletState5.balances().getFirst().amount());
+
 
     }
 
@@ -564,6 +596,7 @@ public class QueryModelRuntimeTests {
             prepareDomainEventSchemas("http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081),
                     List.of(
                             WalletCreatedEvent.class,
+                            WalletCreditedEvent.class,
                             BalanceCreatedEvent.class,
                             AccountCreatedEvent.class
                     ));

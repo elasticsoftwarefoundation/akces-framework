@@ -20,7 +20,7 @@ package org.elasticsoftware.akces.schemas;
 public class SchemaNotFoundException extends SchemaException {
 
     public SchemaNotFoundException(String schemaIdentifier, Class<?> implementationClass) {
-        super("Schema Not Found", schemaIdentifier, implementationClass);
+        super("Schema "+schemaIdentifier+" for class "+implementationClass.getName()+" Not Found", schemaIdentifier, implementationClass);
     }
 
 }
