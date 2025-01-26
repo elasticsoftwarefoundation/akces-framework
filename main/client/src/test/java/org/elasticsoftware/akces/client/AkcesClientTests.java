@@ -90,6 +90,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 @SpringBootTest(
@@ -291,18 +292,39 @@ public class AkcesClientTests {
     }
 
     @Test
-    public void testUnroutableCommand() {
+    public void testUnroutableCommandWithSendAndForget() {
         Assertions.assertNotNull(akcesClient);
         // make sure it's running
         while (!akcesClient.isRunning()) {
             Thread.onSpinWait();
         }
         // since we didn't register any services this should give a unroutable error
-        Assertions.assertThrows(UnroutableCommandException.class, () -> akcesClient.send("TEST_TENANT", new UnroutableCommand(UUID.randomUUID().toString())));
+        Assertions.assertThrows(UnroutableCommandException.class, () -> akcesClient.sendAndForget("TEST_TENANT", new UnroutableCommand(UUID.randomUUID().toString())));
     }
 
     @Test
-    public void testInvalidCommand() {
+    public void testUnroutableCommandWithSend() {
+        Assertions.assertNotNull(akcesClient);
+        // make sure it's running
+        while (!akcesClient.isRunning()) {
+            Thread.onSpinWait();
+        }
+        CompletionStage<List<DomainEvent>> result =  akcesClient.send("TEST_TENANT", new UnroutableCommand(UUID.randomUUID().toString()));
+        // since we didn't register any services this should give a unroutable error
+        ExecutionException executionException = Assertions.assertThrows(ExecutionException.class, () -> result.toCompletableFuture().get());
+        Assertions.assertInstanceOf(UnroutableCommandException.class, executionException.getCause());
+    }
+
+    @Test
+    public void testInvalidCommandWithSendAndForget() {
+        while (!akcesClient.isRunning()) {
+            Thread.onSpinWait();
+        }
+        Assertions.assertThrows(IllegalArgumentException.class, () -> akcesClient.sendAndForget("TEST_TENANT", new InvalidCommand(UUID.randomUUID().toString())));
+    }
+
+    @Test
+    public void testInvalidCommandWithSend() {
         while (!akcesClient.isRunning()) {
             Thread.onSpinWait();
         }
@@ -310,13 +332,24 @@ public class AkcesClientTests {
     }
 
     @Test
-    public void testValidationError() {
+    public void testValidationErrorWithSendAndForget() {
         // make sure it's running
         while (!akcesClient.isRunning()) {
             Thread.onSpinWait();
         }
         // since we didn't register any services this should give a unroutable error
-        Assertions.assertThrows(CommandValidationException.class, () -> akcesClient.send("TEST_TENANT", new CreateAccountCommand(UUID.randomUUID().toString(), "NL", "Aike", "Christianen", null)));
+        Assertions.assertThrows(CommandValidationException.class, () -> akcesClient.sendAndForget("TEST_TENANT", new CreateAccountCommand(UUID.randomUUID().toString(), "NL", "Aike", "Christianen", null)));
+    }
+
+    @Test
+    public void testValidationErrorWithSend() {
+        // make sure it's running
+        while (!akcesClient.isRunning()) {
+            Thread.onSpinWait();
+        }
+        CompletionStage<List<DomainEvent>> result = akcesClient.send("TEST_TENANT", new CreateAccountCommand(UUID.randomUUID().toString(), "NL", "Aike", "Christianen", null));
+        ExecutionException executionException = Assertions.assertThrows(ExecutionException.class, () -> result.toCompletableFuture().get());
+        Assertions.assertInstanceOf(CommandValidationException.class, executionException.getCause());
     }
 
     @Test

@@ -112,5 +112,8 @@ public class CryptoTradingE2ETests {
                     assertThat(balanceOutput.balance()).isEqualTo(new BigDecimal("1000.00"));
                 });
 
+        // buy for 1000 EUR worth of ETH
+
+
     }
 }
