@@ -17,15 +17,20 @@
 
 package org.elasticsoftware.cryptotrading.web.dto;
 
+import org.elasticsoftware.cryptotrading.aggregates.wallet.events.BalanceCreatedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletCreditedEvent;
 
 import java.math.BigDecimal;
 
-public record CreditWalletOutput(String id,
-                                 String currency,
-                                 BigDecimal amount,
-                                 BigDecimal balance) {
-    public static CreditWalletOutput from(WalletCreditedEvent event) {
-        return new CreditWalletOutput(event.id(), event.currency(), event.amount(), event.balance());
+public record BalanceOutput(String id,
+                            String currency,
+                            BigDecimal amount,
+                            BigDecimal balance) {
+    public static BalanceOutput from(WalletCreditedEvent event) {
+        return new BalanceOutput(event.id(), event.currency(), event.amount(), event.balance());
+    }
+
+    public static BalanceOutput from(BalanceCreatedEvent event) {
+        return new BalanceOutput(event.id(), event.currency(), BigDecimal.ZERO, BigDecimal.ZERO);
     }
 }

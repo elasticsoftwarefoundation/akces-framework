@@ -21,9 +21,9 @@ import org.elasticsoftware.akces.client.AkcesClient;
 import org.elasticsoftware.akces.events.ErrorEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.BalanceCreatedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletCreditedEvent;
+import org.elasticsoftware.cryptotrading.web.dto.BalanceOutput;
 import org.elasticsoftware.cryptotrading.web.dto.CreateBalanceInput;
 import org.elasticsoftware.cryptotrading.web.dto.CreditWalletInput;
-import org.elasticsoftware.cryptotrading.web.dto.CreditWalletOutput;
 import org.elasticsoftware.cryptotrading.web.errors.ErrorEventException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -41,14 +41,14 @@ public class WalletCommandController {
     }
 
     @PostMapping("/{walletId}/balances/{currency}/credit")
-    public Mono<ResponseEntity<CreditWalletOutput>> creditBalance(@PathVariable("walletId") String walletId,
-                                                                  @PathVariable("currency") String currency,
-                                                                  @RequestBody CreditWalletInput input) {
+    public Mono<ResponseEntity<BalanceOutput>> creditBalance(@PathVariable("walletId") String walletId,
+                                                             @PathVariable("currency") String currency,
+                                                             @RequestBody CreditWalletInput input) {
         return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(walletId, currency)))
                 .map(List::getFirst)
                 .handle((domainEvent, sink) -> {
                     if (domainEvent instanceof WalletCreditedEvent) {
-                        sink.next(ResponseEntity.ok(CreditWalletOutput.from((WalletCreditedEvent) domainEvent)));
+                        sink.next(ResponseEntity.ok(BalanceOutput.from((WalletCreditedEvent) domainEvent)));
                     } else {
                         sink.error(new ErrorEventException((ErrorEvent) domainEvent));
                     }
@@ -56,12 +56,12 @@ public class WalletCommandController {
     }
 
     @PostMapping("/{walletId}/balances")
-    public Mono<ResponseEntity<?>> createBalance(@PathVariable("walletId") String walletId, @RequestBody CreateBalanceInput input) {
+    public Mono<ResponseEntity<BalanceOutput>> createBalance(@PathVariable("walletId") String walletId, @RequestBody CreateBalanceInput input) {
         return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(walletId)))
                 .map(List::getFirst)
                 .handle((domainEvent, sink) -> {
-                    if (domainEvent instanceof BalanceCreatedEvent) {
-                        sink.next(ResponseEntity.ok().build());
+                    if (domainEvent instanceof BalanceCreatedEvent balanceCreatedEvent) {
+                        sink.next(ResponseEntity.ok(BalanceOutput.from(balanceCreatedEvent)));
                     } else if (domainEvent instanceof ErrorEvent) {
                         sink.error(new ErrorEventException((ErrorEvent) domainEvent));
                     } else {

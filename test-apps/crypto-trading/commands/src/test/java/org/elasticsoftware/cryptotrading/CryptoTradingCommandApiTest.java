@@ -220,7 +220,7 @@ public class CryptoTradingCommandApiTest {
                             .bodyValue(creditInput)
                             .exchange()
                             .expectStatus().is2xxSuccessful()
-                            .expectBody(CreditWalletOutput.class)
+                            .expectBody(BalanceOutput.class)
                             .value(creditOutput -> {
                                 assertThat(creditOutput).isNotNull();
                                 assertThat(creditOutput.amount()).isEqualByComparingTo("1.0");

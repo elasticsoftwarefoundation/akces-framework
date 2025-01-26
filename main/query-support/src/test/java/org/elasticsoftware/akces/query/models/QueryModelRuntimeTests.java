@@ -287,10 +287,11 @@ public class QueryModelRuntimeTests {
             Thread.onSpinWait();
         }
         assertNotNull(applicationContext);
-        assertEquals(3, applicationContext.getBeansOfType(QueryModelEventHandlerFunction.class).size());
+        assertEquals(4, applicationContext.getBeansOfType(QueryModelEventHandlerFunction.class).size());
         assertNotNull(applicationContext.getBean("WalletQueryModel_qmeh_create_WalletCreated_1"));
         assertNotNull(applicationContext.getBean("WalletQueryModel_qmeh_createBalance_BalanceCreated_1"));
         assertNotNull(applicationContext.getBean("AccountQueryModel_qmeh_create_AccountCreated_1"));
+        assertNotNull(applicationContext.getBean("WalletQueryModel_qmeh_creditWallet_WalletCredited_1"));
         assertEquals(2, applicationContext.getBeansOfType(QueryModelRuntimeFactory.class).size());
         assertNotNull(applicationContext.getBean("WalletQueryModelQueryModelRuntime"));
         assertNotNull(applicationContext.getBean("AccountQueryModelQueryModelRuntime"));
