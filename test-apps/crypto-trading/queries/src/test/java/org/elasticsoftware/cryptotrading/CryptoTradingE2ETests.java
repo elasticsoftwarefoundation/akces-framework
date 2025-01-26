@@ -17,11 +17,12 @@
 
 package org.elasticsoftware.cryptotrading;
 
-import org.elasticsoftware.cryptotrading.web.dto.AccountInput;
-import org.elasticsoftware.cryptotrading.web.dto.AccountOutput;
+import org.elasticsoftware.cryptotrading.web.dto.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.test.web.reactive.server.WebTestClient;
+
+import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -63,6 +64,52 @@ public class CryptoTradingE2ETests {
                     assertThat(retrievedAccount.firstName()).isEqualTo("John");
                     assertThat(retrievedAccount.lastName()).isEqualTo("Doe");
                     assertThat(retrievedAccount.email()).isEqualTo("john.doe@example.com");
+                });
+
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "AKCES_CRYPTO_TRADING_BASE_URL", matches = ".*")
+    public void testBuyCrypto() {
+        AccountInput accountInput = new AccountInput("NL", "Some", "CryptoTrader", "some.cryptotrader@example.com");
+        String userId = e2eTestClient.post()
+                .uri("/v1/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .value(accountOutput -> {
+                    assertThat(accountOutput).isNotNull();
+                    assertThat(accountOutput.userId()).isNotNull();
+                }).returnResult().getResponseBody().userId();
+
+        System.out.println("Created account with userId: " + userId);
+
+        // Create an ETH wallet
+        e2eTestClient.post()
+                .uri("/v1/wallets/{userId}/balances", userId)
+                .bodyValue(new CreateBalanceInput("ETH"))
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(BalanceOutput.class)
+                .value(balanceOutput -> {
+                    assertThat(balanceOutput).isNotNull();
+                    assertThat(balanceOutput.currency()).isEqualTo("ETH");
+                    assertThat(balanceOutput.amount()).isEqualTo(BigDecimal.ZERO);
+                });
+
+        // create the EUR wallet with a balance of 1000
+        e2eTestClient.post()
+                .uri("/v1/wallets/{userId}/balances/EUR/credit", userId)
+                .bodyValue(new CreditWalletInput(new BigDecimal("1000.00")))
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(BalanceOutput.class)
+                .value(balanceOutput -> {
+                    assertThat(balanceOutput).isNotNull();
+                    assertThat(balanceOutput.currency()).isEqualTo("EUR");
+                    assertThat(balanceOutput.amount()).isEqualTo(new BigDecimal("1000.00"));
+                    assertThat(balanceOutput.balance()).isEqualTo(new BigDecimal("1000.00"));
                 });
 
     }

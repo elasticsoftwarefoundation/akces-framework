@@ -74,6 +74,9 @@ public class RocksDBGDPRContextRepository implements GDPRContextRepository {
         final Options options = new Options();
         final TransactionDBOptions transactionDBOptions = new TransactionDBOptions();
         options.setCreateIfMissing(true);
+        // TODO: make this configurable, this setting may be desired on production systems
+        // https://github.com/facebook/rocksdb/blob/23af6786a997d3592e8a68f1a8d9e0699a6eae36/include/rocksdb/options.h#L857C8-L857C24
+        options.setAllowFAllocate(false);
         this.rocksDBDataDir = new File(baseDir, partitionId);
         try {
             Files.createDirectories(this.rocksDBDataDir.getParentFile().toPath());
