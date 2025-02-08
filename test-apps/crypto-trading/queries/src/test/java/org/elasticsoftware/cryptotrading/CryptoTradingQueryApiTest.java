@@ -22,6 +22,7 @@ import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.client.AkcesClientController;
 import org.elasticsoftware.cryptotrading.aggregates.account.events.AccountCreatedEvent;
+import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletCreatedEvent;
 import org.elasticsoftware.cryptotrading.web.AccountCommandController;
 import org.elasticsoftware.cryptotrading.web.AccountQueryController;
 import org.elasticsoftware.cryptotrading.web.WalletCommandController;
@@ -359,7 +360,10 @@ public class CryptoTradingQueryApiTest {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
-            prepareDomainEventSchemas("http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081), List.of(AccountCreatedEvent.class));
+            prepareDomainEventSchemas(
+                    "http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081),
+                    List.of(AccountCreatedEvent.class,
+                            WalletCreatedEvent.class));
             try {
                 prepareAggregateServiceRecords(kafka.getBootstrapServers());
             } catch (IOException e) {

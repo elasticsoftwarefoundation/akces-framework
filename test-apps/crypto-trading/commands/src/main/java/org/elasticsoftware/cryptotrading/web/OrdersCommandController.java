@@ -18,8 +18,14 @@
 package org.elasticsoftware.cryptotrading.web;
 
 import org.elasticsoftware.akces.client.AkcesClient;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/v{version:1}/accounts/{accountId}/orders")
@@ -30,5 +36,14 @@ public class OrdersCommandController {
         this.akcesClient = akcesClient;
     }
 
-
+//    @PostMapping("")
+//    public Mono<ResponseEntity<>> placeBuyOrder(@PathVariable("accountId") String accountId) {
+//        return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(userId)))
+//                .map(List::getFirst)
+//                .map(domainEvent -> {
+//                    AccountCreatedEvent event = (AccountCreatedEvent) domainEvent;
+//                    AccountOutput output = new AccountOutput(event.userId(), input.country(), input.firstName(), input.lastName(), input.email());
+//                    return ResponseEntity.ok(output);
+//                });
+//    }
 }

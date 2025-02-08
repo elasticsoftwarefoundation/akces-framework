@@ -130,7 +130,7 @@ public class TestUtils {
         }
     }
 
-    public static <D extends DomainEvent> void prepareDomainEventSchemas(String url, List<Class<D>> domainEventClasses) {
+    public static void prepareDomainEventSchemas(String url, List<Class<? extends DomainEvent>> domainEventClasses) {
         SchemaRegistryClient src = new CachedSchemaRegistryClient(url, 100);
         Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
         objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
@@ -157,7 +157,7 @@ public class TestUtils {
         SchemaGeneratorConfig config = configBuilder.build();
         SchemaGenerator jsonSchemaGenerator = new SchemaGenerator(config);
         try {
-            for (Class<D> domainEventClass : domainEventClasses) {
+            for (Class<?> domainEventClass : domainEventClasses) {
                 DomainEventInfo info = domainEventClass.getAnnotation(DomainEventInfo.class);
                 src.register("domainevents." + info.type(),
                         new JsonSchema(jsonSchemaGenerator.generateSchema(domainEventClass), List.of(), Map.of(), info.version()),
