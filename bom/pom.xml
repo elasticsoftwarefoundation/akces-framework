@@ -39,12 +39,22 @@
             </dependency>
             <dependency>
                 <groupId>org.elasticsoftwarefoundation.akces</groupId>
+                <artifactId>akces-shared</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.elasticsoftwarefoundation.akces</groupId>
                 <artifactId>akces-runtime</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.elasticsoftwarefoundation.akces</groupId>
                 <artifactId>akces-client</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.elasticsoftwarefoundation.akces</groupId>
+                <artifactId>akces-query-support</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>
