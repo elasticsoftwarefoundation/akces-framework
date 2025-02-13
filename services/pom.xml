@@ -53,7 +53,7 @@
             <dependency>
                 <groupId>io.javaoperatorsdk</groupId>
                 <artifactId>operator-framework-spring-boot-starter</artifactId>
-                <version>6.0.0-beta2</version>
+                <version>6.0.0</version>
                 <exclusions>
                     <exclusion>
                         <groupId>io.fabric8</groupId>
@@ -64,12 +64,17 @@
             <dependency>
                 <groupId>io.javaoperatorsdk</groupId>
                 <artifactId>operator-framework-spring-boot-starter-test</artifactId>
-                <version>6.0.0-beta2</version>
+                <version>6.0.0</version>
             </dependency>
             <dependency>
                 <groupId>io.javaoperatorsdk</groupId>
                 <artifactId>operator-framework-junit-5</artifactId>
-                <version>5.0.0-RC1</version>
+                <version>5.0.1</version>
+            </dependency>
+            <dependency>
+                <groupId>io.javaoperatorsdk</groupId>
+                <artifactId>operator-framework</artifactId>
+                <version>5.0.1</version>
             </dependency>
             <dependency>
                 <groupId>io.fabric8</groupId>
