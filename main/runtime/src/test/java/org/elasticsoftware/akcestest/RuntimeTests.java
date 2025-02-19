@@ -122,7 +122,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DirtiesContext
 public class RuntimeTests {
 
-    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";
+    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.1";
 
     private static final Network network = Network.newNetwork();
 

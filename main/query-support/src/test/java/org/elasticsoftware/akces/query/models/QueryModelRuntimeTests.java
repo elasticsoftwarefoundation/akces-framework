@@ -102,7 +102,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @DirtiesContext
 public class QueryModelRuntimeTests {
-    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";
+    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.1";
 
     private static final Network network = Network.newNetwork();
 

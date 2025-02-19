@@ -69,7 +69,7 @@ import static org.elasticsoftware.akcestest.TestUtils.*;
 @Testcontainers
 @DirtiesContext
 public class AggregateServiceApplicationTests {
-    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.0";
+    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.1";
 
     private static final Network network = Network.newNetwork();
 
