@@ -58,7 +58,10 @@ import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.protocol.*;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContextException;
 import org.springframework.context.ApplicationContextInitializer;
@@ -73,10 +76,8 @@ import org.springframework.test.context.support.TestPropertySourceUtils;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.Network;
-import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.kafka.ConfluentKafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import javax.crypto.spec.SecretKeySpec;
@@ -104,10 +105,6 @@ public class AkcesClientTests {
     private static final String CONFLUENT_PLATFORM_VERSION = "7.8.1";
 
     private static final Network network = Network.newNetwork();
-
-    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger(AkcesClientTests.class);
-
-    private static Slf4jLogConsumer logConsumer = new Slf4jLogConsumer(LOGGER).withSeparateOutputStreams();
 
     @Container
     private static final KafkaContainer kafka =
@@ -292,11 +289,6 @@ public class AkcesClientTests {
             }
             controlProducer.commitTransaction();
         }
-    }
-
-    @BeforeAll
-    public static void logOutput() {
-        kafka.followOutput(logConsumer);
     }
 
     @Test
