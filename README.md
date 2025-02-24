@@ -2,7 +2,7 @@
 
 Apache Kafka CQRS & Event Sourcing Framework
 
-### to run tests it is required to have a docker deamon running (for instance colima)
+### to run tests it is required to have a docker daemon running (for instance colima)
 
 ```shell
 colima start --runtime docker
