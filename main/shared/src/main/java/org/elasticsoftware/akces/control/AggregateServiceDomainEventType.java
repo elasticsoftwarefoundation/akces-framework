@@ -28,6 +28,6 @@ public record AggregateServiceDomainEventType(
         String schemaName
 ) {
     public <E extends DomainEvent> DomainEventType<E> toLocalDomainEventType(Class<E> typeClass, boolean error) {
-        return new DomainEventType<>(typeName, version, typeClass, create, true, error);
+        return new DomainEventType<>(typeName, version, typeClass, create, external, error);
     }
 }
