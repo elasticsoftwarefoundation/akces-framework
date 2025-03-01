@@ -1063,7 +1063,7 @@ File: api/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-main</artifactId>
-        <version>0.7.21-SNAPSHOT</version>
+        <version>0.8.0-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -2903,7 +2903,7 @@ File: client/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-main</artifactId>
-        <version>0.7.21-SNAPSHOT</version>
+        <version>0.8.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -5159,7 +5159,7 @@ File: query-support/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-main</artifactId>
-        <version>0.7.21-SNAPSHOT</version>
+        <version>0.8.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -12157,7 +12157,7 @@ File: runtime/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-main</artifactId>
-        <version>0.7.21-SNAPSHOT</version>
+        <version>0.8.0-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -14939,7 +14939,7 @@ File: shared/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-main</artifactId>
-        <version>0.7.21-SNAPSHOT</version>
+        <version>0.8.0-SNAPSHOT</version>
     </parent>
 
     <name>Elastic Software Foundation :: Akces :: Shared Classes</name>
@@ -15037,7 +15037,7 @@ File: pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-parent</artifactId>
-        <version>0.7.21-SNAPSHOT</version>
+        <version>0.8.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>akces-framework-main</artifactId>

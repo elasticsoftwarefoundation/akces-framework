@@ -1,3 +1,5 @@
+#!/bin/bash
+
 #
 # Copyright 2022 - 2025 The Original Authors
 #
@@ -15,4 +17,22 @@
 #
 #
 
-cat repomix/main.txt | llm "This file contains the entire codebase of the Akces Framework. Please provide a comprehensive overview of the library, including its main purpose, key features, and overall architecture." -m anthropic/claude-3-7-sonnet-latest > FRAMEWORK_OVERVIEW.md
+# Directories to iterate over
+directories=("main" "services" "test-apps")
+
+# Output directory for repomix files
+output_dir="repomix"
+
+# Create the output directory if it doesn't exist
+mkdir -p "$output_dir"
+
+# Iterate over each directory
+for dir in "${directories[@]}"; do
+  if [ -d "$dir" ]; then
+    # Generate repomix file for the current directory
+    repomix_file="$output_dir/$(basename "$dir").txt"
+    repomix --config repomix.config.json --output "$repomix_file" "$dir"
+  else
+    echo "Directory $dir does not exist."
+  fi
+done
