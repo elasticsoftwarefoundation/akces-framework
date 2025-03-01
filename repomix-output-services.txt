@@ -1,0 +1,2336 @@
+This file is a merged representation of a subset of the codebase, containing specifically included files, combined into a single document by Repomix. The content has been processed where comments have been removed.
+
+================================================================
+File Summary
+================================================================
+
+Purpose:
+--------
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+
+File Format:
+------------
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Multiple file entries, each consisting of:
+  a. A separator line (================)
+  b. The file path (File: path/to/file)
+  c. Another separator line
+  d. The full contents of the file
+  e. A blank line
+
+Usage Guidelines:
+-----------------
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+
+Notes:
+------
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: **/*.java, **/*.xml, **/*.properties, **/*.proto, **/*.imports, **/*.yaml
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Code comments have been removed from supported file types
+
+Additional Info:
+----------------
+
+================================================================
+Directory Structure
+================================================================
+operator/
+  src/
+    main/
+      java/
+        org/
+          elasticsoftware/
+            akces/
+              operator/
+                aggregate/
+                  Aggregate.java
+                  AggregateReconciler.java
+                  AggregateSpec.java
+                  AggregateStatus.java
+                  ConfigMapDependentResource.java
+                  ServiceDependentResource.java
+                  StatefulSetDependentResource.java
+                command/
+                  CommandService.java
+                  CommandServiceReconciler.java
+                  CommandServiceSpec.java
+                  CommandServiceStatus.java
+                  ConfigMapDependentResource.java
+                  ServiceDependentResource.java
+                  StatefulSetDependentResource.java
+                query/
+                  ConfigMapDependentResource.java
+                  QueryService.java
+                  QueryServiceReconciler.java
+                  QueryServiceSpec.java
+                  QueryServiceStatus.java
+                  ServiceDependentResource.java
+                  StatefulSetDependentResource.java
+                utils/
+                  KafkaTopicUtils.java
+                AkcesOperatorApplication.java
+                AkcesOperatorConfig.java
+      resources/
+        META-INF/
+          native-image/
+            native-image.properties
+        org/
+          elasticsoftware/
+            akces/
+              operator/
+                aggregate/
+                  configmap.yaml
+                  service.yaml
+                  statefulset.yaml
+                command/
+                  configmap.yaml
+                  service.yaml
+                  statefulset.yaml
+                query/
+                  configmap.yaml
+                  service.yaml
+                  statefulset.yaml
+        application.properties
+        logback.xml
+    test/
+      java/
+        org/
+          elasticsoftware/
+            akces/
+              operator/
+                AkcesOperatorApplicationTests.java
+  pom.xml
+pom.xml
+
+================================================================
+Files
+================================================================
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/aggregate/Aggregate.java
+================
+package org.elasticsoftware.akces.operator.aggregate;
+
+import io.fabric8.kubernetes.api.model.Namespaced;
+import io.fabric8.kubernetes.client.CustomResource;
+import io.fabric8.kubernetes.model.annotation.Group;
+import io.fabric8.kubernetes.model.annotation.Kind;
+import io.fabric8.kubernetes.model.annotation.ShortNames;
+import io.fabric8.kubernetes.model.annotation.Version;
+
+@Group("akces.elasticsoftwarefoundation.org")
+@Version("v1")
+@Kind("Aggregate")
+@ShortNames("agg")
+public class Aggregate extends CustomResource<AggregateSpec, AggregateStatus> implements Namespaced {
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/aggregate/AggregateReconciler.java
+================
+package org.elasticsoftware.akces.operator.aggregate;
+
+import io.fabric8.kubernetes.api.model.ObjectMetaBuilder;
+import io.fabric8.kubernetes.api.model.apps.StatefulSet;
+import io.fabric8.kubernetes.api.model.apps.StatefulSetStatus;
+import io.javaoperatorsdk.operator.api.reconciler.*;
+import io.javaoperatorsdk.operator.api.reconciler.dependent.Dependent;
+import jakarta.annotation.PostConstruct;
+import org.apache.kafka.clients.admin.NewTopic;
+import org.elasticsoftware.akces.operator.utils.KafkaTopicUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.kafka.core.KafkaAdmin;
+
+import java.util.List;
+import java.util.Objects;
+
+@Workflow(dependents = {
+        @Dependent(type = ConfigMapDependentResource.class),
+        @Dependent(type = StatefulSetDependentResource.class),
+        @Dependent(type = ServiceDependentResource.class)
+})
+@ControllerConfiguration
+public class AggregateReconciler implements Reconciler<Aggregate> {
+    private final Logger log = LoggerFactory.getLogger(getClass());
+    private final KafkaAdmin kafkaAdmin;
+    private Integer partitions;
+
+    public AggregateReconciler(KafkaAdmin kafkaAdmin) {
+        this.kafkaAdmin = kafkaAdmin;
+    }
+
+    @PostConstruct
+    public void init() {
+        partitions = kafkaAdmin.describeTopics("Akces-Control").get("Akces-Control").partitions().size();
+        log.info("Found Akces-Control Topic with {} partitions", partitions);
+    }
+
+    @Override
+    public UpdateControl<Aggregate> reconcile(Aggregate resource, Context<Aggregate> context) throws Exception {
+        reconcileTopics(resource.getSpec().getAggregateNames());
+        return context.getSecondaryResource(StatefulSet.class).map(statefulSet -> {
+            Aggregate updatedAggregate = createAggregateForStatusUpdate(resource, statefulSet);
+            log.info(
+                    "Updating status of Aggregate {} in namespace {} to {} ready replicas",
+                    resource.getMetadata().getName(),
+                    resource.getMetadata().getNamespace(),
+                    resource.getStatus() == null ? 0 : resource.getStatus().getReadyReplicas());
+            return UpdateControl.patchStatus(updatedAggregate);
+        }).orElseGet(UpdateControl::noUpdate);
+    }
+
+    private Aggregate createAggregateForStatusUpdate(Aggregate tomcat, StatefulSet statefulSet) {
+        Aggregate res = new Aggregate();
+        res.setMetadata(new ObjectMetaBuilder()
+                .withName(tomcat.getMetadata().getName())
+                .withNamespace(tomcat.getMetadata().getNamespace())
+                .build());
+        StatefulSetStatus statefulSetStatus =
+                Objects.requireNonNullElse(statefulSet.getStatus(), new StatefulSetStatus());
+        int readyReplicas = Objects.requireNonNullElse(statefulSetStatus.getReadyReplicas(), 0);
+        AggregateStatus status = new AggregateStatus();
+        status.setReadyReplicas(readyReplicas);
+        res.setStatus(status);
+        return res;
+    }
+
+    private void reconcileTopics(List<String> aggregateNames) {
+        log.info("Reconciling topics for Aggregates: {}", aggregateNames);
+        List<NewTopic> topics = aggregateNames.stream()
+                .map(name -> KafkaTopicUtils.createTopics(name, partitions))
+                .flatMap(List::stream).toList();
+        kafkaAdmin.createOrModifyTopics(topics.toArray(new NewTopic[0]));
+    }
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/aggregate/AggregateSpec.java
+================
+package org.elasticsoftware.akces.operator.aggregate;
+
+import io.fabric8.kubernetes.api.model.ResourceRequirements;
+
+import java.util.List;
+
+public class AggregateSpec {
+    private Integer replicas;
+    private String image;
+    private List<String> aggregateNames;
+    private List<String> args;
+    private ResourceRequirements resources;
+    private Boolean enableSchemaOverwrites = Boolean.FALSE;
+    private String applicationName;
+
+    public List<String> getAggregateNames() {
+        return aggregateNames;
+    }
+
+    public void setAggregateNames(List<String> aggregateNames) {
+        this.aggregateNames = aggregateNames;
+    }
+
+    public Integer getReplicas() {
+        return replicas;
+    }
+
+    public void setReplicas(Integer replicas) {
+        this.replicas = replicas;
+    }
+
+    public String getImage() {
+        return image;
+    }
+
+    public void setImage(String image) {
+        this.image = image;
+    }
+
+    public List<String> getArgs() {
+        return args;
+    }
+
+    public void setArgs(List<String> args) {
+        this.args = args;
+    }
+
+    public ResourceRequirements getResources() {
+        return resources;
+    }
+
+    public void setResources(ResourceRequirements resources) {
+        this.resources = resources;
+    }
+
+    public Boolean getEnableSchemaOverwrites() {
+        return enableSchemaOverwrites;
+    }
+
+    public void setEnableSchemaOverwrites(Boolean enableSchemaOverwrites) {
+        this.enableSchemaOverwrites = enableSchemaOverwrites;
+    }
+
+    public String getApplicationName() {
+        return applicationName;
+    }
+
+    public void setApplicationName(String applicationName) {
+        this.applicationName = applicationName;
+    }
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/aggregate/AggregateStatus.java
+================
+package org.elasticsoftware.akces.operator.aggregate;
+
+public class AggregateStatus {
+    private Integer readyReplicas = 0;
+
+    public Integer getReadyReplicas() {
+        return readyReplicas;
+    }
+
+    public void setReadyReplicas(Integer readyReplicas) {
+        this.readyReplicas = readyReplicas;
+    }
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/aggregate/ConfigMapDependentResource.java
+================
+package org.elasticsoftware.akces.operator.aggregate;
+
+import io.fabric8.kubernetes.api.model.ConfigMap;
+import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.javaoperatorsdk.operator.ReconcilerUtils;
+import io.javaoperatorsdk.operator.api.config.informer.Informer;
+import io.javaoperatorsdk.operator.api.reconciler.Context;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.CRUDKubernetesDependentResource;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.KubernetesDependent;
+
+@KubernetesDependent(informer = @Informer(
+        labelSelector = "app.kubernetes.io/managed-by=akces-operator"))
+public class ConfigMapDependentResource extends CRUDKubernetesDependentResource<ConfigMap, Aggregate> {
+
+    public ConfigMapDependentResource() {
+        super(ConfigMap.class);
+    }
+
+    @Override
+    protected ConfigMap desired(Aggregate aggregate, Context<Aggregate> context) {
+        final ObjectMeta aggregateMetadata = aggregate.getMetadata();
+        final String aggregateName = aggregateMetadata.getName();
+        return new ConfigMapBuilder(ReconcilerUtils.loadYaml(ConfigMap.class, getClass(), "configmap.yaml"))
+                .editMetadata()
+                .withName(aggregateName + "-config")
+                .withNamespace(aggregateMetadata.getNamespace())
+                .addToLabels("app.kubernetes.io/part-of", aggregateName)
+                .addToLabels("app.kubernetes.io/managed-by", "akces-operator")
+                .endMetadata()
+                .build();
+    }
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/aggregate/ServiceDependentResource.java
+================
+package org.elasticsoftware.akces.operator.aggregate;
+
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.api.model.Service;
+import io.fabric8.kubernetes.api.model.ServiceBuilder;
+import io.javaoperatorsdk.operator.ReconcilerUtils;
+import io.javaoperatorsdk.operator.api.config.informer.Informer;
+import io.javaoperatorsdk.operator.api.reconciler.Context;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.CRUDKubernetesDependentResource;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.KubernetesDependent;
+
+@KubernetesDependent(informer = @Informer(
+        labelSelector = "app.kubernetes.io/managed-by=akces-operator"))
+public class ServiceDependentResource extends CRUDKubernetesDependentResource<Service, Aggregate> {
+
+    public ServiceDependentResource() {
+        super(Service.class);
+    }
+
+    @Override
+    protected Service desired(Aggregate aggregate, Context<Aggregate> context) {
+        final ObjectMeta aggregateMetadata = aggregate.getMetadata();
+        final String aggregateName = aggregateMetadata.getName();
+        return new ServiceBuilder(ReconcilerUtils.loadYaml(Service.class, getClass(), "service.yaml"))
+                .editMetadata()
+                .withName(aggregateName + "-service")
+                .withNamespace(aggregateMetadata.getNamespace())
+                .addToLabels("app.kubernetes.io/part-of", aggregateName)
+                .addToLabels("app.kubernetes.io/managed-by", "akces-operator")
+                .endMetadata()
+                .editSpec()
+                .addToSelector("app", aggregateMetadata.getName())
+                .endSpec()
+                .build();
+    }
+
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/aggregate/StatefulSetDependentResource.java
+================
+package org.elasticsoftware.akces.operator.aggregate;
+
+import io.fabric8.kubernetes.api.model.LocalObjectReference;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.api.model.Quantity;
+import io.fabric8.kubernetes.api.model.apps.StatefulSet;
+import io.fabric8.kubernetes.api.model.apps.StatefulSetBuilder;
+import io.javaoperatorsdk.operator.ReconcilerUtils;
+import io.javaoperatorsdk.operator.api.config.informer.Informer;
+import io.javaoperatorsdk.operator.api.reconciler.Context;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.CRUDKubernetesDependentResource;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.KubernetesDependent;
+
+import java.util.Map;
+
+@KubernetesDependent(informer = @Informer(
+        labelSelector = "app.kubernetes.io/managed-by=akces-operator"))
+public class StatefulSetDependentResource extends CRUDKubernetesDependentResource<StatefulSet, Aggregate> {
+    public StatefulSetDependentResource() {
+        super(StatefulSet.class);
+    }
+
+    @Override
+    protected StatefulSet desired(Aggregate aggregate, Context<Aggregate> context) {
+        StatefulSet statefulSet = ReconcilerUtils.loadYaml(StatefulSet.class, getClass(), "statefulset.yaml");
+        final ObjectMeta aggregateMetadata = aggregate.getMetadata();
+        final String aggregateName = aggregateMetadata.getName();
+
+        statefulSet = new StatefulSetBuilder(statefulSet)
+                .editMetadata()
+                .withName(aggregateName)
+                .withNamespace(aggregateMetadata.getNamespace())
+                .addToLabels("app", aggregateName)
+                .addToLabels("app.kubernetes.io/part-of", aggregateName)
+                .addToLabels("app.kubernetes.io/managed-by", "akces-operator")
+                .endMetadata()
+                .editSpec()
+                .withServiceName(aggregateName + "-service")
+                .editSelector().addToMatchLabels("app", aggregateName).endSelector()
+                .withReplicas(aggregate.getSpec().getReplicas())
+                .editTemplate()
+                .editMetadata().addToLabels("app", aggregateName).endMetadata()
+                .editSpec()
+                .addToImagePullSecrets(new LocalObjectReference("github-packages-cfg"))
+                .editFirstContainer()
+                .withImage(aggregate.getSpec().getImage())
+                .withName("akces-aggregate-service")
+                .withArgs(aggregate.getSpec().getArgs())
+                .editFirstEnv()
+                .withValue(aggregate.getSpec().getApplicationName())
+                .endEnv()
+                .editLastEnv()
+                .withValue(aggregate.getSpec().getEnableSchemaOverwrites().toString())
+                .endEnv()
+                .withResources(aggregate.getSpec().getResources())
+                .endContainer()
+                .editFirstVolume()
+                .editConfigMap()
+                .withName(aggregateName + "-config")
+                .endConfigMap()
+                .endVolume()
+                .endSpec()
+                .endTemplate()
+                .editFirstVolumeClaimTemplate()
+                .editSpec()
+                .withStorageClassName("akces-data-hyperdisk-balanced")
+                .editResources()
+                .withRequests(Map.of("storage", new Quantity("4Gi")))
+                .endResources()
+                .endSpec()
+                .endVolumeClaimTemplate()
+                .endSpec()
+                .build();
+
+        return statefulSet;
+    }
+
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/command/CommandService.java
+================
+package org.elasticsoftware.akces.operator.command;
+
+import io.fabric8.kubernetes.api.model.Namespaced;
+import io.fabric8.kubernetes.client.CustomResource;
+import io.fabric8.kubernetes.model.annotation.Group;
+import io.fabric8.kubernetes.model.annotation.Kind;
+import io.fabric8.kubernetes.model.annotation.ShortNames;
+import io.fabric8.kubernetes.model.annotation.Version;
+
+@Group("akces.elasticsoftwarefoundation.org")
+@Version("v1")
+@Kind("CommandService")
+@ShortNames("cs")
+public class CommandService extends CustomResource<CommandServiceSpec, CommandServiceStatus> implements Namespaced {
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/command/CommandServiceReconciler.java
+================
+package org.elasticsoftware.akces.operator.command;
+
+import io.fabric8.kubernetes.api.model.ObjectMetaBuilder;
+import io.fabric8.kubernetes.api.model.apps.StatefulSet;
+import io.fabric8.kubernetes.api.model.apps.StatefulSetStatus;
+import io.javaoperatorsdk.operator.api.reconciler.*;
+import io.javaoperatorsdk.operator.api.reconciler.dependent.Dependent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Objects;
+
+@Workflow(dependents = {
+        @Dependent(type = ConfigMapDependentResource.class),
+        @Dependent(type = StatefulSetDependentResource.class),
+        @Dependent(type = ServiceDependentResource.class)
+})
+@ControllerConfiguration
+public class CommandServiceReconciler implements Reconciler<CommandService> {
+    private final Logger log = LoggerFactory.getLogger(getClass());
+
+    @Override
+    public UpdateControl<CommandService> reconcile(CommandService commandService, Context<CommandService> context) throws Exception {
+        return context.getSecondaryResource(StatefulSet.class).map(statefulSet -> {
+            CommandService updatedCommandService = createCommandServiceForStatusUpdate(commandService, statefulSet);
+            return UpdateControl.patchStatus(updatedCommandService);
+        }).orElseGet(UpdateControl::noUpdate);
+    }
+
+    private CommandService createCommandServiceForStatusUpdate(CommandService commandService, StatefulSet statefulSet) {
+        CommandService res = new CommandService();
+        res.setMetadata(new ObjectMetaBuilder()
+                .withName(commandService.getMetadata().getName())
+                .withNamespace(commandService.getMetadata().getNamespace())
+                .build());
+        StatefulSetStatus statefulSetStatus =
+                Objects.requireNonNullElse(statefulSet.getStatus(), new StatefulSetStatus());
+        int readyReplicas = Objects.requireNonNullElse(statefulSetStatus.getReadyReplicas(), 0);
+        CommandServiceStatus status = new CommandServiceStatus();
+        status.setReadyReplicas(readyReplicas);
+        res.setStatus(status);
+        return res;
+    }
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/command/CommandServiceSpec.java
+================
+package org.elasticsoftware.akces.operator.command;
+
+import io.fabric8.kubernetes.api.model.ResourceRequirements;
+
+import java.util.List;
+
+public class CommandServiceSpec {
+    private Integer replicas;
+    private String image;
+    private List<String> args;
+    private ResourceRequirements resources;
+    private String applicationName;
+
+    public Integer getReplicas() {
+        return replicas;
+    }
+
+    public void setReplicas(Integer replicas) {
+        this.replicas = replicas;
+    }
+
+    public String getImage() {
+        return image;
+    }
+
+    public void setImage(String image) {
+        this.image = image;
+    }
+
+    public List<String> getArgs() {
+        return args;
+    }
+
+    public void setArgs(List<String> args) {
+        this.args = args;
+    }
+
+    public ResourceRequirements getResources() {
+        return resources;
+    }
+
+    public void setResources(ResourceRequirements resources) {
+        this.resources = resources;
+    }
+
+    public String getApplicationName() {
+        return applicationName;
+    }
+
+    public void setApplicationName(String applicationName) {
+        this.applicationName = applicationName;
+    }
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/command/CommandServiceStatus.java
+================
+package org.elasticsoftware.akces.operator.command;
+
+public class CommandServiceStatus {
+    private Integer readyReplicas = 0;
+
+    public Integer getReadyReplicas() {
+        return readyReplicas;
+    }
+
+    public void setReadyReplicas(Integer readyReplicas) {
+        this.readyReplicas = readyReplicas;
+    }
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/command/ConfigMapDependentResource.java
+================
+package org.elasticsoftware.akces.operator.command;
+
+import io.fabric8.kubernetes.api.model.ConfigMap;
+import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.javaoperatorsdk.operator.ReconcilerUtils;
+import io.javaoperatorsdk.operator.api.config.informer.Informer;
+import io.javaoperatorsdk.operator.api.reconciler.Context;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.CRUDKubernetesDependentResource;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.KubernetesDependent;
+
+@KubernetesDependent(informer = @Informer(
+        labelSelector = "app.kubernetes.io/managed-by=akces-operator"))
+public class ConfigMapDependentResource extends CRUDKubernetesDependentResource<ConfigMap, CommandService> {
+
+    public ConfigMapDependentResource() {
+        super(ConfigMap.class);
+    }
+
+    @Override
+    protected ConfigMap desired(CommandService commandService, Context<CommandService> context) {
+        final ObjectMeta metadata = commandService.getMetadata();
+        final String commandServiceName = metadata.getName();
+        return new ConfigMapBuilder(ReconcilerUtils.loadYaml(ConfigMap.class, getClass(), "configmap.yaml"))
+                .editMetadata()
+                .withName(commandServiceName + "-config")
+                .withNamespace(metadata.getNamespace())
+                .addToLabels("app.kubernetes.io/part-of", commandServiceName)
+                .addToLabels("app.kubernetes.io/managed-by", "akces-operator")
+                .endMetadata()
+                .build();
+    }
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/command/ServiceDependentResource.java
+================
+package org.elasticsoftware.akces.operator.command;
+
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.api.model.Service;
+import io.fabric8.kubernetes.api.model.ServiceBuilder;
+import io.javaoperatorsdk.operator.ReconcilerUtils;
+import io.javaoperatorsdk.operator.api.config.informer.Informer;
+import io.javaoperatorsdk.operator.api.reconciler.Context;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.CRUDKubernetesDependentResource;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.KubernetesDependent;
+
+@KubernetesDependent(informer = @Informer(
+        labelSelector = "app.kubernetes.io/managed-by=akces-operator"))
+public class ServiceDependentResource extends CRUDKubernetesDependentResource<Service, CommandService> {
+
+    public ServiceDependentResource() {
+        super(Service.class);
+    }
+
+    @Override
+    protected Service desired(CommandService commandService, Context<CommandService> context) {
+        final ObjectMeta metadata = commandService.getMetadata();
+        final String commandServiceName = metadata.getName();
+        return new ServiceBuilder(ReconcilerUtils.loadYaml(Service.class, getClass(), "service.yaml"))
+                .editMetadata()
+                .withName(commandServiceName + "-service")
+                .withNamespace(metadata.getNamespace())
+                .addToLabels("app.kubernetes.io/part-of", commandServiceName)
+                .addToLabels("app.kubernetes.io/managed-by", "akces-operator")
+                .endMetadata()
+                .editSpec()
+                .addToSelector("app", metadata.getName())
+                .endSpec()
+                .build();
+    }
+
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/command/StatefulSetDependentResource.java
+================
+package org.elasticsoftware.akces.operator.command;
+
+import io.fabric8.kubernetes.api.model.LocalObjectReference;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.api.model.apps.StatefulSet;
+import io.fabric8.kubernetes.api.model.apps.StatefulSetBuilder;
+import io.javaoperatorsdk.operator.ReconcilerUtils;
+import io.javaoperatorsdk.operator.api.config.informer.Informer;
+import io.javaoperatorsdk.operator.api.reconciler.Context;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.CRUDKubernetesDependentResource;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.KubernetesDependent;
+
+@KubernetesDependent(informer = @Informer(
+        labelSelector = "app.kubernetes.io/managed-by=akces-operator"))
+public class StatefulSetDependentResource extends CRUDKubernetesDependentResource<StatefulSet, CommandService> {
+    public StatefulSetDependentResource() {
+        super(StatefulSet.class);
+    }
+
+    @Override
+    protected StatefulSet desired(CommandService aggregate, Context<CommandService> context) {
+        StatefulSet statefulSet = ReconcilerUtils.loadYaml(StatefulSet.class, getClass(), "statefulset.yaml");
+        final ObjectMeta metadata = aggregate.getMetadata();
+        final String commandServiceName = metadata.getName();
+
+        statefulSet = new StatefulSetBuilder(statefulSet)
+                .editMetadata()
+                .withName(commandServiceName)
+                .withNamespace(metadata.getNamespace())
+                .addToLabels("app", commandServiceName)
+                .addToLabels("app.kubernetes.io/part-of", commandServiceName)
+                .addToLabels("app.kubernetes.io/managed-by", "akces-operator")
+                .endMetadata()
+                .editSpec()
+                .withServiceName(commandServiceName + "-service")
+                .editSelector().addToMatchLabels("app", commandServiceName).endSelector()
+                .withReplicas(aggregate.getSpec().getReplicas())
+                .editTemplate()
+                .editMetadata().addToLabels("app", commandServiceName).endMetadata()
+                .editSpec()
+                .addToImagePullSecrets(new LocalObjectReference("github-packages-cfg"))
+                .editFirstContainer()
+                .withImage(aggregate.getSpec().getImage())
+                .withName("akces-command-service")
+                .withArgs(aggregate.getSpec().getArgs())
+                .editFirstEnv()
+                .withValue(aggregate.getSpec().getApplicationName())
+                .endEnv()
+                .withResources(aggregate.getSpec().getResources())
+                .endContainer()
+                .editFirstVolume()
+                .editConfigMap()
+                .withName(commandServiceName + "-config")
+                .endConfigMap()
+                .endVolume()
+                .endSpec()
+                .endTemplate()
+                .endSpec()
+                .build();
+
+        return statefulSet;
+    }
+
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/query/ConfigMapDependentResource.java
+================
+package org.elasticsoftware.akces.operator.query;
+
+import io.fabric8.kubernetes.api.model.ConfigMap;
+import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.javaoperatorsdk.operator.ReconcilerUtils;
+import io.javaoperatorsdk.operator.api.config.informer.Informer;
+import io.javaoperatorsdk.operator.api.reconciler.Context;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.CRUDKubernetesDependentResource;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.KubernetesDependent;
+
+@KubernetesDependent(informer = @Informer(
+        labelSelector = "app.kubernetes.io/managed-by=akces-operator"))
+public class ConfigMapDependentResource extends CRUDKubernetesDependentResource<ConfigMap, QueryService> {
+
+    public ConfigMapDependentResource() {
+        super(ConfigMap.class);
+    }
+
+    @Override
+    protected ConfigMap desired(QueryService queryService, Context<QueryService> context) {
+        final ObjectMeta queryServiceMetadata = queryService.getMetadata();
+        final String queryServiceName = queryServiceMetadata.getName();
+        return new ConfigMapBuilder(ReconcilerUtils.loadYaml(ConfigMap.class, getClass(), "configmap.yaml"))
+                .editMetadata()
+                .withName(queryServiceName + "-config")
+                .withNamespace(queryServiceMetadata.getNamespace())
+                .addToLabels("app.kubernetes.io/part-of", queryServiceName)
+                .addToLabels("app.kubernetes.io/managed-by", "akces-operator")
+                .endMetadata()
+                .build();
+    }
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/query/QueryService.java
+================
+package org.elasticsoftware.akces.operator.query;
+
+import io.fabric8.kubernetes.api.model.Namespaced;
+import io.fabric8.kubernetes.client.CustomResource;
+import io.fabric8.kubernetes.model.annotation.Group;
+import io.fabric8.kubernetes.model.annotation.Kind;
+import io.fabric8.kubernetes.model.annotation.ShortNames;
+import io.fabric8.kubernetes.model.annotation.Version;
+
+@Group("akces.elasticsoftwarefoundation.org")
+@Version("v1")
+@Kind("QueryService")
+@ShortNames("qs")
+public class QueryService extends CustomResource<QueryServiceSpec, QueryServiceStatus> implements Namespaced {
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/query/QueryServiceReconciler.java
+================
+package org.elasticsoftware.akces.operator.query;
+
+import io.fabric8.kubernetes.api.model.ObjectMetaBuilder;
+import io.fabric8.kubernetes.api.model.apps.StatefulSet;
+import io.fabric8.kubernetes.api.model.apps.StatefulSetStatus;
+import io.javaoperatorsdk.operator.api.reconciler.*;
+import io.javaoperatorsdk.operator.api.reconciler.dependent.Dependent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Objects;
+
+@Workflow(dependents = {
+        @Dependent(type = ConfigMapDependentResource.class),
+        @Dependent(type = StatefulSetDependentResource.class),
+        @Dependent(type = ServiceDependentResource.class)
+})
+@ControllerConfiguration
+public class QueryServiceReconciler implements Reconciler<QueryService> {
+    private final Logger log = LoggerFactory.getLogger(getClass());
+
+    @Override
+    public UpdateControl<QueryService> reconcile(QueryService queryService, Context<QueryService> context) throws Exception {
+        return context.getSecondaryResource(StatefulSet.class).map(statefulSet -> {
+            QueryService updatedQueryService = createQueryServiceForStatusUpdate(queryService, statefulSet);
+            return UpdateControl.patchStatus(updatedQueryService);
+        }).orElseGet(UpdateControl::noUpdate);
+    }
+
+    private QueryService createQueryServiceForStatusUpdate(QueryService queryService, StatefulSet statefulSet) {
+        QueryService res = new QueryService();
+        res.setMetadata(new ObjectMetaBuilder()
+                .withName(queryService.getMetadata().getName())
+                .withNamespace(queryService.getMetadata().getNamespace())
+                .build());
+        StatefulSetStatus statefulSetStatus =
+                Objects.requireNonNullElse(statefulSet.getStatus(), new StatefulSetStatus());
+        int readyReplicas = Objects.requireNonNullElse(statefulSetStatus.getReadyReplicas(), 0);
+        QueryServiceStatus status = new QueryServiceStatus();
+        status.setReadyReplicas(readyReplicas);
+        res.setStatus(status);
+        return res;
+    }
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/query/QueryServiceSpec.java
+================
+package org.elasticsoftware.akces.operator.query;
+
+import io.fabric8.kubernetes.api.model.ResourceRequirements;
+
+import java.util.List;
+
+public class QueryServiceSpec {
+    private Integer replicas;
+    private String image;
+    private List<String> args;
+    private ResourceRequirements resources;
+    private String applicationName;
+
+    public Integer getReplicas() {
+        return replicas;
+    }
+
+    public void setReplicas(Integer replicas) {
+        this.replicas = replicas;
+    }
+
+    public String getImage() {
+        return image;
+    }
+
+    public void setImage(String image) {
+        this.image = image;
+    }
+
+    public List<String> getArgs() {
+        return args;
+    }
+
+    public void setArgs(List<String> args) {
+        this.args = args;
+    }
+
+    public ResourceRequirements getResources() {
+        return resources;
+    }
+
+    public void setResources(ResourceRequirements resources) {
+        this.resources = resources;
+    }
+
+    public String getApplicationName() {
+        return applicationName;
+    }
+
+    public void setApplicationName(String applicationName) {
+        this.applicationName = applicationName;
+    }
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/query/QueryServiceStatus.java
+================
+package org.elasticsoftware.akces.operator.query;
+
+public class QueryServiceStatus {
+    private Integer readyReplicas = 0;
+
+    public Integer getReadyReplicas() {
+        return readyReplicas;
+    }
+
+    public void setReadyReplicas(Integer readyReplicas) {
+        this.readyReplicas = readyReplicas;
+    }
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/query/ServiceDependentResource.java
+================
+package org.elasticsoftware.akces.operator.query;
+
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.api.model.Service;
+import io.fabric8.kubernetes.api.model.ServiceBuilder;
+import io.javaoperatorsdk.operator.ReconcilerUtils;
+import io.javaoperatorsdk.operator.api.config.informer.Informer;
+import io.javaoperatorsdk.operator.api.reconciler.Context;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.CRUDKubernetesDependentResource;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.KubernetesDependent;
+
+@KubernetesDependent(informer = @Informer(
+        labelSelector = "app.kubernetes.io/managed-by=akces-operator"))
+public class ServiceDependentResource extends CRUDKubernetesDependentResource<Service, QueryService> {
+
+    public ServiceDependentResource() {
+        super(Service.class);
+    }
+
+    @Override
+    protected Service desired(QueryService queryService, Context<QueryService> context) {
+        final ObjectMeta queryServiceMetadata = queryService.getMetadata();
+        final String queryServiceName = queryServiceMetadata.getName();
+        return new ServiceBuilder(ReconcilerUtils.loadYaml(Service.class, getClass(), "service.yaml"))
+                .editMetadata()
+                .withName(queryServiceName + "-service")
+                .withNamespace(queryServiceMetadata.getNamespace())
+                .addToLabels("app.kubernetes.io/part-of", queryServiceName)
+                .addToLabels("app.kubernetes.io/managed-by", "akces-operator")
+                .endMetadata()
+                .editSpec()
+                .addToSelector("app", queryServiceMetadata.getName())
+                .endSpec()
+                .build();
+    }
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/query/StatefulSetDependentResource.java
+================
+package org.elasticsoftware.akces.operator.query;
+
+import io.fabric8.kubernetes.api.model.LocalObjectReference;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.api.model.Quantity;
+import io.fabric8.kubernetes.api.model.apps.StatefulSet;
+import io.fabric8.kubernetes.api.model.apps.StatefulSetBuilder;
+import io.javaoperatorsdk.operator.ReconcilerUtils;
+import io.javaoperatorsdk.operator.api.config.informer.Informer;
+import io.javaoperatorsdk.operator.api.reconciler.Context;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.CRUDKubernetesDependentResource;
+import io.javaoperatorsdk.operator.processing.dependent.kubernetes.KubernetesDependent;
+
+import java.util.Map;
+
+@KubernetesDependent(informer = @Informer(
+        labelSelector = "app.kubernetes.io/managed-by=akces-operator"))
+public class StatefulSetDependentResource extends CRUDKubernetesDependentResource<StatefulSet, QueryService> {
+    public StatefulSetDependentResource() {
+        super(StatefulSet.class);
+    }
+
+    @Override
+    protected StatefulSet desired(QueryService queryService, Context<QueryService> context) {
+        StatefulSet statefulSet = ReconcilerUtils.loadYaml(StatefulSet.class, getClass(), "statefulset.yaml");
+        final ObjectMeta queryServiceMetadata = queryService.getMetadata();
+        final String queryServiceName = queryServiceMetadata.getName();
+
+        statefulSet = new StatefulSetBuilder(statefulSet)
+                .editMetadata()
+                .withName(queryServiceName)
+                .withNamespace(queryServiceMetadata.getNamespace())
+                .addToLabels("app", queryServiceName)
+                .addToLabels("app.kubernetes.io/part-of", queryServiceName)
+                .addToLabels("app.kubernetes.io/managed-by", "akces-operator")
+                .endMetadata()
+                .editSpec()
+                .withServiceName(queryServiceName + "-service")
+                .editSelector().addToMatchLabels("app", queryServiceName).endSelector()
+                .withReplicas(queryService.getSpec().getReplicas())
+                .editTemplate()
+                .editMetadata().addToLabels("app", queryServiceName).endMetadata()
+                .editSpec()
+                .addToImagePullSecrets(new LocalObjectReference("github-packages-cfg"))
+                .editFirstContainer()
+                .withImage(queryService.getSpec().getImage())
+                .withName("akces-query-service")
+                .withArgs(queryService.getSpec().getArgs())
+                .editFirstEnv()
+                .withValue(queryService.getSpec().getApplicationName())
+                .endEnv()
+                .withResources(queryService.getSpec().getResources())
+                .endContainer()
+                .editFirstVolume()
+                .editConfigMap()
+                .withName(queryServiceName + "-config")
+                .endConfigMap()
+                .endVolume()
+                .endSpec()
+                .endTemplate()
+                .editFirstVolumeClaimTemplate()
+                .editSpec()
+                .withStorageClassName("akces-data-hyperdisk-balanced")
+                .editResources()
+                .withRequests(Map.of("storage", new Quantity("4Gi")))
+                .endResources()
+                .endSpec()
+                .endVolumeClaimTemplate()
+                .endSpec()
+                .build();
+
+        return statefulSet;
+    }
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/utils/KafkaTopicUtils.java
+================
+package org.elasticsoftware.akces.operator.utils;
+
+import org.apache.kafka.clients.admin.NewTopic;
+
+import java.util.List;
+import java.util.Map;
+
+public class KafkaTopicUtils {
+    public static final String COMMANDS_SUFFIX = "-Commands";
+    public static final String DOMAINEVENTS_SUFFIX = "-DomainEvents";
+    public static final String AGGREGRATESTATE_SUFFIX = "-AggregateState";
+
+    public static List<NewTopic> createTopics(String topicName, int numPartitions) {
+        return List.of(
+                createTopic(topicName + COMMANDS_SUFFIX, numPartitions),
+                createTopic(topicName + DOMAINEVENTS_SUFFIX, numPartitions),
+                createCompactedTopic(topicName + AGGREGRATESTATE_SUFFIX, numPartitions)
+        );
+    }
+
+    public static NewTopic createTopic(String name, int numPartitions) {
+        return createTopic(name, numPartitions, -1L);
+    }
+
+    public static NewTopic createTopic(String name, int numPartitions, long retentionMs) {
+        NewTopic topic = new NewTopic(name, numPartitions, Short.parseShort("1"));
+        return topic.configs(Map.of(
+                "min.insync.replicas", "2",
+                "cleanup.policy", "delete",
+                "max.message.bytes", "20971520",
+                "retention.ms", Long.toString(retentionMs),
+                "segment.ms", "604800000",
+                "compression.type", "lz4"));
+    }
+
+    public static NewTopic createCompactedTopic(String name, int numPartitions) {
+        NewTopic topic = new NewTopic(name, numPartitions, Short.parseShort("1"));
+        return topic.configs(Map.of(
+                "min.insync.replicas", "2",
+                "cleanup.policy", "compact",
+                "max.message.bytes", "20971520",
+                "retention.ms", "-1",
+                "segment.ms", "604800000",
+                "min.cleanable.dirty.ratio", "0.1",
+                "delete.retention.ms", "604800000",
+                "compression.type", "lz4"));
+    }
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/AkcesOperatorApplication.java
+================
+package org.elasticsoftware.akces.operator;
+
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+import java.security.Security;
+
+@SpringBootApplication
+public class AkcesOperatorApplication {
+
+    public static void main(String[] args) {
+        Security.setProperty("crypto.policy", "unlimited");
+        Security.insertProviderAt(new BouncyCastleProvider(), 1);
+        SpringApplication.run(AkcesOperatorApplication.class, args);
+    }
+
+}
+
+================
+File: operator/src/main/java/org/elasticsoftware/akces/operator/AkcesOperatorConfig.java
+================
+package org.elasticsoftware.akces.operator;
+
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.elasticsoftware.akces.operator.aggregate.AggregateReconciler;
+import org.elasticsoftware.akces.operator.command.CommandServiceReconciler;
+import org.elasticsoftware.akces.operator.query.QueryServiceReconciler;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.core.KafkaAdmin;
+
+import java.util.Map;
+
+@Configuration
+public class AkcesOperatorConfig {
+
+    @Bean(name = "kafkaAdmin")
+    public KafkaAdmin kafkaAdmin(@Value(value = "${spring.kafka.bootstrap-servers}") String bootstrapServers) {
+        return new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
+    }
+
+    @Bean
+    public AggregateReconciler aggregateReconciler(KafkaAdmin kafkaAdmin) {
+        return new AggregateReconciler(kafkaAdmin);
+    }
+
+    @Bean
+    public CommandServiceReconciler commandServiceReconciler() {
+        return new CommandServiceReconciler();
+    }
+
+    @Bean
+    public QueryServiceReconciler queryServiceReconciler() {
+        return new QueryServiceReconciler();
+    }
+}
+
+================
+File: operator/src/main/resources/META-INF/native-image/native-image.properties
+================
+#
+# Copyright 2022 - 2025 The Original Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#           http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+#
+#
+Args=--strict-image-heap
+
+================
+File: operator/src/main/resources/org/elasticsoftware/akces/operator/aggregate/configmap.yaml
+================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ""
+data:
+  application.properties: |
+    # Spring application properties
+    spring.application.name=${SPRING_APPLICATION_NAME}
+    spring.kafka.enabled=true
+    spring.kafka.bootstrap-servers=akces-kafka-bootstrap.kafka:9092
+    spring.kafka.consumer.properties.session.timeout.ms=45000
+    management.endpoint.health.probes.enabled=true
+    management.health.livenessState.enabled=true
+    management.health.readinessState.enabled=true
+    server.shutdown=graceful
+    spring.mvc.problemdetails.enabled=true
+    akces.schemaregistry.url=http://akces-schema-registry.kafka:8081
+    akces.rocksdb.baseDir=/var/lib/akces-data
+    akces.aggregate.schemas.forceRegister=${ENABLE_SCHEMA_OVERWRITES}
+  logback.xml: |
+    <configuration>
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <layout class="ch.qos.logback.classic.PatternLayout">
+                <Pattern>
+                    %d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n
+                </Pattern>
+            </layout>
+        </appender>
+
+        <logger name="org.apache.kafka" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <logger name="org.apache.kafka.clients.producer" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <logger name="org.apache.kafka.clients.consumer" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <logger name="org.apache.kafka.clients.NetworkClient" level="error" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <logger name="org.apache.kafka.clients.producer.internals.Sender" level="error" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <root level="info">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </configuration>
+
+================
+File: operator/src/main/resources/org/elasticsoftware/akces/operator/aggregate/service.yaml
+================
+apiVersion: v1
+kind: Service
+metadata:
+  name: ""
+spec:
+  selector:
+    app: ""
+  ports:
+    - protocol: TCP
+      name: http
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
+
+================
+File: operator/src/main/resources/org/elasticsoftware/akces/operator/aggregate/statefulset.yaml
+================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ""
+  labels:
+    app.kubernetes.io/part-of: ""
+    app.kubernetes.io/managed-by: ""
+spec:
+  serviceName: ""
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: ""
+  template:
+    metadata:
+      labels:
+        app: ""
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: akces-aggregate-service
+          image: ""
+          env:
+            - name: SPRING_APPLICATION_NAME
+              value: "Akces Aggregate Service"
+            - name: SPRING_CONFIG_LOCATION
+              value: "file:/config/application.properties"
+            - name: LOGGING_CONFIG
+              value: "file:/config/logback.xml"
+            - name: BPL_JVM_THREAD_COUNT
+              value: "100"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:+UseZGC -XX:+ZGenerational"
+            - name: ENABLE_SCHEMA_OVERWRITES
+              value: "false"
+          lifecycle:
+            preStop:
+              exec:
+                command: [ "/bin/sh", "-c", "sleep 15" ]
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: actuator/health/liveness
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+            - name: akces-data
+              mountPath: /var/lib/akces-data
+              readOnly: false
+      volumes:
+        - name: config-volume
+          configMap:
+            name: ""
+  volumeClaimTemplates:
+    - metadata:
+        name: akces-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: "akces-data-hyperdisk-balanced"
+        resources:
+          requests:
+            storage: 4Gi
+
+================
+File: operator/src/main/resources/org/elasticsoftware/akces/operator/command/configmap.yaml
+================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ""
+data:
+  application.properties: |
+    # Spring application properties
+    spring.application.name=${SPRING_APPLICATION_NAME}
+    spring.kafka.enabled=true
+    spring.kafka.bootstrap-servers=akces-kafka-bootstrap.kafka:9092
+    spring.kafka.consumer.properties.session.timeout.ms=45000
+    management.endpoint.health.probes.enabled=true
+    management.health.livenessState.enabled=true
+    management.health.readinessState.enabled=true
+    server.shutdown=graceful
+    spring.mvc.problemdetails.enabled=true
+    akces.schemaregistry.url=http://akces-schema-registry.kafka:8081
+    akces.rocksdb.baseDir=/var/lib/akces-data
+  logback.xml: |
+    <configuration>
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <layout class="ch.qos.logback.classic.PatternLayout">
+                <Pattern>
+                    %d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n
+                </Pattern>
+            </layout>
+        </appender>
+
+        <logger name="org.apache.kafka" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <logger name="org.apache.kafka.clients.producer" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <logger name="org.apache.kafka.clients.consumer" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <root level="info">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </configuration>
+
+================
+File: operator/src/main/resources/org/elasticsoftware/akces/operator/command/service.yaml
+================
+apiVersion: v1
+kind: Service
+metadata:
+  name: ""
+spec:
+  selector:
+    app: ""
+  ports:
+    - protocol: TCP
+      name: http
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
+
+================
+File: operator/src/main/resources/org/elasticsoftware/akces/operator/command/statefulset.yaml
+================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ""
+  labels:
+    app.kubernetes.io/part-of: ""
+    app.kubernetes.io/managed-by: ""
+spec:
+  serviceName: ""
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: ""
+  template:
+    metadata:
+      labels:
+        app: ""
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: akces-command-service
+          image: ""
+          env:
+            - name: SPRING_APPLICATION_NAME
+              value: "Akces Command Service"
+            - name: SPRING_CONFIG_LOCATION
+              value: "file:/config/application.properties"
+            - name: LOGGING_CONFIG
+              value: "file:/config/logback.xml"
+            - name: BPL_JVM_THREAD_COUNT
+              value: "100"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:+UseZGC -XX:+ZGenerational"
+          lifecycle:
+            preStop:
+              exec:
+                command: [ "/bin/sh", "-c", "sleep 10" ]
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: actuator/health/liveness
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: ""
+
+================
+File: operator/src/main/resources/org/elasticsoftware/akces/operator/query/configmap.yaml
+================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ""
+data:
+  application.properties: |
+    # Spring application properties
+    spring.application.name=${SPRING_APPLICATION_NAME}
+    spring.kafka.enabled=true
+    spring.kafka.bootstrap-servers=akces-kafka-bootstrap.kafka:9092
+    spring.kafka.consumer.properties.session.timeout.ms=45000
+    management.endpoint.health.probes.enabled=true
+    management.health.livenessState.enabled=true
+    management.health.readinessState.enabled=true
+    server.shutdown=graceful
+    spring.mvc.problemdetails.enabled=true
+    akces.schemaregistry.url=http://akces-schema-registry.kafka:8081
+    akces.rocksdb.baseDir=/var/lib/akces-data
+  logback.xml: |
+    <configuration>
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <layout class="ch.qos.logback.classic.PatternLayout">
+                <Pattern>
+                    %d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n
+                </Pattern>
+            </layout>
+        </appender>
+
+        <logger name="org.apache.kafka" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <logger name="org.apache.kafka.clients.producer" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <logger name="org.apache.kafka.clients.consumer" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <root level="info">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </configuration>
+
+================
+File: operator/src/main/resources/org/elasticsoftware/akces/operator/query/service.yaml
+================
+apiVersion: v1
+kind: Service
+metadata:
+  name: ""
+spec:
+  selector:
+    app: ""
+  ports:
+    - protocol: TCP
+      name: http
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
+
+================
+File: operator/src/main/resources/org/elasticsoftware/akces/operator/query/statefulset.yaml
+================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ""
+  labels:
+    app.kubernetes.io/part-of: ""
+    app.kubernetes.io/managed-by: ""
+spec:
+  serviceName: ""
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: ""
+  template:
+    metadata:
+      labels:
+        app: ""
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: akces-query-service
+          image: ""
+          env:
+            - name: SPRING_APPLICATION_NAME
+              value: "Akces Query Service"
+            - name: SPRING_CONFIG_LOCATION
+              value: "file:/config/application.properties"
+            - name: LOGGING_CONFIG
+              value: "file:/config/logback.xml"
+            - name: BPL_JVM_THREAD_COUNT
+              value: "100"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:+UseZGC -XX:+ZGenerational"
+          lifecycle:
+            preStop:
+              exec:
+                command: [ "/bin/sh", "-c", "sleep 10" ]
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: actuator/health/liveness
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+            - name: akces-data
+              mountPath: /var/lib/akces-data
+              readOnly: false
+      volumes:
+        - name: config-volume
+          configMap:
+            name: ""
+  volumeClaimTemplates:
+    - metadata:
+        name: akces-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: "akces-data-hyperdisk-balanced"
+        resources:
+          requests:
+            storage: 4Gi
+
+================
+File: operator/src/main/resources/application.properties
+================
+#
+# Copyright 2022 - 2025 The Original Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#           http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+#
+#
+spring.application.name=Akces Operator
+spring.kafka.bootstrap-servers=akces-kafka-bootstrap.kafka:9092
+management.endpoint.health.probes.enabled=true
+management.health.livenessState.enabled=true
+management.health.readinessState.enabled=true
+server.shutdown=graceful
+javaoperatorsdk.crd.apply-on-startup=true
+
+================
+File: operator/src/main/resources/logback.xml
+================
+<?xml version="1.0" encoding="UTF-8"?>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<configuration>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <layout class="ch.qos.logback.classic.PatternLayout">
+            <Pattern>
+                %d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n
+            </Pattern>
+        </layout>
+    </appender>
+
+    <logger name="org.apache.kafka" level="warn" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
+    <logger name="org.apache.kafka.clients.producer" level="warn" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
+    <logger name="org.apache.kafka.clients.consumer" level="warn" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
+    <root level="info">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+</configuration>
+
+================
+File: operator/src/test/java/org/elasticsoftware/akces/operator/AkcesOperatorApplicationTests.java
+================
+package org.elasticsoftware.akces.operator;
+
+import io.fabric8.kubernetes.api.model.ObjectMetaBuilder;
+import io.fabric8.kubernetes.api.model.apps.StatefulSet;
+import io.javaoperatorsdk.operator.api.reconciler.Context;
+import io.javaoperatorsdk.operator.api.reconciler.UpdateControl;
+import io.javaoperatorsdk.operator.springboot.starter.test.EnableMockOperator;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.TopicDescription;
+import org.elasticsoftware.akces.operator.aggregate.Aggregate;
+import org.elasticsoftware.akces.operator.aggregate.AggregateReconciler;
+import org.elasticsoftware.akces.operator.aggregate.AggregateSpec;
+import org.elasticsoftware.akces.operator.command.CommandService;
+import org.elasticsoftware.akces.operator.command.CommandServiceReconciler;
+import org.elasticsoftware.akces.operator.command.CommandServiceSpec;
+import org.elasticsoftware.akces.operator.query.QueryService;
+import org.elasticsoftware.akces.operator.query.QueryServiceReconciler;
+import org.elasticsoftware.akces.operator.query.QueryServiceSpec;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.ApplicationContextInitializer;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.kafka.core.KafkaAdmin;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.support.TestPropertySourceUtils;
+import org.testcontainers.containers.KafkaContainer;
+import org.testcontainers.containers.Network;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsoftware.akces.operator.utils.KafkaTopicUtils.createCompactedTopic;
+import static org.elasticsoftware.akces.operator.utils.KafkaTopicUtils.createTopic;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.springframework.boot.test.context.SpringBootTest.UseMainMethod.WHEN_AVAILABLE;
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, useMainMethod = WHEN_AVAILABLE)
+@ContextConfiguration(initializers = AkcesOperatorApplicationTests.KafkaInitializer.class)
+@EnableMockOperator(crdPaths = {"classpath:META-INF/fabric8/aggregates.akces.elasticsoftwarefoundation.org-v1.yml"})
+@Testcontainers
+@DirtiesContext
+class AkcesOperatorApplicationTests {
+    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.1";
+
+    private static final Network network = Network.newNetwork();
+
+    @Container
+    private static final KafkaContainer kafka =
+            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:" + CONFLUENT_PLATFORM_VERSION))
+                    .withKraft()
+                    .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false")
+                    .withNetwork(network)
+                    .withNetworkAliases("kafka");
+
+    @LocalServerPort
+    private int port;
+
+    @Autowired
+    private TestRestTemplate restTemplate;
+
+    @Autowired
+    private AggregateReconciler aggregateReconciler;
+
+    @Autowired
+    private CommandServiceReconciler commandServiceReconciler;
+
+    @Autowired
+    private QueryServiceReconciler queryServiceReconciler;
+
+    @Autowired
+    private KafkaAdmin kafkaAdmin;
+
+    @Test
+    void contextLoads() {
+        assertThat(restTemplate).isNotNull();
+        assertThat(aggregateReconciler).isNotNull();
+    }
+
+    @Test
+    void healthReadinessEndpointShouldBeEnabled() throws Exception {
+        assertThat(this.restTemplate.getForObject("http://localhost:" + port + "/actuator/health/readiness",
+                String.class)).contains("{\"status\":\"UP\"}");
+    }
+
+    @Test
+    void healthLivenessEndpointShouldBeEnabled() throws Exception {
+        assertThat(this.restTemplate.getForObject("http://localhost:" + port + "/actuator/health/liveness",
+                String.class)).contains("{\"status\":\"UP\"}");
+    }
+
+    @Test
+    void testAggregateReconciliation() throws Exception {
+        Aggregate aggregate = new Aggregate();
+        aggregate.setMetadata(new ObjectMetaBuilder()
+                .withName("test-aggregate")
+                .withNamespace("akces")
+                .build());
+        aggregate.setSpec(new AggregateSpec());
+        aggregate.getSpec().setReplicas(3);
+        aggregate.getSpec().setImage("test-image");
+        aggregate.getSpec().setAggregateNames(List.of("Account", "OrderProcessManager", "Wallet"));
+
+        Context<Aggregate> mockContext = mock(Context.class);
+        when(mockContext.getSecondaryResource(StatefulSet.class)).thenReturn(Optional.empty());
+        UpdateControl<Aggregate> updateControl = aggregateReconciler.reconcile(aggregate, mockContext);
+
+        Map<String, TopicDescription> reconciledTopics = kafkaAdmin.describeTopics("Account-DomainEvents", "Account-Commands", "Account-AggregateState",
+                "OrderProcessManager-DomainEvents", "OrderProcessManager-Commands", "OrderProcessManager-AggregateState",
+                "Wallet-DomainEvents", "Wallet-Commands", "Wallet-AggregateState");
+
+        assertThat(reconciledTopics).hasSize(9);
+        assertThat(reconciledTopics.get("Account-DomainEvents").partitions().size()).isEqualTo(3);
+        assertThat(reconciledTopics.get("Account-Commands").partitions().size()).isEqualTo(3);
+        assertThat(reconciledTopics.get("Account-AggregateState").partitions().size()).isEqualTo(3);
+        assertThat(reconciledTopics.get("OrderProcessManager-DomainEvents").partitions().size()).isEqualTo(3);
+        assertThat(reconciledTopics.get("OrderProcessManager-Commands").partitions().size()).isEqualTo(3);
+        assertThat(reconciledTopics.get("OrderProcessManager-AggregateState").partitions().size()).isEqualTo(3);
+        assertThat(reconciledTopics.get("Wallet-DomainEvents").partitions().size()).isEqualTo(3);
+        assertThat(reconciledTopics.get("Wallet-Commands").partitions().size()).isEqualTo(3);
+        assertThat(reconciledTopics.get("Wallet-AggregateState").partitions().size()).isEqualTo(3);
+
+    }
+
+    @Test
+    void testCommandServiceReconciliation() throws Exception {
+        CommandService commandService = new CommandService();
+        commandService.setMetadata(new ObjectMetaBuilder()
+                .withName("test-command-service")
+                .withNamespace("akces")
+                .build());
+        commandService.setSpec(new CommandServiceSpec());
+        commandService.getSpec().setReplicas(3);
+        commandService.getSpec().setImage("test-image");
+
+        Context<CommandService> mockContext = mock(Context.class);
+        when(mockContext.getSecondaryResource(StatefulSet.class)).thenReturn(Optional.empty());
+        UpdateControl<CommandService> updateControl = commandServiceReconciler.reconcile(commandService, mockContext);
+
+        assertThat(updateControl.isNoUpdate()).isTrue();
+        assertThat(updateControl.getResource().isPresent()).isFalse();
+    }
+
+    @Test
+    void testQueryServiceReconciliation() throws Exception {
+        QueryService queryService = new QueryService();
+        queryService.setMetadata(new ObjectMetaBuilder()
+                .withName("test-query-service")
+                .withNamespace("akces")
+                .build());
+        queryService.setSpec(new QueryServiceSpec());
+        queryService.getSpec().setReplicas(3);
+        queryService.getSpec().setImage("test-image");
+
+        Context<QueryService> mockContext = mock(Context.class);
+        when(mockContext.getSecondaryResource(StatefulSet.class)).thenReturn(Optional.empty());
+        UpdateControl<QueryService> updateControl = queryServiceReconciler.reconcile(queryService, mockContext);
+
+        assertThat(updateControl.isNoUpdate()).isTrue();
+        assertThat(updateControl.getResource().isPresent()).isFalse();
+    }
+
+    public static class KafkaInitializer
+            implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+
+        @Override
+        public void initialize(ConfigurableApplicationContext applicationContext) {
+
+            KafkaAdmin kafkaAdmin = new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers()));
+            kafkaAdmin.createOrModifyTopics(
+                    createCompactedTopic("Akces-Control", 3),
+                    createTopic("Akces-CommandResponses", 3, 604800000L),
+                    createCompactedTopic("Akces-GDPRKeys", 3)
+            );
+
+            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
+                    applicationContext,
+                    "spring.kafka.enabled=true",
+                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers()
+            );
+        }
+    }
+
+}
+
+================
+File: operator/pom.xml
+================
+<?xml version="1.0" encoding="UTF-8"?>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.elasticsoftwarefoundation.akces</groupId>
+        <artifactId>akces-framework-services</artifactId>
+        <version>0.7.21-SNAPSHOT</version>
+    </parent>
+    <artifactId>akces-operator</artifactId>
+    <name>Elastic Software Foundation :: Akces :: Services :: Akces Operator</name>
+    <description>Kubernetes Operator for the Akces Framework</description>
+    <properties>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>io.javaoperatorsdk</groupId>
+            <artifactId>operator-framework-spring-boot-starter</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.javaoperatorsdk</groupId>
+            <artifactId>operator-framework-spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-logging</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk18on</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>kafka</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.javaoperatorsdk</groupId>
+            <artifactId>operator-framework-junit-5</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>io.fabric8</groupId>
+                <artifactId>crd-generator-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>generate-resources</id>
+                        <configuration>
+                            <outputDirectory>${project.basedir}/src/main/resources/META-INF/fabric8/</outputDirectory>
+                        </configuration>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
+
+================
+File: pom.xml
+================
+<?xml version="1.0" encoding="UTF-8"?>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.elasticsoftwarefoundation.akces</groupId>
+        <artifactId>akces-framework-parent</artifactId>
+        <version>0.7.21-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>akces-framework-services</artifactId>
+    <packaging>pom</packaging>
+
+    <name>Elastic Software Foundation :: Akces :: Services</name>
+    <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
+
+    <properties>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.elasticsoftwarefoundation.akces</groupId>
+                <artifactId>akces-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.elasticsoftwarefoundation.akces</groupId>
+                <artifactId>akces-runtime</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.elasticsoftwarefoundation.akces</groupId>
+                <artifactId>akces-client</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.javaoperatorsdk</groupId>
+                <artifactId>operator-framework-spring-boot-starter</artifactId>
+                <version>6.0.0</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>io.fabric8</groupId>
+                        <artifactId>kubernetes-httpclient-vertx</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>io.javaoperatorsdk</groupId>
+                <artifactId>operator-framework-spring-boot-starter-test</artifactId>
+                <version>6.0.0</version>
+            </dependency>
+            <dependency>
+                <groupId>io.javaoperatorsdk</groupId>
+                <artifactId>operator-framework-junit-5</artifactId>
+                <version>5.0.1</version>
+            </dependency>
+            <dependency>
+                <groupId>io.javaoperatorsdk</groupId>
+                <artifactId>operator-framework</artifactId>
+                <version>5.0.2</version>
+            </dependency>
+            <dependency>
+                <groupId>io.fabric8</groupId>
+                <artifactId>crd-generator-apt-v2</artifactId>
+                <version>7.0.1</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>1.80</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcpkix-jdk18on</artifactId>
+                <version>1.80</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+    <modules>
+        <module>operator</module>
+    </modules>
+    <build>
+        <plugins>
+            <plugin>
+
+                <artifactId>maven-deploy-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+    <profiles>
+        <profile>
+            <id>maven-release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-maven-plugin</artifactId>
+                        <configuration>
+                            <docker>
+                                <publishRegistry>
+                                    <username>${env.GITHUB_ACTOR}</username>
+                                    <password>${env.GITHUB_TOKEN}</password>
+                                    <url>docker://ghcr.io</url>
+                                </publishRegistry>
+                            </docker>
+                            <image>
+                                <builder>docker.io/paketobuildpacks/builder-noble-java-tiny:latest</builder>
+                                <runImage>docker.io/paketobuildpacks/run-noble-tiny:latest</runImage>
+                                <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}:${project.version}</name>
+                                <publish>true</publish>
+                                <env>
+                                    <BP_JVM_VERSION>${java.version}</BP_JVM_VERSION>
+                                    <BP_JVM_JLINK_ENABLED>false</BP_JVM_JLINK_ENABLED>
+                                </env>
+                                <buildpacks>
+                                    <buildpack>paketo-buildpacks/ca-certificates</buildpack>
+                                    <buildpack>gcr.io/paketo-buildpacks/adoptium:latest</buildpack>
+                                    <buildpack>paketo-buildpacks/syft</buildpack>
+                                    <buildpack>paketo-buildpacks/executable-jar</buildpack>
+                                    <buildpack>paketo-buildpacks/spring-boot</buildpack>
+                                </buildpacks>
+                            </image>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>native</id>
+            <build>
+                <pluginManagement>
+                    <plugins>
+                        <plugin>
+                            <groupId>org.apache.maven.plugins</groupId>
+                            <artifactId>maven-jar-plugin</artifactId>
+                            <configuration>
+                                <archive>
+                                    <manifestEntries>
+                                        <Spring-Boot-Native-Processed>true</Spring-Boot-Native-Processed>
+                                    </manifestEntries>
+                                </archive>
+                            </configuration>
+                        </plugin>
+                        <plugin>
+                            <groupId>org.springframework.boot</groupId>
+                            <artifactId>spring-boot-maven-plugin</artifactId>
+                            <executions>
+                                <execution>
+                                    <id>process-aot</id>
+                                    <goals>
+                                        <goal>process-aot</goal>
+                                    </goals>
+                                </execution>
+                            </executions>
+                            <configuration>
+                                <docker>
+                                    <publishRegistry>
+                                        <username>${env.GITHUB_ACTOR}</username>
+                                        <password>${env.GITHUB_TOKEN}</password>
+                                        <url>docker://ghcr.io</url>
+                                    </publishRegistry>
+                                </docker>
+                                <image>
+                                    <builder>docker.io/paketobuildpacks/builder-noble-java-tiny:latest</builder>
+                                    <runImage>docker.io/paketobuildpacks/run-noble-tiny:latest</runImage>
+                                    <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}:${project.version}
+                                    </name>
+                                    <publish>true</publish>
+                                    <env>
+                                        <BP_JVM_VERSION>${java.version}</BP_JVM_VERSION>
+                                        <BP_JVM_JLINK_ENABLED>false</BP_JVM_JLINK_ENABLED>
+                                    </env>
+                                </image>
+                            </configuration>
+                        </plugin>
+                        <plugin>
+                            <groupId>org.graalvm.buildtools</groupId>
+                            <artifactId>native-maven-plugin</artifactId>
+                            <configuration>
+                                <classesDirectory>${project.build.outputDirectory}</classesDirectory>
+                                <requiredVersion>22.3</requiredVersion>
+                            </configuration>
+                            <executions>
+                                <execution>
+                                    <id>add-reachability-metadata</id>
+                                    <goals>
+                                        <goal>add-reachability-metadata</goal>
+                                    </goals>
+                                </execution>
+                                <execution>
+                                    <id>build-native</id>
+                                    <goals>
+                                        <goal>compile-no-fork</goal>
+                                    </goals>
+                                    <phase>package</phase>
+                                </execution>
+                            </executions>
+                        </plugin>
+                    </plugins>
+                </pluginManagement>
+            </build>
+        </profile>
+        <profile>
+            <id>nativeTest</id>
+            <dependencies>
+                <dependency>
+                    <groupId>org.junit.platform</groupId>
+                    <artifactId>junit-platform-launcher</artifactId>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>process-test-aot</id>
+                                <goals>
+                                    <goal>process-test-aot</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <configuration>
+                            <classesDirectory>${project.build.outputDirectory}</classesDirectory>
+                            <requiredVersion>22.3</requiredVersion>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>native-test</id>
+                                <goals>
+                                    <goal>test</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>
+
+
+
+================================================================
+End of Codebase
+================================================================
