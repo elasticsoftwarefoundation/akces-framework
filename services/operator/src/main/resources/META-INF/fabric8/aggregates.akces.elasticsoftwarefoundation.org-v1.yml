@@ -42,6 +42,8 @@ spec:
                       properties:
                         name:
                           type: "string"
+                        request:
+                          type: "string"
                       type: "object"
                     type: "array"
                   limits:
