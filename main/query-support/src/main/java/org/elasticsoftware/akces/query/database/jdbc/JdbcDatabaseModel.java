@@ -17,7 +17,6 @@
 
 package org.elasticsoftware.akces.query.database.jdbc;
 
-import jakarta.annotation.Nullable;
 import org.elasticsoftware.akces.query.DatabaseModel;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -39,7 +38,7 @@ public class JdbcDatabaseModel implements DatabaseModel {
     protected final JdbcTemplate jdbcTemplate;
     private final DefaultTransactionDefinition transactionDefinition = new DefaultTransactionDefinition(TransactionDefinition.PROPAGATION_REQUIRED);
     private final TransactionTemplate transactionTemplate;
-    private String databaseType;
+    private volatile String databaseType;
 
     public JdbcDatabaseModel(PlatformTransactionManager transactionManager, JdbcTemplate jdbcTemplate) {
         this.transactionManager = transactionManager;
@@ -110,7 +109,6 @@ public class JdbcDatabaseModel implements DatabaseModel {
                 databaseType = metadata.getDatabaseProductName().toLowerCase();
             }
         }
-
     }
 
     private String getUpsertSql(String tableName, String keyColumn, String valueColumn) {

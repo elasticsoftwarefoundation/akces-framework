@@ -68,7 +68,11 @@ import static org.elasticsoftware.cryptotrading.TestUtils.*;
         },
         useMainMethod = SpringBootTest.UseMainMethod.ALWAYS,
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"akces.client.domainEventsPackage=org.elasticsoftware.cryptotrading.aggregates"})
+        properties = {
+                "akces.client.domainEventsPackage=org.elasticsoftware.cryptotrading.aggregates",
+                "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration,org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.elasticsoftware.akces.query.database.AkcesDatabaseModelAutoConfiguration"
+        }
+)
 @PropertySource("classpath:akces-aggregateservice.properties")
 @ContextConfiguration(initializers = CryptoTradingQueryApiTest.Initializer.class)
 @Testcontainers
