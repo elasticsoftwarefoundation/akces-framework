@@ -15,12 +15,29 @@
  *
  */
 
-package org.elasticsoftware.akces.query;
+package org.elasticsoftware.akces.query.database.jpa;
 
-public record QueryModelStateType<C extends QueryModelState>(
-        String typeName,
-        int version,
-        Class<C> typeClass,
-        String indexName
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name = "partition_offsets")
+public record PartitionOffset(
+    @Id
+    @Column(name = "partition_id")
+    String partitionId,
+
+    @Column(name = "record_offset")
+    Long offset
 ) {
+    public PartitionOffset {
+        // Validation could be added here if needed
+    }
+
+    // Required by JPA
+    public PartitionOffset() {
+        this(null, null);
+    }
 }

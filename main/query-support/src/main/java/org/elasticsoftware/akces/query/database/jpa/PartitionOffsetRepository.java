@@ -15,12 +15,15 @@
  *
  */
 
-package org.elasticsoftware.akces.query;
+package org.elasticsoftware.akces.query.database.jpa;
 
-public record QueryModelStateType<C extends QueryModelState>(
-        String typeName,
-        int version,
-        Class<C> typeClass,
-        String indexName
-) {
+import org.springframework.data.repository.CrudRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.Collection;
+import java.util.List;
+
+@Repository
+public interface PartitionOffsetRepository extends CrudRepository<PartitionOffset, String> {
+    List<PartitionOffset> findByPartitionIdIn(Collection<String> partitionIds);
 }

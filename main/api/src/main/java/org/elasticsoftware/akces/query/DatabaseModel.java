@@ -17,10 +17,13 @@
 
 package org.elasticsoftware.akces.query;
 
-public record QueryModelStateType<C extends QueryModelState>(
-        String typeName,
-        int version,
-        Class<C> typeClass,
-        String indexName
-) {
+import java.util.Map;
+import java.util.Set;
+
+public interface DatabaseModel {
+    Map<String,Long> getOffsets(Set<String> partitionIds);
+
+    Object startTransaction();
+
+    void commitTransaction(Object transactionMarker, Map<String,Long> offsets);
 }

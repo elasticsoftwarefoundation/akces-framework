@@ -489,7 +489,7 @@
                 <includes>
                     <include>*.xml</include>
                     <include>*.properties</include>
-                    <include>*.yaml</include>
+                    <include>**/*.yaml</include>
                     <include>META-INF/*</include>
                 </includes>
             </testResource>
