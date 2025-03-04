@@ -18,7 +18,6 @@
 package org.elasticsoftware.akces.query.models;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils;
@@ -41,7 +40,6 @@ public class KafkaQueryModelRuntime<S extends QueryModelState> implements QueryM
     private static final Logger logger = LoggerFactory.getLogger(KafkaQueryModelRuntime.class);
     private final KafkaSchemaRegistry schemaRegistry;
     private final ObjectMapper objectMapper;
-    private final Map<Class<? extends DomainEvent>, JsonSchema> domainEventSchemas = new HashMap<>();
     private final QueryModelStateType<?> type;
     private final Class<? extends QueryModel<S>> queryModelClass;
     private final Map<Class<?>, DomainEventType<?>> domainEvents;

@@ -72,7 +72,7 @@ public class QueryModelRuntimeFactory<S extends QueryModelState> implements Fact
                     queryModelInfo.indexName()
             ));
         } else {
-            throw new IllegalStateException("Class implementing Aggregate must be annotated with @AggregateInfo");
+            throw new IllegalStateException("Class implementing Aggregate must be annotated with @QueryModelInfo");
         }
         runtimeBuilder.setQueryModelClass((Class<? extends QueryModel<S>>) queryModel.getClass());
         runtimeBuilder.setObjectMapper(objectMapper);

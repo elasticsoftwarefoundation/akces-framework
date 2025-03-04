@@ -15,12 +15,24 @@
  *
  */
 
-package org.elasticsoftware.akces.query;
+package org.elasticsoftware.akces.annotations;
 
-public record QueryModelStateType<C extends QueryModelState>(
-        String typeName,
-        int version,
-        Class<C> typeClass,
-        String indexName
-) {
+import org.springframework.core.annotation.AliasFor;
+import org.springframework.stereotype.Component;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.TYPE})
+@Component
+public @interface DatabaseModelInfo {
+    @AliasFor(annotation = Component.class)
+    String value();
+
+    int version() default 1;
+
+    String schemaName();
 }

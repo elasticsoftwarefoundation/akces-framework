@@ -15,12 +15,14 @@
  *
  */
 
-package org.elasticsoftware.akces.query;
+package org.elasticsoftware.akces.annotations;
 
-public record QueryModelStateType<C extends QueryModelState>(
-        String typeName,
-        int version,
-        Class<C> typeClass,
-        String indexName
-) {
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target({ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface DatabaseModelEventHandler {
 }

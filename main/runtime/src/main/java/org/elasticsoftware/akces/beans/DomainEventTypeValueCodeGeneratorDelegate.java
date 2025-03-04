@@ -28,17 +28,18 @@ public class DomainEventTypeValueCodeGeneratorDelegate implements ValueCodeGener
     @Override
     public CodeBlock generateCode(ValueCodeGenerator valueCodeGenerator, Object value) {
         if (value instanceof DomainEventType<?>(
-                String typeName, int version, Class<?> typeClass, boolean create, boolean external, boolean error
+                String typeName, int version, Class<?> typeClass, boolean create, boolean external, boolean error, Boolean piiData
         )) {
             return CodeBlock.builder()
-                    .add("new $T($S, $L, $T.class, $L, $L, $L)",
+                    .add("new $T($S, $L, $T.class, $L, $L, $L, $L)",
                             DomainEventType.class,
                             typeName,
                             version,
                             typeClass,
                             create,
                             external,
-                            error)
+                            error,
+                            piiData)
                     .build();
         } else {
             return null;

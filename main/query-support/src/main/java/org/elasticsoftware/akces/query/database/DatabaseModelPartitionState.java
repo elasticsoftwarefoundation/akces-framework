@@ -15,12 +15,11 @@
  *
  */
 
-package org.elasticsoftware.akces.query;
+package org.elasticsoftware.akces.query.database;
 
-public record QueryModelStateType<C extends QueryModelState>(
-        String typeName,
-        int version,
-        Class<C> typeClass,
-        String indexName
-) {
+public enum DatabaseModelPartitionState {
+    INITIALIZING,
+    LOADING_GDPR_KEYS,
+    PROCESSING,
+    SHUTTING_DOWN
 }

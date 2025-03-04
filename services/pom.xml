@@ -31,25 +31,13 @@
     <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
 
     <properties>
+        <operator-sdk.version>5.0.3</operator-sdk.version>
+        <bouncycastle.version>1.80</bouncycastle.version>
+        <fabric8.version>7.1.0</fabric8.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
-            <dependency>
-                <groupId>org.elasticsoftwarefoundation.akces</groupId>
-                <artifactId>akces-api</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.elasticsoftwarefoundation.akces</groupId>
-                <artifactId>akces-runtime</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.elasticsoftwarefoundation.akces</groupId>
-                <artifactId>akces-client</artifactId>
-                <version>${project.version}</version>
-            </dependency>
             <dependency>
                 <groupId>io.javaoperatorsdk</groupId>
                 <artifactId>operator-framework-spring-boot-starter</artifactId>
@@ -69,27 +57,27 @@
             <dependency>
                 <groupId>io.javaoperatorsdk</groupId>
                 <artifactId>operator-framework-junit-5</artifactId>
-                <version>5.0.1</version>
+                <version>${operator-sdk.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.javaoperatorsdk</groupId>
                 <artifactId>operator-framework</artifactId>
-                <version>5.0.2</version>
+                <version>${operator-sdk.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.fabric8</groupId>
                 <artifactId>crd-generator-apt-v2</artifactId>
-                <version>7.0.1</version>
+                <version>${fabric8.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.bouncycastle</groupId>
                 <artifactId>bcprov-jdk18on</artifactId>
-                <version>1.80</version>
+                <version>${bouncycastle.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.bouncycastle</groupId>
                 <artifactId>bcpkix-jdk18on</artifactId>
-                <version>1.80</version>
+                <version>${bouncycastle.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework.boot</groupId>

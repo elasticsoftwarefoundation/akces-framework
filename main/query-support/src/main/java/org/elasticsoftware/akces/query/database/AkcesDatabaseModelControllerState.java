@@ -15,12 +15,13 @@
  *
  */
 
-package org.elasticsoftware.akces.query;
+package org.elasticsoftware.akces.query.database;
 
-public record QueryModelStateType<C extends QueryModelState>(
-        String typeName,
-        int version,
-        Class<C> typeClass,
-        String indexName
-) {
+public enum AkcesDatabaseModelControllerState {
+    INITIALIZING,
+    INITIAL_REBALANCING,
+    REBALANCING,
+    RUNNING,
+    SHUTTING_DOWN,
+    ERROR
 }

@@ -15,22 +15,26 @@
  *
  */
 
-package org.elasticsoftware.akces.query.models;
+package org.elasticsoftware.akces.query.database;
 
-import org.elasticsoftware.akces.annotations.DatabaseModelInfo;
-import org.springframework.boot.test.autoconfigure.filter.TypeExcludeFilters;
+import liquibase.integration.spring.SpringLiquibase;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.FilterType;
-import org.springframework.test.context.ContextConfiguration;
+
+import javax.sql.DataSource;
 
 //@Configuration
 @ComponentScan(basePackages = {
         "org.elasticsoftware.akcestest.aggregate",
-        "org.elasticsoftware.akces.query.models.wallet",
-        "org.elasticsoftware.akces.query.models.account"
-},excludeFilters = {
-        @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = DatabaseModelInfo.class),
+        "org.elasticsoftware.akces.query.database.model",
 })
-public class QueryModelTestConfiguration {
+public class DatabaseModelTestConfiguration {
+    @Bean
+    public SpringLiquibase liquibase(DataSource dataSource) {
+        SpringLiquibase liquibase = new SpringLiquibase();
+        liquibase.setChangeLog("classpath:db/changelog/liquibase.yaml");
+        liquibase.setDataSource(dataSource);
+        return liquibase;
+    }
 }

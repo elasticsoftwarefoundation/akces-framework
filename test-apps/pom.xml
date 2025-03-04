@@ -55,6 +55,11 @@
             </dependency>
             <dependency>
                 <groupId>org.elasticsoftwarefoundation.akces</groupId>
+                <artifactId>akces-shared</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.elasticsoftwarefoundation.akces</groupId>
                 <artifactId>akces-runtime</artifactId>
                 <version>${project.version}</version>
             </dependency>
