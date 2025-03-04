@@ -24,7 +24,7 @@ import org.springframework.context.annotation.Configuration;
 
 import javax.sql.DataSource;
 
-@Configuration
+//@Configuration
 @ComponentScan(basePackages = {
         "org.elasticsoftware.akcestest.aggregate",
         "org.elasticsoftware.akces.query.database.model",

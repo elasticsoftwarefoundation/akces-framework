@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces.query.database.jdbc;
 
+import jakarta.annotation.Nullable;
 import org.elasticsoftware.akces.query.DatabaseModel;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -38,14 +39,13 @@ public class JdbcDatabaseModel implements DatabaseModel {
     protected final JdbcTemplate jdbcTemplate;
     private final DefaultTransactionDefinition transactionDefinition = new DefaultTransactionDefinition(TransactionDefinition.PROPAGATION_REQUIRED);
     private final TransactionTemplate transactionTemplate;
-    private final String databaseType;
+    private String databaseType;
 
-    public JdbcDatabaseModel(PlatformTransactionManager transactionManager, JdbcTemplate jdbcTemplate) throws SQLException {
+    public JdbcDatabaseModel(PlatformTransactionManager transactionManager, JdbcTemplate jdbcTemplate) {
         this.transactionManager = transactionManager;
         this.jdbcTemplate = jdbcTemplate;
         this.transactionDefinition.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         this.transactionTemplate = new TransactionTemplate(transactionManager, transactionDefinition);
-        this.databaseType = getDatabaseType();
     }
 
     @Override
@@ -85,6 +85,8 @@ public class JdbcDatabaseModel implements DatabaseModel {
         }
 
         try {
+            detectDatabaseType();
+
             String sql = getUpsertSql("partition_offsets", "partition_id", "record_offset");
 
             jdbcTemplate.batchUpdate(
@@ -101,11 +103,14 @@ public class JdbcDatabaseModel implements DatabaseModel {
         }
     }
 
-    private String getDatabaseType() throws SQLException {
-        try (Connection connection = jdbcTemplate.getDataSource().getConnection()) {
-            DatabaseMetaData metadata = connection.getMetaData();
-            return metadata.getDatabaseProductName().toLowerCase();
+    private void detectDatabaseType() throws SQLException {
+        if(databaseType == null && jdbcTemplate.getDataSource() != null) {
+            try (Connection connection = jdbcTemplate.getDataSource().getConnection()) {
+                DatabaseMetaData metadata = connection.getMetaData();
+                databaseType = metadata.getDatabaseProductName().toLowerCase();
+            }
         }
+
     }
 
     private String getUpsertSql(String tableName, String keyColumn, String valueColumn) {

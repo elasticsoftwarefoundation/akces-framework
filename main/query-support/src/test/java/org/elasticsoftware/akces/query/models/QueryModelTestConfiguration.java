@@ -17,14 +17,20 @@
 
 package org.elasticsoftware.akces.query.models;
 
+import org.elasticsoftware.akces.annotations.DatabaseModelInfo;
+import org.springframework.boot.test.autoconfigure.filter.TypeExcludeFilters;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.FilterType;
+import org.springframework.test.context.ContextConfiguration;
 
-@Configuration
+//@Configuration
 @ComponentScan(basePackages = {
         "org.elasticsoftware.akcestest.aggregate",
         "org.elasticsoftware.akces.query.models.wallet",
         "org.elasticsoftware.akces.query.models.account"
+},excludeFilters = {
+        @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = DatabaseModelInfo.class),
 })
 public class QueryModelTestConfiguration {
 }

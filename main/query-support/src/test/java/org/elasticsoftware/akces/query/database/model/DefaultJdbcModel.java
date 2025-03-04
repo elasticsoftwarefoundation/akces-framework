@@ -17,10 +17,12 @@
 
 package org.elasticsoftware.akces.query.database.model;
 
+import jakarta.inject.Inject;
 import org.elasticsoftware.akces.annotations.DatabaseModelEventHandler;
 import org.elasticsoftware.akces.annotations.DatabaseModelInfo;
 import org.elasticsoftware.akces.query.database.jdbc.JdbcDatabaseModel;
 import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 
@@ -28,7 +30,7 @@ import java.sql.SQLException;
 
 @DatabaseModelInfo(value = "Default", version = 1, schemaName = "default_v1")
 public class DefaultJdbcModel extends JdbcDatabaseModel {
-    public DefaultJdbcModel(PlatformTransactionManager transactionManager, JdbcTemplate jdbcTemplate) throws SQLException {
+    public DefaultJdbcModel(@Autowired(required = false) PlatformTransactionManager transactionManager,@Autowired(required = false) JdbcTemplate jdbcTemplate) throws SQLException {
         super(transactionManager, jdbcTemplate);
     }
 
