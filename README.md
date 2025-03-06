@@ -1,99 +1,104 @@
 # Akces Framework
 
-A robust, Kafka-based CQRS and Event Sourcing framework for building scalable distributed applications.
-
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-
 ## Overview
 
-Akces Framework is a comprehensive Java framework that facilitates building distributed systems using Command Query Responsibility Segregation (CQRS) and Event Sourcing patterns with Apache Kafka as the underlying messaging and storage platform. Designed to be scalable, resilient, and extensible, Akces Framework provides a structured approach to developing event-driven applications.
+Akces is an event sourcing and CQRS (Command Query Responsibility Segregation) framework built on Apache Kafka. It provides a comprehensive solution for building event-driven applications with a clear separation between command and query responsibilities.
 
-## Core Features
+The framework follows domain-driven design principles and facilitates the implementation of aggregate roots, commands, events, and projections (query models). It offers robust support for distributed processing, schema evolution, and provides built-in privacy features for handling personally identifiable information (PII).
 
-- **Command-Query Separation**: Distinct paths for commands (writes) and queries (reads), optimizing for different performance characteristics
-- **Event Sourcing**: Store domain events as the source of truth for application state
-- **Distributed Processing**: Scale horizontally across multiple nodes leveraging Kafka partitioning
-- **Schema Evolution**: Built-in schema registry integration for versioning and compatibility management
-- **GDPR Compliance**: Includes encryption and data protection features for personal identifiable information (PII)
-- **Modular Architecture**: Clean separation of API, runtime, and client components
-- **Aggregate Patterns**: Support for Domain-Driven Design (DDD) aggregates and process managers
-- **Query Models**: Efficient read models through query projections
+## Main Features
 
-## Architecture
+### Event Sourcing & CQRS Implementation
 
-Akces Framework consists of the following modules:
+- **Command Processing**: Define commands that represent intentions to change the system state
+- **Event Sourcing**: Store all changes as a sequence of events that can be replayed to reconstruct state
+- **Aggregate Support**: Work with domain aggregates that enforce business rules and consistency
+- **Query Models**: Build specialized read models optimized for querying data
 
-- **api**: Core interfaces and annotations defining the programming model
-- **runtime**: Implementation of the runtime engine that processes commands and events
-- **client**: Client library for sending commands and receiving events
-- **shared**: Common utilities and shared components
-- **query-support**: Support for building and managing query models
+### Kafka Integration
+
+- **Event Storage**: Uses Kafka as the event store, leveraging its durability and scalability
+- **Partitioning Support**: Efficiently distributes processing across multiple partitions
+- **Transaction Support**: Ensures atomicity of operations across multiple Kafka topics
+
+### Schema Management
+
+- **Schema Registry Integration**: Support for schema validation and evolution
+- **JSON Schema Generation**: Automatic generation of JSON schemas from command and event classes
+- **Backward Compatibility**: Enforces schema compatibility rules to ensure event processing resilience
+
+### Privacy and Security
+
+- **GDPR Features**: Built-in support for handling PII data through annotation-driven encryption
+- **Encryption**: Transparent encryption/decryption of sensitive data
+
+### Database Support
+
+- **Query Model Persistence**: Ready-to-use support for JDBC and JPA for query model persistence
+- **RocksDB Integration**: Efficient local state storage via RocksDB
+
+### Process Management
+
+- **Process Manager Support**: Built-in support for coordinating activities across aggregates
+- **Event Handlers**: Define handlers for events to coordinate cross-aggregate actions
+
+## Architecture Components
+
+The framework consists of several modules:
+
+- **api**: Core interfaces and annotations for defining aggregates, commands, and events
+- **runtime**: Runtime implementation for processing commands and events
+- **client**: Client library for sending commands to the system
+- **shared**: Common utilities and classes shared across modules
+- **query-support**: Components for building and managing query models
 
 ## Setup Instructions
 
 ### Prerequisites
 
 - Java 17 or higher
-- Apache Kafka 3.x
-- Schema Registry (Confluent)
-- Maven 3.x
+- Apache Kafka (3.x recommended)
+- Confluent Schema Registry
+- Maven 3.6+
 
-### Dependencies
+### Maven Dependencies
 
-Add the following to your Maven `pom.xml`:
+Add the Akces Framework to your project using Maven:
 
 ```xml
 <dependency>
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-api</artifactId>
-    <version>0.8.0</version>
+    <version>0.8.1</version>
 </dependency>
+
 <dependency>
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-runtime</artifactId>
-    <version>0.8.0</version>
+    <version>0.8.1</version>
 </dependency>
+
 <dependency>
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-client</artifactId>
-    <version>0.8.0</version>
-</dependency>
-```
-
-For query support, add:
-
-```xml
-<dependency>
-    <groupId>org.elasticsoftwarefoundation.akces</groupId>
-    <artifactId>akces-query-support</artifactId>
-    <version>0.8.0</version>
+    <version>0.8.1</version>
 </dependency>
 ```
 
 ### Configuration
 
-Create an `application.yaml` file with the following basic configuration:
+Create an application configuration with the following Kafka and Schema Registry properties:
 
-```yaml
-spring:
-  kafka:
-    bootstrap-servers: localhost:9092
-    consumer:
-      enable-auto-commit: false
-      isolation-level: read_committed
-      auto-offset-reset: latest
-    producer:
-      acks: all
-      retries: 2147483647
-      properties:
-        enable.idempotence: true
-        max.in.flight.requests.per.connection: 1
+```properties
+# Kafka configuration
+spring.kafka.bootstrap-servers=localhost:9092
+spring.kafka.consumer.enable-auto-commit=false
+spring.kafka.consumer.isolation-level=read_committed
+spring.kafka.producer.acks=all
+spring.kafka.producer.properties.enable.idempotence=true
 
-akces:
-  schemaregistry:
-    url: http://localhost:8081
-  rocksdb:
-    baseDir: /tmp/akces
+# Schema Registry
+akces.schemaregistry.url=http://localhost:8081
 ```
 
 ## Usage Examples
@@ -101,161 +106,275 @@ akces:
 ### Defining an Aggregate
 
 ```java
-@AggregateInfo(value = "Account", version = 1, generateGDPRKeyOnCreate = true, indexed = true, indexName = "Users")
-public class Account implements Aggregate<AccountState> {
+@AggregateInfo(value = "Wallet", version = 1, indexed = true, indexName = "Wallets")
+public final class Wallet implements Aggregate<WalletState> {
     
     @Override
-    public Class<AccountState> getStateClass() {
-        return AccountState.class;
+    public Class<WalletState> getStateClass() {
+        return WalletState.class;
     }
     
-    @CommandHandler(create = true, produces = {AccountCreatedEvent.class})
-    public Stream<AccountCreatedEvent> create(CreateAccountCommand cmd, AccountState isNull) {
-        return Stream.of(new AccountCreatedEvent(cmd.getUserId(), cmd.getCountry(), cmd.getFirstName(), 
-                cmd.getLastName(), cmd.getEmail()));
+    @CommandHandler(create = true)
+    public Stream<DomainEvent> create(CreateWalletCommand cmd, WalletState isNull) {
+        return Stream.of(new WalletCreatedEvent(cmd.id()), 
+                         new BalanceCreatedEvent(cmd.id(), cmd.currency()));
     }
     
     @EventSourcingHandler(create = true)
-    public AccountState create(AccountCreatedEvent event, AccountState isNull) {
-        return new AccountState(event.getUserId(), event.getCountry(), event.getFirstName(), 
-                event.getLastName(), event.getEmail());
+    public WalletState create(WalletCreatedEvent event, WalletState isNull) {
+        return new WalletState(event.id(), new ArrayList<>());
     }
-}
-```
-
-### Defining a Command
-
-```java
-@CommandInfo(type = "CreateAccount", version = 1)
-public record CreateAccountCommand(
-    @AggregateIdentifier @NotNull String userId,
-    @NotNull String country,
-    @NotNull @PIIData String firstName,
-    @NotNull @PIIData String lastName,
-    @NotNull @PIIData String email
-) implements Command {
     
-    @Override
-    public String getAggregateId() {
-        return userId();
-    }
-}
-```
-
-### Defining an Event
-
-```java
-@DomainEventInfo(type = "AccountCreated", version = 1)
-public record AccountCreatedEvent(
-    @AggregateIdentifier @NotNull String userId,
-    @NotNull String country,
-    @NotNull @PIIData String firstName,
-    @NotNull @PIIData String lastName,
-    @NotNull @PIIData String email
-) implements DomainEvent {
-    
-    @Override
-    public String getAggregateId() {
-        return userId();
-    }
-}
-```
-
-### Defining Aggregate State
-
-```java
-@AggregateStateInfo(type = "AccountState", version = 1)
-public record AccountState(
-    @AggregateIdentifier @NotNull String userId,
-    @NotNull String country, 
-    @NotNull @PIIData String firstName,
-    @NotNull @PIIData String lastName,
-    @NotNull @PIIData String email
-) implements AggregateState {
-    
-    @Override
-    public String getAggregateId() {
-        return userId();
-    }
-}
-```
-
-### Sending Commands
-
-```java
-@Autowired
-private AkcesClient akcesClient;
-
-public void createAccount() {
-    String userId = UUID.randomUUID().toString();
-    CreateAccountCommand command = new CreateAccountCommand(userId, "US", "John", "Doe", "john.doe@example.com");
-    
-    // Synchronous execution
-    List<DomainEvent> events = akcesClient.send("DEFAULT_TENANT", command)
-        .toCompletableFuture().get(5, TimeUnit.SECONDS);
+    @CommandHandler
+    public Stream<DomainEvent> credit(CreditWalletCommand cmd, WalletState state) {
+        WalletState.Balance balance = state.balances().stream()
+                .filter(b -> b.currency().equals(cmd.currency()))
+                .findFirst().orElse(null);
         
-    // Asynchronous execution
-    akcesClient.send("DEFAULT_TENANT", command)
-        .thenAccept(events -> {
-            // Process events here
-        });
+        if (balance == null) {
+            return Stream.of(new InvalidCurrencyErrorEvent(cmd.id(), cmd.currency()));
+        }
         
-    // Fire and forget
-    akcesClient.sendAndForget("DEFAULT_TENANT", command);
+        if (cmd.amount().compareTo(BigDecimal.ZERO) < 0) {
+            return Stream.of(new InvalidAmountErrorEvent(cmd.id(), cmd.currency()));
+        }
+        
+        return Stream.of(new WalletCreditedEvent(state.id(), cmd.currency(), 
+                         cmd.amount(), balance.amount().add(cmd.amount())));
+    }
+    
+    @EventSourcingHandler
+    public WalletState credit(WalletCreditedEvent event, WalletState state) {
+        return new WalletState(state.id(), 
+                state.balances().stream().map(b -> {
+                    if (b.currency().equals(event.currency())) {
+                        return new WalletState.Balance(b.currency(), b.amount().add(event.amount()));
+                    }
+                    return b;
+                }).toList());
+    }
 }
 ```
 
-### Creating a Query Model
+### Defining Commands and Events
 
 ```java
-@QueryModelInfo(value = "AccountQueryModel", version = 1, indexName = "Users")
-public class AccountQueryModel implements QueryModel<AccountQueryModelState> {
+@CommandInfo(type = "CreateWallet", version = 1)
+public record CreateWalletCommand(
+    @NotNull @AggregateIdentifier String id,
+    @NotNull String currency) implements Command {
     
     @Override
-    public Class<AccountQueryModelState> getStateClass() {
-        return AccountQueryModelState.class;
+    public String getAggregateId() {
+        return id();
+    }
+}
+
+@DomainEventInfo(type = "WalletCreated", version = 1)
+public record WalletCreatedEvent(
+    @NotNull @AggregateIdentifier String id) implements DomainEvent {
+    
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
+}
+```
+
+### Defining States
+
+```java
+public record WalletState(
+    String id, 
+    List<Balance> balances) implements AggregateState {
+    
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
+    
+    public record Balance(
+        String currency, 
+        BigDecimal amount, 
+        BigDecimal reservedAmount) {
+        
+        public Balance(String currency, BigDecimal amount) {
+            this(currency, amount, BigDecimal.ZERO);
+        }
+        
+        public BigDecimal getAvailableAmount() {
+            return amount.subtract(reservedAmount);
+        }
+    }
+}
+```
+
+### Setting up a Query Model
+
+```java
+@QueryModelInfo(value = "WalletQueryModel", version = 1, indexName = "Wallets")
+public class WalletQueryModel implements QueryModel<WalletQueryModelState> {
+    
+    @Override
+    public Class<WalletQueryModelState> getStateClass() {
+        return WalletQueryModelState.class;
     }
     
     @Override
     public String getIndexName() {
-        return "Users";
+        return "Wallets";
     }
     
     @QueryModelEventHandler(create = true)
-    public AccountQueryModelState create(AccountCreatedEvent event, AccountQueryModelState isNull) {
-        return new AccountQueryModelState(event.userId(), event.country(), event.firstName(), 
-                event.lastName(), event.email());
+    public WalletQueryModelState create(WalletCreatedEvent event, WalletQueryModelState isNull) {
+        return new WalletQueryModelState(event.id(), List.of());
+    }
+    
+    @QueryModelEventHandler
+    public WalletQueryModelState createBalance(BalanceCreatedEvent event, WalletQueryModelState currentState) {
+        WalletQueryModelState.Balance balance = new WalletQueryModelState.Balance(event.currency(), BigDecimal.ZERO);
+        List<WalletQueryModelState.Balance> balances = new ArrayList<>(currentState.balances());
+        balances.add(balance);
+        return new WalletQueryModelState(currentState.walletId(), balances);
+    }
+    
+    @QueryModelEventHandler
+    public WalletQueryModelState creditWallet(WalletCreditedEvent event, WalletQueryModelState currentState) {
+        return new WalletQueryModelState(
+                currentState.walletId(),
+                currentState.balances().stream().map(balance -> {
+                    if (balance.currency().equals(event.currency())) {
+                        return new WalletQueryModelState.Balance(
+                                balance.currency(),
+                                balance.amount().add(event.amount()),
+                                balance.reservedAmount()
+                        );
+                    }
+                    return balance;
+                }).toList());
     }
 }
 ```
 
-### Querying a Model
+### Using the Akces Client to Send Commands
 
 ```java
-@Autowired
-private QueryModels queryModels;
-
-public void getAccountDetails(String userId) {
-    CompletionStage<AccountQueryModelState> stateFuture = 
-        queryModels.getHydratedState(AccountQueryModel.class, userId);
-        
-    stateFuture.thenAccept(state -> {
-        // Do something with the state
-        System.out.println("Account for: " + state.firstName() + " " + state.lastName());
-    }).exceptionally(ex -> {
-        if (ex instanceof QueryModelIdNotFoundException) {
-            System.out.println("Account not found");
-        }
-        return null;
-    });
+@Service
+public class WalletService {
+    
+    private final AkcesClient akcesClient;
+    
+    public WalletService(AkcesClient akcesClient) {
+        this.akcesClient = akcesClient;
+    }
+    
+    public CompletableFuture<List<DomainEvent>> createWallet(String id, String currency) {
+        CreateWalletCommand command = new CreateWalletCommand(id, currency);
+        return akcesClient.send(command).toCompletableFuture();
+    }
+    
+    public CompletableFuture<List<DomainEvent>> creditWallet(String walletId, String currency, BigDecimal amount) {
+        CreditWalletCommand command = new CreditWalletCommand(walletId, currency, amount);
+        return akcesClient.send(command).toCompletableFuture();
+    }
 }
 ```
 
-### Creating a Database Model
+### Querying Data with the Query Model
 
 ```java
-@DatabaseModelInfo(value = "AccountDatabaseModel", version = 1)
-public class AccountDatabaseModel extends JdbcDatabaseModel {
+@Service
+public class WalletQueryService {
+    
+    private final QueryModels queryModels;
+    
+    public WalletQueryService(QueryModels queryModels) {
+        this.queryModels = queryModels;
+    }
+    
+    public CompletableFuture<WalletQueryModelState> getWallet(String walletId) {
+        return queryModels.getHydratedState(WalletQueryModel.class, walletId)
+                .toCompletableFuture();
+    }
+}
+```
+
+### Handling PII Data
+
+```java
+@DomainEventInfo(type = "AccountCreated", version = 1)
+public record AccountCreatedEvent(
+    @NotNull @AggregateIdentifier String userId,
+    @NotNull String country,
+    @NotNull @PIIData String firstName,
+    @NotNull @PIIData String lastName,
+    @NotNull @PIIData String email) implements DomainEvent {
+    
+    @Override
+    public String getAggregateId() {
+        return userId();
+    }
+}
+```
+
+## Running the Framework
+
+1. Start Apache Kafka and Schema Registry
+2. Configure your application properties
+3. Create your aggregate, command, and event classes
+4. Start your application with:
+
+```java
+@SpringBootApplication
+@Import(AkcesConfiguration.class)
+public class MyApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(MyApplication.class, args);
+    }
+}
+```
+
+## Advanced Features
+
+### Process Managers
+
+Process managers help coordinate activities across multiple aggregates. Here's a simplified example:
+
+```java
+@AggregateInfo(value = "OrderProcessManager", version = 1)
+public class OrderProcessManager implements ProcessManager<OrderProcessManagerState, OrderProcess> {
+    
+    @EventHandler(create = true)
+    public Stream<UserOrderProcessesCreatedEvent> create(AccountCreatedEvent event, OrderProcessManagerState isNull) {
+        return Stream.of(new UserOrderProcessesCreatedEvent(event.userId()));
+    }
+    
+    @CommandHandler
+    public Stream<BuyOrderCreatedEvent> placeBuyOrder(PlaceBuyOrderCommand command, OrderProcessManagerState state) {
+        String orderId = UUID.randomUUID().toString();
+        // Send a command to another aggregate
+        getCommandBus().send(new ReserveAmountCommand(
+                state.userId(),
+                command.market().quoteCurrency(),
+                command.quantity().multiply(command.limitPrice()),
+                orderId));
+        
+        return Stream.of(new BuyOrderCreatedEvent(
+                command.userId(),
+                orderId,
+                command.market(),
+                command.quantity(),
+                command.limitPrice(),
+                command.clientReference()));
+    }
+}
+```
+
+### Database Model for Direct Database Integration
+
+```java
+@DatabaseModelInfo(value = "Account", version = 1)
+public class DefaultJdbcModel extends JdbcDatabaseModel {
     
     @DatabaseModelEventHandler
     public void handle(AccountCreatedEvent event) {
@@ -272,103 +391,9 @@ public class AccountDatabaseModel extends JdbcDatabaseModel {
 }
 ```
 
-## Advanced Features
+## Contributing
 
-### Process Managers
-
-Akces Framework supports process managers for coordinating complex workflows across multiple aggregates:
-
-```java
-@AggregateInfo(value = "OrderProcessManager", version = 1)
-public class OrderProcessManager implements ProcessManager<OrderProcessManagerState, OrderProcess> {
-    
-    @EventHandler(create = true)
-    public Stream<UserOrderProcessesCreatedEvent> create(AccountCreatedEvent event, 
-                                                        OrderProcessManagerState isNull) {
-        return Stream.of(new UserOrderProcessesCreatedEvent(event.userId()));
-    }
-    
-    @CommandHandler
-    public Stream<BuyOrderCreatedEvent> placeBuyOrder(PlaceBuyOrderCommand command, 
-                                                    OrderProcessManagerState state) {
-        String orderId = UUID.randomUUID().toString();
-        // Reserve funds in wallet aggregate
-        getCommandBus().send(new ReserveAmountCommand(
-                state.userId(),
-                command.market().quoteCurrency(),
-                command.quantity().multiply(command.limitPrice()),
-                orderId));
-                
-        return Stream.of(new BuyOrderCreatedEvent(
-                state.userId(),
-                orderId,
-                command.market(),
-                command.quantity(),
-                command.limitPrice(),
-                command.clientReference()));
-    }
-    
-    @EventHandler
-    public Stream<DomainEvent> handle(AmountReservedEvent event, OrderProcessManagerState state) {
-        OrderProcess orderProcess = state.getAkcesProcess(event.referenceId());
-        return Stream.of(new BuyOrderPlacedEvent(state.userId(), orderProcess.orderId(), 
-                orderProcess.market(), orderProcess.quantity(), orderProcess.limitPrice()));
-    }
-}
-```
-
-### GDPR Support
-
-Akces Framework provides built-in support for GDPR compliance by encrypting sensitive data:
-
-```java
-// Fields marked with @PIIData are automatically encrypted/decrypted
-@PIIData
-private String email;
-
-// The framework automatically manages encryption keys per aggregate ID
-// Data is encrypted at rest in Kafka and decrypted when needed
-```
-
-## Running the Application
-
-### Aggregate Service
-
-```java
-@SpringBootApplication
-public class AggregateServiceApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(AggregateServiceApplication.class, args);
-    }
-}
-```
-
-### Query Service
-
-```java
-@SpringBootApplication
-public class QueryServiceApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(QueryServiceApplication.class, args);
-    }
-}
-```
-
-## Schema Evolution
-
-Akces Framework supports schema evolution through version management:
-
-1. Create a new version of your event or command
-2. Ensure backward compatibility
-3. Register the new schema version
-4. Both old and new versions will be supported
-
-## Performance Considerations
-
-- Use appropriate Kafka partitioning for scale
-- Configure RocksDB properly for local state
-- Use separate query models for different read patterns
-- Consider GDPR encryption overhead for performance-critical paths
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
@@ -376,6 +401,4 @@ Apache License 2.0
 
 ---
 
-## Support and Contributions
-
-For questions, issues, or contributions, please visit the [GitHub repository](https://github.com/elasticsoftwarefoundation/akces-framework).
+*This README provides an overview of the Akces Framework. For detailed API documentation, please refer to the JavaDocs and reference documentation.*

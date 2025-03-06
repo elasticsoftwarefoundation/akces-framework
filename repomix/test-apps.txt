@@ -81,10 +81,12 @@ crypto-trading/
                     Ticker.java
                   orders/
                     commands/
+                      FillBuyOrderCommand.java
                       PlaceBuyOrderCommand.java
                       RejectOrderCommand.java
                     events/
                       BuyOrderCreatedEvent.java
+                      BuyOrderFilledEvent.java
                       BuyOrderPlacedEvent.java
                       BuyOrderRejectedEvent.java
                       UserOrderProcessesCreatedEvent.java
@@ -93,6 +95,7 @@ crypto-trading/
                     OrderProcess.java
                     OrderProcessManager.java
                     OrderProcessManagerState.java
+                    OrderProcessState.java
                   wallet/
                     commands/
                       CreateBalanceCommand.java
@@ -361,6 +364,13 @@ File: crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/
 
 
 ================
+File: crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/orders/commands/FillBuyOrderCommand.java
+================
+) implements Command {
+    public String getAggregateId() {
+        return userId();
+
+================
 File: crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/orders/commands/PlaceBuyOrderCommand.java
 ================
 ) implements Command {
@@ -380,6 +390,13 @@ File: crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/
 ) implements DomainEvent {
     public String getAggregateId() {
         return orderId();
+
+================
+File: crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/orders/events/BuyOrderFilledEvent.java
+================
+) implements DomainEvent {
+    public String getAggregateId() {
+        return userId();
 
 ================
 File: crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/orders/events/BuyOrderPlacedEvent.java
@@ -413,6 +430,8 @@ File: crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/
     public BuyOrderRejectedEvent handle(InvalidCryptoCurrencyErrorEvent error) {
     public BuyOrderRejectedEvent handle(RejectOrderCommand command) {
         return new BuyOrderRejectedEvent(command.userId(), orderId(), clientReference());
+    public OrderProcess withState(OrderProcessState state) {
+        return new BuyOrderProcess(orderId(), market, size(), amount(), clientReference(), state);
 
 ================
 File: crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/orders/CryptoMarket.java
@@ -428,9 +447,11 @@ public sealed interface OrderProcess extends AkcesProcess permits BuyOrderProces
     BigDecimal size();
     BigDecimal amount();
     String clientReference();
+    OrderProcessState state();
     BuyOrderRejectedEvent handle(InsufficientFundsErrorEvent error);
     BuyOrderRejectedEvent handle(InvalidCryptoCurrencyErrorEvent error);
     BuyOrderRejectedEvent handle(RejectOrderCommand command);
+    OrderProcess withState(OrderProcessState state);
 
 ================
 File: crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/orders/OrderProcessManager.java
@@ -452,6 +473,9 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
     public OrderProcessManagerState handle(BuyOrderRejectedEvent event, OrderProcessManagerState state) {
             removeIf(process -> process.orderId().equals(event.orderId()));
     public OrderProcessManagerState handle(BuyOrderPlacedEvent event, OrderProcessManagerState state) {
+            replaceAll(process -> process.orderId().equals(event.orderId())
+                ? process.withState(OrderProcessState.PLACED)
+    public OrderProcessManagerState handle(BuyOrderFilledEvent event, OrderProcessManagerState state) {
     public Stream<BuyOrderCreatedEvent> placeBuyOrder(PlaceBuyOrderCommand command, OrderProcessManagerState state) {
         String orderId = UUID.randomUUID().toString();
         getCommandBus().send(new ReserveAmountCommand(
@@ -465,6 +489,15 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
         if (state.hasAkcesProcess(command.orderId())) {
             return Stream.of(state.getAkcesProcess(command.orderId()).handle(command));
             return Stream.empty();
+    public Stream<BuyOrderFilledEvent> fillOrder(FillBuyOrderCommand command, OrderProcessManagerState state) {
+            return Stream.of(new BuyOrderFilledEvent(
+                    command.userId(),
+                    command.orderId(),
+                    command.counterpartyId(),
+                    command.price(),
+                    command.quantity(),
+                    command.baseCurrency(),
+                    command.quoteCurrency()
     public Stream<DomainEvent> handle(AmountReservedEvent event, OrderProcessManagerState state) {
         OrderProcess orderProcess = state.getAkcesProcess(event.referenceId());
             getCommandBus().send(new PlaceMarketOrderCommand(
@@ -476,8 +509,17 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
         if (state.hasAkcesProcess(errorEvent.referenceId())) {
             return Stream.of(state.getAkcesProcess(errorEvent.referenceId()).handle(errorEvent));
     public Stream<DomainEvent> handle(InvalidCryptoCurrencyErrorEvent errorEvent, OrderProcessManagerState state) {
-    public Stream<DomainEvent> handle(MarketOrderRejectedErrorEvent errorEvent, OrderProcessManagerState state) {
-        getCommandBus().send(new RejectOrderCommand(state.userId(), errorEvent.orderId()));
+    public void handle(MarketOrderRejectedErrorEvent errorEvent, CommandBus commandBus) {
+        commandBus.send(new RejectOrderCommand(errorEvent.ownerId(), errorEvent.orderId()));
+    public void handle(MarketOrderFilledEvent event, CommandBus commandBus) {
+        switch (event.side()) {
+                commandBus.send(new FillBuyOrderCommand(
+                        event.ownerId(),
+                        event.counterpartyId(),
+                        event.price(),
+                        event.quantity(),
+                        event.baseCurrency(),
+                        event.quoteCurrency()
 
 ================
 File: crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/orders/OrderProcessManagerState.java
@@ -490,6 +532,11 @@ File: crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/
                 .orElseThrow(() -> new UnknownAkcesProcessException("OrderProcessManager", userId(), processId));
     public boolean hasAkcesProcess(String processId) {
         return runningProcesses.stream().anyMatch(p -> p.orderId().equals(processId));
+
+================
+File: crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/orders/OrderProcessState.java
+================
+
 
 ================
 File: crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/wallet/commands/CreateBalanceCommand.java
@@ -784,7 +831,7 @@ public class CryptoTradingApplicationTest {
                 public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
                     testConsumer.seekToBeginning(partitions);
                 for (ConsumerRecord<String, ProtocolRecord> record : testConsumer.poll(Duration.ofMillis(100))) {
-                    System.out.println(record.topic() + " : " + record.value().name() + "=" + new String(record.value().payload()));
+                    Assertions.assertEquals(eventTypes[count],record.value().name());
     public static class Initializer
         public void initialize(ConfigurableApplicationContext applicationContext) {
             prepareKafka(kafka.getBootstrapServers());
@@ -833,7 +880,7 @@ public class TestUtils {
         try (Producer<String, AkcesControlRecord> controlProducer = new KafkaProducer<>(controlProducerProps, new StringSerializer(), controlSerde.serializer())) {
             controlProducer.initTransactions();
             AggregateServiceRecord accountServiceRecord = objectMapper.readValue("{\"aggregateName\":\"Account\",\"commandTopic\":\"Account-Commands\",\"domainEventTopic\":\"Account-DomainEvents\",\"supportedCommands\":[{\"typeName\":\"CreateAccount\",\"version\":1,\"create\":true,\"schemaName\":\"commands.CreateAccount\"}],\"producedEvents\":[{\"typeName\":\"CommandExecutionError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.CommandExecutionError\"},{\"typeName\":\"AccountCreated\",\"version\":1,\"create\":true,\"external\":false,\"schemaName\":\"domainevents.AccountCreated\"},{\"typeName\":\"AggregateAlreadyExistsError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.AggregateAlreadyExistsError\"}],\"consumedEvents\":[]}", AggregateServiceRecord.class);
-            AggregateServiceRecord orderProcessManagerServiceRecord = objectMapper.readValue("{\"aggregateName\":\"OrderProcessManager\",\"commandTopic\":\"OrderProcessManager-Commands\",\"domainEventTopic\":\"OrderProcessManager-DomainEvents\",\"supportedCommands\":[{\"typeName\":\"RejectOrder\",\"version\":1,\"create\":false,\"schemaName\":\"commands.RejectOrder\"},{\"typeName\":\"PlaceBuyOrder\",\"version\":1,\"create\":false,\"schemaName\":\"commands.PlaceBuyOrder\"}],\"producedEvents\":[{\"typeName\":\"CommandExecutionError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.CommandExecutionError\"},{\"typeName\":\"UserOrderProcessesCreated\",\"version\":1,\"create\":true,\"external\":false,\"schemaName\":\"domainevents.UserOrderProcessesCreated\"},{\"typeName\":\"BuyOrderCreated\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.BuyOrderCreated\"},{\"typeName\":\"BuyOrderRejected\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.BuyOrderRejected\"},{\"typeName\":\"BuyOrderPlaced\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.BuyOrderPlaced\"},{\"typeName\":\"AggregateAlreadyExistsError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.AggregateAlreadyExistsError\"}],\"consumedEvents\":[{\"typeName\":\"AccountCreated\",\"version\":1,\"create\":true,\"external\":true,\"schemaName\":\"domainevents.AccountCreated\"},{\"typeName\":\"MarketOrderRejected\",\"version\":1,\"create\":false,\"external\":true,\"schemaName\":\"domainevents.MarketOrderRejected\"},{\"typeName\":\"AmountReserved\",\"version\":1,\"create\":false,\"external\":true,\"schemaName\":\"domainevents.AmountReserved\"},{\"typeName\":\"InvalidCryptoCurrencyError\",\"version\":1,\"create\":false,\"external\":true,\"schemaName\":\"domainevents.InvalidCryptoCurrencyError\"},{\"typeName\":\"InsufficientFundsError\",\"version\":1,\"create\":false,\"external\":true,\"schemaName\":\"domainevents.InsufficientFundsError\"}]}", AggregateServiceRecord.class);
+            AggregateServiceRecord orderProcessManagerServiceRecord = objectMapper.readValue("{\"aggregateName\":\"OrderProcessManager\",\"commandTopic\":\"OrderProcessManager-Commands\",\"domainEventTopic\":\"OrderProcessManager-DomainEvents\",\"supportedCommands\":[{\"typeName\":\"FillBuyOrder\",\"version\":1,\"create\":false,\"schemaName\":\"commands.FillBuyOrder\"},{\"typeName\":\"RejectOrder\",\"version\":1,\"create\":false,\"schemaName\":\"commands.RejectOrder\"},{\"typeName\":\"PlaceBuyOrder\",\"version\":1,\"create\":false,\"schemaName\":\"commands.PlaceBuyOrder\"}],\"producedEvents\":[{\"typeName\":\"BuyOrderCreated\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.BuyOrderCreated\"},{\"typeName\":\"UserOrderProcessesCreated\",\"version\":1,\"create\":true,\"external\":false,\"schemaName\":\"domainevents.UserOrderProcessesCreated\"},{\"typeName\":\"CommandExecutionError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.CommandExecutionError\"},{\"typeName\":\"BuyOrderPlaced\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.BuyOrderPlaced\"},{\"typeName\":\"BuyOrderFilled\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.BuyOrderFilled\"},{\"typeName\":\"BuyOrderRejected\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.BuyOrderRejected\"},{\"typeName\":\"AggregateAlreadyExistsError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.AggregateAlreadyExistsError\"}],\"consumedEvents\":[{\"typeName\":\"InvalidCryptoCurrencyError\",\"version\":1,\"create\":false,\"external\":true,\"schemaName\":\"domainevents.InvalidCryptoCurrencyError\"},{\"typeName\":\"MarketOrderFilled\",\"version\":1,\"create\":false,\"external\":true,\"schemaName\":\"domainevents.MarketOrderFilled\"},{\"typeName\":\"InsufficientFundsError\",\"version\":1,\"create\":false,\"external\":true,\"schemaName\":\"domainevents.InsufficientFundsError\"},{\"typeName\":\"AmountReserved\",\"version\":1,\"create\":false,\"external\":true,\"schemaName\":\"domainevents.AmountReserved\"},{\"typeName\":\"AccountCreated\",\"version\":1,\"create\":true,\"external\":true,\"schemaName\":\"domainevents.AccountCreated\"},{\"typeName\":\"MarketOrderRejected\",\"version\":1,\"create\":false,\"external\":true,\"schemaName\":\"domainevents.MarketOrderRejected\"}]}", AggregateServiceRecord.class);
             AggregateServiceRecord walletServiceRecord = objectMapper.readValue("{\"aggregateName\":\"Wallet\",\"commandTopic\":\"Wallet-Commands\",\"domainEventTopic\":\"Wallet-DomainEvents\",\"supportedCommands\":[{\"typeName\":\"CreditWallet\",\"version\":1,\"create\":false,\"schemaName\":\"commands.CreditWallet\"},{\"typeName\":\"CreateWallet\",\"version\":1,\"create\":true,\"schemaName\":\"commands.CreateWallet\"},{\"typeName\":\"ReserveAmount\",\"version\":1,\"create\":false,\"schemaName\":\"commands.ReserveAmount\"},{\"typeName\":\"CreateBalance\",\"version\":1,\"create\":false,\"schemaName\":\"commands.CreateBalance\"}],\"producedEvents\":[{\"typeName\":\"InvalidAmountError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.InvalidAmountError\"},{\"typeName\":\"CommandExecutionError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.CommandExecutionError\"},{\"typeName\":\"BalanceAlreadyExistsError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.BalanceAlreadyExistsError\"},{\"typeName\":\"WalletCreated\",\"version\":1,\"create\":true,\"external\":false,\"schemaName\":\"domainevents.WalletCreated\"},{\"typeName\":\"InvalidCryptoCurrencyError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.InvalidCryptoCurrencyError\"},{\"typeName\":\"BalanceCreated\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.BalanceCreated\"},{\"typeName\":\"InsufficientFundsError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.InsufficientFundsError\"},{\"typeName\":\"AmountReserved\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.AmountReserved\"},{\"typeName\":\"WalletCredited\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.WalletCredited\"},{\"typeName\":\"AggregateAlreadyExistsError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.AggregateAlreadyExistsError\"}],\"consumedEvents\":[{\"typeName\":\"AccountCreated\",\"version\":1,\"create\":true,\"external\":true,\"schemaName\":\"domainevents.AccountCreated\"}]}", AggregateServiceRecord.class);
             AggregateServiceRecord cryptoMarketServiceRecord = objectMapper.readValue("{\"aggregateName\":\"CryptoMarket\",\"commandTopic\":\"CryptoMarket-Commands\",\"domainEventTopic\":\"CryptoMarket-DomainEvents\",\"supportedCommands\":[{\"typeName\":\"CreateCryptoMarket\",\"version\":1,\"create\":true,\"schemaName\":\"commands.CreateCryptoMarket\"},{\"typeName\":\"PlaceMarketOrder\",\"version\":1,\"create\":false,\"schemaName\":\"commands.PlaceMarketOrder\"}],\"producedEvents\":[{\"typeName\":\"CommandExecutionError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.CommandExecutionError\"},{\"typeName\":\"MarketOrderPlaced\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.MarketOrderPlaced\"},{\"typeName\":\"CryptoMarketCreated\",\"version\":1,\"create\":true,\"external\":false,\"schemaName\":\"domainevents.CryptoMarketCreated\"},{\"typeName\":\"AggregateAlreadyExistsError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.AggregateAlreadyExistsError\"},{\"typeName\":\"MarketOrderRejected\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.MarketOrderRejected\"},{\"typeName\":\"MarketOrderFilled\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.MarketOrderFilled\"}],\"consumedEvents\":[]}", AggregateServiceRecord.class);
             controlProducer.beginTransaction();
@@ -951,7 +998,7 @@ File: crypto-trading/aggregates/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-crypto-trading-parent</artifactId>
-        <version>0.8.0-SNAPSHOT</version>
+        <version>0.8.1-SNAPSHOT</version>
     </parent>
     <artifactId>akces-crypto-trading-aggregates</artifactId>
     <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Aggregates</name>
@@ -1035,7 +1082,6 @@ File: crypto-trading/aggregates/pom.xml
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>3.4.2</version>
                 <executions>
                     <execution>
                         <id>commands-jar</id>
@@ -1445,7 +1491,7 @@ File: crypto-trading/commands/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-crypto-trading-parent</artifactId>
-        <version>0.8.0-SNAPSHOT</version>
+        <version>0.8.1-SNAPSHOT</version>
     </parent>
     <artifactId>akces-crypto-trading-commands</artifactId>
     <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Command Service</name>
@@ -1534,7 +1580,6 @@ File: crypto-trading/commands/pom.xml
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>3.4.2</version>
                 <executions>
                     <execution>
                         <id>shared-web-jar</id>
@@ -2005,7 +2050,7 @@ File: crypto-trading/queries/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-crypto-trading-parent</artifactId>
-        <version>0.8.0-SNAPSHOT</version>
+        <version>0.8.1-SNAPSHOT</version>
     </parent>
     <artifactId>akces-crypto-trading-queries</artifactId>
     <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Query Service</name>
@@ -2142,7 +2187,7 @@ File: crypto-trading/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-test-apps</artifactId>
-        <version>0.8.0-SNAPSHOT</version>
+        <version>0.8.1-SNAPSHOT</version>
     </parent>
     <artifactId>akces-crypto-trading-parent</artifactId>
     <packaging>pom</packaging>
@@ -2225,7 +2270,7 @@ File: pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-parent</artifactId>
-        <version>0.8.0-SNAPSHOT</version>
+        <version>0.8.1-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <artifactId>akces-framework-test-apps</artifactId>

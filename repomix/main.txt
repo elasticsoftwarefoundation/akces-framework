@@ -61,6 +61,7 @@ api/
                 CommandHandlerFunction.java
                 CommandType.java
                 DomainEventType.java
+                EventBridgeHandlerFunction.java
                 EventHandlerFunction.java
                 EventSourcingHandlerFunction.java
                 SchemaType.java
@@ -73,6 +74,7 @@ api/
                 DatabaseModelEventHandler.java
                 DatabaseModelInfo.java
                 DomainEventInfo.java
+                EventBridgeHandler.java
                 EventHandler.java
                 EventSourcingHandler.java
                 PIIData.java
@@ -236,6 +238,7 @@ runtime/
                 AggregateBeanFactoryPostProcessor.java
                 CommandHandlerFunctionAdapter.java
                 DomainEventTypeValueCodeGeneratorDelegate.java
+                EventBridgeHandlerFunctionAdapter.java
                 EventHandlerFunctionAdapter.java
                 EventSourcingHandlerFunctionAdapter.java
               kafka/
@@ -477,6 +480,16 @@ File: api/src/main/java/org/elasticsoftware/akces/aggregate/DomainEventType.java
     public boolean relaxExternalValidation() {
 
 ================
+File: api/src/main/java/org/elasticsoftware/akces/aggregate/EventBridgeHandlerFunction.java
+================
+public interface EventBridgeHandlerFunction<S extends AggregateState,E extends DomainEvent> {
+    void apply(@NotNull E event, @NotNull CommandBus commandBus);
+    default DomainEventType<E> getEventType() {
+        throw new UnsupportedOperationException("When implementing EventBridgeHandlerFunction directly, you must override getEventType()");
+    default Aggregate<S> getAggregate() {
+        throw new UnsupportedOperationException("When implementing EventBridgeHandlerFunction directly, you must override getAggregate()");
+
+================
 File: api/src/main/java/org/elasticsoftware/akces/aggregate/EventHandlerFunction.java
 ================
 public interface EventHandlerFunction<S extends AggregateState, InputEvent extends DomainEvent, E extends DomainEvent> {
@@ -556,6 +569,11 @@ File: api/src/main/java/org/elasticsoftware/akces/annotations/DatabaseModelInfo.
 
 ================
 File: api/src/main/java/org/elasticsoftware/akces/annotations/DomainEventInfo.java
+================
+
+
+================
+File: api/src/main/java/org/elasticsoftware/akces/annotations/EventBridgeHandler.java
 ================
 
 
@@ -707,7 +725,7 @@ File: api/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-main</artifactId>
-        <version>0.8.0-SNAPSHOT</version>
+        <version>0.8.1-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -773,7 +791,15 @@ File: client/src/main/java/org/elasticsoftware/akces/client/AkcesClient.java
 public interface AkcesClient {
     default CompletionStage<List<DomainEvent>> send(@Nonnull String tenantId, @Nonnull Command command) {
         return send(tenantId, null, command);
+    default CompletionStage<List<DomainEvent>> send(@Nonnull Command command) {
+        return send(command, null);
+    default CompletionStage<List<DomainEvent>> send(@Nonnull Command command, @Nullable String correlationId) {
+        return send(DEFAULT_TENANT_ID, correlationId, command);
     CompletionStage<List<DomainEvent>> send(@Nonnull String tenantId, @Nullable String correlationId, @Nonnull Command command);
+    default void sendAndForget(@Nonnull Command command) {
+        sendAndForget(DEFAULT_TENANT_ID, null, command);
+    default void sendAndForget(@Nonnull Command command, @Nullable String correlationId) {
+        sendAndForget(DEFAULT_TENANT_ID, correlationId, command);
     default void sendAndForget(@Nonnull String tenantId, @Nonnull Command command) {
         sendAndForget(tenantId, null, command);
     void sendAndForget(@Nonnull String tenantId, @Nullable String correlationId, @Nonnull Command command);
@@ -1407,7 +1433,7 @@ File: client/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-main</artifactId>
-        <version>0.8.0-SNAPSHOT</version>
+        <version>0.8.1-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -3064,7 +3090,7 @@ File: query-support/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-main</artifactId>
-        <version>0.8.0-SNAPSHOT</version>
+        <version>0.8.1-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -3324,6 +3350,8 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                 domainEventRecord.correlationId(),
     private void handleEvent(DomainEventType<?> eventType,
         Stream<DomainEvent> domainEvents = eventHandlers.get(eventType).apply(externalEvent, currentState);
+    private void handleBridgedEvent(DomainEventType<?> eventType,
+        eventBridgeHandlers.get(eventType).apply(externalEvent, commandBus);
     private AggregateStateRecord processDomainEvent(String correlationId,
         DomainEventType<?> domainEventType = getDomainEventType(domainEvent.getClass());
             AggregateState nextState = eventSourcingHandlers.get(domainEventType).apply(domainEvent, currentState);
@@ -3348,6 +3376,8 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                     handleCreateEvent(domainEventType, eventRecord, protocolRecordConsumer, domainEventIndexer);
                 if (eventHandlers.containsKey(domainEventType)) {
                     handleEvent(domainEventType, eventRecord, protocolRecordConsumer, domainEventIndexer, stateRecordSupplier);
+                } else if(eventBridgeHandlers.containsKey(domainEventType)) {
+                    handleBridgedEvent(domainEventType, eventRecord, commandBus);
     private DomainEventType<?> getDomainEventType(DomainEventRecord eventRecord) {
         return domainEvents.entrySet().stream()
                 .filter(entry -> entry.getValue().external())
@@ -3417,9 +3447,16 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .filter(method -> method.isAnnotationPresent(EventHandler.class))
                     List<Method> eventSourcingHandlers = Arrays.stream(aggregateClass.getMethods())
                             .filter(method -> method.isAnnotationPresent(EventSourcingHandler.class))
-                    commandHandlers.forEach(commandHandlerMethod -> processCommandHandler(beanName, commandHandlerMethod, bdr));
-                    eventHandlers.forEach(eventHandlerMethod -> processEventHandler(beanName, eventHandlerMethod, bdr));
-                    eventSourcingHandlers.forEach(eventSourcingHandlerMethod -> processEventSourcingHandler(beanName, eventSourcingHandlerMethod, bdr));
+                    List<Method> eventBridgeHandlers = Arrays.stream(aggregateClass.getMethods())
+                            .filter(method -> method.isAnnotationPresent(EventBridgeHandler.class))
+                    commandHandlers.forEach(commandHandlerMethod ->
+                            processCommandHandler(beanName, commandHandlerMethod, bdr));
+                    eventHandlers.forEach(eventHandlerMethod ->
+                            processEventHandler(beanName, eventHandlerMethod, bdr));
+                    eventSourcingHandlers.forEach(eventSourcingHandlerMethod ->
+                            processEventSourcingHandler(beanName, eventSourcingHandlerMethod, bdr));
+                    eventBridgeHandlers.forEach(eventBridgeHandlerMethod ->
+                            processEventBridgeHandler(beanName, eventBridgeHandlerMethod, bdr));
                     throw new ApplicationContextException("Unable to load class for bean " + beanName, e);
                 bdr.registerBeanDefinition(beanName + "AggregateRuntimeFactory",
                         BeanDefinitionBuilder.genericBeanDefinition(AggregateRuntimeFactory.class)
@@ -3498,6 +3535,17 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .addConstructorArgValue(commandInfo.version())
                             .setInitMethodName("init").getBeanDefinition()
             throw new ApplicationContextException("Invalid CommandHandler method signature: " + commandHandlerMethod);
+    private void processEventBridgeHandler(String aggregateBeanName, Method eventBridgeHandlerMethod, BeanDefinitionRegistry bdr) {
+        if (eventBridgeHandlerMethod.getParameterCount() == 2 &&
+                DomainEvent.class.isAssignableFrom(eventBridgeHandlerMethod.getParameterTypes()[0]) &&
+                eventBridgeHandlerMethod.getParameterTypes()[1].equals(CommandBus.class) &&
+                void.class.equals(eventBridgeHandlerMethod.getReturnType())) {
+            DomainEventInfo eventInfo = eventBridgeHandlerMethod.getParameterTypes()[0].getAnnotation(DomainEventInfo.class);
+            String beanName = aggregateBeanName + "_ebh_" + eventBridgeHandlerMethod.getName() + "_" + eventInfo.type() + "_" + eventInfo.version();
+                    BeanDefinitionBuilder.genericBeanDefinition(EventBridgeHandlerFunctionAdapter.class)
+                            .addConstructorArgValue(eventBridgeHandlerMethod.getName())
+                            .addConstructorArgValue(eventBridgeHandlerMethod.getParameterTypes()[0])
+            throw new ApplicationContextException("Invalid EventBridgeHandler method signature: " + eventBridgeHandlerMethod);
     private List<DomainEventType<?>> generateDomainEventTypes(Class<? extends DomainEvent>[] domainEventClasses,
         return Arrays.stream(domainEventClasses).map(eventClass -> {
             DomainEventInfo eventInfo = eventClass.getAnnotation(DomainEventInfo.class);
@@ -3541,6 +3589,23 @@ public class DomainEventTypeValueCodeGeneratorDelegate implements ValueCodeGener
             return CodeBlock.builder()
                     .add("new $T($S, $L, $T.class, $L, $L, $L, $L)",
                     .build();
+
+================
+File: runtime/src/main/java/org/elasticsoftware/akces/beans/EventBridgeHandlerFunctionAdapter.java
+================
+public class EventBridgeHandlerFunctionAdapter<S extends AggregateState, E extends DomainEvent> implements EventBridgeHandlerFunction<S, E> {
+                ErrorEvent.class.isAssignableFrom(inputEventClass));
+    public void init() {
+            adapterMethod = aggregate.getClass().getMethod(adapterMethodName, inputEventClass, CommandBus.class);
+            throw new RuntimeException(e);
+    public void apply(@NotNull E event, CommandBus commandBus) {
+            adapterMethod.invoke(aggregate, event, commandBus);
+            if (e.getCause() != null) {
+                if (e.getCause() instanceof RuntimeException) {
+                    throw (RuntimeException) e.getCause();
+                    throw new RuntimeException(e.getCause());
+    public DomainEventType<E> getEventType() {
+    public Aggregate<S> getAggregate() {
 
 ================
 File: runtime/src/main/java/org/elasticsoftware/akces/beans/EventHandlerFunctionAdapter.java
@@ -3685,7 +3750,8 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     private void handleExternalEvent(DomainEventRecord eventRecord) {
             setupGDPRContext(eventRecord.tenantId(), eventRecord.aggregateId(), runtime.shouldGenerateGPRKey(eventRecord));
             logger.trace("Handling DomainEventRecord with type {} as External Event", eventRecord.name());
-            runtime.handleExternalDomainEventRecord(eventRecord, this::send, this::index, () -> stateRepository.get(eventRecord.aggregateId()));
+            runtime.handleExternalDomainEventRecord(eventRecord,
+                    () -> stateRepository.get(eventRecord.aggregateId()),
             logger.error("Error handling external event", e);
     private void process() {
                 ConsumerRecords<String, ProtocolRecord> allRecords = consumer.poll(Duration.ofMillis(10));
@@ -3835,6 +3901,8 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
         applicationContext.getBeansOfType(EventSourcingHandlerFunction.class).values().stream()
                                 .setEventSourcingCreateHandler(adapter)
                                 .addEventSourcingHandler(type, adapter)
+        applicationContext.getBeansOfType(EventBridgeHandlerFunction.class).values().stream()
+                            .addEventBridgeHandler(type, adapter)
         return runtimeBuilder.setSchemaRegistry(schemaRegistry).build();
 
 ================
@@ -3890,6 +3958,8 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
             this.eventHandlers.put(eventType, eventHandler);
         public Builder addEventSourcingHandler(DomainEventType<?> eventType, EventSourcingHandlerFunction<AggregateState, DomainEvent> eventSourcingHandler) {
             this.eventSourcingHandlers.put(eventType, eventSourcingHandler);
+        public Builder addEventBridgeHandler(DomainEventType<?> eventType, EventBridgeHandlerFunction<AggregateState, DomainEvent> eventBridgeHandler) {
+            this.eventBridgeHandlers.put(eventType, eventBridgeHandler);
         public Builder setGenerateGDPRKeyOnCreate(boolean generateGDPRKeyOnCreate) {
         public KafkaAggregateRuntime build() {
             final boolean shouldHandlePIIData = domainEvents.values().stream().map(DomainEventType::typeClass)
@@ -5490,7 +5560,7 @@ File: runtime/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-main</artifactId>
-        <version>0.8.0-SNAPSHOT</version>
+        <version>0.8.1-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -6509,7 +6579,7 @@ File: shared/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-main</artifactId>
-        <version>0.8.0-SNAPSHOT</version>
+        <version>0.8.1-SNAPSHOT</version>
     </parent>
 
     <name>Elastic Software Foundation :: Akces :: Shared Classes</name>
@@ -6607,7 +6677,7 @@ File: pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-parent</artifactId>
-        <version>0.8.0-SNAPSHOT</version>
+        <version>0.8.1-SNAPSHOT</version>
     </parent>
 
     <artifactId>akces-framework-main</artifactId>
@@ -6619,8 +6689,8 @@ File: pom.xml
     <properties>
         <protobuf.version>4.29.3</protobuf.version>
         <log4j.version>2.24.3</log4j.version>
-        <jackson.version>2.18.2</jackson.version>
-        <slf4j.version>2.0.16</slf4j.version>
+        <jackson.version>2.18.3</jackson.version>
+        <slf4j.version>2.0.17</slf4j.version>
         <javassist.version>3.30.2-GA</javassist.version>
         <lz4.version>1.8.0</lz4.version>
         <kafka.version>3.8.1</kafka.version>
@@ -6629,7 +6699,7 @@ File: pom.xml
         <semver4j.version>5.6.0</semver4j.version>
 
         <testng-version>7.11.0</testng-version>
-        <awaitility.version>4.2.2</awaitility.version>
+        <awaitility.version>4.3.0</awaitility.version>
         <persistence-api.version>2.2</persistence-api.version>
         <plexus-utils.version>4.0.2</plexus-utils.version>
         <netty.version>4.1.118.Final</netty.version>
