@@ -38,3 +38,26 @@ public record BuyOrderPlacedEvent(
         return orderId();
     }
 }
+package org.elasticsoftware.cryptotrading.aggregates.orders.events;
+
+import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.events.DomainEventInfo;
+import org.jetbrains.annotations.NotNull;
+
+import java.math.BigDecimal;
+
+@DomainEventInfo(type = "BuyOrderPlaced", version = 1)
+public record BuyOrderPlacedEvent(
+        String accountId,
+        String orderId,
+        String marketId,
+        BigDecimal size,
+        BigDecimal amount,
+        String clientReference
+) implements DomainEvent {
+
+    @Override
+    public @NotNull String getAggregateId() {
+        return accountId;
+    }
+}

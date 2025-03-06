@@ -18,9 +18,13 @@
 package org.elasticsoftware.cryptotrading.web;
 
 import org.elasticsoftware.akces.client.AkcesClient;
+import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderPlacedEvent;
+import org.elasticsoftware.cryptotrading.web.dto.BuyOrderInput;
+import org.elasticsoftware.cryptotrading.web.dto.OrderOutput;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
@@ -36,14 +40,22 @@ public class OrdersCommandController {
         this.akcesClient = akcesClient;
     }
 
-//    @PostMapping("")
-//    public Mono<ResponseEntity<>> placeBuyOrder(@PathVariable("accountId") String accountId) {
-//        return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(userId)))
-//                .map(List::getFirst)
-//                .map(domainEvent -> {
-//                    AccountCreatedEvent event = (AccountCreatedEvent) domainEvent;
-//                    AccountOutput output = new AccountOutput(event.userId(), input.country(), input.firstName(), input.lastName(), input.email());
-//                    return ResponseEntity.ok(output);
-//                });
-//    }
+    @PostMapping("/buy")
+    public Mono<ResponseEntity<OrderOutput>> placeBuyOrder(
+            @PathVariable("accountId") String accountId,
+            @RequestBody BuyOrderInput input) {
+        return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(accountId)))
+                .map(List::getFirst)
+                .map(domainEvent -> {
+                    BuyOrderPlacedEvent event = (BuyOrderPlacedEvent) domainEvent;
+                    OrderOutput output = new OrderOutput(
+                            event.orderId(),
+                            event.marketId(),
+                            event.size(),
+                            event.amount(),
+                            event.clientReference()
+                    );
+                    return ResponseEntity.ok(output);
+                });
+    }
 }
