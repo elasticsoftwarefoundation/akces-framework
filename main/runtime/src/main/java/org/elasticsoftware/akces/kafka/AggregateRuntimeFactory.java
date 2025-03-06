@@ -135,6 +135,15 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
                                 .addDomainEvent(type);
                     }
                 });
+        // Add event bridge handlers
+        applicationContext.getBeansOfType(EventBridgeHandlerFunction.class).values().stream()
+                .filter(adapter -> adapter.getAggregate().equals(aggregate))
+                .forEach(adapter -> {
+                    DomainEventType<?> type = adapter.getEventType();
+                    runtimeBuilder
+                            .addEventBridgeHandler(type, adapter)
+                            .addDomainEvent(type);
+                });
 
         return runtimeBuilder.setSchemaRegistry(schemaRegistry).build();
     }

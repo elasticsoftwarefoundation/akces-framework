@@ -42,9 +42,13 @@ public sealed interface OrderProcess extends AkcesProcess permits BuyOrderProces
 
     String clientReference();
 
+    OrderProcessState state();
+
     BuyOrderRejectedEvent handle(InsufficientFundsErrorEvent error);
 
     BuyOrderRejectedEvent handle(InvalidCryptoCurrencyErrorEvent error);
 
     BuyOrderRejectedEvent handle(RejectOrderCommand command);
+
+    OrderProcess withState(OrderProcessState state);
 }

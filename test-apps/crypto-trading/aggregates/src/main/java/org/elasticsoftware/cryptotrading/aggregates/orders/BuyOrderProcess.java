@@ -29,13 +29,14 @@ public record BuyOrderProcess(
         CryptoMarket market,
         BigDecimal size,
         BigDecimal amount,
-        String clientReference
+        String clientReference,
+        OrderProcessState state
 ) implements OrderProcess {
     public BuyOrderProcess(String orderId,
                            CryptoMarket market,
                            BigDecimal amount,
                            String clientReference) {
-        this(orderId, market, null, amount, clientReference);
+        this(orderId, market, null, amount, clientReference, OrderProcessState.CREATED);
     }
 
     @Override
@@ -58,4 +59,8 @@ public record BuyOrderProcess(
         return new BuyOrderRejectedEvent(command.userId(), orderId(), clientReference());
     }
 
+    @Override
+    public OrderProcess withState(OrderProcessState state) {
+        return new BuyOrderProcess(orderId(), market, size(), amount(), clientReference(), state);
+    }
 }

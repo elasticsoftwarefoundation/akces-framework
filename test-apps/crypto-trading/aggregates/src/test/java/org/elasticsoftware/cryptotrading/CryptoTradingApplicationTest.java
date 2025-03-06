@@ -216,6 +216,26 @@ public class CryptoTradingApplicationTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        // these are the events in the order we expect
+        String[] eventTypes = new String[]{
+                "AccountCreated",
+                "AccountCreated",
+                "WalletCreated",
+                "BalanceCreated",
+                "UserOrderProcessesCreated",
+                "WalletCreated",
+                "BalanceCreated",
+                "BalanceCreated",
+                "WalletCredited",
+                "AmountReserved",
+                "UserOrderProcessesCreated",
+                "BuyOrderCreated",
+                "CryptoMarketCreated",
+                "BuyOrderPlaced",
+                "MarketOrderPlaced",
+                "MarketOrderFilled",
+                "BuyOrderFilled"
+        };
 
         // create a counterparty account
         akcesClientController.sendAndForget("TEST",
@@ -286,9 +306,9 @@ public class CryptoTradingApplicationTest {
                 }
             });
             int count = 0;
-            while (count < 16) {
+            while (count < 17) {
                 for (ConsumerRecord<String, ProtocolRecord> record : testConsumer.poll(Duration.ofMillis(100))) {
-                    System.out.println(record.topic() + " : " + record.value().name() + "=" + new String(record.value().payload()));
+                    Assertions.assertEquals(eventTypes[count],record.value().name());
                     count++;
                 }
             }
