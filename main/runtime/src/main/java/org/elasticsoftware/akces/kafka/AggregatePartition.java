@@ -320,7 +320,11 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         try {
             setupGDPRContext(eventRecord.tenantId(), eventRecord.aggregateId(), runtime.shouldGenerateGPRKey(eventRecord));
             logger.trace("Handling DomainEventRecord with type {} as External Event", eventRecord.name());
-            runtime.handleExternalDomainEventRecord(eventRecord, this::send, this::index, () -> stateRepository.get(eventRecord.aggregateId()));
+            runtime.handleExternalDomainEventRecord(eventRecord,
+                    this::send,
+                    this::index,
+                    () -> stateRepository.get(eventRecord.aggregateId()),
+                    this);
         } catch (IOException e) {
             // TODO need to raise a (built-in) ErrorEvent here
             logger.error("Error handling external event", e);

@@ -363,7 +363,8 @@ public class WalletTests {
                         1),
                 producedRecords::add,
                 (eventRecord, index) -> indexedEvents.add(eventRecord),
-                () -> null
+                () -> null,
+                null
         );
         assertEquals(4, producedRecords.size());
         AggregateStateRecord actualRecord = (AggregateStateRecord) producedRecords.get(0);
@@ -454,7 +455,8 @@ public class WalletTests {
                         1),
                 producedRecords::add,
                 (eventRecord, index) -> indexedEvents.add(eventRecord),
-                () -> null
+                () -> null,
+                null
         );
         // we should index 2 events: WalletCreated and BalanceCreated
         assertEquals(2, indexedEvents.size());

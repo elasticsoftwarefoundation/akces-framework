@@ -26,7 +26,7 @@ import java.util.List;
 
 public record OrderProcessManagerState(
         @NotNull @AggregateIdentifier String userId,
-        List<BuyOrderProcess> runningProcesses
+        List<OrderProcess> runningProcesses
 ) implements ProcessManagerState<OrderProcess> {
     public OrderProcessManagerState(@NotNull String userId) {
         this(userId, List.of());

@@ -20,6 +20,7 @@ package org.elasticsoftware.akces.aggregate;
 import jakarta.annotation.Nullable;
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.errors.AggregateAlreadyExistsErrorEvent;
 import org.elasticsoftware.akces.errors.CommandExecutionErrorEvent;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -51,6 +52,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     private final Map<CommandType<?>, CommandHandlerFunction<AggregateState, Command, DomainEvent>> commandHandlers;
     private final Map<DomainEventType<?>, EventHandlerFunction<AggregateState, DomainEvent, DomainEvent>> eventHandlers;
     private final Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers;
+    private final Map<DomainEventType<?>, EventBridgeHandlerFunction<AggregateState, DomainEvent>> eventBridgeHandlers;
     private final boolean generateGDPRKeyOnCreate;
     private final boolean shouldHandlePIIData;
 
@@ -64,6 +66,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                                 Map<CommandType<?>, CommandHandlerFunction<AggregateState, Command, DomainEvent>> commandHandlers,
                                 Map<DomainEventType<?>, EventHandlerFunction<AggregateState, DomainEvent, DomainEvent>> eventHandlers,
                                 Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers,
+                                Map<DomainEventType<?>, EventBridgeHandlerFunction<AggregateState, DomainEvent>> eventBridgeHandlers,
                                 boolean generateGDPRKeyOnCreate,
                                 boolean shouldHandlePIIData) {
         this.type = type;
@@ -76,6 +79,7 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
         this.commandHandlers = commandHandlers;
         this.eventHandlers = eventHandlers;
         this.eventSourcingHandlers = eventSourcingHandlers;
+        this.eventBridgeHandlers = eventBridgeHandlers;
         this.generateGDPRKeyOnCreate = generateGDPRKeyOnCreate;
         this.shouldHandlePIIData = shouldHandlePIIData;
     }
@@ -321,6 +325,14 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
 
     }
 
+    private void handleBridgedEvent(DomainEventType<?> eventType,
+                                    DomainEventRecord domainEventRecord,
+                                    CommandBus commandBus) throws IOException {
+        // materialize the event
+        DomainEvent externalEvent = materialize(eventType, domainEventRecord);
+        eventBridgeHandlers.get(eventType).apply(externalEvent, commandBus);
+    }
+
     private AggregateStateRecord processDomainEvent(String correlationId,
                                                     Consumer<ProtocolRecord> protocolRecordConsumer,
                                                     BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer,
@@ -376,7 +388,8 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     public void handleExternalDomainEventRecord(DomainEventRecord eventRecord,
                                                 Consumer<ProtocolRecord> protocolRecordConsumer,
                                                 BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer,
-                                                Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
+                                                Supplier<AggregateStateRecord> stateRecordSupplier,
+                                                CommandBus commandBus) throws IOException {
         // determine the type to use for the external event
         DomainEventType<?> domainEventType = getDomainEventType(eventRecord);
         // with external domainevents we should look at the handler and not at the type of the external event
@@ -397,6 +410,8 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
                 // only process the event if we have a handler for it
                 if (eventHandlers.containsKey(domainEventType)) {
                     handleEvent(domainEventType, eventRecord, protocolRecordConsumer, domainEventIndexer, stateRecordSupplier);
+                } else if(eventBridgeHandlers.containsKey(domainEventType)) { // it can also be an event bridge
+                    handleBridgedEvent(domainEventType, eventRecord, commandBus);
                 }
             }
         } // ignore if we don't have an external domainevent registered

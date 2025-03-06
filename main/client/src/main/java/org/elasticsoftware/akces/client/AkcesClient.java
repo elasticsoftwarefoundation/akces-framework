@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.concurrent.CompletionStage;
 
 public interface AkcesClient {
+    String DEFAULT_TENANT_ID = "DefaultTenant";
     /**
      * Dispatch a Command to the AkcesSystem. The Command will be sent to the AggregateService that is responsible for
      * handling it. There is no response, it is however possible check the {@link CompletionStage<String>} for either
@@ -50,7 +51,23 @@ public interface AkcesClient {
         return send(tenantId, null, command);
     }
 
+    default CompletionStage<List<DomainEvent>> send(@Nonnull Command command) {
+        return send(command, null);
+    }
+
+    default CompletionStage<List<DomainEvent>> send(@Nonnull Command command, @Nullable String correlationId) {
+        return send(DEFAULT_TENANT_ID, correlationId, command);
+    }
+
     CompletionStage<List<DomainEvent>> send(@Nonnull String tenantId, @Nullable String correlationId, @Nonnull Command command);
+
+    default void sendAndForget(@Nonnull Command command) {
+        sendAndForget(DEFAULT_TENANT_ID, null, command);
+    }
+
+    default void sendAndForget(@Nonnull Command command, @Nullable String correlationId) {
+        sendAndForget(DEFAULT_TENANT_ID, correlationId, command);
+    }
 
     default void sendAndForget(@Nonnull String tenantId, @Nonnull Command command) {
         sendAndForget(tenantId, null, command);

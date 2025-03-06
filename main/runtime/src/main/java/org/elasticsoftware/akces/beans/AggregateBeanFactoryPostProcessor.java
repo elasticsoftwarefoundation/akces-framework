@@ -23,6 +23,7 @@ import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.annotations.*;
 import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.errors.AggregateAlreadyExistsErrorEvent;
 import org.elasticsoftware.akces.errors.CommandExecutionErrorEvent;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -78,9 +79,17 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                     List<Method> eventSourcingHandlers = Arrays.stream(aggregateClass.getMethods())
                             .filter(method -> method.isAnnotationPresent(EventSourcingHandler.class))
                             .toList();
-                    commandHandlers.forEach(commandHandlerMethod -> processCommandHandler(beanName, commandHandlerMethod, bdr));
-                    eventHandlers.forEach(eventHandlerMethod -> processEventHandler(beanName, eventHandlerMethod, bdr));
-                    eventSourcingHandlers.forEach(eventSourcingHandlerMethod -> processEventSourcingHandler(beanName, eventSourcingHandlerMethod, bdr));
+                    List<Method> eventBridgeHandlers = Arrays.stream(aggregateClass.getMethods())
+                            .filter(method -> method.isAnnotationPresent(EventBridgeHandler.class))
+                            .toList();
+                    commandHandlers.forEach(commandHandlerMethod ->
+                            processCommandHandler(beanName, commandHandlerMethod, bdr));
+                    eventHandlers.forEach(eventHandlerMethod ->
+                            processEventHandler(beanName, eventHandlerMethod, bdr));
+                    eventSourcingHandlers.forEach(eventSourcingHandlerMethod ->
+                            processEventSourcingHandler(beanName, eventSourcingHandlerMethod, bdr));
+                    eventBridgeHandlers.forEach(eventBridgeHandlerMethod ->
+                            processEventBridgeHandler(beanName, eventBridgeHandlerMethod, bdr));
                 } catch (ClassNotFoundException e) {
                     throw new ApplicationContextException("Unable to load class for bean " + beanName, e);
                 }
@@ -195,6 +204,28 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
             );
         } else {
             throw new ApplicationContextException("Invalid CommandHandler method signature: " + commandHandlerMethod);
+        }
+    }
+
+    private void processEventBridgeHandler(String aggregateBeanName, Method eventBridgeHandlerMethod, BeanDefinitionRegistry bdr) {
+        if (eventBridgeHandlerMethod.getParameterCount() == 2 &&
+                DomainEvent.class.isAssignableFrom(eventBridgeHandlerMethod.getParameterTypes()[0]) &&
+                eventBridgeHandlerMethod.getParameterTypes()[1].equals(CommandBus.class) &&
+                void.class.equals(eventBridgeHandlerMethod.getReturnType())) {
+            DomainEventInfo eventInfo = eventBridgeHandlerMethod.getParameterTypes()[0].getAnnotation(DomainEventInfo.class);
+            // Generate bean name based on method name and event info
+            String beanName = aggregateBeanName + "_ebh_" + eventBridgeHandlerMethod.getName() + "_" + eventInfo.type() + "_" + eventInfo.version();
+            bdr.registerBeanDefinition(beanName,
+                    BeanDefinitionBuilder.genericBeanDefinition(EventBridgeHandlerFunctionAdapter.class)
+                            .addConstructorArgReference(aggregateBeanName)
+                            .addConstructorArgValue(eventBridgeHandlerMethod.getName())
+                            .addConstructorArgValue(eventBridgeHandlerMethod.getParameterTypes()[0])
+                            .addConstructorArgValue(eventInfo.type())
+                            .addConstructorArgValue(eventInfo.version())
+                            .setInitMethodName("init")
+                            .getBeanDefinition());
+        } else {
+            throw new ApplicationContextException("Invalid EventBridgeHandler method signature: " + eventBridgeHandlerMethod);
         }
     }
 

@@ -58,6 +58,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                                   Map<CommandType<?>, CommandHandlerFunction<AggregateState, Command, DomainEvent>> commandHandlers,
                                   Map<DomainEventType<?>, EventHandlerFunction<AggregateState, DomainEvent, DomainEvent>> eventHandlers,
                                   Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers,
+                                  Map<DomainEventType<?>, EventBridgeHandlerFunction<AggregateState, DomainEvent>> eventBridgeHandlers,
                                   boolean generateGDPRKeyOnCreate,
                                   boolean shouldHandlePIIData) {
         super(stateType,
@@ -70,6 +71,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                 commandHandlers,
                 eventHandlers,
                 eventSourcingHandlers,
+                eventBridgeHandlers,
                 generateGDPRKeyOnCreate,
                 shouldHandlePIIData);
         this.schemaRegistry = schemaRegistry;
@@ -168,6 +170,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
         private Map<CommandType<?>, CommandHandlerFunction<AggregateState, Command, DomainEvent>> commandHandlers = new HashMap<>();
         private Map<DomainEventType<?>, EventHandlerFunction<AggregateState, DomainEvent, DomainEvent>> eventHandlers = new HashMap<>();
         private Map<DomainEventType<?>, EventSourcingHandlerFunction<AggregateState, DomainEvent>> eventSourcingHandlers = new HashMap<>();
+        private Map<DomainEventType<?>, EventBridgeHandlerFunction<AggregateState, DomainEvent>> eventBridgeHandlers = new HashMap<>();
         private boolean generateGDPRKeyOnCreate = false;
 
         public Builder setSchemaRegistry(KafkaSchemaRegistry schemaRegistry) {
@@ -230,6 +233,12 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
             return this;
         }
 
+        public Builder addEventBridgeHandler(DomainEventType<?> eventType, EventBridgeHandlerFunction<AggregateState, DomainEvent> eventBridgeHandler) {
+            this.eventBridgeHandlers.put(eventType, eventBridgeHandler);
+            return this;
+        }
+
+
         public Builder setGenerateGDPRKeyOnCreate(boolean generateGDPRKeyOnCreate) {
             this.generateGDPRKeyOnCreate = generateGDPRKeyOnCreate;
             return this;
@@ -255,6 +264,7 @@ public class KafkaAggregateRuntime extends AggregateRuntimeBase {
                     commandHandlers,
                     eventHandlers,
                     eventSourcingHandlers,
+                    eventBridgeHandlers,
                     generateGDPRKeyOnCreate,
                     shouldHandlePIIData);
         }

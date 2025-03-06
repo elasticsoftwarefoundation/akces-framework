@@ -19,6 +19,7 @@ package org.elasticsoftware.akces.aggregate;
 
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.CommandRecord;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
@@ -45,7 +46,8 @@ public interface AggregateRuntime {
     void handleExternalDomainEventRecord(DomainEventRecord eventRecord,
                                          Consumer<ProtocolRecord> protocolRecordConsumer,
                                          BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer,
-                                         Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException;
+                                         Supplier<AggregateStateRecord> stateRecordSupplier,
+                                         CommandBus commandBus) throws IOException;
 
     Collection<DomainEventType<?>> getAllDomainEventTypes();
 
