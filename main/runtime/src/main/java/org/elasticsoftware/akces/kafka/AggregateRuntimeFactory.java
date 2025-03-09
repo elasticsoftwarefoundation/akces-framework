@@ -26,6 +26,8 @@ import org.springframework.beans.factory.FactoryBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 
+import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
+
 public class AggregateRuntimeFactory<S extends AggregateState> implements FactoryBean<AggregateRuntime>, ApplicationContextAware {
     private ApplicationContext applicationContext;
     private final ObjectMapper objectMapper;
@@ -67,7 +69,8 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
                     aggregate.getStateClass(),
                     aggregateInfo.generateGDPRKeyOnCreate(),
                     aggregateInfo.indexed(),
-                    aggregateInfo.indexName()
+                    aggregateInfo.indexName(),
+                    hasPIIDataAnnotation(aggregate.getStateClass())
             ));
         } else {
             throw new IllegalStateException("Class implementing Aggregate must be annotated with @AggregateInfo");
