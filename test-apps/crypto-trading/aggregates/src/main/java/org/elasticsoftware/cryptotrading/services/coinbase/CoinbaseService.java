@@ -15,7 +15,7 @@
  *
  */
 
-package org.elasticsoftware.cryptotrading.aggregates.cryptomarket;
+package org.elasticsoftware.cryptotrading.services.coinbase;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;

@@ -38,24 +38,3 @@ public record PlaceBuyOrderCommand(
         return userId();
     }
 }
-package org.elasticsoftware.cryptotrading.aggregates.orders.commands;
-
-import org.elasticsoftware.akces.commands.Command;
-import org.elasticsoftware.akces.commands.CommandInfo;
-import org.jetbrains.annotations.NotNull;
-
-import java.math.BigDecimal;
-
-@CommandInfo(type = "PlaceBuyOrder")
-public record PlaceBuyOrderCommand(
-        String accountId,
-        String marketId,
-        BigDecimal size,
-        BigDecimal amount,
-        String clientReference
-) implements Command {
-    @Override
-    public @NotNull String getAggregateId() {
-        return accountId;
-    }
-}

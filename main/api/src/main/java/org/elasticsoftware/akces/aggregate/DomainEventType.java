@@ -27,16 +27,8 @@ public record DomainEventType<T extends DomainEvent>(
         boolean create,
         boolean external,
         boolean error,
-        Boolean piiData
+        boolean piiData
 ) implements SchemaType {
-    public DomainEventType(String typeName,
-                           int version,
-                           Class<T> typeClass,
-                           boolean create,
-                           boolean external,
-                           boolean error) {
-        this(typeName, version, typeClass, create, external, error, null);
-    }
 
     @Override
     public String getSchemaPrefix() {

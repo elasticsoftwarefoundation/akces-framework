@@ -15,25 +15,20 @@
  *
  */
 
-package org.elasticsoftware.akcestest.aggregate.account;
+package org.elasticsoftware.cryptotrading.services.coinbase;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.akces.annotations.AggregateIdentifier;
-import org.elasticsoftware.akces.annotations.CommandInfo;
-import org.elasticsoftware.akces.annotations.PIIData;
-import org.elasticsoftware.akces.commands.Command;
 
-@CommandInfo(type = "CreateAccount")
-public record CreateAccountCommand(
-        @AggregateIdentifier @NotNull String userId,
-        @NotNull String country,
-        @NotNull @PIIData String firstName,
-        @NotNull @PIIData String lastName,
-        @NotNull @PIIData String email
-) implements Command {
-    @Override
-    @NotNull
-    public String getAggregateId() {
-        return userId();
-    }
+public record Ticker(
+        @NotNull @JsonProperty("trade_id") Integer tradeId,
+        @NotNull @JsonProperty("price") String price,
+        @NotNull @JsonProperty("size") String size,
+        @NotNull @JsonProperty("time") String time,
+        @NotNull @JsonProperty("bid") String bid,
+        @NotNull @JsonProperty("ask") String ask,
+        @NotNull @JsonProperty("volume") String volume,
+        @JsonProperty("rfq_volume") String rfqVolume,
+        @JsonProperty("conversions_volume") String conversionsVolume
+) {
 }

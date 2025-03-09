@@ -79,9 +79,13 @@ public interface AggregateRuntime {
 
     byte[] serialize(Command command) throws SerializationException;
 
-    boolean shouldGenerateGPRKey(CommandRecord commandRecord);
+    boolean shouldGenerateGDPRKey(CommandRecord commandRecord);
 
-    boolean shouldGenerateGPRKey(DomainEventRecord eventRecord);
+    boolean shouldGenerateGDPRKey(DomainEventRecord eventRecord);
+
+    boolean requiresGDPRContext(DomainEventRecord eventRecord);
+
+    boolean requiresGDPRContext(CommandRecord eventRecord);
 
     boolean shouldHandlePIIData();
 }

@@ -48,17 +48,19 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
+
 public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcessor, BeanFactoryInitializationAotProcessor, BeanRegistrationExcludeFilter {
     private static final Logger logger = LoggerFactory.getLogger(AggregateBeanFactoryPostProcessor.class);
     public static final List<DomainEventType<? extends DomainEvent>> COMMAND_HANDLER_CREATE_SYSTEM_ERRORS = List.of(
-            new DomainEventType<>("AggregateAlreadyExistsError", 1, AggregateAlreadyExistsErrorEvent.class, false, false, true),
-            new DomainEventType<>("CommandExecutionError", 1, CommandExecutionErrorEvent.class, false, false, true)
+            new DomainEventType<>("AggregateAlreadyExistsError", 1, AggregateAlreadyExistsErrorEvent.class, false, false, true, false),
+            new DomainEventType<>("CommandExecutionError", 1, CommandExecutionErrorEvent.class, false, false, true, false)
     );
     public static final List<DomainEventType<? extends DomainEvent>> COMMAND_HANDLER_SYSTEM_ERRORS = List.of(
-            new DomainEventType<>("CommandExecutionError", 1, CommandExecutionErrorEvent.class, false, false, true)
+            new DomainEventType<>("CommandExecutionError", 1, CommandExecutionErrorEvent.class, false, false, true, false)
     );
     public static final List<DomainEventType<? extends DomainEvent>> EVENT_HANDLER_CREATE_SYSTEM_ERRORS = List.of(
-            new DomainEventType<>("AggregateAlreadyExistsError", 1, AggregateAlreadyExistsErrorEvent.class, false, false, true)
+            new DomainEventType<>("AggregateAlreadyExistsError", 1, AggregateAlreadyExistsErrorEvent.class, false, false, true, false)
     );
 
     @Override
@@ -233,7 +235,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                                                               boolean isCreate) {
         return Arrays.stream(domainEventClasses).map(eventClass -> {
             DomainEventInfo eventInfo = eventClass.getAnnotation(DomainEventInfo.class);
-            return new DomainEventType<>(eventInfo.type(), eventInfo.version(), eventClass, isCreate, false, false);
+            return new DomainEventType<>(eventInfo.type(), eventInfo.version(), eventClass, isCreate, false, false, hasPIIDataAnnotation(eventClass));
         }).collect(Collectors.toList());
     }
 
@@ -241,7 +243,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
         Stream<DomainEventType<? extends DomainEvent>> systemErrorEvents = (isCreate) ? EVENT_HANDLER_CREATE_SYSTEM_ERRORS.stream() : Stream.empty();
         return Stream.concat(Arrays.stream(domainEventClasses).map(eventClass -> {
             DomainEventInfo eventInfo = eventClass.getAnnotation(DomainEventInfo.class);
-            return new DomainEventType<>(eventInfo.type(), eventInfo.version(), eventClass, false, false, true);
+            return new DomainEventType<>(eventInfo.type(), eventInfo.version(), eventClass, false, false, true, hasPIIDataAnnotation(eventClass));
         }), systemErrorEvents).collect(Collectors.toList());
     }
 
@@ -249,7 +251,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
         Stream<DomainEventType<? extends DomainEvent>> systemErrorEvents = (isCreate) ? COMMAND_HANDLER_CREATE_SYSTEM_ERRORS.stream() : COMMAND_HANDLER_SYSTEM_ERRORS.stream();
         return Stream.concat(Arrays.stream(domainEventClasses).map(eventClass -> {
             DomainEventInfo eventInfo = eventClass.getAnnotation(DomainEventInfo.class);
-            return new DomainEventType<>(eventInfo.type(), eventInfo.version(), eventClass, false, false, true);
+            return new DomainEventType<>(eventInfo.type(), eventInfo.version(), eventClass, false, false, true, hasPIIDataAnnotation(eventClass));
         }), systemErrorEvents).collect(Collectors.toList());
     }
 

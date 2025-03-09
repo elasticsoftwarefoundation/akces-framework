@@ -132,6 +132,19 @@
                             </includes>
                         </configuration>
                     </execution>
+                    <execution>
+                        <id>services-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>services</classifier>
+                            <includes>
+                                <include>**/services/**</include>
+                            </includes>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
 <!--            <plugin>-->

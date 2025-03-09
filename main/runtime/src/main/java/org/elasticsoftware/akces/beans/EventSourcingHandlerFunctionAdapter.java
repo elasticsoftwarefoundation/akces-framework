@@ -27,6 +27,8 @@ import org.elasticsoftware.akces.events.DomainEvent;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
+import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
+
 public class EventSourcingHandlerFunctionAdapter<S extends AggregateState, E extends DomainEvent> implements EventSourcingHandlerFunction<S, E> {
     private final Aggregate<S> aggregate;
     private final String adapterMethodName;
@@ -48,7 +50,13 @@ public class EventSourcingHandlerFunctionAdapter<S extends AggregateState, E ext
         this.domainEventClass = domainEventClass;
         this.stateClass = stateClass;
         this.create = create;
-        this.domainEventType = new DomainEventType<>(typeName, version, domainEventClass, create, false, false);
+        this.domainEventType = new DomainEventType<>(typeName,
+                version,
+                domainEventClass,
+                create,
+                false,
+                false,
+                hasPIIDataAnnotation(domainEventClass));
     }
 
     @SuppressWarnings("unused")

@@ -22,7 +22,12 @@ import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.client.AkcesClientController;
 import org.elasticsoftware.cryptotrading.aggregates.account.events.AccountCreatedEvent;
+import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.CreateCryptoMarketCommand;
+import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.CryptoMarketCreatedEvent;
+import org.elasticsoftware.cryptotrading.aggregates.wallet.events.BalanceCreatedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletCreatedEvent;
+import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletCreditedEvent;
+import org.elasticsoftware.cryptotrading.query.jdbc.CryptoMarketRepository;
 import org.elasticsoftware.cryptotrading.web.AccountCommandController;
 import org.elasticsoftware.cryptotrading.web.AccountQueryController;
 import org.elasticsoftware.cryptotrading.web.WalletCommandController;
@@ -44,6 +49,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.Network;
+import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
@@ -59,6 +65,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.elasticsoftware.cryptotrading.TestUtils.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @SpringBootTest(
         classes = AggregateServiceApplication.class,
@@ -70,7 +77,8 @@ import static org.elasticsoftware.cryptotrading.TestUtils.*;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
                 "akces.client.domainEventsPackage=org.elasticsoftware.cryptotrading.aggregates",
-                "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration,org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.elasticsoftware.akces.query.database.AkcesDatabaseModelAutoConfiguration"
+                "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration",
+                "spring.main.allow-bean-definition-overriding=true"
         }
 )
 @PropertySource("classpath:akces-aggregateservice.properties")
@@ -99,6 +107,14 @@ public class CryptoTradingQueryApiTest {
                     .withExposedPorts(8081)
                     .withNetworkAliases("schema-registry")
                     .dependsOn(kafka);
+    @Container
+    private static final PostgreSQLContainer<?> postgresql = new PostgreSQLContainer<>("postgres:17.4")
+            .withDatabaseName("cryptotrading")
+            .withUsername("akces")
+            .withPassword("akces")
+            .withNetwork(network)
+            .withNetworkAliases("postgresql");
+
     @Inject
     @Qualifier("WalletAkcesController")
     AkcesAggregateController walletController;
@@ -123,6 +139,8 @@ public class CryptoTradingQueryApiTest {
     private int port;
     @Inject
     private WebTestClient webTestClient;
+    @Inject
+    private CryptoMarketRepository cryptoMarketRepository;
 
     @AfterAll
     @BeforeAll
@@ -357,6 +375,78 @@ public class CryptoTradingQueryApiTest {
                 .expectStatus().isNotFound();
     }
 
+    @Test
+    void testCryptoMarkets() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        // see if we have any crypto markets in the database
+        while(cryptoMarketRepository.count() == 0) {
+            Thread.onSpinWait();
+        }
+
+        assertNotNull(cryptoMarketRepository.findById("BTC-EUR").orElse(null));
+    }
+
+    @Test
+    void testPlaceBuyOrder() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        // Create account and credit EUR balance
+        AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
+        AccountOutput accountOutput = webTestClient.post()
+                .uri("/v1/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(accountOutput).isNotNull();
+        String userId = accountOutput.userId();
+
+        // Credit EUR balance
+        webTestClient.post()
+                .uri("/v1/wallets/" + userId + "/balances/EUR/credit")
+                .bodyValue(new CreditWalletInput(new BigDecimal("10000.0")))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Add BTC balance
+        webTestClient.post()
+                .uri("/v1/wallets/" + userId + "/balances")
+                .bodyValue(new CreateBalanceInput("BTC"))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Place buy order
+        BuyOrderInput buyOrderInput = new BuyOrderInput("BTC-EUR", new BigDecimal("1000"), "client-ref-1");
+
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/orders/buy")
+                .bodyValue(buyOrderInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(OrderOutput.class)
+                .value(orderOutput -> {
+                    assertThat(orderOutput).isNotNull();
+                    assertThat(orderOutput.orderId()).isNotNull();
+                });
+    }
+
+
     public static class Initializer
             implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
@@ -366,8 +456,17 @@ public class CryptoTradingQueryApiTest {
             prepareKafka(kafka.getBootstrapServers());
             prepareDomainEventSchemas(
                     "http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081),
-                    List.of(AccountCreatedEvent.class,
-                            WalletCreatedEvent.class));
+                    List.of(
+                            WalletCreatedEvent.class,
+                            WalletCreditedEvent.class,
+                            BalanceCreatedEvent.class,
+                            AccountCreatedEvent.class,
+                            CryptoMarketCreatedEvent.class
+                    ));
+            prepareCommandSchemas("http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081),
+                    List.of(
+                            CreateCryptoMarketCommand.class
+                    ));
             try {
                 prepareAggregateServiceRecords(kafka.getBootstrapServers());
             } catch (IOException e) {
@@ -378,7 +477,10 @@ public class CryptoTradingQueryApiTest {
                     "akces.rocksdb.baseDir=/tmp/akces",
                     "spring.kafka.enabled=true",
                     "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
-                    "akces.schemaregistry.url=http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081)
+                    "akces.schemaregistry.url=http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081),
+                    "spring.datasource.url=" + postgresql.getJdbcUrl(),
+                    "spring.datasource.username=akces",
+                    "spring.datasource.password=akces"
             );
         }
     }

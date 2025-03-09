@@ -30,6 +30,8 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
+
 public class EventHandlerFunctionAdapter<S extends AggregateState, InputEvent extends DomainEvent, E extends DomainEvent> implements EventHandlerFunction<S, InputEvent, E> {
     private final Aggregate<S> aggregate;
     private final String adapterMethodName;
@@ -63,7 +65,8 @@ public class EventHandlerFunctionAdapter<S extends AggregateState, InputEvent ex
                 inputEventClass,
                 create,
                 true,
-                ErrorEvent.class.isAssignableFrom(inputEventClass));
+                ErrorEvent.class.isAssignableFrom(inputEventClass),
+                hasPIIDataAnnotation(inputEventClass));
     }
 
     @SuppressWarnings("unused")

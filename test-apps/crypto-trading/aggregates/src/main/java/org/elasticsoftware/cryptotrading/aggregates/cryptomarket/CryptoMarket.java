@@ -29,6 +29,8 @@ import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.CryptoMa
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderFilledEvent;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderPlacedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderRejectedErrorEvent;
+import org.elasticsoftware.cryptotrading.services.coinbase.CoinbaseService;
+import org.elasticsoftware.cryptotrading.services.coinbase.Ticker;
 
 import java.math.BigDecimal;
 import java.math.MathContext;

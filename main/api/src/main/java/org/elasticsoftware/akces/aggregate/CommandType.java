@@ -25,8 +25,10 @@ public record CommandType<C extends Command>(
         int version,
         @JsonIgnore Class<C> typeClass,
         boolean create,
-        boolean external
+        boolean external,
+        boolean piiData
 ) implements SchemaType {
+
     @Override
     public String getSchemaPrefix() {
         return "commands.";

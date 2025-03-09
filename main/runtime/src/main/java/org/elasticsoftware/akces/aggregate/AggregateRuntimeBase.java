@@ -471,14 +471,24 @@ public abstract class AggregateRuntimeBase implements AggregateRuntime {
     }
 
     @Override
-    public boolean shouldGenerateGPRKey(CommandRecord commandRecord) {
+    public boolean shouldGenerateGDPRKey(CommandRecord commandRecord) {
         return getCommandType(commandRecord).create() && generateGDPRKeyOnCreate;
     }
 
     @Override
-    public boolean shouldGenerateGPRKey(DomainEventRecord eventRecord) {
+    public boolean shouldGenerateGDPRKey(DomainEventRecord eventRecord) {
         return Optional.ofNullable(getDomainEventType(eventRecord))
                 .map(domainEventType -> domainEventType.create() && generateGDPRKeyOnCreate).orElse(false);
+    }
+
+    @Override
+    public boolean requiresGDPRContext(DomainEventRecord eventRecord) {
+        return Optional.ofNullable(getDomainEventType(eventRecord)).map(DomainEventType::piiData).orElse(false);
+    }
+
+    @Override
+    public boolean requiresGDPRContext(CommandRecord commandRecord) {
+        return getCommandType(commandRecord).piiData();
     }
 
     @Override

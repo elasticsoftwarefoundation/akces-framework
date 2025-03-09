@@ -29,6 +29,8 @@ import org.elasticsoftware.akces.events.ErrorEvent;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
+import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
+
 public class EventBridgeHandlerFunctionAdapter<S extends AggregateState, E extends DomainEvent> implements EventBridgeHandlerFunction<S, E> {
     private final Aggregate<S> aggregate;
     private final String adapterMethodName;
@@ -50,7 +52,8 @@ public class EventBridgeHandlerFunctionAdapter<S extends AggregateState, E exten
                 inputEventClass,
                 false,
                 true,
-                ErrorEvent.class.isAssignableFrom(inputEventClass));
+                ErrorEvent.class.isAssignableFrom(inputEventClass),
+                hasPIIDataAnnotation(inputEventClass));
     }
 
     @SuppressWarnings("unused")

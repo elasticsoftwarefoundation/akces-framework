@@ -15,7 +15,7 @@
  *
  */
 
-package org.elasticsoftware.cryptotrading.aggregates.cryptomarket;
+package org.elasticsoftware.cryptotrading.services.coinbase;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotNull;

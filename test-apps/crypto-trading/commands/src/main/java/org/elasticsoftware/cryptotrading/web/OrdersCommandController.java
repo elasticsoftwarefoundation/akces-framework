@@ -18,15 +18,11 @@
 package org.elasticsoftware.cryptotrading.web;
 
 import org.elasticsoftware.akces.client.AkcesClient;
-import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderPlacedEvent;
+import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderCreatedEvent;
 import org.elasticsoftware.cryptotrading.web.dto.BuyOrderInput;
 import org.elasticsoftware.cryptotrading.web.dto.OrderOutput;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
@@ -47,11 +43,11 @@ public class OrdersCommandController {
         return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(accountId)))
                 .map(List::getFirst)
                 .map(domainEvent -> {
-                    BuyOrderPlacedEvent event = (BuyOrderPlacedEvent) domainEvent;
+                    BuyOrderCreatedEvent event = (BuyOrderCreatedEvent) domainEvent;
                     OrderOutput output = new OrderOutput(
                             event.orderId(),
-                            event.marketId(),
-                            event.size(),
+                            event.market(),
+                            null,
                             event.amount(),
                             event.clientReference()
                     );
