@@ -15,4 +15,4 @@
 #
 #
 
-cat repomix/main.txt | llm "This file contains the entire codebase of the Akces Framework. Please provide a comprehensive overview of the library, including its main purpose, key features, and overall architecture." -m anthropic/claude-3-7-sonnet-latest > FRAMEWORK_OVERVIEW.md
+cat repomix/main.txt | llm "This file contains the entire codebase of the Akces Framework. Please provide a comprehensive overview of the library, including its main purpose, key features, and overall architecture. Take into consideration the current contents of the FRAMEWORK_OVERVIEW.md file and make incremental updates" -m anthropic/claude-3-7-sonnet-latest > FRAMEWORK_OVERVIEW.md

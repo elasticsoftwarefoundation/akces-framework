@@ -14,4 +14,4 @@
 #     limitations under the License.
 #
 #
-cat repomix/main.txt | llm "Based on the codebase in this file, please generate a detailed README.md that includes an overview of the project, its main features, setup instructions, and usage examples. The Akces Framework is an CQRS & Event Sourcing Framework built on Apache Kafka" -m anthropic/claude-3-7-sonnet-latest > README.md
+cat repomix/main.txt | llm "Based on the codebase in this file, please generate a detailed README.md that includes an overview of the project, its main features, setup instructions, and usage examples. Take in consideration the current contents of the README.md file. The Akces Framework is an CQRS & Event Sourcing Framework built on Apache Kafka" -m anthropic/claude-3-7-sonnet-latest > README.md

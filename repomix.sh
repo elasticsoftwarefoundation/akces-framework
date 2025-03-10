@@ -31,7 +31,7 @@ for dir in "${directories[@]}"; do
   if [ -d "$dir" ]; then
     # Generate repomix file for the current directory
     repomix_file="$output_dir/$(basename "$dir").txt"
-    repomix --config repomix.config.json --output "$repomix_file" --compress "$dir"
+    repomix --config "$dir/repomix.config.json" --output "$repomix_file" --compress "."
   else
     echo "Directory $dir does not exist."
   fi

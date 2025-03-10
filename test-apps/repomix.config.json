@@ -12,7 +12,7 @@
     "showLineNumbers": false,
     "copyToClipboard": false
   },
-  "include": ["**/*.java","**/*.xml","**/*.properties","**/*.proto","**/*.imports","**/*.yaml"],
+  "include": ["*.md","test-apps/**/*.java","test-apps/**/*.xml","test-apps/**/*.properties","test-apps/**/*.proto","test-apps/**/*.imports","test-apps/**/*.yaml"],
   "ignore": {
     "useGitignore": true,
     "useDefaultPatterns": true,
