@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-crypto-trading-parent</artifactId>
-        <version>0.8.6-SNAPSHOT</version>
+        <version>0.8.6</version>
     </parent>
     <artifactId>akces-crypto-trading-commands</artifactId>
     <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Command Services</name>
