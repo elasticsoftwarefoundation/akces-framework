@@ -292,7 +292,9 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                     responseRecords.add(der);
                 }
             };
-            setupGDPRContext(commandRecord.tenantId(), commandRecord.aggregateId(), runtime.shouldGenerateGPRKey(commandRecord));
+            if(runtime.requiresGDPRContext(commandRecord)) {
+                setupGDPRContext(commandRecord.tenantId(), commandRecord.aggregateId(), runtime.shouldGenerateGDPRKey(commandRecord));
+            }
             logger.trace("Handling CommandRecord with type {}", commandRecord.name());
             runtime.handleCommandRecord(commandRecord, protocolRecordConsumer, this::index, () -> stateRepository.get(commandRecord.aggregateId()));
             if (responseRecords != null) {
@@ -318,8 +320,11 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
 
     private void handleExternalEvent(DomainEventRecord eventRecord) {
         try {
-            setupGDPRContext(eventRecord.tenantId(), eventRecord.aggregateId(), runtime.shouldGenerateGPRKey(eventRecord));
             logger.trace("Handling DomainEventRecord with type {} as External Event", eventRecord.name());
+            // only setup the GDPR context if required
+            if(runtime.requiresGDPRContext(eventRecord)) {
+                setupGDPRContext(eventRecord.tenantId(), eventRecord.aggregateId(), runtime.shouldGenerateGDPRKey(eventRecord));
+            }
             runtime.handleExternalDomainEventRecord(eventRecord,
                     this::send,
                     this::index,

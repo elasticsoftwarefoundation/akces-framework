@@ -28,7 +28,7 @@ public class DomainEventTypeValueCodeGeneratorDelegate implements ValueCodeGener
     @Override
     public CodeBlock generateCode(ValueCodeGenerator valueCodeGenerator, Object value) {
         if (value instanceof DomainEventType<?>(
-                String typeName, int version, Class<?> typeClass, boolean create, boolean external, boolean error, Boolean piiData
+                String typeName, int version, Class<?> typeClass, boolean create, boolean external, boolean error, boolean piiData
         )) {
             return CodeBlock.builder()
                     .add("new $T($S, $L, $T.class, $L, $L, $L, $L)",

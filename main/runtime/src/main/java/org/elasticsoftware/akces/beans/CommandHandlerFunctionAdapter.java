@@ -26,6 +26,8 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
+
 public class CommandHandlerFunctionAdapter<S extends AggregateState, C extends Command, E extends DomainEvent>
         implements CommandHandlerFunction<S, C, E> {
     private final Aggregate<S> aggregate;
@@ -54,7 +56,12 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState, C extends C
         this.create = create;
         this.producedDomainEventTypes = producedDomainEventTypes;
         this.errorEventTypes = errorEventTypes;
-        this.commandType = new CommandType<>(typeName, version, commandClass, create, false);
+        this.commandType = new CommandType<>(typeName,
+                version,
+                commandClass,
+                create,
+                false,
+                hasPIIDataAnnotation(commandClass));
     }
 
     @SuppressWarnings("unused")

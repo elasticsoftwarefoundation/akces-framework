@@ -75,6 +75,7 @@ import java.util.concurrent.*;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.singletonList;
 import static org.elasticsoftware.akces.client.AkcesClientControllerState.*;
+import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
 import static org.elasticsoftware.akces.gdpr.GDPRContextHolder.resetCurrentGDPRContext;
 import static org.elasticsoftware.akces.gdpr.GDPRContextHolder.setCurrentGDPRContext;
 
@@ -176,7 +177,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                 Class<? extends DomainEvent> domainEventClass = (Class<? extends DomainEvent>) Class.forName(beanDefinition.getBeanClassName());
                 DomainEventInfo domainEventInfo = domainEventClass.getAnnotation(DomainEventInfo.class);
                 TreeMap<Integer, DomainEventType<? extends DomainEvent>> versionMap = domainEventClasses.computeIfAbsent(domainEventInfo.type(), k -> new TreeMap<>());
-                versionMap.put(domainEventInfo.version(), new DomainEventType<>(domainEventInfo.type(), domainEventInfo.version(), domainEventClass, false, true, ErrorEvent.class.isAssignableFrom(domainEventClass)));
+                versionMap.put(domainEventInfo.version(), new DomainEventType<>(domainEventInfo.type(), domainEventInfo.version(), domainEventClass, false, true, ErrorEvent.class.isAssignableFrom(domainEventClass), hasPIIDataAnnotation(domainEventClass)));
             } catch (ClassNotFoundException e) {
                 // ignore, cannot happen
             } catch (ClassCastException e) {
@@ -250,49 +251,65 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
     }
 
     private void processCommands(Producer<String, ProtocolRecord> producer) {
-        List<CommandRequest> commandRequests = new ArrayList<>();
-        if (commandQueue.drainTo(commandRequests) > 0) {
-            Map<ProducerRecord<String,ProtocolRecord>, CommandRequest> commandRecords = new HashMap<>();
-            // first validate the command with the registry
-            for(CommandRequest commandRequest : commandRequests) {
+        Map<ProducerRecord<String, ProtocolRecord>, CommandRequest> commandRecords = new HashMap<>();
+        while(!commandQueue.isEmpty()) {
+            // at initial startup it could be that aggregate service are not done publishing their service records
+            // so it could be that we have commands that we cannot route yet
+            CommandRequest headRequest = commandQueue.peek();
+            if (headRequest != null) {
                 try {
                     registerCommand(
-                            commandRequest.commandType(),
-                            commandRequest.commandVersion(),
-                            commandRequest.command().getClass());
-                    // then determine the topic to produce on
-                    String topic = resolveTopic(
-                            commandRequest.commandType(),
-                            commandRequest.commandVersion(),
-                            commandRequest.command());
-                    // then create a CommandRecord (this can cause an exception if the command is not serializable)
-                    CommandRecord commandRecord = new CommandRecord(
-                            commandRequest.tenantId(),
-                            commandRequest.commandType(),
-                            commandRequest.commandVersion(),
-                            serialize(commandRequest.command()),
-                            PayloadEncoding.JSON,
-                            commandRequest.command().getAggregateId(),
-                            commandRequest.correlationId() != null ? commandRequest.correlationId() : UUID.randomUUID().toString(), commandResponsePartition.toString());
-                    // create the ProducerRecord
-                    ProducerRecord<String, ProtocolRecord> producerRecord =
-                            new ProducerRecord<>(
-                                    topic,
-                                    resolvePartition(commandRecord.aggregateId()),
-                                    commandRecord.aggregateId(),
-                                    commandRecord);
-                    commandRecords.put(producerRecord, commandRequest);
-                    // if this was sendAndForget we should complete the CompletableFuture here
-                    if(commandRequest.completeAfterValidation()) {
-                        commandRequest.completableFuture().complete(Collections.emptyList());
-                    }
-                } catch(AkcesClientCommandException | SchemaException e){
-                    commandRequest.completableFuture().completeExceptionally(e);
+                            headRequest.commandType(),
+                            headRequest.commandVersion(),
+                            headRequest.command().getClass());
+                } catch (SchemaException e) {
+                    // the command type is know but the SchemaRegistry is not updated yet
+                    // we will try again next time
+                    return;
+                } catch (UnroutableCommandException e) {
+                    // command not found, assume it is unroutable. we will fail in the next step
                 }
             }
+            CommandRequest commandRequest = commandQueue.poll();
+            try {
+                registerCommand(
+                        commandRequest.commandType(),
+                        commandRequest.commandVersion(),
+                        commandRequest.command().getClass());
+                // then determine the topic to produce on
+                String topic = resolveTopic(
+                        commandRequest.commandType(),
+                        commandRequest.commandVersion(),
+                        commandRequest.command());
+                // then create a CommandRecord (this can cause an exception if the command is not serializable)
+                CommandRecord commandRecord = new CommandRecord(
+                        commandRequest.tenantId(),
+                        commandRequest.commandType(),
+                        commandRequest.commandVersion(),
+                        serialize(commandRequest.command()),
+                        PayloadEncoding.JSON,
+                        commandRequest.command().getAggregateId(),
+                        commandRequest.correlationId() != null ? commandRequest.correlationId() : UUID.randomUUID().toString(), commandResponsePartition.toString());
+                // create the ProducerRecord
+                ProducerRecord<String, ProtocolRecord> producerRecord =
+                        new ProducerRecord<>(
+                                topic,
+                                resolvePartition(commandRecord.aggregateId()),
+                                commandRecord.aggregateId(),
+                                commandRecord);
+                commandRecords.put(producerRecord, commandRequest);
+                // if this was sendAndForget we should complete the CompletableFuture here
+                if (commandRequest.completeAfterValidation()) {
+                    commandRequest.completableFuture().complete(Collections.emptyList());
+                }
+            } catch (AkcesClientCommandException | SchemaException e) {
+                commandRequest.completableFuture().completeExceptionally(e);
+            }
+        }
+        if(!commandRecords.isEmpty()) {
             // start a transaction
             producer.beginTransaction();
-            for(Map.Entry<ProducerRecord<String,ProtocolRecord>, CommandRequest> entry : commandRecords.entrySet()) {
+            for (Map.Entry<ProducerRecord<String, ProtocolRecord>, CommandRequest> entry : commandRecords.entrySet()) {
                 final CompletableFuture<List<DomainEvent>> completableFuture = entry.getValue().completableFuture();
                 final CommandRecord commandRecord = (CommandRecord) entry.getKey().value();
                 final Class<? extends Command> commandClass = entry.getValue().command().getClass();
@@ -548,7 +565,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
     }
 
     private void checkRunning(Command command) {
-        if (processState != RUNNING) {
+        if (processState == SHUTTING_DOWN) {
             throw new CommandRefusedException(command.getClass(), processState);
         }
     }

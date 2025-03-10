@@ -20,6 +20,8 @@ package org.elasticsoftware.akces.control;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.events.DomainEvent;
 
+import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
+
 public record AggregateServiceDomainEventType(
         String typeName,
         int version,
@@ -28,6 +30,6 @@ public record AggregateServiceDomainEventType(
         String schemaName
 ) {
     public <E extends DomainEvent> DomainEventType<E> toLocalDomainEventType(Class<E> typeClass, boolean error) {
-        return new DomainEventType<>(typeName, version, typeClass, create, external, error);
+        return new DomainEventType<>(typeName, version, typeClass, create, external, error, hasPIIDataAnnotation(typeClass));
     }
 }

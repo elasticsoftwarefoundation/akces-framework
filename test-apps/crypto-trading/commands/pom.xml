@@ -24,7 +24,7 @@
         <version>0.8.1-SNAPSHOT</version>
     </parent>
     <artifactId>akces-crypto-trading-commands</artifactId>
-    <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Command Service</name>
+    <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Command Services</name>
     <description>Crypto Trading Akces Test Application</description>
     <properties>
     </properties>

@@ -21,6 +21,9 @@ import jakarta.inject.Inject;
 import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.client.AkcesClientController;
+import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.CreateCryptoMarketCommand;
+import org.elasticsoftware.cryptotrading.services.coinbase.CoinbaseService;
+import org.elasticsoftware.cryptotrading.services.coinbase.Product;
 import org.elasticsoftware.cryptotrading.web.AccountCommandController;
 import org.elasticsoftware.cryptotrading.web.WalletCommandController;
 import org.elasticsoftware.cryptotrading.web.dto.*;
@@ -113,6 +116,10 @@ public class CryptoTradingCommandApiTest {
     private int port;
     @Inject
     private WebTestClient webTestClient;
+    @Inject
+    CoinbaseService coinbaseService;
+
+    private final static String counterPartyId = "337f335d-caf1-4f85-9440-6bc3c0ebbb77";
 
     @AfterAll
     @BeforeAll
@@ -307,6 +314,68 @@ public class CryptoTradingCommandApiTest {
                 .uri("/v13/accounts/invalid-id")
                 .exchange()
                 .expectStatus().isNotFound();
+    }
+
+    @Test
+    void testPlaceBuyOrder() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        Product product = coinbaseService.getProduct("BTC-EUR");
+        akcesClientController.sendAndForget("TEST", new CreateCryptoMarketCommand(
+                product.id(),
+                product.baseCurrency(),
+                product.quoteCurrency(),
+                product.baseIncrement(),
+                product.quoteIncrement(),
+                counterPartyId));
+
+        // Create account and credit EUR balance
+        AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
+        AccountOutput accountOutput = webTestClient.post()
+                .uri("/v1/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(accountOutput).isNotNull();
+        String userId = accountOutput.userId();
+
+        // Credit EUR balance
+        webTestClient.post()
+                .uri("/v1/wallets/" + userId + "/balances/EUR/credit")
+                .bodyValue(new CreditWalletInput(new BigDecimal("10000.0")))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Add BTC balance
+        webTestClient.post()
+                .uri("/v1/wallets/" + userId + "/balances")
+                .bodyValue(new CreateBalanceInput("BTC"))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Place buy order
+        BuyOrderInput buyOrderInput = new BuyOrderInput("BTC-EUR", new BigDecimal("1000"), "client-ref-1");
+
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/orders/buy")
+                .bodyValue(buyOrderInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(OrderOutput.class)
+                .value(orderOutput -> {
+                    assertThat(orderOutput).isNotNull();
+                    assertThat(orderOutput.orderId()).isNotNull();
+                });
     }
 
     public static class Initializer

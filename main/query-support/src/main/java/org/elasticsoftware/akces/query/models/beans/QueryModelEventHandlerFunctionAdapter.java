@@ -27,6 +27,8 @@ import org.elasticsoftware.akces.query.QueryModelState;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
+import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
+
 public class QueryModelEventHandlerFunctionAdapter<S extends QueryModelState, E extends DomainEvent>
         implements QueryModelEventHandlerFunction<S, E> {
     private final QueryModel<S> queryModel;
@@ -55,7 +57,8 @@ public class QueryModelEventHandlerFunctionAdapter<S extends QueryModelState, E 
                 domainEventClass,
                 create,
                 true,
-                false);
+                false,
+                hasPIIDataAnnotation(domainEventClass));
     }
 
     @SuppressWarnings("unused")

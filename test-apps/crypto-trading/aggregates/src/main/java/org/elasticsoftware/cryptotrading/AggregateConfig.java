@@ -27,6 +27,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 @Configuration
 @ComponentScan(basePackages = {
         "org.elasticsoftware.cryptotrading.aggregates",
+        "org.elasticsoftware.cryptotrading.services",
 })
 public class AggregateConfig {
     @Bean("coinbaseWebClient")

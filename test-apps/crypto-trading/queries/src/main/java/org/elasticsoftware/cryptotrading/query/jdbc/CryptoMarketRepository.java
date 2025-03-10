@@ -15,11 +15,11 @@
  *
  */
 
-package org.elasticsoftware.cryptotrading.aggregates.orders;
+package org.elasticsoftware.cryptotrading.query.jdbc;
 
-public record CryptoMarket(String id, String baseCrypto, String quoteCrypto) {
-    public static CryptoMarket fromId(String id) {
-        String[] split = id.split("-");
-        return new CryptoMarket(id, split[0], split[1]);
-    }
+import org.springframework.data.repository.ListCrudRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface CryptoMarketRepository extends ListCrudRepository<CryptoMarket,String> {
 }

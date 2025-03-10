@@ -68,6 +68,7 @@ import java.util.stream.IntStream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsoftware.akces.AkcesControllerState.*;
+import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
 import static org.elasticsoftware.akces.kafka.PartitionUtils.*;
 import static org.elasticsoftware.akces.util.KafkaUtils.createCompactedTopic;
 import static org.elasticsoftware.akces.util.KafkaUtils.getIndexTopicName;
@@ -512,7 +513,12 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                     // this is a local command (will be sent to self)
                     return aggregateRuntime.getLocalCommandType(commandInfo.type(), commandInfo.version());
                 } else {
-                    return new CommandType<>(commandInfo.type(), commandInfo.version(), commandClass, false, true);
+                    return new CommandType<>(commandInfo.type(),
+                            commandInfo.version(),
+                            commandClass,
+                            false,
+                            true,
+                            hasPIIDataAnnotation(commandClass));
                 }
             } else {
                 // TODO: throw exception, we cannot determine where to send the command

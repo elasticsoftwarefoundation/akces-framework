@@ -18,9 +18,9 @@
 package org.elasticsoftware.cryptotrading;
 
 import jakarta.inject.Inject;
-import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.CoinbaseService;
-import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.Product;
-import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.Ticker;
+import org.elasticsoftware.cryptotrading.services.coinbase.CoinbaseService;
+import org.elasticsoftware.cryptotrading.services.coinbase.Product;
+import org.elasticsoftware.cryptotrading.services.coinbase.Ticker;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 

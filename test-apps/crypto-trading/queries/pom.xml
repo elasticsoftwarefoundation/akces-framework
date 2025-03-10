@@ -24,7 +24,7 @@
         <version>0.8.1-SNAPSHOT</version>
     </parent>
     <artifactId>akces-crypto-trading-queries</artifactId>
-    <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Query Service</name>
+    <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Query Services</name>
     <description>Crypto Trading Akces Test Application</description>
     <properties>
     </properties>
@@ -43,7 +43,19 @@
         <dependency>
             <groupId>org.elasticsoftwarefoundation.akces</groupId>
             <artifactId>akces-crypto-trading-aggregates</artifactId>
+            <classifier>commands</classifier>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsoftwarefoundation.akces</groupId>
+            <artifactId>akces-crypto-trading-aggregates</artifactId>
             <classifier>events</classifier>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsoftwarefoundation.akces</groupId>
+            <artifactId>akces-crypto-trading-aggregates</artifactId>
+            <classifier>services</classifier>
             <version>${project.version}</version>
         </dependency>
 
@@ -77,19 +89,32 @@
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-autoconfigure</artifactId>
+            <artifactId>spring-boot-starter-data-jdbc</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.liquibase</groupId>
+            <artifactId>liquibase-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.elasticsoftwarefoundation.akces</groupId>
             <artifactId>akces-client</artifactId>
-            <scope>test</scope>
         </dependency>
+
         <dependency>
             <groupId>org.elasticsoftwarefoundation.akces</groupId>
             <artifactId>akces-crypto-trading-commands</artifactId>
@@ -101,6 +126,16 @@
             <artifactId>akces-crypto-trading-aggregates</artifactId>
             <scope>test</scope>
             <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>kafka</artifactId>
+            <scope>test</scope>
         </dependency>
 
     </dependencies>
