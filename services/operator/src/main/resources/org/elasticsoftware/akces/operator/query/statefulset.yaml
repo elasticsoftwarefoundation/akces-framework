@@ -28,7 +28,7 @@ spec:
             - name: SPRING_APPLICATION_NAME
               value: "Akces Query Service"
             - name: SPRING_CONFIG_LOCATION
-              value: "file:/config/*.properties"
+              value: "file:/config/*/"
             - name: LOGGING_CONFIG
               value: "file:/config/logback.xml"
             - name: BPL_JVM_THREAD_COUNT
