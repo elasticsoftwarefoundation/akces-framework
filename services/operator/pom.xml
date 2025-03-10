@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-services</artifactId>
-        <version>0.8.7</version>
+        <version>0.8.8-SNAPSHOT</version>
     </parent>
     <artifactId>akces-operator</artifactId>
     <name>Elastic Software Foundation :: Akces :: Services :: Akces Operator</name>
