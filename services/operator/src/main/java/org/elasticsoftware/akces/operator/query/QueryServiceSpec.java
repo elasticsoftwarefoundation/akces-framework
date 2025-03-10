@@ -17,8 +17,10 @@
 
 package org.elasticsoftware.akces.operator.query;
 
+import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.ResourceRequirements;
 
+import java.util.Collections;
 import java.util.List;
 
 public class QueryServiceSpec {
@@ -27,6 +29,8 @@ public class QueryServiceSpec {
     private List<String> args;
     private ResourceRequirements resources;
     private String applicationName;
+    private List<EnvVar> env;
+    private String applicationProperties;
 
     public Integer getReplicas() {
         return replicas;
@@ -45,7 +49,7 @@ public class QueryServiceSpec {
     }
 
     public List<String> getArgs() {
-        return args;
+        return args != null ? args : Collections.emptyList();
     }
 
     public void setArgs(List<String> args) {
@@ -66,5 +70,21 @@ public class QueryServiceSpec {
 
     public void setApplicationName(String applicationName) {
         this.applicationName = applicationName;
+    }
+
+    public List<EnvVar> getEnv() {
+        return env != null ? env : Collections.emptyList();
+    }
+
+    public void setEnv(List<EnvVar> env) {
+        this.env = env;
+    }
+
+    public String getApplicationProperties() {
+        return applicationProperties;
+    }
+
+    public void setApplicationProperties(String applicationProperties) {
+        this.applicationProperties = applicationProperties;
     }
 }

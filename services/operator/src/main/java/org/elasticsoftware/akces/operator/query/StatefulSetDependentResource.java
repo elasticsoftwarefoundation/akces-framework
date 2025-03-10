@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces.operator.query;
 
+import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.LocalObjectReference;
 import io.fabric8.kubernetes.api.model.ObjectMeta;
 import io.fabric8.kubernetes.api.model.Quantity;
@@ -66,6 +67,7 @@ public class StatefulSetDependentResource extends CRUDKubernetesDependentResourc
                 .editFirstEnv()
                 .withValue(queryService.getSpec().getApplicationName())
                 .endEnv()
+                .addToEnv(queryService.getSpec().getEnv().toArray(new EnvVar[0]))
                 .withResources(queryService.getSpec().getResources())
                 .endContainer()
                 .editFirstVolume()

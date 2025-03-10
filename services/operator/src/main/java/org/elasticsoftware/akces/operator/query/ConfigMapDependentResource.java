@@ -26,6 +26,9 @@ import io.javaoperatorsdk.operator.api.reconciler.Context;
 import io.javaoperatorsdk.operator.processing.dependent.kubernetes.CRUDKubernetesDependentResource;
 import io.javaoperatorsdk.operator.processing.dependent.kubernetes.KubernetesDependent;
 
+import java.util.Collections;
+import java.util.Map;
+
 @KubernetesDependent(informer = @Informer(
         labelSelector = "app.kubernetes.io/managed-by=akces-operator"))
 public class ConfigMapDependentResource extends CRUDKubernetesDependentResource<ConfigMap, QueryService> {
@@ -38,6 +41,7 @@ public class ConfigMapDependentResource extends CRUDKubernetesDependentResource<
     protected ConfigMap desired(QueryService queryService, Context<QueryService> context) {
         final ObjectMeta queryServiceMetadata = queryService.getMetadata();
         final String queryServiceName = queryServiceMetadata.getName();
+        final QueryServiceSpec spec = queryService.getSpec();
         return new ConfigMapBuilder(ReconcilerUtils.loadYaml(ConfigMap.class, getClass(), "configmap.yaml"))
                 .editMetadata()
                 .withName(queryServiceName + "-config")
@@ -45,6 +49,9 @@ public class ConfigMapDependentResource extends CRUDKubernetesDependentResource<
                 .addToLabels("app.kubernetes.io/part-of", queryServiceName)
                 .addToLabels("app.kubernetes.io/managed-by", "akces-operator")
                 .endMetadata()
+                .addToData(spec.getApplicationProperties() != null ?
+                        Map.of("application.properties", spec.getApplicationProperties()) :
+                        Collections.emptyMap())
                 .build();
     }
 }

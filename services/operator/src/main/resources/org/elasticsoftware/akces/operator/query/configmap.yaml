@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: ""
 data:
-  application.properties: |
+  application-default.properties: |
     # Spring application properties
     spring.application.name=${SPRING_APPLICATION_NAME}
     spring.kafka.enabled=true
