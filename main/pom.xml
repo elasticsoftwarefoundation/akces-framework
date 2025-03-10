@@ -31,7 +31,7 @@
     <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
 
     <properties>
-        <protobuf.version>4.29.3</protobuf.version>
+        <protobuf.version>4.30.0</protobuf.version>
         <log4j.version>2.24.3</log4j.version>
         <jackson.version>2.18.3</jackson.version>
         <slf4j.version>2.0.17</slf4j.version>
@@ -46,14 +46,14 @@
         <awaitility.version>4.3.0</awaitility.version>
         <persistence-api.version>2.2</persistence-api.version>
         <plexus-utils.version>4.0.2</plexus-utils.version>
-        <netty.version>4.1.118.Final</netty.version>
+        <netty.version>4.1.119.Final</netty.version>
         <micrometer.version>1.14.4</micrometer.version>
         <fast-uuid.version>0.2.0</fast-uuid.version>
         <confluent.version>7.9.0</confluent.version>
         <victools.version>4.37.0</victools.version>
         <joda-time.version>2.13.1</joda-time.version>
-        <logback.version>1.5.16</logback.version>
-        <testcontainers.version>1.20.5</testcontainers.version>
+        <logback.version>1.5.17</logback.version>
+        <testcontainers.version>1.20.6</testcontainers.version>
     </properties>
 
     <scm>
