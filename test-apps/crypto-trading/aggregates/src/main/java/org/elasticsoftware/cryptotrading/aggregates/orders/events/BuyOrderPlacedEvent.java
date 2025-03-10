@@ -31,10 +31,10 @@ public record BuyOrderPlacedEvent(
         @NotNull String orderId,
         @NotNull CryptoMarket market,
         @NotNull BigDecimal amount,
-        BigDecimal limitPrice
+        @NotNull String clientReference
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {
-        return orderId();
+        return userId();
     }
 }
