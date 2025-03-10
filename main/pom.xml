@@ -31,7 +31,7 @@
     <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
 
     <properties>
-        <protobuf.version>4.29.3</protobuf.version>
+        <protobuf.version>4.30.0</protobuf.version>
         <log4j.version>2.24.3</log4j.version>
         <jackson.version>2.18.3</jackson.version>
         <slf4j.version>2.0.17</slf4j.version>
