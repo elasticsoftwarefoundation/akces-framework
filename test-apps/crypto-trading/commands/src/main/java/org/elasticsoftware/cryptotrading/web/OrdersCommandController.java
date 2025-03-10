@@ -47,7 +47,7 @@ public class OrdersCommandController {
                     OrderOutput output = new OrderOutput(
                             event.orderId(),
                             event.market(),
-                            null, // Size is not available at order creation time
+                            null,
                             event.amount(),
                             event.clientReference()
                     );
