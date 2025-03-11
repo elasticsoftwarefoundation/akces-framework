@@ -42,6 +42,11 @@
 
         <dependency>
             <groupId>org.elasticsoftwarefoundation.akces</groupId>
+            <artifactId>akces-client</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.elasticsoftwarefoundation.akces</groupId>
             <artifactId>akces-crypto-trading-aggregates</artifactId>
             <classifier>commands</classifier>
             <version>${project.version}</version>
@@ -109,10 +114,6 @@
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.elasticsoftwarefoundation.akces</groupId>
-            <artifactId>akces-client</artifactId>
         </dependency>
 
         <dependency>

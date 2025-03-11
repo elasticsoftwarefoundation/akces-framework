@@ -20,6 +20,7 @@ package org.elasticsoftware.cryptotrading;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.PropertySource;
 import org.springframework.data.jdbc.repository.config.EnableJdbcRepositories;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -32,6 +33,7 @@ import org.springframework.web.reactive.function.client.WebClient;
         "org.elasticsoftware.cryptotrading.services"
 })
 @EnableJdbcRepositories(basePackages = {"org.elasticsoftware.cryptotrading.query.jdbc"})
+@PropertySource("classpath:akces-framework.properties")
 public class ClientConfig {
     @Bean("coinbaseWebClient")
     public WebClient coinbaseWebClient() {
