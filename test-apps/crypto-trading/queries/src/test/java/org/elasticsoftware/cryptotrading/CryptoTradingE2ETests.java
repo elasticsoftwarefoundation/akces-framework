@@ -116,4 +116,21 @@ public class CryptoTradingE2ETests {
 
 
     }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "AKCES_CRYPTO_TRADING_BASE_URL", matches = ".*")
+    public void testBtcEurMarket() {
+        // Test retrieving the BTC-EUR market
+        e2eTestClient.get()
+                .uri("/v1/markets/BTC-EUR")
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody()
+                .jsonPath("$.id").isEqualTo("BTC-EUR")
+                .jsonPath("$.baseCrypto").isEqualTo("BTC")
+                .jsonPath("$.quoteCrypto").isEqualTo("EUR")
+                .jsonPath("$.baseIncrement").exists()
+                .jsonPath("$.quoteIncrement").exists()
+                .jsonPath("$.defaultCounterPartyId").exists();
+    }
 }
