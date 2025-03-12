@@ -20,10 +20,15 @@ package org.elasticsoftware.cryptotrading.services;
 import jakarta.annotation.PostConstruct;
 import org.elasticsoftware.akces.client.AkcesClient;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.CreateCryptoMarketCommand;
+import org.elasticsoftware.cryptotrading.query.jdbc.CryptoMarket;
 import org.elasticsoftware.cryptotrading.query.jdbc.CryptoMarketRepository;
 import org.elasticsoftware.cryptotrading.services.coinbase.CoinbaseService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
 
 @Service
 public class CryptoMarketsService {
@@ -53,5 +58,15 @@ public class CryptoMarketsService {
                         product.baseIncrement(),
                         product.quoteIncrement(),
                         counterPartyId)));
+    }
+
+    @Transactional(readOnly = true)
+    public List<CryptoMarket> getAllMarkets() {
+        return cryptoMarketRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<CryptoMarket> getMarketById(String id) {
+        return cryptoMarketRepository.findById(id);
     }
 }

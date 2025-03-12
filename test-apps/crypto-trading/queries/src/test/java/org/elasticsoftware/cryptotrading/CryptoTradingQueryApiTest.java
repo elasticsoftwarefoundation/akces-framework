@@ -30,6 +30,7 @@ import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletCredited
 import org.elasticsoftware.cryptotrading.query.jdbc.CryptoMarketRepository;
 import org.elasticsoftware.cryptotrading.web.AccountCommandController;
 import org.elasticsoftware.cryptotrading.web.AccountQueryController;
+import org.elasticsoftware.cryptotrading.web.CryptoMarketsQueryController;
 import org.elasticsoftware.cryptotrading.web.WalletCommandController;
 import org.elasticsoftware.cryptotrading.web.dto.*;
 import org.elasticsoftware.cryptotrading.web.errors.ErrorEventResponse;
@@ -141,6 +142,8 @@ public class CryptoTradingQueryApiTest {
     private WebTestClient webTestClient;
     @Inject
     private CryptoMarketRepository cryptoMarketRepository;
+    @Inject
+    private CryptoMarketsQueryController cryptoMarketsQueryController;
 
     @AfterAll
     @BeforeAll
@@ -165,6 +168,7 @@ public class CryptoTradingQueryApiTest {
         assertThat(accountWebController).isNotNull();
         assertThat(walletWebController).isNotNull();
         assertThat(accountQueryController).isNotNull();
+        assertThat(cryptoMarketsQueryController).isNotNull();
 
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
@@ -391,6 +395,32 @@ public class CryptoTradingQueryApiTest {
         }
 
         assertNotNull(cryptoMarketRepository.findById("BTC-EUR").orElse(null));
+    }
+
+    @Test
+    void testCryptoMarket() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        // Wait until crypto markets are available in the database
+        while(cryptoMarketRepository.count() == 0) {
+            Thread.onSpinWait();
+        }
+
+        // Test retrieving a specific market by ID
+        webTestClient.get()
+                .uri("/v1/markets/BTC-EUR")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.id").isEqualTo("BTC-EUR")
+                .jsonPath("$.baseCrypto").isEqualTo("BTC")
+                .jsonPath("$.quoteCrypto").isEqualTo("EUR");
     }
 
     @Test

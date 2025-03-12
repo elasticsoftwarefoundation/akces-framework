@@ -39,7 +39,7 @@ public class CryptoMarketModel extends JdbcDatabaseModel {
 
     @DatabaseModelEventHandler
     public void handle(CryptoMarketCreatedEvent event) {
-        cryptoMarketRepository.save(new CryptoMarket(
+        cryptoMarketRepository.save(CryptoMarket.createNew(
                 event.id(),
                 event.baseCrypto(),
                 event.quoteCrypto(),

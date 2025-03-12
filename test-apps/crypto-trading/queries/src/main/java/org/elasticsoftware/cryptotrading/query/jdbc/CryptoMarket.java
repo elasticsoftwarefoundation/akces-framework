@@ -19,6 +19,7 @@ package org.elasticsoftware.cryptotrading.query.jdbc;
 
 import jakarta.validation.constraints.NotNull;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.PersistenceCreator;
 import org.springframework.data.annotation.Transient;
 import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Table;
@@ -29,16 +30,41 @@ public record CryptoMarket(@Id @NotNull String id,
                            @NotNull String quoteCrypto,
                            @NotNull String baseIncrement,
                            @NotNull String quoteIncrement,
-                           @NotNull String defaultCounterPartyId) implements Persistable<String> {
+                           @NotNull String defaultCounterPartyId,
+                           @Transient boolean createNew) implements Persistable<String> {
+
+    @PersistenceCreator
+    public CryptoMarket(@NotNull String id,
+                      @NotNull String baseCrypto,
+                      @NotNull String quoteCrypto,
+                      @NotNull String baseIncrement,
+                      @NotNull String quoteIncrement,
+                      @NotNull String defaultCounterPartyId) {
+        this(id, baseCrypto, quoteCrypto, baseIncrement, quoteIncrement, defaultCounterPartyId, false);
+    }
+
+    public static CryptoMarket createNew(@NotNull String id,
+                                     @NotNull String baseCrypto,
+                                     @NotNull String quoteCrypto,
+                                     @NotNull String baseIncrement,
+                                     @NotNull String quoteIncrement,
+                                     @NotNull String defaultCounterPartyId) {
+        return new CryptoMarket(id, baseCrypto, quoteCrypto, baseIncrement, quoteIncrement, defaultCounterPartyId, true);
+    }
+
     @Override
     public String getId() {
         return id();
     }
 
     @Transient
+    public boolean createNew() {
+        return createNew;
+    }
+
+    @Transient
     @Override
     public boolean isNew() {
-        // TODO: this will only hold true on creation, but we don't have a way to know if the entity is new or not
-        return true;
+        return createNew;
     }
 }
