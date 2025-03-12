@@ -15,7 +15,7 @@
  *
  */
 
-package org.elasticsoftware.cryptotrading.aggregates.cryptomarket;
+package org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events;
 
 public enum Side {
     BUY, SELL

@@ -258,7 +258,8 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
                                Consumer<ProtocolRecord> protocolRecordConsumer,
                                BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer,
                                Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
-
+        // it is possible to receive a command that doesn't have PIIData. However it could be that the state
+        // does have PIIData. in that case we need to load the proper
         Command command = materialize(commandType, commandRecord);
         AggregateStateRecord currentStateRecord = stateRecordSupplier.get();
         AggregateState currentState = materialize(currentStateRecord);
@@ -499,12 +500,18 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
 
     @Override
     public boolean requiresGDPRContext(DomainEventRecord eventRecord) {
-        return Optional.ofNullable(getDomainEventType(eventRecord)).map(DomainEventType::piiData).orElse(false);
+        // @TODO this will give issues with an EventBridgeHandler that has PIIData on the input event an PIIData on the outgoing command
+        DomainEventType<?> domainEventType = getDomainEventType(eventRecord);
+        if(domainEventType == null) {
+            return false;
+        } else {
+            return domainEventType.piiData() || (!eventBridgeHandlers.containsKey(domainEventType) && type.piiData());
+        }
     }
 
     @Override
     public boolean requiresGDPRContext(CommandRecord commandRecord) {
-        return getCommandType(commandRecord).piiData();
+        return this.type.piiData() || getCommandType(commandRecord).piiData();
     }
 
     @Override

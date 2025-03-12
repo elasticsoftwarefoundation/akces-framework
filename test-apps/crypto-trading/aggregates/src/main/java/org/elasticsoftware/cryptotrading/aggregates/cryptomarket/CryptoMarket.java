@@ -25,10 +25,7 @@ import org.elasticsoftware.akces.annotations.EventSourcingHandler;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.CreateCryptoMarketCommand;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.PlaceMarketOrderCommand;
-import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.CryptoMarketCreatedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderFilledEvent;
-import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderPlacedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderRejectedErrorEvent;
+import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.*;
 import org.elasticsoftware.cryptotrading.services.coinbase.CoinbaseService;
 import org.elasticsoftware.cryptotrading.services.coinbase.Ticker;
 
