@@ -116,6 +116,7 @@
                             <classifier>commands</classifier>
                             <includes>
                                 <include>**/commands/*</include>
+                                <include>**/data/*</include>
                             </includes>
                         </configuration>
                     </execution>
@@ -129,6 +130,7 @@
                             <classifier>events</classifier>
                             <includes>
                                 <include>**/events/*</include>
+                                <include>**/data/*</include>
                             </includes>
                         </configuration>
                     </execution>

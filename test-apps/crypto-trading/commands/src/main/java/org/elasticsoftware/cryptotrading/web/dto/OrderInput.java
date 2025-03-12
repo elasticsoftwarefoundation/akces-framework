@@ -18,7 +18,7 @@
 package org.elasticsoftware.cryptotrading.web.dto;
 
 import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.cryptotrading.aggregates.orders.CryptoMarket;
+import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
 
 import java.math.BigDecimal;
 

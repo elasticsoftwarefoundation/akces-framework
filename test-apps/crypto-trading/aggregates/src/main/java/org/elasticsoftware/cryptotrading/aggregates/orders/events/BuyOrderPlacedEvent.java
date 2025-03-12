@@ -21,7 +21,7 @@ import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
-import org.elasticsoftware.cryptotrading.aggregates.orders.CryptoMarket;
+import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
 
 import java.math.BigDecimal;
 

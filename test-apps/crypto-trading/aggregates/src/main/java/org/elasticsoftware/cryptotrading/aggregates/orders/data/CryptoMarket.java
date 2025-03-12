@@ -15,7 +15,7 @@
  *
  */
 
-package org.elasticsoftware.cryptotrading.aggregates.orders;
+package org.elasticsoftware.cryptotrading.aggregates.orders.data;
 
 public record CryptoMarket(String id, String baseCrypto, String quoteCrypto) {
     public static CryptoMarket fromId(String id) {

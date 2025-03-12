@@ -20,6 +20,7 @@ package org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events;
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.data.Side;
 
 import java.math.BigDecimal;
 

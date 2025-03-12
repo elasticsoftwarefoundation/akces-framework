@@ -22,7 +22,7 @@ import org.elasticsoftware.akces.annotations.*;
 import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.cryptotrading.aggregates.account.events.AccountCreatedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.Side;
+import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.data.Side;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.PlaceMarketOrderCommand;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderFilledEvent;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderRejectedErrorEvent;

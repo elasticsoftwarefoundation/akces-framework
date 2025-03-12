@@ -32,7 +32,7 @@ import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.cryptotrading.aggregates.account.commands.CreateAccountCommand;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.CreateCryptoMarketCommand;
-import org.elasticsoftware.cryptotrading.aggregates.orders.CryptoMarket;
+import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
 import org.elasticsoftware.cryptotrading.aggregates.orders.commands.PlaceBuyOrderCommand;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreateBalanceCommand;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreditWalletCommand;
