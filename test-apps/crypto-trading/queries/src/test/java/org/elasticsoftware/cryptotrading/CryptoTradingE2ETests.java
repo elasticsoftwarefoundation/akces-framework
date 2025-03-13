@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.cryptotrading;
 
+import org.elasticsoftware.cryptotrading.query.WalletQueryModelState;
 import org.elasticsoftware.cryptotrading.web.dto.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -98,7 +99,7 @@ public class CryptoTradingE2ETests {
                     assertThat(balanceOutput.amount()).isEqualTo(BigDecimal.ZERO);
                 });
 
-        // create the EUR wallet with a balance of 1000
+        // credit the EUR wallet with a balance of 1000
         e2eTestClient.post()
                 .uri("/v1/wallets/{userId}/balances/EUR/credit", userId)
                 .bodyValue(new CreditWalletInput(new BigDecimal("1000.00")))
@@ -113,8 +114,51 @@ public class CryptoTradingE2ETests {
                 });
 
         // buy for 1000 EUR worth of ETH
+        e2eTestClient.post()
+                .uri("/v1/accounts/{userId}/orders/buy", userId)
+                .bodyValue(new BuyOrderInput("ETH-EUR", new BigDecimal("1000.00"), "buy-eth-eur"))
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(OrderOutput.class)
+                .value(orderOutput -> {
+                    assertThat(orderOutput).isNotNull();
+                    assertThat(orderOutput.orderId()).isNotNull();
+                    assertThat(orderOutput.market()).isNotNull();
+                    assertThat(orderOutput.market().id()).isEqualTo("ETH-EUR");
+                    assertThat(orderOutput.amount()).isEqualTo(new BigDecimal("1000.00"));
+                    assertThat(orderOutput.clientReference()).isEqualTo("buy-eth-eur");
+                });
 
+        // We need to wait for the order to be filled
+        // TODO: we need to check the order API for the status of the order
+        try {
+            Thread.sleep(10000);
+        } catch (InterruptedException e) {
+            // ignore
+        }
 
+        // test the wallet balances
+        e2eTestClient.get()
+                        .uri("/v1/wallets/{userId}", userId)
+                        .exchange()
+                        .expectStatus().is2xxSuccessful()
+                        .expectBody(WalletQueryModelState.class)
+                        .value(wallet -> {
+                            assertThat(wallet).isNotNull();
+                            assertThat(wallet.balances()).hasSize(2);
+
+                            // Find and verify EUR balance (should be 0 after buying ETH)
+                            var eurBalance = wallet.balances().stream()
+                                    .filter(b -> "EUR".equals(b.currency()))
+                                    .findFirst().orElseThrow();
+                            assertThat(eurBalance.amount()).isEqualTo(new BigDecimal("0.00"));
+
+                            // Find and verify ETH balance (should be 10.00 after buying)
+                            var ethBalance = wallet.balances().stream()
+                                    .filter(b -> "ETH".equals(b.currency()))
+                                    .findFirst().orElseThrow();
+                            assertThat(ethBalance.amount()).isNotEqualTo(BigDecimal.ZERO);
+                        });
     }
 
     @Test

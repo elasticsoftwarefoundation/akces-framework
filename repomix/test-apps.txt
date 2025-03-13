@@ -70,6 +70,8 @@ test-apps/
                       commands/
                         CreateCryptoMarketCommand.java
                         PlaceMarketOrderCommand.java
+                      data/
+                        Side.java
                       events/
                         CryptoMarketCreatedEvent.java
                         MarketOrderFilledEvent.java
@@ -77,12 +79,13 @@ test-apps/
                         MarketOrderRejectedErrorEvent.java
                       CryptoMarket.java
                       CryptoMarketState.java
-                      Side.java
                     orders/
                       commands/
                         FillBuyOrderCommand.java
                         PlaceBuyOrderCommand.java
                         RejectOrderCommand.java
+                      data/
+                        CryptoMarket.java
                       events/
                         BuyOrderCreatedEvent.java
                         BuyOrderFilledEvent.java
@@ -90,7 +93,6 @@ test-apps/
                         BuyOrderRejectedEvent.java
                         UserOrderProcessesCreatedEvent.java
                       BuyOrderProcess.java
-                      CryptoMarket.java
                       OrderProcess.java
                       OrderProcessManager.java
                       OrderProcessManagerState.java
@@ -192,12 +194,14 @@ test-apps/
                     CryptoMarketsService.java
                   web/
                     AccountQueryController.java
+                    CryptoMarketsQueryController.java
                     WalletQueryController.java
                   ClientConfig.java
           resources/
             db/
               changelog/
                 db.changelog-master.xml
+            akces-framework.properties
             application.properties
         test/
           java/
@@ -275,6 +279,11 @@ BigDecimal size) implements Command {
 ⋮----
 public String getAggregateId() {
 return marketId();
+
+================
+File: test-apps/crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/cryptomarket/data/Side.java
+================
+
 
 ================
 File: test-apps/crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/cryptomarket/events/CryptoMarketCreatedEvent.java
@@ -374,11 +383,6 @@ public String getAggregateId() {
 return id();
 
 ================
-File: test-apps/crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/cryptomarket/Side.java
-================
-
-
-================
 File: test-apps/crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/orders/commands/FillBuyOrderCommand.java
 ================
 ) implements Command {
@@ -401,6 +405,13 @@ File: test-apps/crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryp
 ⋮----
 public String getAggregateId() {
 return userId();
+
+================
+File: test-apps/crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/orders/data/CryptoMarket.java
+================
+public static CryptoMarket fromId(String id) {
+String[] split = id.split("-");
+return new CryptoMarket(id, split[0], split[1]);
 
 ================
 File: test-apps/crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/orders/events/BuyOrderCreatedEvent.java
@@ -460,13 +471,6 @@ return new BuyOrderRejectedEvent(command.userId(), orderId(), clientReference())
 ⋮----
 public OrderProcess withState(OrderProcessState state) {
 return new BuyOrderProcess(orderId(), market, size(), amount(), clientReference(), state);
-
-================
-File: test-apps/crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/orders/CryptoMarket.java
-================
-public static CryptoMarket fromId(String id) {
-String[] split = id.split("-");
-return new CryptoMarket(id, split[0], split[1]);
 
 ================
 File: test-apps/crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/orders/OrderProcess.java
@@ -1206,7 +1210,7 @@ File: test-apps/crypto-trading/aggregates/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-crypto-trading-parent</artifactId>
-        <version>0.8.1-SNAPSHOT</version>
+        <version>0.8.13-SNAPSHOT</version>
     </parent>
     <artifactId>akces-crypto-trading-aggregates</artifactId>
     <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Aggregates</name>
@@ -1301,6 +1305,7 @@ File: test-apps/crypto-trading/aggregates/pom.xml
                             <classifier>commands</classifier>
                             <includes>
                                 <include>**/commands/*</include>
+                                <include>**/data/*</include>
                             </includes>
                         </configuration>
                     </execution>
@@ -1314,6 +1319,7 @@ File: test-apps/crypto-trading/aggregates/pom.xml
                             <classifier>events</classifier>
                             <includes>
                                 <include>**/events/*</include>
+                                <include>**/data/*</include>
                             </includes>
                         </configuration>
                     </execution>
@@ -1827,7 +1833,7 @@ File: test-apps/crypto-trading/commands/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-crypto-trading-parent</artifactId>
-        <version>0.8.1-SNAPSHOT</version>
+        <version>0.8.13-SNAPSHOT</version>
     </parent>
     <artifactId>akces-crypto-trading-commands</artifactId>
     <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Command Services</name>
@@ -1941,8 +1947,14 @@ File: test-apps/crypto-trading/commands/pom.xml
 ================
 File: test-apps/crypto-trading/queries/src/main/java/org/elasticsoftware/cryptotrading/query/jdbc/CryptoMarket.java
 ================
+public static CryptoMarket createNew(@NotNull String id,
+⋮----
+return new CryptoMarket(id, baseCrypto, quoteCrypto, baseIncrement, quoteIncrement, defaultCounterPartyId, true);
+⋮----
 public String getId() {
 return id();
+⋮----
+public boolean createNew() {
 ⋮----
 public boolean isNew() {
 
@@ -1984,7 +1996,7 @@ File: test-apps/crypto-trading/queries/src/main/java/org/elasticsoftware/cryptot
 public class CryptoMarketModel extends JdbcDatabaseModel {
 ⋮----
 public void handle(CryptoMarketCreatedEvent event) {
-cryptoMarketRepository.save(new CryptoMarket(
+cryptoMarketRepository.save(CryptoMarket.createNew(
 event.id(),
 event.baseCrypto(),
 event.quoteCrypto(),
@@ -2049,6 +2061,12 @@ product.baseCurrency(),
 product.quoteCurrency(),
 product.baseIncrement(),
 product.quoteIncrement(),
+⋮----
+public List<CryptoMarket> getAllMarkets() {
+return cryptoMarketRepository.findAll();
+⋮----
+public Optional<CryptoMarket> getMarketById(String id) {
+return cryptoMarketRepository.findById(id);
 
 ================
 File: test-apps/crypto-trading/queries/src/main/java/org/elasticsoftware/cryptotrading/web/AccountQueryController.java
@@ -2066,6 +2084,19 @@ state.email()))).onErrorResume(throwable -> {
 return Mono.just(ResponseEntity.notFound().build());
 ⋮----
 return Mono.just(ResponseEntity.internalServerError().build());
+
+================
+File: test-apps/crypto-trading/queries/src/main/java/org/elasticsoftware/cryptotrading/web/CryptoMarketsQueryController.java
+================
+public class CryptoMarketsQueryController {
+⋮----
+public Flux<CryptoMarket> getAllMarkets() {
+return Flux.fromIterable(cryptoMarketsService.getAllMarkets());
+⋮----
+public Mono<ResponseEntity<CryptoMarket>> getMarketById(@PathVariable String marketId) {
+return Mono.justOrEmpty(cryptoMarketsService.getMarketById(marketId))
+.map(ResponseEntity::ok)
+.defaultIfEmpty(ResponseEntity.notFound().build());
 
 ================
 File: test-apps/crypto-trading/queries/src/main/java/org/elasticsoftware/cryptotrading/web/WalletQueryController.java
@@ -2160,6 +2191,28 @@ File: test-apps/crypto-trading/queries/src/main/resources/db/changelog/db.change
 </databaseChangeLog>
 
 ================
+File: test-apps/crypto-trading/queries/src/main/resources/akces-framework.properties
+================
+#
+# Copyright 2022 - 2025 The Original Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#           http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+#
+#
+
+akces.client.domainEventsPackage=org.elasticsoftware.cryptotrading.aggregates
+
+================
 File: test-apps/crypto-trading/queries/src/main/resources/application.properties
 ================
 #
@@ -2180,6 +2233,7 @@ File: test-apps/crypto-trading/queries/src/main/resources/application.properties
 #
 spring.application.name=Akces Crypto Trading
 spring.kafka.bootstrap-servers=akces-kafka-bootstrap.kafka:9092
+spring.datasource.url=jdbc:postgresql://akces-postgresql:5432/akces
 management.endpoint.health.probes.enabled=true
 management.health.livenessState.enabled=true
 management.health.readinessState.enabled=true
@@ -2246,6 +2300,49 @@ assertThat(balanceOutput.amount()).isEqualTo(BigDecimal.ZERO);
 assertThat(balanceOutput.currency()).isEqualTo("EUR");
 assertThat(balanceOutput.amount()).isEqualTo(new BigDecimal("1000.00"));
 assertThat(balanceOutput.balance()).isEqualTo(new BigDecimal("1000.00"));
+⋮----
+.uri("/v1/accounts/{userId}/orders/buy", userId)
+.bodyValue(new BuyOrderInput("ETH-EUR", new BigDecimal("1000.00"), "buy-eth-eur"))
+⋮----
+.expectBody(OrderOutput.class)
+.value(orderOutput -> {
+assertThat(orderOutput).isNotNull();
+assertThat(orderOutput.orderId()).isNotNull();
+assertThat(orderOutput.market()).isNotNull();
+assertThat(orderOutput.market().id()).isEqualTo("ETH-EUR");
+assertThat(orderOutput.amount()).isEqualTo(new BigDecimal("1000.00"));
+assertThat(orderOutput.clientReference()).isEqualTo("buy-eth-eur");
+⋮----
+Thread.sleep(10000);
+⋮----
+.uri("/v1/wallets/{userId}", userId)
+⋮----
+.expectBody(WalletQueryModelState.class)
+.value(wallet -> {
+assertThat(wallet).isNotNull();
+assertThat(wallet.balances()).hasSize(2);
+⋮----
+var eurBalance = wallet.balances().stream()
+.filter(b -> "EUR".equals(b.currency()))
+.findFirst().orElseThrow();
+assertThat(eurBalance.amount()).isEqualTo(new BigDecimal("0.00"));
+⋮----
+var ethBalance = wallet.balances().stream()
+.filter(b -> "ETH".equals(b.currency()))
+⋮----
+assertThat(ethBalance.amount()).isNotEqualTo(BigDecimal.ZERO);
+⋮----
+public void testBtcEurMarket() {
+⋮----
+.uri("/v1/markets/BTC-EUR")
+⋮----
+.expectBody()
+.jsonPath("$.id").isEqualTo("BTC-EUR")
+.jsonPath("$.baseCrypto").isEqualTo("BTC")
+.jsonPath("$.quoteCrypto").isEqualTo("EUR")
+.jsonPath("$.baseIncrement").exists()
+.jsonPath("$.quoteIncrement").exists()
+.jsonPath("$.defaultCounterPartyId").exists();
 
 ================
 File: test-apps/crypto-trading/queries/src/test/java/org/elasticsoftware/cryptotrading/CryptoTradingQueryApiTest.java
@@ -2292,6 +2389,7 @@ assertThat(cryptoMarketController).isNotNull();
 assertThat(accountWebController).isNotNull();
 assertThat(walletWebController).isNotNull();
 assertThat(accountQueryController).isNotNull();
+assertThat(cryptoMarketsQueryController).isNotNull();
 ⋮----
 while (!walletController.isRunning() ||
 !accountController.isRunning() ||
@@ -2386,6 +2484,15 @@ void testCryptoMarkets() {
 while(cryptoMarketRepository.count() == 0) {
 ⋮----
 assertNotNull(cryptoMarketRepository.findById("BTC-EUR").orElse(null));
+⋮----
+void testCryptoMarket() {
+⋮----
+.uri("/v1/markets/BTC-EUR")
+⋮----
+.expectBody()
+.jsonPath("$.id").isEqualTo("BTC-EUR")
+.jsonPath("$.baseCrypto").isEqualTo("BTC")
+.jsonPath("$.quoteCrypto").isEqualTo("EUR");
 ⋮----
 void testPlaceBuyOrder() {
 ⋮----
@@ -2636,7 +2743,7 @@ File: test-apps/crypto-trading/queries/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-crypto-trading-parent</artifactId>
-        <version>0.8.1-SNAPSHOT</version>
+        <version>0.8.13-SNAPSHOT</version>
     </parent>
     <artifactId>akces-crypto-trading-queries</artifactId>
     <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Query Services</name>
@@ -2653,6 +2760,11 @@ File: test-apps/crypto-trading/queries/pom.xml
         <dependency>
             <groupId>org.elasticsoftwarefoundation.akces</groupId>
             <artifactId>akces-query-support</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.elasticsoftwarefoundation.akces</groupId>
+            <artifactId>akces-client</artifactId>
         </dependency>
 
         <dependency>
@@ -2724,10 +2836,6 @@ File: test-apps/crypto-trading/queries/pom.xml
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.elasticsoftwarefoundation.akces</groupId>
-            <artifactId>akces-client</artifactId>
         </dependency>
 
         <dependency>
@@ -2808,7 +2916,7 @@ File: test-apps/crypto-trading/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-test-apps</artifactId>
-        <version>0.8.1-SNAPSHOT</version>
+        <version>0.8.13-SNAPSHOT</version>
     </parent>
     <artifactId>akces-crypto-trading-parent</artifactId>
     <packaging>pom</packaging>
@@ -2891,7 +2999,7 @@ File: test-apps/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-parent</artifactId>
-        <version>0.8.1-SNAPSHOT</version>
+        <version>0.8.13-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <artifactId>akces-framework-test-apps</artifactId>
@@ -3020,7 +3128,7 @@ File: test-apps/pom.xml
                                     <BP_JVM_VERSION>${java.version}</BP_JVM_VERSION>
                                     <BP_JVM_JLINK_ENABLED>false</BP_JVM_JLINK_ENABLED>
                                     <BP_SPRING_AOT_ENABLED>true</BP_SPRING_AOT_ENABLED>
-                                    <BP_JVM_CDS_ENABLED>true</BP_JVM_CDS_ENABLED>
+                                    <BP_JVM_CDS_ENABLED>false</BP_JVM_CDS_ENABLED>
                                     <JAVA_TOOL_OPTIONS>-XX:+UseZGC -XX:+ZGenerational</JAVA_TOOL_OPTIONS>
                                 </env>
                                 <buildpacks>
@@ -3169,174 +3277,300 @@ File: test-apps/pom.xml
 ================
 File: FRAMEWORK_OVERVIEW.md
 ================
-# Akces Framework Comprehensive Overview
+# Comprehensive Review of Akces Framework
 
-Akces is an event-sourcing and CQRS (Command Query Responsibility Segregation) framework built on top of Kafka. It provides a structured approach to building distributed, event-driven applications with a focus on domain events, aggregates, and command handling.
+After carefully analyzing the codebase, I can provide an updated comprehensive overview of the Akces Framework, building upon and refining the existing FRAMEWORK_OVERVIEW.md.
 
 ## Main Purpose
 
-Akces provides a comprehensive solution for implementing event-sourcing-based applications. Its primary goal is to simplify building scalable, event-driven systems by providing:
+Akces is a sophisticated event-sourcing and CQRS (Command Query Responsibility Segregation) framework built on Apache Kafka. Its primary purpose is to provide developers with a structured approach to building distributed, event-driven applications with a clear separation between write and read concerns. The framework handles the complex infrastructure required for event-sourcing while allowing developers to focus on domain logic.
 
-1. A structured approach to defining domain models and handling commands
-2. A robust event-sourcing mechanism for maintaining aggregate state
-3. Support for distributed processing of commands and events
-4. A query model system to support the "read side" of CQRS patterns
-5. Privacy-focused data handling through GDPR-compliant encryption
+Key goals of the framework include:
+- Simplifying the implementation of event-sourced applications
+- Providing a scalable architecture for distributed processing
+- Enforcing clean separation between command and query responsibilities
+- Supporting privacy-by-design through GDPR-compliant data handling
+- Enabling schema evolution with backward compatibility checks
 
-## Key Features
+## Core Architectural Components
 
-### 1. Event Sourcing
+Akces is organized around several key architectural components that work together:
 
-Akces implements event sourcing patterns where the state of an aggregate is derived from a sequence of domain events. Key aspects include:
+### 1. Aggregate Module
 
-- Event storage in Kafka topics
-- Automatic event application to update aggregate state
-- Support for maintaining aggregate state in RocksDB
-- Precise event versioning and schema validation
+The aggregate module is responsible for handling commands and maintaining state through event sourcing. Key components include:
+
+- **Aggregates**: Domain entities that encapsulate business logic and respond to commands
+- **Aggregate States**: Immutable representations of aggregate state
+- **Command Handlers**: Process commands and emit domain events
+- **Event Sourcing Handlers**: Apply events to update aggregate state
+- **Event Handlers**: React to events to produce further events
+- **Event Bridge Handlers**: Connect events from one aggregate to commands on another
+
+The runtime leverages Kafka partitioning for horizontal scaling, with each partition handling a subset of aggregates based on their IDs.
 
 ### 2. Command Processing
 
-The framework provides a structured approach to command handling:
+The command processing pipeline includes:
 
-- Command validation and routing
-- Transaction-based command processing
-- Command response handling
-- Error event generation for failed commands
+- **Command Bus**: Routes commands to appropriate aggregates
+- **Command Validation**: Schema-based validation using JSON Schema
+- **Command Execution**: Transactional processing that produces events
+- **Command Response Handling**: Collects and returns resulting events
 
-### 3. Query Models
+### 3. Query Model System
 
-Separate from the command side, Akces provides:
+For the read side, Akces provides:
 
-- Query model state derived from events
-- Database models for persistent storage 
-- Support for JPA and JDBC implementations
-- Event handlers for query models
+- **Query Models**: Domain-specific projections optimized for reading
+- **Query Model States**: Immutable state representations 
+- **Query Model Event Handlers**: Update query models based on domain events
+- **Database Models**: Persistent storage models updated from events
+- **JDBC/JPA Integration**: Support for different database technologies
 
-### 4. GDPR Compliance
+### 4. Process Managers
 
-The framework includes built-in support for personal data protection:
+To orchestrate complex workflows:
 
-- Annotation-based PII data marking
-- Transparent encryption/decryption of sensitive data
-- Context-aware encryption keys
+- **Process Managers**: Coordinate interactions between multiple aggregates
+- **Process States**: Track the status of long-running processes
+- **AkcesProcess**: Domain-specific process representation
 
-### 5. Schema Registry Integration
+### 5. GDPR Compliance Layer
 
-For maintaining compatibility and validation:
+For handling sensitive data:
 
-- Integration with Confluent Schema Registry
-- JSON schema generation and compatibility checking
+- **PIIData Annotation**: Mark fields containing personal data
+- **GDPR Context**: Encryption/decryption context for an aggregate
+- **Transparent Serialization**: Automatic encryption/decryption during serialization
+- **Key Management**: Secure handling of encryption keys
+
+## Technical Implementation Details
+
+### Event Sourcing Implementation
+
+The event sourcing mechanism in Akces follows these principles:
+
+1. **Immutable Events**: All domain events are immutable records of facts
+2. **Event Storage**: Events are stored in Kafka topics, partitioned by aggregate ID
+3. **State Reconstruction**: Aggregate state is derived by replaying events
+4. **State Snapshots**: RocksDB is used to maintain efficient state snapshots
+
+The `KafkaAggregateRuntime` class manages the event sourcing logic, handling:
+- Command processing and validation
+- Event application to state
+- State persistence
+- Event publishing
+
+### Partitioning and Scalability
+
+Akces achieves scalability through:
+
+1. **Partition-based Processing**: Each instance processes specific partitions
+2. **Consistent Hashing**: Aggregate IDs are consistently hashed to partitions
+3. **Parallel Processing**: Multiple partitions can be processed concurrently
+4. **Atomic Transactions**: Kafka transactions ensure atomicity of operations
+
+The `AggregatePartition` class handles partition-specific processing, managing:
+- Command handling for a partition
+- Event processing for a partition
+- State management for a partition
+
+### Schema Evolution
+
+Akces provides sophisticated schema evolution through:
+
+1. **Schema Registry Integration**: Works with Confluent Schema Registry
+2. **Schema Versioning**: Clear versioning of all commands and events
+3. **Compatibility Checking**: Ensures backward compatibility
+4. **JSON Schema Generation**: Automatic schema generation from classes
+
+The `KafkaSchemaRegistry` class handles schema management, providing:
+- Schema registration and validation
+- Compatibility checking
 - Schema versioning support
 
-## Architecture
+### GDPR Compliance Implementation
 
-Akces has a modular architecture organized into the following components:
+The GDPR compliance layer uses:
 
-### Core Modules
+1. **AES Encryption**: For sensitive data fields
+2. **Jackson Serialization Integration**: Custom serializers/deserializers
+3. **Key Management**: Secure storage of encryption keys in Kafka
+4. **Annotation-based Marking**: Easy identification of sensitive fields
 
-1. **API Module**: Contains interfaces and annotations defining the core concepts
-   - Aggregates, Commands, Events
-   - Event handlers, Command handlers
-   - Query models
+### Query Model Implementation
 
-2. **Runtime Module**: Provides the core event-sourcing implementation
-   - Aggregate runtime for handling commands
-   - State repositories and management
-   - GDPR context management
+The query model system provides:
+
+1. **Event-driven Updates**: Query models updated via events
+2. **State Hydration**: Efficient state loading and caching
+3. **Database Integration**: Support for JDBC and JPA databases
+4. **Partition-aware Processing**: Scalable across nodes
+
+## Module Structure
+
+Akces is organized into several Maven modules:
+
+1. **api**: Core interfaces and annotations defining the programming model
+   - Aggregate, Command, and Event interfaces
+   - Handler annotations for commands and events
+   - Query model and database model interfaces
+
+2. **runtime**: Implements the core event sourcing runtime
+   - Aggregate runtime for command/event handling
+   - State repositories (RocksDB/in-memory)
    - Kafka integration
+   - Command handling pipeline
 
-3. **Client Module**: Handles interaction with the command side
-   - Command sending and validation
-   - Schema registry integration
-   - Command response processing
-
-4. **Query-Support Module**: Handles query models and read-side concerns
-   - Database model interaction
-   - Query model state handling
-   - Event processing for query models
-
-5. **Shared Module**: Common utilities and shared classes
+3. **shared**: Common utilities and shared functionality
    - Protocol records for communication
-   - Serialization/deserialization
-   - GDPR utilities
-   - Kafka utilities
+   - GDPR compliance utilities
+   - Serialization/deserialization support
+   - Schema registry integration
 
-### Key Components
+4. **client**: Client-side library for interacting with aggregates
+   - Command sending
+   - Response handling
+   - Discovery of available aggregates
 
-1. **Aggregates**: The core domain objects that encapsulate business logic
-   - Maintain their state through event sourcing
-   - Process commands and emit events
-   - Handle incoming domain events
+5. **query-support**: Support for query models and database models
+   - Query model runtime 
+   - Database model support
+   - Event handling for models
+   - State hydration
 
-2. **Commands**: Represent requests to modify state
-   - Validated through schemas
-   - Routed to appropriate aggregates
-   - Generate domain events
+## Programming Model
 
-3. **Domain Events**: Represent facts that have occurred
-   - The source of truth for aggregate state
-   - Used to rebuild state
-   - Consumed by query models
+Akces provides a clean, annotation-based programming model:
 
-4. **Query Models**: Read-optimized representations of data
-   - Updated via event handlers
-   - Provide fast access to application state
+### Defining Aggregates
 
-5. **Controllers**: Manage runtime and communication
-   - `AkcesAggregateController`: Manages aggregate partitions and command handling
-   - `AkcesDatabaseModelController`: Manages database models
-   - `AkcesQueryModelController`: Manages query models
-   - `AkcesClientController`: Client-side controller for sending commands
+```java
+@AggregateInfo(value = "Wallet", version = 1)
+public class Wallet implements Aggregate<WalletState> {
+    @CommandHandler(create = true)
+    public Stream<DomainEvent> create(CreateWalletCommand cmd, WalletState isNull) {
+        // Command handling logic
+    }
+    
+    @EventSourcingHandler(create = true)
+    public WalletState create(WalletCreatedEvent event, WalletState isNull) {
+        // Event application logic
+    }
+}
+```
 
-6. **Partitioning**: Ensures scalability
-   - Kafka-based partitioning of aggregates
-   - Command routing based on aggregate ID
-   - Parallel processing across partitions
+### Defining Commands and Events
 
-## Workflow
+```java
+@CommandInfo(type = "CreateWallet", version = 1)
+public record CreateWalletCommand(@AggregateIdentifier String id, String currency) implements Command {
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
+}
 
-A typical workflow in Akces follows this pattern:
+@DomainEventInfo(type = "WalletCreated", version = 1)
+public record WalletCreatedEvent(@AggregateIdentifier String id) implements DomainEvent {
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
+}
+```
 
-1. A client sends a command to modify an aggregate's state via the Akces client
-2. The command is routed to the appropriate aggregate partition
-3. The aggregate processes the command, generating one or more domain events
-4. The events are stored in Kafka and applied to the aggregate state
-5. Query models and database models consume the events to update their state
-6. Command responses are sent back to clients
+### Defining Query Models
 
-## Deployment Architecture
+```java
+@QueryModelInfo(value = "WalletQuery", version = 1, indexName = "Wallets")
+public class WalletQueryModel implements QueryModel<WalletQueryModelState> {
+    @QueryModelEventHandler(create = true)
+    public WalletQueryModelState create(WalletCreatedEvent event, WalletQueryModelState isNull) {
+        // Create logic
+    }
+}
+```
 
-Akces is designed for distributed deployment with:
+### GDPR Annotation
 
-- Kafka as the communication and storage backbone
-- RocksDB for local state storage
-- Schema Registry for schema validation
-- Different services for command and query sides
+```java
+public record UserInfo(
+    @AggregateIdentifier String userId,
+    @PIIData String firstName,
+    @PIIData String lastName,
+    @PIIData String email
+) implements AggregateState {
+    // ...
+}
+```
 
-## Key Design Patterns
+## Runtime Components
 
-1. **Event Sourcing**: State is derived from events rather than stored directly
-2. **CQRS**: Separate models for reading and writing
-3. **Domain-Driven Design**: Focus on aggregates, commands, and events
-4. **Partitioning**: Distribution of processing across multiple instances
-5. **Annotation-based Configuration**: Using annotations to define behavior
+The key runtime components include:
 
-## Technical Implementation
+1. **AkcesAggregateController**: Manages aggregate partitions and lifecycle
+2. **AkcesClientController**: Handles command sending and response processing
+3. **AkcesQueryModelController**: Manages query model state hydration
+4. **AkcesDatabaseModelController**: Handles database model updates
+5. **AggregatePartition**: Processes commands and events for a partition
 
-Akces relies on several key technologies:
+## Enhanced Features Not Fully Captured in Original Overview
 
-- **Spring Framework**: For dependency injection and configuration
-- **Kafka**: As the event store and messaging backbone
-- **RocksDB**: For local state storage
-- **Jackson**: For JSON serialization/deserialization
-- **Protobuf**: For efficient binary serialization
-- **Confluent Schema Registry**: For schema validation and evolution
+### 1. Robust Partition Management
 
-The framework provides both a programming model (through annotations and interfaces) and a runtime environment for executing event-sourced applications.
+The framework provides sophisticated partition management with:
+- Automatic rebalancing when nodes join/leave
+- Coordinated partition shutdown and cleanup
+- Atomic transaction processing within partitions
+- Optimized state loading from RocksDB
+
+### 2. Advanced Schema Handling
+
+Schema management is more sophisticated than initially described:
+- Diff-based compatibility checking 
+- Schema evolution with strict version checking
+- Automatic schema registration with configurable validation
+- Support for external schemas with relaxed validation
+
+### 3. Transaction Support
+
+The transactional model provides:
+- Exactly-once processing semantics
+- Atomic command handling with consistent state updates
+- Transaction isolation for command processing
+- Consistent offset management
+
+### 4. Optimized State Handling
+
+State management is highly optimized:
+- Efficient RocksDB storage with custom serialization
+- In-memory caching for high-performance scenarios
+- Partition-aware state access patterns
+- Transactional state updates coordinated with events
+
+### 5. Flexible Deployment Models
+
+The framework supports different deployment topologies:
+- Separate command and query services
+- Combined services for smaller applications
+- Scalable partitioning across multiple nodes
+- Stream processing integration
+
+### 6. Process Manager Capabilities
+
+Process managers provide orchestration capabilities:
+- Coordination of multi-step processes
+- State tracking for long-running operations
+- Event-driven process advancement
+- Error handling and compensation
 
 ## Conclusion
 
-Akces is a comprehensive framework for building event-sourced, CQRS-based applications with a focus on scalability, resilience, and privacy. It provides a structured approach to domain modeling while handling the complex infrastructure concerns of distributed systems.
+Akces Framework provides a comprehensive solution for building event-sourced, CQRS-based applications with a focus on scalability, resilience, and privacy. Its clean programming model, combined with a robust runtime implementation, makes it well-suited for complex domain problems requiring sophisticated state management and high scalability.
+
+The framework's integration with Kafka provides a reliable foundation for distributed processing, while its schema management and GDPR compliance features address important enterprise concerns. The separation between command handling and query models follows best practices for complex domain modeling while maintaining high performance for read operations.
 
 ================
 File: README.md

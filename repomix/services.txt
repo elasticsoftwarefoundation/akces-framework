@@ -461,6 +461,7 @@ public class ConfigMapDependentResource extends CRUDKubernetesDependentResource<
 protected ConfigMap desired(QueryService queryService, Context<QueryService> context) {
 final ObjectMeta queryServiceMetadata = queryService.getMetadata();
 final String queryServiceName = queryServiceMetadata.getName();
+final QueryServiceSpec spec = queryService.getSpec();
 return new ConfigMapBuilder(ReconcilerUtils.loadYaml(ConfigMap.class, getClass(), "configmap.yaml"))
 .editMetadata()
 .withName(queryServiceName + "-config")
@@ -468,6 +469,9 @@ return new ConfigMapBuilder(ReconcilerUtils.loadYaml(ConfigMap.class, getClass()
 .addToLabels("app.kubernetes.io/part-of", queryServiceName)
 .addToLabels("app.kubernetes.io/managed-by", "akces-operator")
 .endMetadata()
+.addToData(spec.getApplicationProperties() != null ?
+Map.of("application.properties", spec.getApplicationProperties()) :
+Collections.emptyMap())
 .build();
 
 ================
@@ -514,6 +518,7 @@ public String getImage() {
 public void setImage(String image) {
 ⋮----
 public List<String> getArgs() {
+return args != null ? args : Collections.emptyList();
 ⋮----
 public void setArgs(List<String> args) {
 ⋮----
@@ -524,6 +529,15 @@ public void setResources(ResourceRequirements resources) {
 public String getApplicationName() {
 ⋮----
 public void setApplicationName(String applicationName) {
+⋮----
+public List<EnvVar> getEnv() {
+return env != null ? env : Collections.emptyList();
+⋮----
+public void setEnv(List<EnvVar> env) {
+⋮----
+public String getApplicationProperties() {
+⋮----
+public void setApplicationProperties(String applicationProperties) {
 
 ================
 File: services/operator/src/main/java/org/elasticsoftware/akces/operator/query/QueryServiceStatus.java
@@ -587,6 +601,7 @@ statefulSet = new StatefulSetBuilder(statefulSet)
 .editFirstEnv()
 .withValue(queryService.getSpec().getApplicationName())
 .endEnv()
+.addToEnv(queryService.getSpec().getEnv().toArray(new EnvVar[0]))
 .withResources(queryService.getSpec().getResources())
 .endContainer()
 .editFirstVolume()
@@ -988,7 +1003,7 @@ kind: ConfigMap
 metadata:
   name: ""
 data:
-  application.properties: |
+  application-default.properties: |
     # Spring application properties
     spring.application.name=${SPRING_APPLICATION_NAME}
     spring.kafka.enabled=true
@@ -1078,7 +1093,7 @@ spec:
             - name: SPRING_APPLICATION_NAME
               value: "Akces Query Service"
             - name: SPRING_CONFIG_LOCATION
-              value: "file:/config/application.properties"
+              value: "file:/config/application-default.properties,optional:file:/config/application.properties"
             - name: LOGGING_CONFIG
               value: "file:/config/logback.xml"
             - name: BPL_JVM_THREAD_COUNT
@@ -1329,7 +1344,7 @@ File: services/operator/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-services</artifactId>
-        <version>0.8.1-SNAPSHOT</version>
+        <version>0.8.13-SNAPSHOT</version>
     </parent>
     <artifactId>akces-operator</artifactId>
     <name>Elastic Software Foundation :: Akces :: Services :: Akces Operator</name>
@@ -1465,7 +1480,7 @@ File: services/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-parent</artifactId>
-        <version>0.8.1-SNAPSHOT</version>
+        <version>0.8.13-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -1708,174 +1723,300 @@ File: services/pom.xml
 ================
 File: FRAMEWORK_OVERVIEW.md
 ================
-# Akces Framework Comprehensive Overview
+# Comprehensive Review of Akces Framework
 
-Akces is an event-sourcing and CQRS (Command Query Responsibility Segregation) framework built on top of Kafka. It provides a structured approach to building distributed, event-driven applications with a focus on domain events, aggregates, and command handling.
+After carefully analyzing the codebase, I can provide an updated comprehensive overview of the Akces Framework, building upon and refining the existing FRAMEWORK_OVERVIEW.md.
 
 ## Main Purpose
 
-Akces provides a comprehensive solution for implementing event-sourcing-based applications. Its primary goal is to simplify building scalable, event-driven systems by providing:
+Akces is a sophisticated event-sourcing and CQRS (Command Query Responsibility Segregation) framework built on Apache Kafka. Its primary purpose is to provide developers with a structured approach to building distributed, event-driven applications with a clear separation between write and read concerns. The framework handles the complex infrastructure required for event-sourcing while allowing developers to focus on domain logic.
 
-1. A structured approach to defining domain models and handling commands
-2. A robust event-sourcing mechanism for maintaining aggregate state
-3. Support for distributed processing of commands and events
-4. A query model system to support the "read side" of CQRS patterns
-5. Privacy-focused data handling through GDPR-compliant encryption
+Key goals of the framework include:
+- Simplifying the implementation of event-sourced applications
+- Providing a scalable architecture for distributed processing
+- Enforcing clean separation between command and query responsibilities
+- Supporting privacy-by-design through GDPR-compliant data handling
+- Enabling schema evolution with backward compatibility checks
 
-## Key Features
+## Core Architectural Components
 
-### 1. Event Sourcing
+Akces is organized around several key architectural components that work together:
 
-Akces implements event sourcing patterns where the state of an aggregate is derived from a sequence of domain events. Key aspects include:
+### 1. Aggregate Module
 
-- Event storage in Kafka topics
-- Automatic event application to update aggregate state
-- Support for maintaining aggregate state in RocksDB
-- Precise event versioning and schema validation
+The aggregate module is responsible for handling commands and maintaining state through event sourcing. Key components include:
+
+- **Aggregates**: Domain entities that encapsulate business logic and respond to commands
+- **Aggregate States**: Immutable representations of aggregate state
+- **Command Handlers**: Process commands and emit domain events
+- **Event Sourcing Handlers**: Apply events to update aggregate state
+- **Event Handlers**: React to events to produce further events
+- **Event Bridge Handlers**: Connect events from one aggregate to commands on another
+
+The runtime leverages Kafka partitioning for horizontal scaling, with each partition handling a subset of aggregates based on their IDs.
 
 ### 2. Command Processing
 
-The framework provides a structured approach to command handling:
+The command processing pipeline includes:
 
-- Command validation and routing
-- Transaction-based command processing
-- Command response handling
-- Error event generation for failed commands
+- **Command Bus**: Routes commands to appropriate aggregates
+- **Command Validation**: Schema-based validation using JSON Schema
+- **Command Execution**: Transactional processing that produces events
+- **Command Response Handling**: Collects and returns resulting events
 
-### 3. Query Models
+### 3. Query Model System
 
-Separate from the command side, Akces provides:
+For the read side, Akces provides:
 
-- Query model state derived from events
-- Database models for persistent storage 
-- Support for JPA and JDBC implementations
-- Event handlers for query models
+- **Query Models**: Domain-specific projections optimized for reading
+- **Query Model States**: Immutable state representations 
+- **Query Model Event Handlers**: Update query models based on domain events
+- **Database Models**: Persistent storage models updated from events
+- **JDBC/JPA Integration**: Support for different database technologies
 
-### 4. GDPR Compliance
+### 4. Process Managers
 
-The framework includes built-in support for personal data protection:
+To orchestrate complex workflows:
 
-- Annotation-based PII data marking
-- Transparent encryption/decryption of sensitive data
-- Context-aware encryption keys
+- **Process Managers**: Coordinate interactions between multiple aggregates
+- **Process States**: Track the status of long-running processes
+- **AkcesProcess**: Domain-specific process representation
 
-### 5. Schema Registry Integration
+### 5. GDPR Compliance Layer
 
-For maintaining compatibility and validation:
+For handling sensitive data:
 
-- Integration with Confluent Schema Registry
-- JSON schema generation and compatibility checking
+- **PIIData Annotation**: Mark fields containing personal data
+- **GDPR Context**: Encryption/decryption context for an aggregate
+- **Transparent Serialization**: Automatic encryption/decryption during serialization
+- **Key Management**: Secure handling of encryption keys
+
+## Technical Implementation Details
+
+### Event Sourcing Implementation
+
+The event sourcing mechanism in Akces follows these principles:
+
+1. **Immutable Events**: All domain events are immutable records of facts
+2. **Event Storage**: Events are stored in Kafka topics, partitioned by aggregate ID
+3. **State Reconstruction**: Aggregate state is derived by replaying events
+4. **State Snapshots**: RocksDB is used to maintain efficient state snapshots
+
+The `KafkaAggregateRuntime` class manages the event sourcing logic, handling:
+- Command processing and validation
+- Event application to state
+- State persistence
+- Event publishing
+
+### Partitioning and Scalability
+
+Akces achieves scalability through:
+
+1. **Partition-based Processing**: Each instance processes specific partitions
+2. **Consistent Hashing**: Aggregate IDs are consistently hashed to partitions
+3. **Parallel Processing**: Multiple partitions can be processed concurrently
+4. **Atomic Transactions**: Kafka transactions ensure atomicity of operations
+
+The `AggregatePartition` class handles partition-specific processing, managing:
+- Command handling for a partition
+- Event processing for a partition
+- State management for a partition
+
+### Schema Evolution
+
+Akces provides sophisticated schema evolution through:
+
+1. **Schema Registry Integration**: Works with Confluent Schema Registry
+2. **Schema Versioning**: Clear versioning of all commands and events
+3. **Compatibility Checking**: Ensures backward compatibility
+4. **JSON Schema Generation**: Automatic schema generation from classes
+
+The `KafkaSchemaRegistry` class handles schema management, providing:
+- Schema registration and validation
+- Compatibility checking
 - Schema versioning support
 
-## Architecture
+### GDPR Compliance Implementation
 
-Akces has a modular architecture organized into the following components:
+The GDPR compliance layer uses:
 
-### Core Modules
+1. **AES Encryption**: For sensitive data fields
+2. **Jackson Serialization Integration**: Custom serializers/deserializers
+3. **Key Management**: Secure storage of encryption keys in Kafka
+4. **Annotation-based Marking**: Easy identification of sensitive fields
 
-1. **API Module**: Contains interfaces and annotations defining the core concepts
-   - Aggregates, Commands, Events
-   - Event handlers, Command handlers
-   - Query models
+### Query Model Implementation
 
-2. **Runtime Module**: Provides the core event-sourcing implementation
-   - Aggregate runtime for handling commands
-   - State repositories and management
-   - GDPR context management
+The query model system provides:
+
+1. **Event-driven Updates**: Query models updated via events
+2. **State Hydration**: Efficient state loading and caching
+3. **Database Integration**: Support for JDBC and JPA databases
+4. **Partition-aware Processing**: Scalable across nodes
+
+## Module Structure
+
+Akces is organized into several Maven modules:
+
+1. **api**: Core interfaces and annotations defining the programming model
+   - Aggregate, Command, and Event interfaces
+   - Handler annotations for commands and events
+   - Query model and database model interfaces
+
+2. **runtime**: Implements the core event sourcing runtime
+   - Aggregate runtime for command/event handling
+   - State repositories (RocksDB/in-memory)
    - Kafka integration
+   - Command handling pipeline
 
-3. **Client Module**: Handles interaction with the command side
-   - Command sending and validation
-   - Schema registry integration
-   - Command response processing
-
-4. **Query-Support Module**: Handles query models and read-side concerns
-   - Database model interaction
-   - Query model state handling
-   - Event processing for query models
-
-5. **Shared Module**: Common utilities and shared classes
+3. **shared**: Common utilities and shared functionality
    - Protocol records for communication
-   - Serialization/deserialization
-   - GDPR utilities
-   - Kafka utilities
+   - GDPR compliance utilities
+   - Serialization/deserialization support
+   - Schema registry integration
 
-### Key Components
+4. **client**: Client-side library for interacting with aggregates
+   - Command sending
+   - Response handling
+   - Discovery of available aggregates
 
-1. **Aggregates**: The core domain objects that encapsulate business logic
-   - Maintain their state through event sourcing
-   - Process commands and emit events
-   - Handle incoming domain events
+5. **query-support**: Support for query models and database models
+   - Query model runtime 
+   - Database model support
+   - Event handling for models
+   - State hydration
 
-2. **Commands**: Represent requests to modify state
-   - Validated through schemas
-   - Routed to appropriate aggregates
-   - Generate domain events
+## Programming Model
 
-3. **Domain Events**: Represent facts that have occurred
-   - The source of truth for aggregate state
-   - Used to rebuild state
-   - Consumed by query models
+Akces provides a clean, annotation-based programming model:
 
-4. **Query Models**: Read-optimized representations of data
-   - Updated via event handlers
-   - Provide fast access to application state
+### Defining Aggregates
 
-5. **Controllers**: Manage runtime and communication
-   - `AkcesAggregateController`: Manages aggregate partitions and command handling
-   - `AkcesDatabaseModelController`: Manages database models
-   - `AkcesQueryModelController`: Manages query models
-   - `AkcesClientController`: Client-side controller for sending commands
+```java
+@AggregateInfo(value = "Wallet", version = 1)
+public class Wallet implements Aggregate<WalletState> {
+    @CommandHandler(create = true)
+    public Stream<DomainEvent> create(CreateWalletCommand cmd, WalletState isNull) {
+        // Command handling logic
+    }
+    
+    @EventSourcingHandler(create = true)
+    public WalletState create(WalletCreatedEvent event, WalletState isNull) {
+        // Event application logic
+    }
+}
+```
 
-6. **Partitioning**: Ensures scalability
-   - Kafka-based partitioning of aggregates
-   - Command routing based on aggregate ID
-   - Parallel processing across partitions
+### Defining Commands and Events
 
-## Workflow
+```java
+@CommandInfo(type = "CreateWallet", version = 1)
+public record CreateWalletCommand(@AggregateIdentifier String id, String currency) implements Command {
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
+}
 
-A typical workflow in Akces follows this pattern:
+@DomainEventInfo(type = "WalletCreated", version = 1)
+public record WalletCreatedEvent(@AggregateIdentifier String id) implements DomainEvent {
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
+}
+```
 
-1. A client sends a command to modify an aggregate's state via the Akces client
-2. The command is routed to the appropriate aggregate partition
-3. The aggregate processes the command, generating one or more domain events
-4. The events are stored in Kafka and applied to the aggregate state
-5. Query models and database models consume the events to update their state
-6. Command responses are sent back to clients
+### Defining Query Models
 
-## Deployment Architecture
+```java
+@QueryModelInfo(value = "WalletQuery", version = 1, indexName = "Wallets")
+public class WalletQueryModel implements QueryModel<WalletQueryModelState> {
+    @QueryModelEventHandler(create = true)
+    public WalletQueryModelState create(WalletCreatedEvent event, WalletQueryModelState isNull) {
+        // Create logic
+    }
+}
+```
 
-Akces is designed for distributed deployment with:
+### GDPR Annotation
 
-- Kafka as the communication and storage backbone
-- RocksDB for local state storage
-- Schema Registry for schema validation
-- Different services for command and query sides
+```java
+public record UserInfo(
+    @AggregateIdentifier String userId,
+    @PIIData String firstName,
+    @PIIData String lastName,
+    @PIIData String email
+) implements AggregateState {
+    // ...
+}
+```
 
-## Key Design Patterns
+## Runtime Components
 
-1. **Event Sourcing**: State is derived from events rather than stored directly
-2. **CQRS**: Separate models for reading and writing
-3. **Domain-Driven Design**: Focus on aggregates, commands, and events
-4. **Partitioning**: Distribution of processing across multiple instances
-5. **Annotation-based Configuration**: Using annotations to define behavior
+The key runtime components include:
 
-## Technical Implementation
+1. **AkcesAggregateController**: Manages aggregate partitions and lifecycle
+2. **AkcesClientController**: Handles command sending and response processing
+3. **AkcesQueryModelController**: Manages query model state hydration
+4. **AkcesDatabaseModelController**: Handles database model updates
+5. **AggregatePartition**: Processes commands and events for a partition
 
-Akces relies on several key technologies:
+## Enhanced Features Not Fully Captured in Original Overview
 
-- **Spring Framework**: For dependency injection and configuration
-- **Kafka**: As the event store and messaging backbone
-- **RocksDB**: For local state storage
-- **Jackson**: For JSON serialization/deserialization
-- **Protobuf**: For efficient binary serialization
-- **Confluent Schema Registry**: For schema validation and evolution
+### 1. Robust Partition Management
 
-The framework provides both a programming model (through annotations and interfaces) and a runtime environment for executing event-sourced applications.
+The framework provides sophisticated partition management with:
+- Automatic rebalancing when nodes join/leave
+- Coordinated partition shutdown and cleanup
+- Atomic transaction processing within partitions
+- Optimized state loading from RocksDB
+
+### 2. Advanced Schema Handling
+
+Schema management is more sophisticated than initially described:
+- Diff-based compatibility checking 
+- Schema evolution with strict version checking
+- Automatic schema registration with configurable validation
+- Support for external schemas with relaxed validation
+
+### 3. Transaction Support
+
+The transactional model provides:
+- Exactly-once processing semantics
+- Atomic command handling with consistent state updates
+- Transaction isolation for command processing
+- Consistent offset management
+
+### 4. Optimized State Handling
+
+State management is highly optimized:
+- Efficient RocksDB storage with custom serialization
+- In-memory caching for high-performance scenarios
+- Partition-aware state access patterns
+- Transactional state updates coordinated with events
+
+### 5. Flexible Deployment Models
+
+The framework supports different deployment topologies:
+- Separate command and query services
+- Combined services for smaller applications
+- Scalable partitioning across multiple nodes
+- Stream processing integration
+
+### 6. Process Manager Capabilities
+
+Process managers provide orchestration capabilities:
+- Coordination of multi-step processes
+- State tracking for long-running operations
+- Event-driven process advancement
+- Error handling and compensation
 
 ## Conclusion
 
-Akces is a comprehensive framework for building event-sourced, CQRS-based applications with a focus on scalability, resilience, and privacy. It provides a structured approach to domain modeling while handling the complex infrastructure concerns of distributed systems.
+Akces Framework provides a comprehensive solution for building event-sourced, CQRS-based applications with a focus on scalability, resilience, and privacy. Its clean programming model, combined with a robust runtime implementation, makes it well-suited for complex domain problems requiring sophisticated state management and high scalability.
+
+The framework's integration with Kafka provides a reliable foundation for distributed processing, while its schema management and GDPR compliance features address important enterprise concerns. The separation between command handling and query models follows best practices for complex domain modeling while maintaining high performance for read operations.
 
 ================
 File: README.md

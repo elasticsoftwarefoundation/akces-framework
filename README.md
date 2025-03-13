@@ -2,78 +2,85 @@
 
 ## Overview
 
-Akces Framework is a robust CQRS (Command Query Responsibility Segregation) and Event Sourcing framework built on Apache Kafka. The framework provides a comprehensive infrastructure for building distributed, event-driven applications with a clean separation between command and query operations.
+Akces is a powerful CQRS (Command Query Responsibility Segregation) and Event Sourcing framework built on Apache Kafka. It provides a comprehensive infrastructure for building distributed, event-driven applications with a clear separation between write operations (commands) and read operations (queries).
 
-At its core, Akces implements the full event sourcing pattern, capturing all changes to application state as a sequence of events. These events can be replayed to reconstruct the state at any point in time, providing a complete audit trail and enabling powerful temporal queries.
+The framework implements the full event sourcing pattern, capturing all changes to application state as a sequence of events. These events serve as the system of record and can be replayed to reconstruct the state at any point in time, providing a complete audit trail and enabling temporal queries.
 
-The framework leverages Kafka's distributed architecture for reliable event storage and processing, making it highly scalable and resilient. It also provides built-in support for personal data protection (GDPR compliance), schema evolution, and efficient state management.
+Akces leverages Kafka's distributed architecture for reliable event storage and processing, making it highly scalable and resilient. It also provides built-in support for privacy protection (GDPR compliance), schema evolution, and efficient state management.
 
 ## Core Concepts
 
-- **Aggregates**: Domain entities that encapsulate business logic and maintain state through events
-- **Commands**: Requests to change the state of an aggregate
-- **Domain Events**: Facts that have occurred, representing state changes
-- **Command Handlers**: Process commands and produce events
+- **Aggregates**: Domain entities that encapsulate business logic and maintain consistency boundaries
+- **Commands**: Requests to perform actions that change the state of an aggregate
+- **Domain Events**: Immutable records of facts that have occurred, representing state changes
+- **Command Handlers**: Process commands and produce events 
 - **Event Sourcing Handlers**: Apply events to update aggregate state
 - **Query Models**: Read-optimized projections of aggregate state
-- **Database Models**: Persistent storage of aggregate data
+- **Database Models**: Persistent storage of aggregate data optimized for queries
+- **Process Managers**: Coordinate workflows across multiple aggregates
 
-## Main Features
+## Key Features
 
-### Command Handling
-- **Command Bus**: A distributed command bus for routing commands to appropriate aggregates
-- **Command Validation**: Automatic schema validation using JSON Schema
-- **Command Handlers**: Annotation-based command handling with automatic event publishing
-- **Transaction Support**: Transactional processing of commands
+### Command Processing
+
+- **Command Bus**: Distribute commands to appropriate aggregates
+- **Command Validation**: Automatic schema-based validation using JSON Schema
+- **Command Routing**: Intelligent routing based on aggregate IDs
+- **Transactional Processing**: Atomic processing with Kafka transactions
 
 ### Event Sourcing
-- **Event Store**: Kafka-based event store for persisting all domain events
-- **Event Handlers**: Annotation-based event handling for processing domain events
-- **Event Sourcing Handlers**: Automatic state reconstruction from domain events
-- **Event Bridging**: Bridge events between different aggregates
+
+- **Event Store**: Kafka-based storage for all domain events
+- **State Reconstruction**: Rebuild aggregate state by replaying events
+- **Event Handlers**: React to events to trigger additional processes
+- **Event Bridging**: Connect events from one aggregate to commands on another
 
 ### Aggregate Management
-- **Aggregate Runtimes**: Lifecycle management for aggregates
-- **State Management**: Efficient state storage using RocksDB
-- **Partitioning**: Automatic partitioning of aggregates across nodes for scalability
-- **Event Indexing**: Automatic indexing of events for efficient querying
+
+- **Partition-Based Processing**: Scale horizontally through Kafka partitioning
+- **State Snapshots**: Efficient state storage using RocksDB
+- **Aggregate Lifecycle**: Manage aggregate creation and updates
+- **Event Indexing**: Index events for efficient retrieval
 
 ### Query Support
-- **Query Models**: Build specialized read models from domain events
-- **Database Models**: Automatically sync data to databases for efficient querying
-- **Materialized Views**: Build and maintain materialized views of aggregate state
-- **State Hydration**: Efficiently load and cache query model state
 
-### Privacy & GDPR Support
-- **PII Data Handling**: Built-in support for Personal Identifiable Information (PII)
-- **Data Encryption**: Transparent encryption/decryption of sensitive data
-- **Annotation-based PII Marking**: Easy identification of sensitive fields
-- **Key Management**: Secure management of encryption keys
+- **Query Models**: Build specialized read models from events
+- **State Hydration**: Efficiently load and cache query model state
+- **Database Integration**: Support for both JDBC and JPA database models
+- **Event-Driven Updates**: Keep read models in sync with write models
+
+### Privacy & GDPR
+
+- **PII Data Protection**: Automatic encryption of personal data
+- **Transparent Handling**: Annotation-based marking of sensitive fields
+- **Key Management**: Secure handling of encryption keys
+- **Context-Aware Processing**: Apply encryption based on context
 
 ### Schema Management
-- **Schema Evolution**: Support for evolving schemas with backward compatibility
-- **Schema Registry Integration**: Works with Confluent Schema Registry for schema management
-- **Schema Validation**: Automatic validation of commands and events against their schemas
-- **Schema Compatibility Checks**: Ensure backward compatibility of schema changes
+
+- **Schema Registry Integration**: Work with Confluent Schema Registry
+- **Schema Evolution**: Support versioning and evolution of schemas
+- **Compatibility Checking**: Ensure backward compatibility
+- **Automatic Generation**: Generate JSON schemas from command and event classes
 
 ## Architecture
 
-The framework consists of several modules:
+Akces is organized into several Maven modules:
 
-- **api**: Core interfaces and annotations defining the framework's programming model
-- **shared**: Common utilities, serialization, and GDPR support
-- **runtime**: The runtime environment for aggregates, including command handling and event sourcing
-- **client**: Client library for interacting with aggregate services
+- **api**: Core interfaces and annotations defining the programming model
+- **runtime**: Implementation of event sourcing and command handling
+- **shared**: Common utilities, serialization, and GDPR functionality
+- **client**: Client library for sending commands and processing responses
 - **query-support**: Support for query models and database models
 
-## Setup Instructions
+## Getting Started
 
 ### Prerequisites
 
 - Java 17 or higher
 - Apache Kafka 3.x
 - Confluent Schema Registry
-- Maven 3.6+
+- Maven 3.6 or higher
 
 ### Maven Dependencies
 
@@ -83,33 +90,34 @@ Add the following to your `pom.xml`:
 <dependency>
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-api</artifactId>
-    <version>0.8.1</version>
+    <version>0.8.12</version>
 </dependency>
 
+<!-- For command senders -->
 <dependency>
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-client</artifactId>
-    <version>0.8.1</version>
+    <version>0.8.12</version>
 </dependency>
 
-<!-- For running aggregates -->
+<!-- For aggregate services -->
 <dependency>
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-runtime</artifactId>
-    <version>0.8.1</version>
+    <version>0.8.12</version>
 </dependency>
 
-<!-- For query models -->
+<!-- For query models and database models -->
 <dependency>
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-query-support</artifactId>
-    <version>0.8.1</version>
+    <version>0.8.12</version>
 </dependency>
 ```
 
 ### Configuration
 
-Create an `application.yaml` file with the following configuration:
+Configure the framework in your `application.yaml`:
 
 ```yaml
 spring:
@@ -129,6 +137,8 @@ spring:
       acks: all
       retries: 2147483647
       properties:
+        linger.ms: 0
+        retry.backoff.ms: 0
         enable.idempotence: true
         max.in.flight.requests.per.connection: 1
 
@@ -141,10 +151,10 @@ akces:
 
 ## Usage Examples
 
-### Define an Aggregate
+### Defining an Aggregate
 
 ```java
-@AggregateInfo(value = "Wallet", version = 1, generateGDPRKeyOnCreate = true, indexed = true, indexName = "Wallets")
+@AggregateInfo(value = "Wallet", version = 1, indexed = true, indexName = "Wallets")
 public final class Wallet implements Aggregate<WalletState> {
     @Override
     public Class<WalletState> getStateClass() {
@@ -153,7 +163,8 @@ public final class Wallet implements Aggregate<WalletState> {
 
     @CommandHandler(create = true, produces = {WalletCreatedEvent.class, BalanceCreatedEvent.class})
     public Stream<DomainEvent> create(CreateWalletCommand cmd, WalletState isNull) {
-        return Stream.of(new WalletCreatedEvent(cmd.id()), new BalanceCreatedEvent(cmd.id(), cmd.currency()));
+        return Stream.of(new WalletCreatedEvent(cmd.id()), 
+                         new BalanceCreatedEvent(cmd.id(), cmd.currency()));
     }
 
     @EventSourcingHandler(create = true)
@@ -168,11 +179,12 @@ public final class Wallet implements Aggregate<WalletState> {
         return new WalletState(state.id(), balances);
     }
     
-    @CommandHandler(produces = {WalletCreditedEvent.class, InvalidAmountErrorEvent.class, InvalidCurrencyErrorEvent.class})
+    @CommandHandler(produces = {WalletCreditedEvent.class})
     public Stream<DomainEvent> credit(CreditWalletCommand cmd, WalletState currentState) {
         WalletState.Balance balance = currentState.balances().stream()
                 .filter(b -> b.currency().equals(cmd.currency()))
-                .findFirst().orElse(null);
+                .findFirst()
+                .orElse(null);
                 
         if (balance == null) {
             return Stream.of(new InvalidCurrencyErrorEvent(cmd.id(), cmd.currency()));
@@ -182,13 +194,15 @@ public final class Wallet implements Aggregate<WalletState> {
             return Stream.of(new InvalidAmountErrorEvent(cmd.id(), cmd.currency()));
         }
         
-        return Stream.of(new WalletCreditedEvent(currentState.id(), cmd.currency(), cmd.amount(), 
-                balance.amount().add(cmd.amount())));
+        return Stream.of(new WalletCreditedEvent(currentState.id(), 
+                                               cmd.currency(), 
+                                               cmd.amount(), 
+                                               balance.amount().add(cmd.amount())));
     }
 }
 ```
 
-### Define an Aggregate State
+### Defining the Aggregate State
 
 ```java
 public record WalletState(String id, List<Balance> balances) implements AggregateState {
@@ -209,12 +223,16 @@ public record WalletState(String id, List<Balance> balances) implements Aggregat
 }
 ```
 
-### Create Commands
+### Creating Commands
 
 ```java
 @CommandInfo(type = "CreateWallet", version = 1)
-public record CreateWalletCommand(@AggregateIdentifier @NotNull String id, 
-                                  @NotNull String currency) implements Command {
+public record CreateWalletCommand(
+    @AggregateIdentifier 
+    @NotNull String id, 
+    
+    @NotNull String currency
+) implements Command {
     @Override
     public String getAggregateId() {
         return id();
@@ -222,9 +240,14 @@ public record CreateWalletCommand(@AggregateIdentifier @NotNull String id,
 }
 
 @CommandInfo(type = "CreditWallet", version = 1)
-public record CreditWalletCommand(@AggregateIdentifier @NotNull String id,
-                                 @NotNull String currency,
-                                 @NotNull BigDecimal amount) implements Command {
+public record CreditWalletCommand(
+    @AggregateIdentifier 
+    @NotNull String id,
+    
+    @NotNull String currency,
+    
+    @NotNull BigDecimal amount
+) implements Command {
     @Override
     public String getAggregateId() {
         return id();
@@ -232,11 +255,14 @@ public record CreditWalletCommand(@AggregateIdentifier @NotNull String id,
 }
 ```
 
-### Create Events
+### Creating Events
 
 ```java
 @DomainEventInfo(type = "WalletCreated", version = 1)
-public record WalletCreatedEvent(@AggregateIdentifier @NotNull String id) implements DomainEvent {
+public record WalletCreatedEvent(
+    @AggregateIdentifier 
+    @NotNull String id
+) implements DomainEvent {
     @Override
     public String getAggregateId() {
         return id();
@@ -244,8 +270,12 @@ public record WalletCreatedEvent(@AggregateIdentifier @NotNull String id) implem
 }
 
 @DomainEventInfo(type = "BalanceCreated", version = 1)
-public record BalanceCreatedEvent(@AggregateIdentifier @NotNull String id, 
-                                 @NotNull String currency) implements DomainEvent {
+public record BalanceCreatedEvent(
+    @AggregateIdentifier 
+    @NotNull String id, 
+    
+    @NotNull String currency
+) implements DomainEvent {
     @Override
     public String getAggregateId() {
         return id();
@@ -253,10 +283,16 @@ public record BalanceCreatedEvent(@AggregateIdentifier @NotNull String id,
 }
 
 @DomainEventInfo(type = "WalletCredited", version = 1)
-public record WalletCreditedEvent(@AggregateIdentifier @NotNull String id,
-                                 @NotNull String currency,
-                                 @NotNull BigDecimal amount,
-                                 @NotNull BigDecimal newBalance) implements DomainEvent {
+public record WalletCreditedEvent(
+    @AggregateIdentifier 
+    @NotNull String id,
+    
+    @NotNull String currency,
+    
+    @NotNull BigDecimal amount,
+    
+    @NotNull BigDecimal newBalance
+) implements DomainEvent {
     @Override
     public String getAggregateId() {
         return id();
@@ -268,8 +304,12 @@ public record WalletCreditedEvent(@AggregateIdentifier @NotNull String id,
 
 ```java
 @DomainEventInfo(type = "InvalidCurrencyError", version = 1)
-public record InvalidCurrencyErrorEvent(@AggregateIdentifier @NotNull String walletId,
-                                       @NotNull String currency) implements ErrorEvent {
+public record InvalidCurrencyErrorEvent(
+    @AggregateIdentifier 
+    @NotNull String walletId,
+    
+    @NotNull String currency
+) implements ErrorEvent {
     @Override
     public String getAggregateId() {
         return walletId();
@@ -277,8 +317,12 @@ public record InvalidCurrencyErrorEvent(@AggregateIdentifier @NotNull String wal
 }
 
 @DomainEventInfo(type = "InvalidAmountError", version = 1)
-public record InvalidAmountErrorEvent(@AggregateIdentifier @NotNull String walletId,
-                                     @NotNull String currency) implements ErrorEvent {
+public record InvalidAmountErrorEvent(
+    @AggregateIdentifier 
+    @NotNull String walletId,
+    
+    @NotNull String currency
+) implements ErrorEvent {
     @Override
     public String getAggregateId() {
         return walletId();
@@ -289,45 +333,49 @@ public record InvalidAmountErrorEvent(@AggregateIdentifier @NotNull String walle
 ### Sending Commands
 
 ```java
-@Autowired
-private AkcesClient akcesClient;
-
-public void createWallet() {
-    String walletId = UUID.randomUUID().toString();
-    CreateWalletCommand command = new CreateWalletCommand(walletId, "USD");
+@Service
+public class WalletService {
+    private final AkcesClient akcesClient;
     
-    // Send command and get events synchronously
-    List<DomainEvent> events = akcesClient.send("DEFAULT_TENANT", command)
-        .toCompletableFuture()
-        .join();
+    @Autowired
+    public WalletService(AkcesClient akcesClient) {
+        this.akcesClient = akcesClient;
+    }
     
-    // Or send command asynchronously
-    akcesClient.sendAndForget("DEFAULT_TENANT", command);
-}
-
-public void creditWallet(String walletId, String currency, BigDecimal amount) {
-    CreditWalletCommand command = new CreditWalletCommand(walletId, currency, amount);
-    
-    try {
+    public String createWallet(String currency) {
+        String walletId = UUID.randomUUID().toString();
+        CreateWalletCommand command = new CreateWalletCommand(walletId, currency);
+        
+        // Send command and wait for response
         List<DomainEvent> events = akcesClient.send("DEFAULT_TENANT", command)
             .toCompletableFuture()
             .join();
             
-        // Check if we received an error event
-        if (events.stream().anyMatch(event -> event instanceof ErrorEvent)) {
-            ErrorEvent error = (ErrorEvent) events.stream()
-                .filter(event -> event instanceof ErrorEvent)
-                .findFirst()
-                .orElse(null);
-            // Handle error
+        // Check for success
+        if (events.stream().anyMatch(e -> e instanceof ErrorEvent)) {
+            throw new RuntimeException("Failed to create wallet");
         }
-    } catch (Exception e) {
-        // Handle exceptions (validation errors, connectivity issues, etc.)
+        
+        return walletId;
+    }
+    
+    public void creditWallet(String walletId, String currency, BigDecimal amount) {
+        CreditWalletCommand command = new CreditWalletCommand(walletId, currency, amount);
+        
+        try {
+            // Send command without waiting for response
+            akcesClient.sendAndForget("DEFAULT_TENANT", command);
+        } catch (CommandRefusedException e) {
+            // Handle specific command exceptions
+            throw new RuntimeException("Command refused: " + e.getMessage());
+        } catch (CommandValidationException e) {
+            throw new RuntimeException("Invalid command: " + e.getMessage());
+        }
     }
 }
 ```
 
-### Create a Query Model
+### Creating a Query Model
 
 ```java
 @QueryModelInfo(value = "WalletQuery", version = 1, indexName = "Wallets")
@@ -348,27 +396,29 @@ public class WalletQueryModel implements QueryModel<WalletQueryModelState> {
     }
     
     @QueryModelEventHandler
-    public WalletQueryModelState createBalance(BalanceCreatedEvent event, WalletQueryModelState currentState) {
-        WalletQueryModelState.Balance balance = new WalletQueryModelState.Balance(event.currency(), BigDecimal.ZERO);
-        List<WalletQueryModelState.Balance> balances = new ArrayList<>(currentState.balances());
-        balances.add(balance);
-        return new WalletQueryModelState(currentState.walletId(), balances);
+    public WalletQueryModelState createBalance(BalanceCreatedEvent event, WalletQueryModelState state) {
+        List<WalletQueryModelState.Balance> balances = new ArrayList<>(state.balances());
+        balances.add(new WalletQueryModelState.Balance(event.currency(), BigDecimal.ZERO));
+        return new WalletQueryModelState(state.walletId(), balances);
     }
     
     @QueryModelEventHandler
-    public WalletQueryModelState creditWallet(WalletCreditedEvent event, WalletQueryModelState currentState) {
+    public WalletQueryModelState creditWallet(WalletCreditedEvent event, WalletQueryModelState state) {
         return new WalletQueryModelState(
-                currentState.walletId(),
-                currentState.balances().stream().map(balance -> {
+            state.walletId(),
+            state.balances().stream()
+                .map(balance -> {
                     if (balance.currency().equals(event.currency())) {
                         return new WalletQueryModelState.Balance(
-                                balance.currency(),
-                                balance.amount().add(event.amount()),
-                                balance.reservedAmount()
+                            balance.currency(),
+                            balance.amount().add(event.amount()),
+                            balance.reservedAmount()
                         );
                     }
                     return balance;
-                }).toList());
+                })
+                .toList()
+        );
     }
 }
 
@@ -390,84 +440,97 @@ public record WalletQueryModelState(String walletId, List<Balance> balances) imp
 }
 ```
 
-### Query a Model
+### Querying a Model
 
 ```java
-@Autowired
-private QueryModels queryModels;
-
-public WalletQueryModelState getWallet(String walletId) {
-    return queryModels.getHydratedState(WalletQueryModel.class, walletId)
-        .toCompletableFuture()
-        .join();
-}
-
-public void displayWalletBalances(String walletId) {
-    try {
-        WalletQueryModelState wallet = queryModels.getHydratedState(WalletQueryModel.class, walletId)
-            .toCompletableFuture()
-            .get(5, TimeUnit.SECONDS);
-            
-        wallet.balances().forEach(balance -> {
-            System.out.printf("Currency: %s, Amount: %s, Available: %s%n", 
-                balance.currency(), 
-                balance.amount().toPlainString(), 
-                balance.getAvailableAmount().toPlainString());
-        });
-    } catch (QueryModelIdNotFoundException e) {
-        System.out.println("Wallet not found: " + e.getModelId());
-    } catch (Exception e) {
-        System.out.println("Error retrieving wallet: " + e.getMessage());
+@RestController
+@RequestMapping("/wallets")
+public class WalletController {
+    private final QueryModels queryModels;
+    
+    @Autowired
+    public WalletController(QueryModels queryModels) {
+        this.queryModels = queryModels;
+    }
+    
+    @GetMapping("/{walletId}")
+    public ResponseEntity<WalletQueryModelState> getWallet(@PathVariable String walletId) {
+        try {
+            WalletQueryModelState wallet = queryModels.getHydratedState(WalletQueryModel.class, walletId)
+                .toCompletableFuture()
+                .get(5, TimeUnit.SECONDS);
+                
+            return ResponseEntity.ok(wallet);
+        } catch (QueryModelIdNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
     }
 }
 ```
 
-### Create a Database Model
+### Creating a Database Model
 
 ```java
-@DatabaseModelInfo(value = "WalletDatabase", version = 1)
+@DatabaseModelInfo(value = "WalletDB", version = 1)
 public class WalletDatabaseModel extends JdbcDatabaseModel {
+
+    @Autowired
+    public WalletDatabaseModel(JdbcTemplate jdbcTemplate, PlatformTransactionManager transactionManager) {
+        super(jdbcTemplate, transactionManager);
+    }
+    
     @DatabaseModelEventHandler
     public void handle(WalletCreatedEvent event) {
-        jdbcTemplate.update("""
-            INSERT INTO wallets (wallet_id, created_date) 
-            VALUES (?, NOW())
-            """, 
-            event.id());
+        jdbcTemplate.update(
+            "INSERT INTO wallets (wallet_id, created_at) VALUES (?, NOW())",
+            event.id()
+        );
     }
     
     @DatabaseModelEventHandler
     public void handle(BalanceCreatedEvent event) {
-        jdbcTemplate.update("""
-            INSERT INTO wallet_balances (wallet_id, currency, amount) 
-            VALUES (?, ?, ?)
-            """, 
-            event.id(), event.currency(), 0.00);
+        jdbcTemplate.update(
+            "INSERT INTO wallet_balances (wallet_id, currency, amount, reserved_amount) VALUES (?, ?, 0, 0)",
+            event.id(),
+            event.currency()
+        );
     }
     
     @DatabaseModelEventHandler
     public void handle(WalletCreditedEvent event) {
-        jdbcTemplate.update("""
-            UPDATE wallet_balances
-            SET amount = ?
-            WHERE wallet_id = ? AND currency = ?
-            """,
-            event.newBalance(), event.id(), event.currency());
+        jdbcTemplate.update(
+            "UPDATE wallet_balances SET amount = ? WHERE wallet_id = ? AND currency = ?",
+            event.newBalance(),
+            event.id(),
+            event.currency()
+        );
     }
 }
 ```
 
-## GDPR and PII Data
+### GDPR and PII Data
 
-The framework provides built-in support for Personal Identifiable Information (PII):
+Akces provides built-in support for handling personal identifiable information (PII):
 
 ```java
-@AggregateStateInfo(value = "AccountState", version = 1)
-public record AccountState(@AggregateIdentifier String userId, 
-                          String country, 
-                          @PIIData String firstName, 
-                          @PIIData String lastName, 
-                          @PIIData String email) implements AggregateState {
+@AggregateStateInfo(value = "UserState", version = 1)
+public record UserState(
+    @AggregateIdentifier 
+    String userId,
+    
+    String country,
+    
+    @PIIData 
+    String firstName,
+    
+    @PIIData 
+    String lastName,
+    
+    @PIIData 
+    String email
+) implements AggregateState {
     @Override
     public String getAggregateId() {
         return userId();
@@ -475,15 +538,20 @@ public record AccountState(@AggregateIdentifier String userId,
 }
 ```
 
-PII data is automatically encrypted when stored and decrypted when retrieved. The encryption is transparent to the application code.
+With this annotation, the framework automatically:
+- Encrypts PII data before storing it
+- Decrypts PII data when loading it
+- Manages encryption keys securely
+- Ensures only authorized access to decrypted data
 
-## Process Managers
+### Process Managers
 
-Akces also supports process managers for coordinating complex workflows across multiple aggregates:
+For coordinating complex workflows across multiple aggregates:
 
 ```java
 @AggregateInfo(value = "OrderProcessManager", version = 1)
 public class OrderProcessManager implements ProcessManager<OrderProcessManagerState, OrderProcess> {
+    
     @Override
     public Class<OrderProcessManagerState> getStateClass() {
         return OrderProcessManagerState.class;
@@ -494,44 +562,55 @@ public class OrderProcessManager implements ProcessManager<OrderProcessManagerSt
         return Stream.of(new UserOrderProcessesCreatedEvent(event.userId()));
     }
     
+    @EventSourcingHandler(create = true)
+    public OrderProcessManagerState create(UserOrderProcessesCreatedEvent event, OrderProcessManagerState isNull) {
+        return new OrderProcessManagerState(event.userId());
+    }
+    
     @CommandHandler
     public Stream<BuyOrderCreatedEvent> placeBuyOrder(PlaceBuyOrderCommand command, OrderProcessManagerState state) {
         String orderId = UUID.randomUUID().toString();
-        // Start a multi-step process
-        getCommandBus().send(new ReserveAmountCommand(
-                state.userId(),
-                command.market().quoteCurrency(),
-                command.quantity().multiply(command.limitPrice()),
-                orderId));
         
+        // Reserve funds first - send command to Wallet aggregate
+        getCommandBus().send(new ReserveAmountCommand(
+            state.userId(),
+            command.market().quoteCurrency(),
+            command.quantity().multiply(command.limitPrice()),
+            orderId
+        ));
+        
+        // Create order record
         return Stream.of(new BuyOrderCreatedEvent(
-                state.userId(),
-                orderId,
-                command.market(),
-                command.quantity(),
-                command.limitPrice(),
-                command.clientReference()));
+            state.userId(),
+            orderId,
+            command.market(),
+            command.quantity(),
+            command.limitPrice(),
+            command.clientReference()
+        ));
     }
     
     @EventHandler
     public Stream<DomainEvent> handle(AmountReservedEvent event, OrderProcessManagerState state) {
-        OrderProcess orderProcess = state.getAkcesProcess(event.referenceId());
-        
-        if (orderProcess instanceof BuyOrderProcess) {
+        if (state.hasAkcesProcess(event.referenceId())) {
+            OrderProcess process = state.getAkcesProcess(event.referenceId());
             return Stream.of(new BuyOrderPlacedEvent(
-                    state.userId(), 
-                    orderProcess.orderId(), 
-                    orderProcess.market(), 
-                    orderProcess.quantity(), 
-                    orderProcess.limitPrice()));
+                state.userId(),
+                process.orderId(),
+                process.market(),
+                process.quantity(),
+                process.limitPrice()
+            ));
         }
-        
         return Stream.empty();
     }
     
     @EventHandler
     public Stream<DomainEvent> handle(InsufficientFundsErrorEvent errorEvent, OrderProcessManagerState state) {
-        return Stream.of(state.getAkcesProcess(errorEvent.referenceId()).handle(errorEvent));
+        if (state.hasAkcesProcess(errorEvent.referenceId())) {
+            return Stream.of(state.getAkcesProcess(errorEvent.referenceId()).handle(errorEvent));
+        }
+        return Stream.empty();
     }
 }
 ```
@@ -568,45 +647,29 @@ public class ClientApplication {
     public static void main(String[] args) {
         SpringApplication.run(ClientApplication.class, args);
     }
-    
-    @Bean
-    public CommandLineRunner commandLineRunner(AkcesClient akcesClient) {
-        return args -> {
-            // Create a new wallet
-            String walletId = UUID.randomUUID().toString();
-            CreateWalletCommand createCommand = new CreateWalletCommand(walletId, "USD");
-            
-            List<DomainEvent> createEvents = akcesClient.send(createCommand)
-                .toCompletableFuture()
-                .join();
-                
-            System.out.println("Wallet created: " + walletId);
-            
-            // Credit the wallet
-            CreditWalletCommand creditCommand = new CreditWalletCommand(walletId, "USD", new BigDecimal("1000.00"));
-            
-            List<DomainEvent> creditEvents = akcesClient.send(creditCommand)
-                .toCompletableFuture()
-                .join();
-                
-            System.out.println("Wallet credited: " + walletId);
-        };
-    }
 }
 ```
 
-## Benefits of Using Akces Framework
+## Benefits of Using Akces
 
-- **Scalability**: Built on Kafka for horizontal scalability across distributed nodes
-- **Reliability**: Event sourcing ensures data integrity and provides complete audit trails
-- **Flexibility**: Clean separation of commands and queries following CQRS principles
+- **Scalability**: Built on Kafka for horizontal scaling across multiple nodes
+- **Reliability**: Event sourcing ensures data integrity and complete audit trails
+- **Flexibility**: Clean separation of commands and queries with CQRS
 - **Performance**: Efficient state management with RocksDB and optimized query models
-- **Security**: Built-in support for data privacy and GDPR compliance
+- **Security**: Built-in GDPR compliance with transparent PII handling
 - **Evolution**: Schema evolution with backward compatibility checks
 - **Developer Experience**: Intuitive annotation-based programming model
-- **Observability**: Transparent view of all commands and events flowing through the system
-- **Temporal Queries**: Ability to reconstruct state at any point in time
+- **Observability**: Complete visibility into all commands and events
 
 ## License
 
 Apache License 2.0
+
+## Release Process
+
+This project uses the Maven Release Plugin and GitHub Actions to create releases.
+Run `mvn release:prepare release:perform && git push` to select the version to be released and create a VCS tag.
+
+GitHub Actions will start [the build process](https://github.com/elasticsoftwarefoundation/akces-framework/actions/workflows/maven-publish.yml).
+
+If successful, the build will be automatically published to [Github Packages](https://maven.pkg.github.com/elasticsoftwarefoundation/akces-framework/).
