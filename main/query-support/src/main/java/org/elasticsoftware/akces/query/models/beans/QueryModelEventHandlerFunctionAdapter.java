@@ -24,8 +24,9 @@ import org.elasticsoftware.akces.query.QueryModel;
 import org.elasticsoftware.akces.query.QueryModelEventHandlerFunction;
 import org.elasticsoftware.akces.query.QueryModelState;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 
 import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
 
@@ -37,7 +38,7 @@ public class QueryModelEventHandlerFunctionAdapter<S extends QueryModelState, E 
     private final Class<S> stateClass;
     private final boolean create;
     private final DomainEventType<E> domainEventType;
-    private Method adapterMethod;
+    private MethodHandle adapterMethodHandle;
 
     public QueryModelEventHandlerFunctionAdapter(QueryModel<S> queryModel,
                                                  String adapterMethodName,
@@ -64,27 +65,24 @@ public class QueryModelEventHandlerFunctionAdapter<S extends QueryModelState, E 
     @SuppressWarnings("unused")
     public void init() {
         try {
-            adapterMethod = queryModel.getClass().getMethod(adapterMethodName, domainEventClass, stateClass);
-        } catch (NoSuchMethodException e) {
-            throw new RuntimeException(e);
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            MethodType methodType = MethodType.methodType(stateClass, domainEventClass, stateClass);
+            adapterMethodHandle = lookup.findVirtual(queryModel.getClass(), adapterMethodName, methodType);
+        } catch (NoSuchMethodException | IllegalAccessException e) {
+            throw new RuntimeException("Failed to find method " + adapterMethodName + " on " +
+                    queryModel.getClass().getName(), e);
         }
     }
 
     @Override
     public @NotNull S apply(@NotNull E event, S state) {
         try {
-            return (S) adapterMethod.invoke(queryModel, event, state);
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        } catch (InvocationTargetException e) {
-            if (e.getCause() != null) {
-                if (e.getCause() instanceof RuntimeException) {
-                    throw (RuntimeException) e.getCause();
-                } else {
-                    throw new RuntimeException(e.getCause());
-                }
+            return (S) adapterMethodHandle.invoke(queryModel, event, state);
+        } catch (Throwable e) {
+            if (e instanceof RuntimeException) {
+                throw (RuntimeException) e;
             } else {
-                throw new RuntimeException(e);
+                throw new RuntimeException("Error invoking event handler", e);
             }
         }
     }

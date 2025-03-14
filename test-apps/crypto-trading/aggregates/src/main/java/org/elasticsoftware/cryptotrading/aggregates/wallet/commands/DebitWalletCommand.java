@@ -15,28 +15,22 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.cryptotrading.aggregates.wallet.commands;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import org.elasticsoftware.akces.events.DomainEvent;
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.CommandInfo;
+import org.elasticsoftware.akces.commands.Command;
 
-public record DomainEventType<T extends DomainEvent>(
-        String typeName,
-        int version,
-        @JsonIgnore Class<T> typeClass,
-        boolean create,
-        boolean external,
-        boolean error,
-        boolean piiData
-) implements SchemaType<T> {
+import java.math.BigDecimal;
 
+@CommandInfo(type = "DebitWallet", version = 1)
+public record DebitWalletCommand(
+    @NotNull String id,
+    @NotNull String currency,
+    @NotNull BigDecimal amount
+) implements Command {
     @Override
-    public String getSchemaPrefix() {
-        return "domainevents.";
-    }
-
-    @Override
-    public boolean relaxExternalValidation() {
-        return true;
+    public String getAggregateId() {
+        return id();
     }
 }

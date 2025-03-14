@@ -26,8 +26,10 @@ import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.events.ErrorEvent;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.lang.invoke.WrongMethodTypeException;
 
 import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
 
@@ -36,7 +38,7 @@ public class EventBridgeHandlerFunctionAdapter<S extends AggregateState, E exten
     private final String adapterMethodName;
     private final Class<E> inputEventClass;
     private final DomainEventType<E> domainEventType;
-    private Method adapterMethod;
+    private MethodHandle methodHandle;
 
     public EventBridgeHandlerFunctionAdapter(Aggregate<S> aggregate,
                                              String adapterMethodName,
@@ -59,8 +61,11 @@ public class EventBridgeHandlerFunctionAdapter<S extends AggregateState, E exten
     @SuppressWarnings("unused")
     public void init() {
         try {
-            adapterMethod = aggregate.getClass().getMethod(adapterMethodName, inputEventClass, CommandBus.class);
-        } catch (NoSuchMethodException e) {
+            methodHandle = MethodHandles.lookup().findVirtual(
+                    aggregate.getClass(),
+                    adapterMethodName,
+                    MethodType.methodType(void.class, inputEventClass, CommandBus.class));
+        } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }
@@ -68,19 +73,14 @@ public class EventBridgeHandlerFunctionAdapter<S extends AggregateState, E exten
     @Override
     public void apply(@NotNull E event, CommandBus commandBus) {
         try {
-            adapterMethod.invoke(aggregate, event, commandBus);
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        } catch (InvocationTargetException e) {
-            if (e.getCause() != null) {
-                if (e.getCause() instanceof RuntimeException) {
-                    throw (RuntimeException) e.getCause();
-                } else {
-                    throw new RuntimeException(e.getCause());
-                }
-            } else {
-                throw new RuntimeException(e);
+            methodHandle.invoke(aggregate, event, commandBus);
+        } catch (WrongMethodTypeException | ClassCastException e) {
+            throw e;
+        } catch (Throwable e) {
+            if (e instanceof RuntimeException runtimeException) {
+                throw runtimeException;
             }
+            throw new RuntimeException(e);
         }
     }
 
@@ -93,5 +93,4 @@ public class EventBridgeHandlerFunctionAdapter<S extends AggregateState, E exten
     public Aggregate<S> getAggregate() {
         return aggregate;
     }
-
 }

@@ -15,28 +15,14 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akces.annotations;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import org.elasticsoftware.akces.events.DomainEvent;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-public record DomainEventType<T extends DomainEvent>(
-        String typeName,
-        int version,
-        @JsonIgnore Class<T> typeClass,
-        boolean create,
-        boolean external,
-        boolean error,
-        boolean piiData
-) implements SchemaType<T> {
-
-    @Override
-    public String getSchemaPrefix() {
-        return "domainevents.";
-    }
-
-    @Override
-    public boolean relaxExternalValidation() {
-        return true;
-    }
+@Target({ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface UpcastingHandler {
 }

@@ -17,26 +17,10 @@
 
 package org.elasticsoftware.akces.aggregate;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import org.elasticsoftware.akces.events.DomainEvent;
+public interface ProtocolRecordType<T> {
+    String typeName();
 
-public record DomainEventType<T extends DomainEvent>(
-        String typeName,
-        int version,
-        @JsonIgnore Class<T> typeClass,
-        boolean create,
-        boolean external,
-        boolean error,
-        boolean piiData
-) implements SchemaType<T> {
+    int version();
 
-    @Override
-    public String getSchemaPrefix() {
-        return "domainevents.";
-    }
-
-    @Override
-    public boolean relaxExternalValidation() {
-        return true;
-    }
+    Class<T> typeClass();
 }

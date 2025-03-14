@@ -27,7 +27,7 @@ public record CommandType<C extends Command>(
         boolean create,
         boolean external,
         boolean piiData
-) implements SchemaType {
+) implements SchemaType<C> {
 
     @Override
     public String getSchemaPrefix() {

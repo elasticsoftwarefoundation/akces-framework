@@ -71,7 +71,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                 logger.info("Processing Aggregate bean {}", beanName);
                 BeanDefinition bd = beanFactory.getBeanDefinition(beanName);
                 try {
-                    Class<?> aggregateClass = Class.forName(bd.getBeanClassName());
+                    final Class<?> aggregateClass = Class.forName(bd.getBeanClassName());
                     List<Method> commandHandlers = Arrays.stream(aggregateClass.getMethods())
                             .filter(method -> method.isAnnotationPresent(CommandHandler.class))
                             .toList();
@@ -84,6 +84,9 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                     List<Method> eventBridgeHandlers = Arrays.stream(aggregateClass.getMethods())
                             .filter(method -> method.isAnnotationPresent(EventBridgeHandler.class))
                             .toList();
+                    List<Method> upcastingHandlers = Arrays.stream(aggregateClass.getMethods())
+                            .filter(method -> method.isAnnotationPresent(UpcastingHandler.class))
+                            .toList();
                     commandHandlers.forEach(commandHandlerMethod ->
                             processCommandHandler(beanName, commandHandlerMethod, bdr));
                     eventHandlers.forEach(eventHandlerMethod ->
@@ -92,6 +95,8 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             processEventSourcingHandler(beanName, eventSourcingHandlerMethod, bdr));
                     eventBridgeHandlers.forEach(eventBridgeHandlerMethod ->
                             processEventBridgeHandler(beanName, eventBridgeHandlerMethod, bdr));
+                    upcastingHandlers.forEach(upcastingHandlerMethod ->
+                            processUpcastingHandler(beanName, aggregateClass, upcastingHandlerMethod, bdr));
                 } catch (ClassNotFoundException e) {
                     throw new ApplicationContextException("Unable to load class for bean " + beanName, e);
                 }
@@ -228,6 +233,109 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .getBeanDefinition());
         } else {
             throw new ApplicationContextException("Invalid EventBridgeHandler method signature: " + eventBridgeHandlerMethod);
+        }
+    }
+
+    private void processUpcastingHandler(String aggregateBeanName,
+                                         Class<?> aggregateClass,
+                                         Method upcastingHandlerMethod,
+                                         BeanDefinitionRegistry bdr) {
+        // Handle domain event upcasting
+        if (upcastingHandlerMethod.getParameterCount() == 1 &&
+                DomainEvent.class.isAssignableFrom(upcastingHandlerMethod.getParameterTypes()[0]) &&
+                DomainEvent.class.isAssignableFrom(upcastingHandlerMethod.getReturnType())) {
+
+            Class<?> inputEventClass = upcastingHandlerMethod.getParameterTypes()[0];
+            Class<?> outputEventClass = upcastingHandlerMethod.getReturnType();
+
+            DomainEventInfo inputEventInfo = inputEventClass.getAnnotation(DomainEventInfo.class);
+            if (inputEventInfo == null) {
+                throw new IllegalArgumentException("Input event class " + inputEventClass.getName() +
+                        " must be annotated with @DomainEventInfo");
+            }
+
+            DomainEventInfo outputEventInfo = outputEventClass.getAnnotation(DomainEventInfo.class);
+            if (outputEventInfo == null) {
+                throw new IllegalArgumentException("Output event class " + outputEventClass.getName() +
+                        " must be annotated with @DomainEventInfo");
+            }
+            // see if this is a valid upcaster configuration
+            if (!inputEventInfo.type().equals(outputEventInfo.type())) {
+                throw new IllegalArgumentException("Input event type " + inputEventInfo.type() +
+                        " does not match output event type " + outputEventInfo.type());
+            }
+            if(outputEventInfo.version() - inputEventInfo.version() != 1) {
+                throw new IllegalArgumentException("Output event version " + outputEventInfo.version() +
+                        " must be one greater than input event version " + inputEventInfo.version());
+            }
+
+            // Generate bean name based on method name and event info
+            String beanName = aggregateBeanName + "_duh_" + upcastingHandlerMethod.getName() +
+                    "_" + inputEventInfo.type() + "_" + inputEventInfo.version() +
+                    "_to_" + outputEventInfo.version();
+
+            // we need to figure out if the event is internal or external
+            // we need to find the DomainEvent that is actually handled by either an @EventHandler or @EventSourcingHandler
+            boolean externalEvent = Arrays.stream(aggregateClass.getMethods())
+                    .filter(method -> method.isAnnotationPresent(EventSourcingHandler.class))
+                    .map(method -> method.getParameterTypes()[0])
+                    .noneMatch(eventClass -> eventClass.getAnnotation(DomainEventInfo.class).type().equals(outputEventInfo.type()));
+
+            bdr.registerBeanDefinition(beanName,
+                    BeanDefinitionBuilder.genericBeanDefinition(DomainEventUpcastingHandlerFunctionAdapter.class)
+                            .addConstructorArgReference(aggregateBeanName)
+                            .addConstructorArgValue(upcastingHandlerMethod.getName())
+                            .addConstructorArgValue(inputEventClass)
+                            .addConstructorArgValue(outputEventClass)
+                            .addConstructorArgValue(externalEvent)
+                            .setInitMethodName("init")
+                            .getBeanDefinition());
+
+            // Handle aggregate state upcasting
+        } else if (upcastingHandlerMethod.getParameterCount() == 1 &&
+                AggregateState.class.isAssignableFrom(upcastingHandlerMethod.getParameterTypes()[0]) &&
+                AggregateState.class.isAssignableFrom(upcastingHandlerMethod.getReturnType())) {
+
+            Class<?> inputStateClass = upcastingHandlerMethod.getParameterTypes()[0];
+            Class<?> outputStateClass = upcastingHandlerMethod.getReturnType();
+
+            AggregateStateInfo inputStateInfo = inputStateClass.getAnnotation(AggregateStateInfo.class);
+            if (inputStateInfo == null) {
+                throw new IllegalArgumentException("Input state class " + inputStateClass.getName() +
+                        " must be annotated with @AggregateStateInfo");
+            }
+
+            AggregateStateInfo outputStateInfo = outputStateClass.getAnnotation(AggregateStateInfo.class);
+            if (outputStateInfo == null) {
+                throw new IllegalArgumentException("Output state class " + outputStateClass.getName() +
+                        " must be annotated with @AggregateStateInfo");
+            }
+
+            // see if this is a valid upcaster configuration
+            if (!inputStateInfo.type().equals(outputStateInfo.type())) {
+                throw new IllegalArgumentException("Input state type " + inputStateInfo.type() +
+                        " does not match output state type " + outputStateInfo.type());
+            }
+            if(outputStateInfo.version() - inputStateInfo.version() != 1) {
+                throw new IllegalArgumentException("Output state version " + outputStateInfo.version() +
+                        " must be one greater than input state version " + inputStateInfo.version());
+            }
+
+            // Generate bean name based on method name and state info
+            String beanName = aggregateBeanName + "_suh_" + upcastingHandlerMethod.getName() +
+                    "_" + inputStateInfo.type() + "_" + inputStateInfo.version() +
+                    "_to_" + outputStateInfo.version();
+
+            bdr.registerBeanDefinition(beanName,
+                    BeanDefinitionBuilder.genericBeanDefinition(AggregateStateUpcastingHandlerFunctionAdapter.class)
+                            .addConstructorArgReference(aggregateBeanName)
+                            .addConstructorArgValue(upcastingHandlerMethod.getName())
+                            .addConstructorArgValue(inputStateClass)
+                            .addConstructorArgValue(outputStateClass)
+                            .setInitMethodName("init")
+                            .getBeanDefinition());
+        } else {
+            throw new ApplicationContextException("Invalid UpcastingHandler method signature: " + upcastingHandlerMethod);
         }
     }
 

@@ -17,26 +17,19 @@
 
 package org.elasticsoftware.akces.aggregate;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import org.elasticsoftware.akces.events.DomainEvent;
+@FunctionalInterface
+public interface UpcastingHandlerFunction<T , R , TR extends ProtocolRecordType<T>, RR extends ProtocolRecordType<R>> {
+    R apply(T t);
 
-public record DomainEventType<T extends DomainEvent>(
-        String typeName,
-        int version,
-        @JsonIgnore Class<T> typeClass,
-        boolean create,
-        boolean external,
-        boolean error,
-        boolean piiData
-) implements SchemaType<T> {
-
-    @Override
-    public String getSchemaPrefix() {
-        return "domainevents.";
+    default TR getInputType() {
+        throw new UnsupportedOperationException("When implementing UpcastingHandlerFunction directly, you must override getInputType()");
     }
 
-    @Override
-    public boolean relaxExternalValidation() {
-        return true;
+    default RR getOutputType() {
+        throw new UnsupportedOperationException("When implementing UpcastingHandlerFunction directly, you must override getOutputType()");
+    }
+
+    default Aggregate<? extends AggregateState> getAggregate() {
+        throw new UnsupportedOperationException("When implementing UpcastingHandlerFunction directly, you must override getAggregate()");
     }
 }
