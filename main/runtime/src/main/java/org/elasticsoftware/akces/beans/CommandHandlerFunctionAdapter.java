@@ -21,8 +21,10 @@ import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.events.DomainEvent;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.lang.invoke.WrongMethodTypeException;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -38,7 +40,7 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState, C extends C
     private final CommandType<C> commandType;
     private final List<DomainEventType<E>> producedDomainEventTypes;
     private final List<DomainEventType<E>> errorEventTypes;
-    private Method adapterMethod;
+    private MethodHandle adapterMethodHandle;
 
     public CommandHandlerFunctionAdapter(Aggregate<S> aggregate,
                                          String adapterMethodName,
@@ -67,25 +69,25 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState, C extends C
     @SuppressWarnings("unused")
     public void init() {
         try {
-            adapterMethod = aggregate.getClass().getMethod(adapterMethodName, commandClass, stateClass);
-        } catch (NoSuchMethodException e) {
+            adapterMethodHandle = MethodHandles.lookup().findVirtual(
+                    aggregate.getClass(),
+                    adapterMethodName,
+                    MethodType.methodType(Stream.class, commandClass, stateClass));
+        } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Stream<E> apply(C command, S state) {
         try {
-            return (Stream<E>) adapterMethod.invoke(aggregate, command, state);
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        } catch (InvocationTargetException e) {
-            if (e.getCause() != null) {
-                if (e.getCause() instanceof RuntimeException) {
-                    throw (RuntimeException) e.getCause();
-                } else {
-                    throw new RuntimeException(e.getCause());
-                }
+            return (Stream<E>) adapterMethodHandle.invoke(aggregate, command, state);
+        } catch(WrongMethodTypeException | ClassCastException e) {
+            throw e;
+        } catch (Throwable e) {
+            if (e instanceof RuntimeException) {
+                throw (RuntimeException) e;
             } else {
                 throw new RuntimeException(e);
             }

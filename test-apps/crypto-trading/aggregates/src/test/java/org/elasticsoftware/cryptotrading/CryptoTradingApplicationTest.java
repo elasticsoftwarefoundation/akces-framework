@@ -32,8 +32,8 @@ import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.cryptotrading.aggregates.account.commands.CreateAccountCommand;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.CreateCryptoMarketCommand;
-import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
 import org.elasticsoftware.cryptotrading.aggregates.orders.commands.PlaceBuyOrderCommand;
+import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreateBalanceCommand;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreditWalletCommand;
 import org.elasticsoftware.cryptotrading.services.coinbase.CoinbaseService;
@@ -99,6 +99,7 @@ public class CryptoTradingApplicationTest {
                     .withNetwork(network)
                     .withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "kafka:9092")
                     .withEnv("SCHEMA_REGISTRY_HOST_NAME", "localhost")
+                    .withEnv("SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL","none")
                     .withExposedPorts(8081)
                     .withNetworkAliases("schema-registry")
                     .dependsOn(kafka);
@@ -281,7 +282,6 @@ public class CryptoTradingApplicationTest {
                 new CreditWalletCommand(accountId,
                         "EUR",
                         new BigDecimal("1000")))).block();
-        ;
 
         // place a buy order on BTC-EUR market
         String clientOrderId = "479ab2a4-d19e-4116-9f7e-cf13dca5763a";

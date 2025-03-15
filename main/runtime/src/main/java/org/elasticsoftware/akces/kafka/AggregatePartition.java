@@ -517,7 +517,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             List<ConsumerRecord<String, ProtocolRecord>> stateRecords = allRecords.records(statePartition);
             if (!stateRecords.isEmpty()) {
                 stateRepository.process(stateRecords);
-                offsets.put(statePartition, stateRecords.get(stateRecords.size() - 1).offset());
+                offsets.put(statePartition, stateRecords.getLast().offset());
             }
             // then internal events (ignore?)
             allRecords.records(domainEventPartition)

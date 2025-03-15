@@ -29,7 +29,7 @@ public sealed interface GDPRContext permits NoopGDPRContext, EncryptingGDPRConte
     String decrypt(@Nullable String encryptedData);
 
     @Nonnull
-    String getAggregateId();
+    String aggregateId();
 
     @Nullable
     default byte[] getEncryptionKey() {

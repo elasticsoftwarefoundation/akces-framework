@@ -24,9 +24,7 @@ import com.github.victools.jsonschema.generator.*;
 import com.github.victools.jsonschema.module.jackson.JacksonModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
-import io.confluent.kafka.schemaregistry.CompatibilityLevel;
 import io.confluent.kafka.schemaregistry.ParsedSchema;
-import io.confluent.kafka.schemaregistry.SimpleParsedSchemaHolder;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
@@ -43,7 +41,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class KafkaSchemaRegistry {
     private static final Logger logger = LoggerFactory.getLogger(KafkaSchemaRegistry.class);
@@ -64,7 +61,7 @@ public class KafkaSchemaRegistry {
         return validate(domainEventType, false);
     }
 
-    private JsonSchema validate(SchemaType schemaType, boolean strict) throws SchemaException {
+    private JsonSchema validate(SchemaType<?> schemaType, boolean strict) throws SchemaException {
         try {
             logger.info("Validating schema {} v{}", schemaType.getSchemaName(), schemaType.version());
             JsonSchema localSchema = generateJsonSchema(schemaType);
@@ -128,7 +125,7 @@ public class KafkaSchemaRegistry {
         }
     }
 
-    public JsonSchema registerAndValidate(SchemaType schemaType, boolean forceRegisterOnIncompatibleSchema) throws SchemaException {
+    public JsonSchema registerAndValidate(SchemaType<?> schemaType, boolean forceRegisterOnIncompatibleSchema) throws SchemaException {
         try {
             // generate the local schema version
             JsonSchema localSchema = generateJsonSchema(schemaType);
@@ -238,9 +235,9 @@ public class KafkaSchemaRegistry {
                             schemaType.typeClass());
                 } else {
                     // ensure we have an ordered list of schemas
-                    registeredSchemas.sort(Comparator.comparingInt(ParsedSchema::version));
+                    registeredSchemas.sort(Comparator.comparingInt(parsedSchema -> getSchemaVersion(schemaType, parsedSchema)));
                     // see if the new version is exactly one higher than the last version
-                    if (schemaType.version() != registeredSchemas.getLast().version() + 1) {
+                    if (schemaType.version() != getSchemaVersion(schemaType,registeredSchemas.getLast()) + 1) {
                         throw new InvalidSchemaVersionException(
                                 schemaName,
                                 registeredSchemas.getLast().version(),
@@ -248,10 +245,13 @@ public class KafkaSchemaRegistry {
                                 schemaType.typeClass());
                     }
                     // see if the new schema is backwards compatible with the previous ones
-                    List<String> compatibilityErrors = localSchema.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE,
-                            registeredSchemas.stream().map(SimpleParsedSchemaHolder::new)
-                                    .collect(Collectors.toList()));
-                    if (compatibilityErrors.isEmpty()) {
+                    List<Difference> differences = SchemaDiff.compare(
+                                    ((JsonSchema)registeredSchemas.getLast()).rawSchema(),
+                                    localSchema.rawSchema())
+                            .stream().filter(diff ->
+                                    !SchemaDiff.COMPATIBLE_CHANGES.contains(diff.getType()) &&
+                                            !Difference.Type.REQUIRED_PROPERTY_ADDED_TO_UNOPEN_CONTENT_MODEL.equals(diff.getType())).toList();
+                    if (differences.isEmpty()) {
                         // register the new schema
                         schemaRegistryClient.register(
                                 schemaName,
@@ -259,13 +259,13 @@ public class KafkaSchemaRegistry {
                                 schemaType.version(),
                                 -1);
                     } else {
-                        // incomp
+                        // incompatible
                         throw new SchemaNotBackwardsCompatibleException(
                                 schemaName,
-                                registeredSchemas.getLast().version(),
+                                getSchemaVersion(schemaType,registeredSchemas.getLast()),
                                 schemaType.version(),
                                 schemaType.typeClass(),
-                                compatibilityErrors);
+                                differences);
                     }
                 }
             }
@@ -280,11 +280,11 @@ public class KafkaSchemaRegistry {
         }
     }
 
-    public JsonSchema generateJsonSchema(SchemaType schemaType) {
+    public JsonSchema generateJsonSchema(SchemaType<?> schemaType) {
         return new JsonSchema(schemaGeneratorTheadLocal.get().generateSchema(schemaType.typeClass()), List.of(), Map.of(), schemaType.version());
     }
 
-    private int getSchemaVersion(SchemaType schemaType, ParsedSchema parsedSchema) {
+    private int getSchemaVersion(SchemaType<?> schemaType, ParsedSchema parsedSchema) {
         try {
             return schemaRegistryClient.getVersion(schemaType.getSchemaName(), parsedSchema);
         } catch (IOException | RestClientException e) {

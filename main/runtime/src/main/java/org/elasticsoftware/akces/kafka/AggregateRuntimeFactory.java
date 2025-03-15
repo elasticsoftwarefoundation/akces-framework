@@ -20,6 +20,7 @@ package org.elasticsoftware.akces.kafka;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.annotations.AggregateInfo;
+import org.elasticsoftware.akces.annotations.AggregateStateInfo;
 import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.FactoryBean;
@@ -48,7 +49,7 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
     }
 
     @Override
-    public AggregateRuntime getObject() throws Exception {
+    public AggregateRuntime getObject(){
         return createRuntime(aggregate);
     }
 
@@ -61,22 +62,31 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
         KafkaAggregateRuntime.Builder runtimeBuilder = new KafkaAggregateRuntime.Builder();
 
         AggregateInfo aggregateInfo = aggregate.getClass().getAnnotation(AggregateInfo.class);
-
-        if (aggregateInfo != null) {
-            runtimeBuilder.setStateType(new AggregateStateType<>(
-                    aggregateInfo.value(),
-                    aggregateInfo.version(),
-                    aggregate.getStateClass(),
-                    aggregateInfo.generateGDPRKeyOnCreate(),
-                    aggregateInfo.indexed(),
-                    aggregateInfo.indexName(),
-                    hasPIIDataAnnotation(aggregate.getStateClass())
-            ));
-        } else {
+        AggregateStateInfo aggregateStateInfo = aggregate.getStateClass().getAnnotation(AggregateStateInfo.class);
+        if (aggregateStateInfo == null) {
+            throw new IllegalStateException("Aggregate state class " + aggregate.getStateClass().getName() +
+                    " must be annotated with @AggregateStateInfo");
+        }
+        // ensure aggregateInfo is not null
+        if (aggregateInfo == null) {
             throw new IllegalStateException("Class implementing Aggregate must be annotated with @AggregateInfo");
         }
-        runtimeBuilder
-                .setAggregateClass(aggregate.getClass())
+
+        // ensure the aggregate class references the correct state class version
+        if (aggregateStateInfo.version() != aggregateInfo.stateVersion()) {
+            throw new IllegalStateException("Aggregate state class version " + aggregateStateInfo.version() +
+                    " does not match the aggregate stateVersion " + aggregateInfo.stateVersion());
+        }
+
+        runtimeBuilder.setStateType(new AggregateStateType<>(
+                aggregateInfo.value(),
+                aggregateStateInfo.version(),
+                aggregate.getStateClass(),
+                aggregateInfo.generateGDPRKeyOnCreate(),
+                aggregateInfo.indexed(),
+                aggregateInfo.indexName(),
+                hasPIIDataAnnotation(aggregate.getStateClass())))
+                .setAggregateClass((Class<? extends Aggregate<?>>) aggregate.getClass())
                 .setObjectMapper(objectMapper)
                 .setGenerateGDPRKeyOnCreate(aggregateInfo.generateGDPRKeyOnCreate());
 
@@ -146,6 +156,19 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
                     runtimeBuilder
                             .addEventBridgeHandler(type, adapter)
                             .addDomainEvent(type);
+                });
+        // Add state upcasting handlers
+        applicationContext.getBeansOfType(UpcastingHandlerFunction.class).values().stream()
+                .filter(adapter -> adapter.getAggregate().equals(aggregate))
+                .forEach(adapter -> {
+                    if(adapter.getInputType() instanceof AggregateStateType<?> stateType) {
+                        runtimeBuilder
+                                .addStateUpcastingHandler(stateType, adapter);
+                    } else if(adapter.getInputType() instanceof DomainEventType<?> eventType) {
+                        runtimeBuilder
+                                .addEventUpcastingHandler(eventType, adapter)
+                                .addDomainEvent(eventType);
+                    }
                 });
 
         return runtimeBuilder.setSchemaRegistry(schemaRegistry).build();

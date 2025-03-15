@@ -118,7 +118,7 @@ public final class EncryptingGDPRContext implements GDPRContext {
 
     @Override
     @Nonnull
-    public String getAggregateId() {
+    public String aggregateId() {
         return aggregateId;
     }
 

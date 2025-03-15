@@ -25,8 +25,10 @@ import org.elasticsoftware.akces.aggregate.EventHandlerFunction;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.events.ErrorEvent;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.lang.invoke.WrongMethodTypeException;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -41,7 +43,7 @@ public class EventHandlerFunctionAdapter<S extends AggregateState, InputEvent ex
     private final List<DomainEventType<E>> producedDomainEventTypes;
     private final List<DomainEventType<E>> errorEventTypes;
     private final DomainEventType<InputEvent> domainEventType;
-    private Method adapterMethod;
+    private MethodHandle methodHandle;
 
     public EventHandlerFunctionAdapter(Aggregate<S> aggregate,
                                        String adapterMethodName,
@@ -72,28 +74,27 @@ public class EventHandlerFunctionAdapter<S extends AggregateState, InputEvent ex
     @SuppressWarnings("unused")
     public void init() {
         try {
-            adapterMethod = aggregate.getClass().getMethod(adapterMethodName, inputEventClass, stateClass);
-        } catch (NoSuchMethodException e) {
+            methodHandle = MethodHandles.lookup().findVirtual(
+                    aggregate.getClass(),
+                    adapterMethodName,
+                    MethodType.methodType(Stream.class, inputEventClass, stateClass));
+        } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Stream<E> apply(@NotNull InputEvent event, S state) {
         try {
-            return (Stream<E>) adapterMethod.invoke(aggregate, event, state);
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        } catch (InvocationTargetException e) {
-            if (e.getCause() != null) {
-                if (e.getCause() instanceof RuntimeException) {
-                    throw (RuntimeException) e.getCause();
-                } else {
-                    throw new RuntimeException(e.getCause());
-                }
-            } else {
-                throw new RuntimeException(e);
+            return (Stream<E>) methodHandle.invoke(aggregate, event, state);
+        } catch (WrongMethodTypeException | ClassCastException e) {
+            throw e;
+        } catch (Throwable e) {
+            if (e instanceof RuntimeException runtimeException) {
+                throw runtimeException;
             }
+            throw new RuntimeException(e);
         }
     }
 

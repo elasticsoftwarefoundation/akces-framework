@@ -160,9 +160,9 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                 if(!newExecutions.isEmpty()){
                     logger.info("Processing {} new HydrationExecutions", newExecutions.size());
                     // we need to get the endoffsets for all the partitions
-                    indexConsumer.endOffsets(newExecutions.keySet()).forEach((partition, endOffset) -> {
-                        hydrationExecutions.computeIfPresent(partition, (topicPartition, hydrationExecution) -> hydrationExecution.withEndOffset(endOffset));
-                    });
+                    indexConsumer.endOffsets(newExecutions.keySet()).forEach((partition, endOffset) ->
+                            hydrationExecutions.computeIfPresent(partition, (topicPartition, hydrationExecution) ->
+                                    hydrationExecution.withEndOffset(endOffset)));
                 }
                 // seek to the correct offset for the new executions
                 newExecutions.forEach((partition, execution) -> {

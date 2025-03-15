@@ -25,5 +25,5 @@ public record AggregateStateType<C extends AggregateState>(
         boolean indexed,
         String indexName,
         boolean piiData
-) {
+) implements ProtocolRecordType<C> {
 }

@@ -22,13 +22,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.victools.jsonschema.generator.*;
 import com.github.victools.jsonschema.module.jackson.JacksonModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
-import io.confluent.kafka.schemaregistry.CompatibilityLevel;
-import io.confluent.kafka.schemaregistry.SimpleParsedSchemaHolder;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import io.confluent.kafka.schemaregistry.json.diff.Difference;
+import io.confluent.kafka.schemaregistry.json.diff.SchemaDiff;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akcestest.aggregate.wallet.InvalidAmountErrorEvent;
@@ -77,20 +78,33 @@ public class JsonSchemaTests {
     public void testSchemaCompatibility() throws IOException {
         SchemaGenerator generator = createSchemaGenerator();
 
-        JsonNode schemaV1 = generator.generateSchema(AccountCreatedEvent.class);
-        JsonNode schemaV2 = generator.generateSchema(AccountCreatedEventV2.class);
-
-        System.out.println(schemaV1.toString());
-        System.out.println(schemaV2.toString());
+        ObjectNode schemaV1 = generator.generateSchema(AccountCreatedEvent.class);
+        ObjectNode schemaV2 = generator.generateSchema(AccountCreatedEventV2.class);
+        ObjectNode schemaV3 = generator.generateSchema(AccountCreatedEventV3.class);
 
         JsonSchema schema1 = new JsonSchema(schemaV1);
         JsonSchema schema2 = new JsonSchema(schemaV2);
+        JsonSchema schema3 = new JsonSchema(schemaV3);
 
-        assertEquals(schema2.isCompatible(CompatibilityLevel.BACKWARD_TRANSITIVE, List.of(new SimpleParsedSchemaHolder(schema1))).size(), 0);
+        List<Difference> differencesV2 = SchemaDiff.compare(schema1.rawSchema(), schema2.rawSchema())
+                .stream().filter(diff ->
+                        !SchemaDiff.COMPATIBLE_CHANGES.contains(diff.getType()) &&
+                        !Difference.Type.REQUIRED_PROPERTY_ADDED_TO_UNOPEN_CONTENT_MODEL.equals(diff.getType())).toList();
 
-        schema2.validate(schema2.toJson(new AccountCreatedEvent("1", "Musk", AccountTypeV1.PREMIUM)));
+        assertEquals(0, differencesV2.size());
+
+        List<Difference> differencesV3 = SchemaDiff.compare(schema2.rawSchema(), schema3.rawSchema())
+                .stream().filter(diff ->
+                        !SchemaDiff.COMPATIBLE_CHANGES.contains(diff.getType()) &&
+                                !Difference.Type.REQUIRED_PROPERTY_ADDED_TO_UNOPEN_CONTENT_MODEL.equals(diff.getType())).toList();
+
+        assertEquals(0, differencesV3.size());
+
+        schema1.validate(schema1.toJson(new AccountCreatedEvent("1", "Musk", AccountTypeV1.PREMIUM)));
 
         schema2.validate(schema2.toJson(new AccountCreatedEventV2("1", "Musk", AccountTypeV2.PREMIUM, "Elon", "US")));
+
+        schema3.validate(schema3.toJson(new AccountCreatedEventV3("1", "Musk", AccountTypeV2.GOLD, "Elon", "NL", "Amsterdam")));
 
         // schema2.validate(new AccountCreatedEvent("1", null, AccountTypeV1.PREMIUM));
 

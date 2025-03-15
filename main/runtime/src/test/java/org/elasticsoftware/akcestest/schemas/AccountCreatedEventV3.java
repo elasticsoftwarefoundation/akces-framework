@@ -26,7 +26,7 @@ public record AccountCreatedEventV3(
         @NotNull String userId,
         @NotNull String lastName,
         @NotNull AccountTypeV2 type,
-        String firstName,
+        @NotNull String firstName,
         String country,
         String city
 ) implements DomainEvent {

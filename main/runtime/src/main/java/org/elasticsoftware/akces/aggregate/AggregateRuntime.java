@@ -36,7 +36,7 @@ public interface AggregateRuntime {
 
     String getName();
 
-    Class<? extends Aggregate> getAggregateClass();
+    Class<? extends Aggregate<?>> getAggregateClass();
 
     void handleCommandRecord(CommandRecord commandRecord,
                              Consumer<ProtocolRecord> protocolRecordConsumer,

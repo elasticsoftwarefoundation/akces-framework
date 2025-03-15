@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.aggregate;
 
-public interface SchemaType {
+public interface SchemaType<T> extends ProtocolRecordType<T> {
     String getSchemaPrefix();
 
     default String getSchemaName() {
@@ -25,12 +25,6 @@ public interface SchemaType {
     }
 
     boolean relaxExternalValidation();
-
-    String typeName();
-
-    int version();
-
-    Class<?> typeClass();
 
     boolean external();
 }

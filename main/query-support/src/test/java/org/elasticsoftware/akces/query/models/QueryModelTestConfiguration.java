@@ -18,11 +18,8 @@
 package org.elasticsoftware.akces.query.models;
 
 import org.elasticsoftware.akces.annotations.DatabaseModelInfo;
-import org.springframework.boot.test.autoconfigure.filter.TypeExcludeFilters;
 import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
-import org.springframework.test.context.ContextConfiguration;
 
 //@Configuration
 @ComponentScan(basePackages = {

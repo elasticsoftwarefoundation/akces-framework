@@ -47,12 +47,7 @@ public final class AkcesControlRecordSerde implements Serde<AkcesControlRecord> 
         return deserializer;
     }
 
-    private static class SerializerImpl implements Serializer<AkcesControlRecord> {
-        private final ObjectMapper objectMapper;
-
-        private SerializerImpl(ObjectMapper objectMapper) {
-            this.objectMapper = objectMapper;
-        }
+    private record SerializerImpl(ObjectMapper objectMapper) implements Serializer<AkcesControlRecord> {
 
         @Override
         public byte[] serialize(String topic, AkcesControlRecord data) {
@@ -68,12 +63,7 @@ public final class AkcesControlRecordSerde implements Serde<AkcesControlRecord> 
         }
     }
 
-    private static class DeserializerImpl implements Deserializer<AkcesControlRecord> {
-        private final ObjectMapper objectMapper;
-
-        private DeserializerImpl(ObjectMapper objectMapper) {
-            this.objectMapper = objectMapper;
-        }
+    private record DeserializerImpl(ObjectMapper objectMapper) implements Deserializer<AkcesControlRecord> {
 
         @Override
         public AkcesControlRecord deserialize(String topic, byte[] data) {

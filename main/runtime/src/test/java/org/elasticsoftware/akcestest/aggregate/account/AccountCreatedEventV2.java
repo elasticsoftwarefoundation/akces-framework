@@ -15,28 +15,26 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.akcestest.aggregate.account;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.AggregateIdentifier;
+import org.elasticsoftware.akces.annotations.DomainEventInfo;
+import org.elasticsoftware.akces.annotations.PIIData;
 import org.elasticsoftware.akces.events.DomainEvent;
 
-public record DomainEventType<T extends DomainEvent>(
-        String typeName,
-        int version,
-        @JsonIgnore Class<T> typeClass,
-        boolean create,
-        boolean external,
-        boolean error,
-        boolean piiData
-) implements SchemaType<T> {
 
+@DomainEventInfo(type = "AccountCreated", version = 2)
+public record AccountCreatedEventV2(
+        @AggregateIdentifier @NotNull String userId,
+        @NotNull String country,
+        @NotNull @PIIData String firstName,
+        @NotNull @PIIData String lastName,
+        @NotNull @PIIData String email,
+        @NotNull boolean twoFactorEnabled
+) implements DomainEvent {
     @Override
-    public String getSchemaPrefix() {
-        return "domainevents.";
-    }
-
-    @Override
-    public boolean relaxExternalValidation() {
-        return true;
+    public String getAggregateId() {
+        return userId();
     }
 }

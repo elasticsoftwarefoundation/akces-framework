@@ -25,6 +25,7 @@ public class CommandBusHolder {
     protected CommandBusHolder() {
     }
 
+    @SuppressWarnings("rawtypes")
     public static CommandBus getCommandBus(Class<? extends Aggregate> aggregateClass) {
         return commandBusThreadLocal.get();
     }

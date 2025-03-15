@@ -25,10 +25,7 @@ import org.elasticsoftware.akces.annotations.EventHandler;
 import org.elasticsoftware.akces.annotations.EventSourcingHandler;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.cryptotrading.aggregates.account.events.AccountCreatedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreateBalanceCommand;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreateWalletCommand;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreditWalletCommand;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.ReserveAmountCommand;
+import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.*;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.*;
 
 import java.math.BigDecimal;
@@ -37,7 +34,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 
-@AggregateInfo(value = "Wallet", version = 1, indexed = true, indexName = "Users")
+@AggregateInfo(value = "Wallet", stateVersion = 1, indexed = true, indexName = "Users")
 @SuppressWarnings("unused")
 public final class Wallet implements Aggregate<WalletState> {
     @Override
@@ -48,6 +45,10 @@ public final class Wallet implements Aggregate<WalletState> {
     @Override
     public Class<WalletState> getStateClass() {
         return WalletState.class;
+    }
+
+    public WalletStateV2 upcast(WalletState state) {
+        return new WalletStateV2(state.id(), state.balances().stream().map(b -> new WalletStateV2.Balance(b.currency(), b.amount(), new ArrayList<>())).toList());
     }
 
     @CommandHandler(create = true, produces = WalletCreatedEvent.class, errors = {})
@@ -73,6 +74,40 @@ public final class Wallet implements Aggregate<WalletState> {
             return Stream.of(new InvalidAmountErrorEvent(cmd.id(), cmd.currency()));
         }
         return Stream.of(new WalletCreditedEvent(currentState.id(), cmd.currency(), cmd.amount(), balance.amount().add(cmd.amount())));
+    }
+
+    @CommandHandler(produces = WalletDebitedEvent.class, errors = {InvalidCryptoCurrencyErrorEvent.class, InvalidAmountErrorEvent.class, InsufficientFundsErrorEvent.class})
+    @NotNull
+    public Stream<DomainEvent> debit(@NotNull DebitWalletCommand cmd, @NotNull WalletState currentState) {
+        WalletState.Balance balance = currentState.balances().stream()
+                .filter(b -> b.currency().equals(cmd.currency()))
+                .findFirst()
+                .orElse(null);
+
+        if (balance == null) {
+            return Stream.of(new InvalidCryptoCurrencyErrorEvent(cmd.id(), cmd.currency()));
+        }
+
+        if (cmd.amount().compareTo(BigDecimal.ZERO) <= 0) {
+            return Stream.of(new InvalidAmountErrorEvent(cmd.id(), cmd.currency()));
+        }
+
+        if (balance.getAvailableAmount().compareTo(cmd.amount()) < 0) {
+            return Stream.of(new InsufficientFundsErrorEvent(
+                cmd.id(),
+                cmd.currency(),
+                balance.getAvailableAmount(),
+                cmd.amount(),
+                null
+            ));
+        }
+
+        return Stream.of(new WalletDebitedEvent(
+            currentState.id(),
+            cmd.currency(),
+            cmd.amount(),
+            balance.amount().subtract(cmd.amount())
+        ));
     }
 
     @CommandHandler(produces = AmountReservedEvent.class, errors = {InvalidCryptoCurrencyErrorEvent.class, InvalidAmountErrorEvent.class, InsufficientFundsErrorEvent.class})

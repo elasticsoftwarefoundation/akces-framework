@@ -19,11 +19,13 @@ package org.elasticsoftware.cryptotrading.aggregates.orders;
 
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
+import org.elasticsoftware.akces.annotations.AggregateStateInfo;
 import org.elasticsoftware.akces.processmanager.ProcessManagerState;
 import org.elasticsoftware.akces.processmanager.UnknownAkcesProcessException;
 
 import java.util.List;
 
+@AggregateStateInfo(type = "OrderProcessManager", version = 1)
 public record OrderProcessManagerState(
         @NotNull @AggregateIdentifier String userId,
         List<OrderProcess> runningProcesses

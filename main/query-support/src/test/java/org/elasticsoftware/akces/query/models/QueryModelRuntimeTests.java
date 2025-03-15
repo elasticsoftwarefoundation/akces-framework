@@ -39,7 +39,6 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
-import org.elasticsoftware.akces.annotations.DatabaseModelInfo;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.client.AkcesClientController;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
@@ -59,14 +58,11 @@ import org.elasticsoftware.akcestest.aggregate.account.CreateAccountCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.test.autoconfigure.filter.TypeExcludeFilters;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextException;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.FilterType;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
@@ -125,6 +121,7 @@ public class QueryModelRuntimeTests {
                     .withNetwork(network)
                     .withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "kafka:9092")
                     .withEnv("SCHEMA_REGISTRY_HOST_NAME", "localhost")
+                    .withEnv("SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL","none")
                     .withExposedPorts(8081)
                     .withNetworkAliases("schema-registry")
                     .dependsOn(kafka);
@@ -558,7 +555,7 @@ public class QueryModelRuntimeTests {
 
         Assertions.assertNotNull(result);
         Assertions.assertEquals(1, result.size());
-        assertInstanceOf(BalanceCreatedEvent.class, result.get(0));
+        assertInstanceOf(BalanceCreatedEvent.class, result.getFirst());
 
         CompletableFuture<WalletQueryModelState> walletStateFuture4 = akcesQueryModelController.getHydratedState(WalletQueryModel.class, userId)
                 .toCompletableFuture();
@@ -576,9 +573,9 @@ public class QueryModelRuntimeTests {
 
         Assertions.assertNotNull(result);
         Assertions.assertEquals(1, result.size());
-        assertInstanceOf(WalletCreditedEvent.class, result.get(0));
-        assertEquals("EUR", ((WalletCreditedEvent) result.get(0)).currency());
-        assertEquals(new BigDecimal("1000.00"), ((WalletCreditedEvent) result.get(0)).amount());
+        assertInstanceOf(WalletCreditedEvent.class, result.getFirst());
+        assertEquals("EUR", ((WalletCreditedEvent) result.getFirst()).currency());
+        assertEquals(new BigDecimal("1000.00"), ((WalletCreditedEvent) result.getFirst()).amount());
 
         CompletableFuture<WalletQueryModelState> walletStateFuture5 = akcesQueryModelController.getHydratedState(WalletQueryModel.class, userId)
                 .toCompletableFuture();

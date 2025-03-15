@@ -140,6 +140,7 @@ public class RuntimeTests {
                     .withNetwork(network)
                     .withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "kafka:9092")
                     .withEnv("SCHEMA_REGISTRY_HOST_NAME", "localhost")
+                    .withEnv("SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL","none")
                     .withExposedPorts(8081)
                     .withNetworkAliases("schema-registry")
                     .dependsOn(kafka);
@@ -647,13 +648,13 @@ public class RuntimeTests {
 
             assertEquals(2, allRecords.size());
             // now see if the domain event and state are encrypted
-            assertTrue(allRecords.get(1) instanceof DomainEventRecord);
+            assertInstanceOf(DomainEventRecord.class, allRecords.get(1));
             DomainEventRecord domainEventRecord = (DomainEventRecord) allRecords.get(1);
             AccountCreatedEvent accountCreatedEvent = objectMapper.readValue(domainEventRecord.payload(), AccountCreatedEvent.class);
             assertNotEquals("Fahim", accountCreatedEvent.firstName());
             assertNotEquals("Zuijderwijk", accountCreatedEvent.lastName());
             assertNotEquals("FahimZuijderwijk@jourrapide.com", accountCreatedEvent.email());
-            AggregateStateRecord stateRecord = (AggregateStateRecord) allRecords.get(0);
+            AggregateStateRecord stateRecord = (AggregateStateRecord) allRecords.getFirst();
             AccountState accountState = objectMapper.readValue(stateRecord.payload(), AccountState.class);
             assertNotEquals("Fahim", accountState.firstName());
             assertNotEquals("Zuijderwijk", accountState.lastName());

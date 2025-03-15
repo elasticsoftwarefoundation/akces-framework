@@ -24,8 +24,10 @@ import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.aggregate.EventSourcingHandlerFunction;
 import org.elasticsoftware.akces.events.DomainEvent;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.lang.invoke.WrongMethodTypeException;
 
 import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
 
@@ -36,7 +38,7 @@ public class EventSourcingHandlerFunctionAdapter<S extends AggregateState, E ext
     private final Class<S> stateClass;
     private final boolean create;
     private final DomainEventType<E> domainEventType;
-    private Method adapterMethod;
+    private MethodHandle methodHandle;
 
     public EventSourcingHandlerFunctionAdapter(Aggregate<S> aggregate,
                                                String adapterMethodName,
@@ -62,28 +64,27 @@ public class EventSourcingHandlerFunctionAdapter<S extends AggregateState, E ext
     @SuppressWarnings("unused")
     public void init() {
         try {
-            adapterMethod = aggregate.getClass().getMethod(adapterMethodName, domainEventClass, stateClass);
-        } catch (NoSuchMethodException e) {
+            methodHandle = MethodHandles.lookup().findVirtual(
+                    aggregate.getClass(),
+                    adapterMethodName,
+                    MethodType.methodType(stateClass, domainEventClass, stateClass));
+        } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public @NotNull S apply(@NotNull E event, S state) {
         try {
-            return (S) adapterMethod.invoke(aggregate, event, state);
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        } catch (InvocationTargetException e) {
-            if (e.getCause() != null) {
-                if (e.getCause() instanceof RuntimeException) {
-                    throw (RuntimeException) e.getCause();
-                } else {
-                    throw new RuntimeException(e.getCause());
-                }
-            } else {
-                throw new RuntimeException(e);
+            return (S) methodHandle.invoke(aggregate, event, state);
+        } catch (WrongMethodTypeException | ClassCastException e) {
+            throw e;
+        } catch (Throwable e) {
+            if (e instanceof RuntimeException runtimeException) {
+                throw runtimeException;
             }
+            throw new RuntimeException(e);
         }
     }
 

@@ -63,7 +63,7 @@ public class AkcesGDPRModule extends Module {
                     semver.getMajor(),
                     semver.getMinor(),
                     semver.getPatch(),
-                    !semver.getPreRelease().isEmpty() ? semver.getPreRelease().get(0) : null,
+                    !semver.getPreRelease().isEmpty() ? semver.getPreRelease().getFirst() : null,
                     "org.elasticsoftwarefoundation.akces",
                     "akces-runtime");
         } else {

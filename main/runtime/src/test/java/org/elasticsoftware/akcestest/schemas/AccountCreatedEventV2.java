@@ -26,7 +26,7 @@ public record AccountCreatedEventV2(
         @NotNull String userId,
         @NotNull String lastName,
         @NotNull AccountTypeV2 type,
-        String firstName,
+        @NotNull String firstName,
         String country
 ) implements DomainEvent {
     @Override
