@@ -182,16 +182,6 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
     }
 
     @Override
-    public void configure(Map<String, ?> configs, boolean isKey) {
-
-    }
-
-    @Override
-    public void close() {
-
-    }
-
-    @Override
     public Serializer<ProtocolRecord> serializer() {
         return serializer;
     }
@@ -201,25 +191,13 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
         return deserializer;
     }
 
-    private static class SerializerImpl implements Serializer<ProtocolRecord> {
-        private final ObjectWriter domainEventRecordWriter;
-        private final ObjectWriter aggregateStateRecordWriter;
-        private final ObjectWriter commandRecordWriter;
-        private final ObjectWriter gdprKeyRecordWriter;
-        private final ObjectWriter commandResponseRecordWriter;
-
-        private SerializerImpl(ObjectWriter domainEventRecordWriter,
-                               ObjectWriter aggregateStateRecordWriter,
-                               ObjectWriter commandRecordWriter,
-                               ObjectWriter gdprKeyRecordWriter,
-                               ObjectWriter commandResponseRecordWriter) {
-            this.domainEventRecordWriter = domainEventRecordWriter;
-            this.aggregateStateRecordWriter = aggregateStateRecordWriter;
-            this.commandRecordWriter = commandRecordWriter;
-            this.gdprKeyRecordWriter = gdprKeyRecordWriter;
-            this.commandResponseRecordWriter = commandResponseRecordWriter;
-        }
-
+    private record SerializerImpl(
+            ObjectWriter domainEventRecordWriter,
+            ObjectWriter aggregateStateRecordWriter,
+            ObjectWriter commandRecordWriter,
+            ObjectWriter gdprKeyRecordWriter,
+            ObjectWriter commandResponseRecordWriter
+    ) implements Serializer<ProtocolRecord> {
 
         @Override
         public byte[] serialize(String topic, ProtocolRecord data) {
@@ -243,24 +221,13 @@ public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
         }
     }
 
-    private static class DeserializerImpl implements Deserializer<ProtocolRecord> {
-        private final ObjectReader domainEventRecordReader;
-        private final ObjectReader aggregateStateRecordReader;
-        private final ObjectReader commandRecordReader;
-        private final ObjectReader gdprKeyRecordReader;
-        private final ObjectReader commandResponseRecordReader;
-
-        public DeserializerImpl(ObjectReader domainEventRecordReader,
-                                ObjectReader aggregateStateRecordReader,
-                                ObjectReader commandRecordReader,
-                                ObjectReader gdprKeyRecordReader,
-                                ObjectReader commandResponseRecordReader) {
-            this.domainEventRecordReader = domainEventRecordReader;
-            this.aggregateStateRecordReader = aggregateStateRecordReader;
-            this.commandRecordReader = commandRecordReader;
-            this.gdprKeyRecordReader = gdprKeyRecordReader;
-            this.commandResponseRecordReader = commandResponseRecordReader;
-        }
+    private record DeserializerImpl(
+            ObjectReader domainEventRecordReader,
+            ObjectReader aggregateStateRecordReader,
+            ObjectReader commandRecordReader,
+            ObjectReader gdprKeyRecordReader,
+            ObjectReader commandResponseRecordReader
+    ) implements Deserializer<ProtocolRecord> {
 
         @Override
         public ProtocolRecord deserialize(String topic, byte[] data) {

@@ -20,9 +20,7 @@ package org.elasticsoftware.akces.gdpr;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 
-public final class NoopGDPRContext implements GDPRContext {
-    private final String aggregateId;
-
+public record NoopGDPRContext(String aggregateId) implements GDPRContext {
     public NoopGDPRContext(@Nonnull String aggregateId) {
         this.aggregateId = aggregateId;
     }
@@ -41,7 +39,7 @@ public final class NoopGDPRContext implements GDPRContext {
 
     @Nonnull
     @Override
-    public String getAggregateId() {
+    public String aggregateId() {
         return aggregateId;
     }
 }

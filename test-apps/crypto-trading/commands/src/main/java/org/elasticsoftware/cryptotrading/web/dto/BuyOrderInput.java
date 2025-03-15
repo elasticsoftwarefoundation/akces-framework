@@ -1,7 +1,7 @@
 package org.elasticsoftware.cryptotrading.web.dto;
 
-import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
 import org.elasticsoftware.cryptotrading.aggregates.orders.commands.PlaceBuyOrderCommand;
+import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
 
 import java.math.BigDecimal;
 

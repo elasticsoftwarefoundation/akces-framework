@@ -45,7 +45,7 @@ public class InMemoryAggregateStateRepository implements AggregateStateRepositor
 
     @Override
     public void prepare(AggregateStateRecord record, Future<RecordMetadata> recordMetadataFuture) {
-        transactionStateRecordMap.put(record.aggregateId(), new RecordAndMetadata(record, recordMetadataFuture));
+        transactionStateRecordMap.put(record.aggregateId(), new RecordAndMetadata<>(record, recordMetadataFuture));
     }
 
     @Override

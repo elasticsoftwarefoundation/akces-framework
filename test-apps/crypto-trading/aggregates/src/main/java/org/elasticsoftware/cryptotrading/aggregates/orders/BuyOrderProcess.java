@@ -18,8 +18,8 @@
 package org.elasticsoftware.cryptotrading.aggregates.orders;
 
 import org.elasticsoftware.cryptotrading.aggregates.orders.commands.RejectOrderCommand;
-import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderRejectedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
+import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderRejectedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.InsufficientFundsErrorEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.InvalidCryptoCurrencyErrorEvent;
 

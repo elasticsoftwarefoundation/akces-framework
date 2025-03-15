@@ -192,10 +192,9 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
     }
 
     private CommandType<?> getCommandType(CommandRecord commandRecord) {
-        CommandType<?> commandType = commandTypes.getOrDefault(commandRecord.name(), emptyList()).stream()
+        return commandTypes.getOrDefault(commandRecord.name(), emptyList()).stream()
                 .filter(ct -> ct.version() == commandRecord.version())
                 .findFirst().orElseThrow(RuntimeException::new); // TODO: replace with specific exception
-        return commandType;
     }
 
     private void indexDomainEventIfRequired(DomainEventRecord domainEventRecord,

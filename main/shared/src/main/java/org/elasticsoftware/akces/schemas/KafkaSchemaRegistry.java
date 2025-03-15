@@ -280,11 +280,11 @@ public class KafkaSchemaRegistry {
         }
     }
 
-    public JsonSchema generateJsonSchema(SchemaType schemaType) {
+    public JsonSchema generateJsonSchema(SchemaType<?> schemaType) {
         return new JsonSchema(schemaGeneratorTheadLocal.get().generateSchema(schemaType.typeClass()), List.of(), Map.of(), schemaType.version());
     }
 
-    private int getSchemaVersion(SchemaType schemaType, ParsedSchema parsedSchema) {
+    private int getSchemaVersion(SchemaType<?> schemaType, ParsedSchema parsedSchema) {
         try {
             return schemaRegistryClient.getVersion(schemaType.getSchemaName(), parsedSchema);
         } catch (IOException | RestClientException e) {

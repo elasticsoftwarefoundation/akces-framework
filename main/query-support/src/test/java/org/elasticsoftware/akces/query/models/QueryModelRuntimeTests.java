@@ -555,7 +555,7 @@ public class QueryModelRuntimeTests {
 
         Assertions.assertNotNull(result);
         Assertions.assertEquals(1, result.size());
-        assertInstanceOf(BalanceCreatedEvent.class, result.get(0));
+        assertInstanceOf(BalanceCreatedEvent.class, result.getFirst());
 
         CompletableFuture<WalletQueryModelState> walletStateFuture4 = akcesQueryModelController.getHydratedState(WalletQueryModel.class, userId)
                 .toCompletableFuture();
@@ -573,9 +573,9 @@ public class QueryModelRuntimeTests {
 
         Assertions.assertNotNull(result);
         Assertions.assertEquals(1, result.size());
-        assertInstanceOf(WalletCreditedEvent.class, result.get(0));
-        assertEquals("EUR", ((WalletCreditedEvent) result.get(0)).currency());
-        assertEquals(new BigDecimal("1000.00"), ((WalletCreditedEvent) result.get(0)).amount());
+        assertInstanceOf(WalletCreditedEvent.class, result.getFirst());
+        assertEquals("EUR", ((WalletCreditedEvent) result.getFirst()).currency());
+        assertEquals(new BigDecimal("1000.00"), ((WalletCreditedEvent) result.getFirst()).amount());
 
         CompletableFuture<WalletQueryModelState> walletStateFuture5 = akcesQueryModelController.getHydratedState(WalletQueryModel.class, userId)
                 .toCompletableFuture();

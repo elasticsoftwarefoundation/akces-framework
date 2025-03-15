@@ -282,7 +282,6 @@ public class CryptoTradingApplicationTest {
                 new CreditWalletCommand(accountId,
                         "EUR",
                         new BigDecimal("1000")))).block();
-        ;
 
         // place a buy order on BTC-EUR market
         String clientOrderId = "479ab2a4-d19e-4116-9f7e-cf13dca5763a";

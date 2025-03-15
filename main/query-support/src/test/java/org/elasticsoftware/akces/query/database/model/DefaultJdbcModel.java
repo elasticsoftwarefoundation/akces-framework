@@ -17,7 +17,6 @@
 
 package org.elasticsoftware.akces.query.database.model;
 
-import jakarta.inject.Inject;
 import org.elasticsoftware.akces.annotations.DatabaseModelEventHandler;
 import org.elasticsoftware.akces.annotations.DatabaseModelInfo;
 import org.elasticsoftware.akces.query.database.jdbc.JdbcDatabaseModel;

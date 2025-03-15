@@ -323,7 +323,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
         }
     }
 
-    private boolean protocolRecordTypeNotYetProduced(SchemaType schemaType,
+    private boolean protocolRecordTypeNotYetProduced(SchemaType<?> schemaType,
                                                      BiFunction<AggregateRuntime, Integer, TopicPartition> createTopicPartition) {
         try (Consumer<String, ProtocolRecord> consumer = consumerFactory.createConsumer(
                 aggregateRuntime.getName() + "-Akces-Control-TypeCheck",
@@ -508,7 +508,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                     .filter(commandServiceRecord -> supportsCommand(commandServiceRecord.supportedCommands(), commandInfo))
                     .toList();
             if (services.size() == 1) {
-                AggregateServiceRecord aggregateServiceRecord = services.get(0);
+                AggregateServiceRecord aggregateServiceRecord = services.getFirst();
                 if (aggregateRuntime.getName().equals(aggregateServiceRecord.aggregateName())) {
                     // this is a local command (will be sent to self)
                     return aggregateRuntime.getLocalCommandType(commandInfo.type(), commandInfo.version());

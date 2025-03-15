@@ -118,7 +118,7 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
     @Override
     public void prepare(AggregateStateRecord record, Future<RecordMetadata> recordMetadataFuture) {
         checkAggregateIdType(record.aggregateId());
-        transactionStateRecordMap.put(record.aggregateId(), new RecordAndMetadata(record, recordMetadataFuture));
+        transactionStateRecordMap.put(record.aggregateId(), new RecordAndMetadata<>(record, recordMetadataFuture));
     }
 
     @Override
@@ -127,7 +127,7 @@ public class RocksDBAggregateStateRepository implements AggregateStateRepository
             // start writing the transactions (no need to resolve the futures just yet)
             Transaction transaction = db.beginTransaction(new WriteOptions());
             try {
-                for (RecordAndMetadata recordAndMetadata : transactionStateRecordMap.values()) {
+                for (RecordAndMetadata<?> recordAndMetadata : transactionStateRecordMap.values()) {
                     transaction.put(keyBytes(recordAndMetadata.record().aggregateId()), serializer.serialize(topicName, recordAndMetadata.record()));
                 }
                 // now we need to find the highest offset in this batch

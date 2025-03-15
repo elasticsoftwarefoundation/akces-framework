@@ -72,7 +72,7 @@ public class AkcesAggregateControllerTests {
         ObjectMapper objectMapper = new ObjectMapper();
         AkcesControlRecord deserialized = objectMapper.readValue(serializedRecord, AggregateServiceRecord.class);
         assertNotNull(deserialized);
-        assertTrue(deserialized instanceof AggregateServiceRecord);
+        assertInstanceOf(AggregateServiceRecord.class, deserialized);
         assertEquals("Account", ((AggregateServiceRecord) deserialized).aggregateName());
         assertEquals("Account-Commands", ((AggregateServiceRecord) deserialized).commandTopic());
     }
@@ -92,7 +92,7 @@ public class AkcesAggregateControllerTests {
 
         AkcesControlRecord deserialized = serde.deserializer().deserialize("Akces-Control", serialized);
         assertNotNull(deserialized);
-        assertTrue(deserialized instanceof AggregateServiceRecord);
+        assertInstanceOf(AggregateServiceRecord.class, deserialized);
         assertEquals("Account", ((AggregateServiceRecord) deserialized).aggregateName());
     }
 }

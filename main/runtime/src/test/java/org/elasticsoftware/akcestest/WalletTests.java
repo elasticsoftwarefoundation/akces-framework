@@ -223,7 +223,7 @@ public class WalletTests {
                 () -> null
         );
         assertEquals(4, producedRecords.size());
-        AggregateStateRecord actualRecord = (AggregateStateRecord) producedRecords.get(0);
+        AggregateStateRecord actualRecord = (AggregateStateRecord) producedRecords.getFirst();
         AggregateStateRecord expectedRecord = new AggregateStateRecord(
                 tenantId,
                 "Wallet",
@@ -315,7 +315,7 @@ public class WalletTests {
         );
         // we should index 2 events: WalletCreated and BalanceCreated
         assertEquals(2, indexedEvents.size());
-        DomainEventRecord actual = indexedEvents.get(0);
+        DomainEventRecord actual = indexedEvents.getFirst();
 
         assertEquals(1, actual.generation());
         assertEquals(aggregateId, actual.aggregateId());
@@ -325,7 +325,7 @@ public class WalletTests {
         assertEquals("WalletCreated", actual.name());
         assertEquals(1, actual.version());
 
-        actual = (DomainEventRecord) indexedEvents.get(1);
+        actual = indexedEvents.get(1);
 
         assertEquals(2, actual.generation());
         assertEquals(aggregateId, actual.aggregateId());
@@ -369,7 +369,7 @@ public class WalletTests {
                 null
         );
         assertEquals(4, producedRecords.size());
-        AggregateStateRecord actualRecord = (AggregateStateRecord) producedRecords.get(0);
+        AggregateStateRecord actualRecord = (AggregateStateRecord) producedRecords.getFirst();
         AggregateStateRecord expectedRecord = new AggregateStateRecord(
                 tenantId,
                 "Wallet",

@@ -65,7 +65,7 @@ public class QueryModelRuntimeFactory<S extends QueryModelState> implements Fact
         QueryModelInfo queryModelInfo = queryModel.getClass().getAnnotation(QueryModelInfo.class);
 
         if (queryModelInfo != null) {
-            runtimeBuilder.setStateType(new QueryModelStateType<S>(
+            runtimeBuilder.setStateType(new QueryModelStateType<>(
                     queryModelInfo.value(),
                     queryModelInfo.version(),
                     queryModel.getStateClass(),

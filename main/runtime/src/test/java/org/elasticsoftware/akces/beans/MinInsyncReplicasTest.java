@@ -17,7 +17,6 @@
 
 package org.elasticsoftware.akces.beans;
 
-import org.elasticsoftware.akces.util.KafkaUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

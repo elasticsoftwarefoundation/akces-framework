@@ -23,9 +23,9 @@ import jakarta.annotation.Nonnull;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.requests.ProduceResponse;
+import org.elasticsoftware.akces.kafka.RecordAndMetadata;
 import org.elasticsoftware.akces.protocol.GDPRKeyRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
-import org.elasticsoftware.akces.kafka.RecordAndMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,7 +79,7 @@ public class InMemoryGDPRContextRepository implements GDPRContextRepository {
                     .map(recordMetadata -> recordMetadata != null ? recordMetadata.offset() : ProduceResponse.INVALID_OFFSET)
                     .max(Long::compareTo).orElse(ProduceResponse.INVALID_OFFSET);
             log.trace("Committing {} records and offset {}", transactionStateRecordMap.size(), this.offset);
-            transactionStateRecordMap.values().forEach(recordAndMetadata -> stateRecordMap.put(recordAndMetadata.record().aggregateId(), (GDPRKeyRecord) recordAndMetadata.record()));
+            transactionStateRecordMap.values().forEach(recordAndMetadata -> stateRecordMap.put(recordAndMetadata.record().aggregateId(), recordAndMetadata.record()));
             transactionStateRecordMap.clear();
         }
     }
