@@ -50,7 +50,7 @@ import static java.util.Collections.emptyList;
 
 public class KafkaAggregateRuntime implements AggregateRuntime {
     private static final Logger log = LoggerFactory.getLogger(KafkaAggregateRuntime.class);
-    private final AggregateStateType<?> type;
+    private final AggregateStateType<?> stateType;
     private final Class<? extends Aggregate<?>> aggregateClass;
     private final CommandHandlerFunction<AggregateState, Command, DomainEvent> commandCreateHandler;
     private final EventHandlerFunction<AggregateState, DomainEvent, DomainEvent> eventCreateHandler;
@@ -85,7 +85,7 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
                                   Map<DomainEventType<?>, EventBridgeHandlerFunction<AggregateState, DomainEvent>> eventBridgeHandlers, Map<AggregateStateType<?>, UpcastingHandlerFunction<AggregateState, AggregateState, AggregateStateType<AggregateState>, AggregateStateType<AggregateState>>> stateUpcastingHandlers, Map<DomainEventType<?>, UpcastingHandlerFunction<DomainEvent, DomainEvent, DomainEventType<DomainEvent>, DomainEventType<DomainEvent>>> eventUpcastingHandlers,
                                   boolean generateGDPRKeyOnCreate,
                                   boolean shouldHandlePIIData) {
-        this.type = stateType;
+        this.stateType = stateType;
         this.aggregateClass = aggregateClass;
         this.commandCreateHandler = commandCreateHandler;
         this.eventCreateHandler = eventCreateHandler;
@@ -106,11 +106,11 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
 
     @Override
     public String getName() {
-        return type.typeName();
+        return stateType.typeName();
     }
 
     @Override
-    public Class<? extends Aggregate> getAggregateClass() {
+    public Class<? extends Aggregate<?>> getAggregateClass() {
         return aggregateClass;
     }
 
@@ -202,8 +202,8 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
                                             AggregateState state,
                                             BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer,
                                             boolean createIndex) {
-        if (type.indexed()) {
-            domainEventIndexer.accept(domainEventRecord, new IndexParams(type.indexName(), state.getIndexKey(), createIndex));
+        if (stateType.indexed()) {
+            domainEventIndexer.accept(domainEventRecord, new IndexParams(stateType.indexName(), state.getIndexKey(), createIndex));
         }
     }
 
@@ -218,27 +218,30 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
         // always treat the first event as a create event
         Iterator<DomainEvent> itr = domainEvents.iterator();
         DomainEvent domainEvent = itr.next();
+        // we may need to upcast the event
+        DomainEventType<?> domainEventType = getDomainEventType(domainEvent.getClass());
         // create the state
-        AggregateState state = createStateHandler.apply(domainEvent, null);
+        AggregateState state = (createStateHandler.getEventType().equals(domainEventType)) ?
+                createStateHandler.apply(domainEvent, null) :
+                createStateHandler.apply(upcast(domainEvent, domainEventType), null);
         // store the state, generation is 1 because it is the first record
         AggregateStateRecord stateRecord = new AggregateStateRecord(
                 commandRecord.tenantId(),
-                type.typeName(),
-                type.version(),
+                stateType.typeName(),
+                stateType.version(),
                 serialize(state),
-                getEncoding(type),
+                getEncoding(stateType),
                 state.getAggregateId(),
                 commandRecord.correlationId(),
                 1L);
         protocolRecordConsumer.accept(stateRecord);
         // store the domain event
-        DomainEventType<?> type = getDomainEventType(domainEvent.getClass());
         DomainEventRecord eventRecord = new DomainEventRecord(
                 commandRecord.tenantId(),
-                type.typeName(),
-                type.version(),
+                domainEventType.typeName(),
+                domainEventType.version(),
                 serialize(domainEvent),
-                getEncoding(type),
+                getEncoding(domainEventType),
                 domainEvent.getAggregateId(),
                 commandRecord.correlationId(),
                 stateRecord.generation());
@@ -292,10 +295,10 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
         // store the state, generation is 1 because it is the first record
         AggregateStateRecord stateRecord = new AggregateStateRecord(
                 domainEventRecord.tenantId(),
-                type.typeName(),
-                type.version(),
+                stateType.typeName(),
+                stateType.version(),
                 serialize(state),
-                getEncoding(type),
+                getEncoding(stateType),
                 state.getAggregateId(),
                 domainEventRecord.correlationId(),
                 1L);
@@ -363,14 +366,19 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
         DomainEventType<?> domainEventType = getDomainEventType(domainEvent.getClass());
         // error events don't change the state
         if (!(domainEvent instanceof ErrorEvent)) {
-            AggregateState nextState = eventSourcingHandlers.get(domainEventType).apply(domainEvent, currentState);
+            // we may have to upcast the event
+            // TODO: we're upcasting twice here
+            AggregateState nextState = eventSourcingHandlers.containsKey(domainEventType) ?
+                    eventSourcingHandlers.get(domainEventType).apply(domainEvent, currentState) :
+                    eventSourcingHandlers.get(getDomainEventType(upcast(domainEvent, domainEventType).getClass()))
+                            .apply(upcast(domainEvent, domainEventType), currentState);
             // store the state, increasing the generation by 1
             AggregateStateRecord nextStateRecord = new AggregateStateRecord(
                     currentStateRecord.tenantId(), // inherit tenantId from the state record
-                    type.typeName(),
-                    type.version(),
+                    stateType.typeName(),
+                    stateType.version(),
                     serialize(nextState),
-                    getEncoding(type),
+                    getEncoding(stateType),
                     currentStateRecord.aggregateId(),
                     correlationId,
                     currentStateRecord.generation() + 1L);
@@ -411,11 +419,12 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
                                                 BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer,
                                                 Supplier<AggregateStateRecord> stateRecordSupplier,
                                                 CommandBus commandBus) throws IOException {
-        // determine the type to use for the external event
-        DomainEventType<?> domainEventType = getDomainEventType(eventRecord);
+        // determine the type to use for the external event (this can be different from the eventRecord type)
+        DomainEventType<?> eventRecordDomainEventType = getDomainEventType(eventRecord);
         // with external domainevents we should look at the handler and not at the type of the external event
-        if (domainEventType != null) {
-            if (eventCreateHandler != null && eventCreateHandler.getEventType().equals(domainEventType)) {
+        if (eventRecordDomainEventType != null) {
+            DomainEventType<?> actualDomainEventType = upcastedType(eventRecordDomainEventType);
+            if (eventCreateHandler != null && eventCreateHandler.getEventType().equals(upcastedType(actualDomainEventType))) {
                 // if the state already exists, this is an error.
                 if (stateRecordSupplier.get() != null) {
                     // this is an error, log it and generate a AggregateAlreadyExistsError
@@ -425,14 +434,14 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
                             eventRecord.aggregateId());
                     aggregateAlreadyExists(eventRecord, protocolRecordConsumer);
                 } else {
-                    handleCreateEvent(domainEventType, eventRecord, protocolRecordConsumer, domainEventIndexer);
+                    handleCreateEvent(eventRecordDomainEventType, eventRecord, protocolRecordConsumer, domainEventIndexer);
                 }
             } else {
                 // only process the event if we have a handler for it
-                if (eventHandlers.containsKey(domainEventType)) {
-                    handleEvent(domainEventType, eventRecord, protocolRecordConsumer, domainEventIndexer, stateRecordSupplier);
-                } else if(eventBridgeHandlers.containsKey(domainEventType)) { // it can also be an event bridge
-                    handleBridgedEvent(domainEventType, eventRecord, commandBus);
+                if (eventHandlers.containsKey(actualDomainEventType)) {
+                    handleEvent(eventRecordDomainEventType, eventRecord, protocolRecordConsumer, domainEventIndexer, stateRecordSupplier);
+                } else if(eventBridgeHandlers.containsKey(actualDomainEventType)) { // it can also be an event bridge
+                    handleBridgedEvent(eventRecordDomainEventType, eventRecord, commandBus);
                 }
             }
         } // ignore if we don't have an external domainevent registered
@@ -509,13 +518,13 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
         if(domainEventType == null) {
             return false;
         } else {
-            return domainEventType.piiData() || (!eventBridgeHandlers.containsKey(domainEventType) && type.piiData());
+            return domainEventType.piiData() || (!eventBridgeHandlers.containsKey(domainEventType) && stateType.piiData());
         }
     }
 
     @Override
     public boolean requiresGDPRContext(CommandRecord commandRecord) {
-        return this.type.piiData() || getCommandType(commandRecord).piiData();
+        return this.stateType.piiData() || getCommandType(commandRecord).piiData();
     }
 
     @Override
@@ -566,11 +575,15 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
         }
     }
 
+    private DomainEventType<?> upcastedType(DomainEventType<?> type) {
+        return eventUpcastingHandlers.containsKey(type) ? upcastedType(eventUpcastingHandlers.get(type).getOutputType()) : type;
+    }
+
     private AggregateState materialize(AggregateStateRecord stateRecord) throws IOException {
         AggregateStateType<?> stateType = getAggregateStateType(stateRecord);
         AggregateState state = objectMapper.readValue(stateRecord.payload(), getAggregateStateType(stateRecord).typeClass());
         // see if we need to upcast the state
-        if(!stateType.equals(type)) {
+        if(!stateType.equals(this.stateType)) {
             return upcast(state, stateType);
         } else {
             return state;
@@ -580,7 +593,7 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
     private AggregateState upcast(AggregateState state, AggregateStateType<?> inputStateType) {
         final UpcastingHandlerFunction<AggregateState, AggregateState, AggregateStateType<AggregateState>, AggregateStateType<AggregateState>> upcastingHandlerFunction = stateUpcastingHandlers.get(inputStateType);
         AggregateState upcastedState = upcastingHandlerFunction.apply(state);
-        if(!upcastingHandlerFunction.getOutputType().equals(type)) {
+        if(!upcastingHandlerFunction.getOutputType().equals(stateType)) {
             return upcast(upcastedState, upcastingHandlerFunction.getOutputType());
         } else {
             return upcastedState;
@@ -633,8 +646,8 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
         // there is only one active state type, however there can be multiple versions. if so, there must be an upcaster
         // for the older versions to the current version
         // TODO: this should be checked at initialization time and the runtime should fail to start!
-        if(type.typeName().equals(record.name()) && type.version() == record.version()) {
-            return type;
+        if(stateType.typeName().equals(record.name()) && stateType.version() == record.version()) {
+            return stateType;
         } else {
             // it's an older version. we need to get the upcaster for this version
             return stateUpcastingHandlers.keySet().stream()

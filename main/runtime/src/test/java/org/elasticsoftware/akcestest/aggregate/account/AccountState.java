@@ -27,7 +27,24 @@ public record AccountState(@NotNull String userId,
                            @NotNull String country,
                            @NotNull @PIIData String firstName,
                            @NotNull @PIIData String lastName,
-                           @NotNull @PIIData String email) implements AggregateState {
+                           @NotNull @PIIData String email,
+                           Boolean twoFactorEnabled) implements AggregateState {
+    // Compact constructor to handle possible null values from deserialization
+    public AccountState {
+        if (twoFactorEnabled == null) {
+            twoFactorEnabled = false;
+        }
+    }
+
+    // Default constructor with false for twoFactorEnabled
+    public AccountState(@NotNull String userId,
+                       @NotNull String country,
+                       @NotNull String firstName,
+                       @NotNull String lastName,
+                       @NotNull String email) {
+        this(userId, country, firstName, lastName, email, false);
+    }
+
     @Override
     public String getAggregateId() {
         return userId();

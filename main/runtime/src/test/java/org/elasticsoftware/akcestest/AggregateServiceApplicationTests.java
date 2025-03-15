@@ -87,6 +87,7 @@ public class AggregateServiceApplicationTests {
                     .withNetwork(network)
                     .withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "kafka:9092")
                     .withEnv("SCHEMA_REGISTRY_HOST_NAME", "localhost")
+                    .withEnv("SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL","none")
                     .withExposedPorts(8081)
                     .withNetworkAliases("schema-registry")
                     .dependsOn(kafka);

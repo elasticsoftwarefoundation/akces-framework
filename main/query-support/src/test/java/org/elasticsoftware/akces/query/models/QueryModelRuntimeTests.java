@@ -39,7 +39,6 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
-import org.elasticsoftware.akces.annotations.DatabaseModelInfo;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.client.AkcesClientController;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
@@ -59,14 +58,11 @@ import org.elasticsoftware.akcestest.aggregate.account.CreateAccountCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.test.autoconfigure.filter.TypeExcludeFilters;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextException;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.FilterType;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
@@ -125,6 +121,7 @@ public class QueryModelRuntimeTests {
                     .withNetwork(network)
                     .withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "kafka:9092")
                     .withEnv("SCHEMA_REGISTRY_HOST_NAME", "localhost")
+                    .withEnv("SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL","none")
                     .withExposedPorts(8081)
                     .withNetworkAliases("schema-registry")
                     .dependsOn(kafka);

@@ -15,20 +15,13 @@
  *
  */
 
-package org.elasticsoftware.akcestest.schemas;
+package org.elasticsoftware.akcestest.aggregate.account;
 
 import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.akces.annotations.DomainEventInfo;
-import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.annotations.PIIData;
 
-@DomainEventInfo(type = "AccountCreatedEvent", version = 1)
-public record AccountCreatedEvent(
-        @NotNull String userId,
-        @NotNull String lastName,
-        @NotNull AccountTypeV1 type
-) implements DomainEvent {
-    @Override
-    public String getAggregateId() {
-        return userId();
-    }
-}
+public record PreviousAccountState(@NotNull String userId,
+                                   @NotNull String country,
+                                   @NotNull @PIIData String firstName,
+                                   @NotNull @PIIData String lastName,
+                                   @NotNull @PIIData String email) {}

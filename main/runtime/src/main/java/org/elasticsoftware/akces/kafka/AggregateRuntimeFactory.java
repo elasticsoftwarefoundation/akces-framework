@@ -67,21 +67,25 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
             throw new IllegalStateException("Aggregate state class " + aggregate.getStateClass().getName() +
                     " must be annotated with @AggregateStateInfo");
         }
-
-        if (aggregateInfo != null) {
-            runtimeBuilder.setStateType(new AggregateStateType<>(
-                    aggregateInfo.value(),
-                    aggregateStateInfo.version(),
-                    aggregate.getStateClass(),
-                    aggregateInfo.generateGDPRKeyOnCreate(),
-                    aggregateInfo.indexed(),
-                    aggregateInfo.indexName(),
-                    hasPIIDataAnnotation(aggregate.getStateClass())
-            ));
-        } else {
+        // ensure aggregateInfo is not null
+        if (aggregateInfo == null) {
             throw new IllegalStateException("Class implementing Aggregate must be annotated with @AggregateInfo");
         }
-        runtimeBuilder
+
+        // ensure the aggregate class references the correct state class version
+        if (aggregateStateInfo.version() != aggregateInfo.stateVersion()) {
+            throw new IllegalStateException("Aggregate state class version " + aggregateStateInfo.version() +
+                    " does not match the aggregate stateVersion " + aggregateInfo.stateVersion());
+        }
+
+        runtimeBuilder.setStateType(new AggregateStateType<>(
+                aggregateInfo.value(),
+                aggregateStateInfo.version(),
+                aggregate.getStateClass(),
+                aggregateInfo.generateGDPRKeyOnCreate(),
+                aggregateInfo.indexed(),
+                aggregateInfo.indexName(),
+                hasPIIDataAnnotation(aggregate.getStateClass())))
                 .setAggregateClass((Class<? extends Aggregate<?>>) aggregate.getClass())
                 .setObjectMapper(objectMapper)
                 .setGenerateGDPRKeyOnCreate(aggregateInfo.generateGDPRKeyOnCreate());

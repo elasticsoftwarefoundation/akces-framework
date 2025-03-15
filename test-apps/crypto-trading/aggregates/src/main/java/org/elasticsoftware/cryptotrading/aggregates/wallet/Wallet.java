@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 
-@AggregateInfo(value = "Wallet", version = 1, indexed = true, indexName = "Users")
+@AggregateInfo(value = "Wallet", stateVersion = 1, indexed = true, indexName = "Users")
 @SuppressWarnings("unused")
 public final class Wallet implements Aggregate<WalletState> {
     @Override

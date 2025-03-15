@@ -32,7 +32,7 @@ public @interface AggregateInfo {
     @AliasFor(annotation = Component.class)
     String value();
 
-    int version() default 1;
+    int stateVersion() default 1;
 
     boolean generateGDPRKeyOnCreate() default false;
 

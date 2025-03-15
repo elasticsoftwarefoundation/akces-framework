@@ -17,18 +17,20 @@
 
 package org.elasticsoftware.akces.schemas;
 
+import io.confluent.kafka.schemaregistry.json.diff.Difference;
+
 import java.util.List;
 
 public class SchemaNotBackwardsCompatibleException extends SchemaException {
     private final int previousSchemaVersion;
     private final int schemaVersion;
-    private final List<String> differences;
+    private final List<Difference> differences;
 
     public SchemaNotBackwardsCompatibleException(String schemaIdentifier,
                                                  int previousSchemaVersion,
                                                  int schemaVersion,
                                                  Class<?> implementationClass,
-                                                 List<String> differences) {
+                                                 List<Difference> differences) {
         super("Schema not backwards compatible with previous version: " + previousSchemaVersion, schemaIdentifier, implementationClass);
         this.previousSchemaVersion = previousSchemaVersion;
         this.schemaVersion = schemaVersion;
@@ -43,7 +45,7 @@ public class SchemaNotBackwardsCompatibleException extends SchemaException {
         return schemaVersion;
     }
 
-    public List<String> getDifferences() {
+    public List<Difference> getDifferences() {
         return differences;
     }
 

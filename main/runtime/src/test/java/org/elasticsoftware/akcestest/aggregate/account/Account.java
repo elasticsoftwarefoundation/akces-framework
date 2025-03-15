@@ -22,6 +22,7 @@ import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.annotations.AggregateInfo;
 import org.elasticsoftware.akces.annotations.CommandHandler;
 import org.elasticsoftware.akces.annotations.EventSourcingHandler;
+import org.elasticsoftware.akces.annotations.UpcastingHandler;
 
 import java.util.stream.Stream;
 
@@ -43,9 +44,14 @@ public final class Account implements Aggregate<AccountState> {
         return Stream.of(new AccountCreatedEvent(cmd.userId(), cmd.country(), cmd.firstName(), cmd.lastName(), cmd.email()));
     }
 
+    @UpcastingHandler
+    public AccountCreatedEventV2 cast(AccountCreatedEvent event) {
+        return new AccountCreatedEventV2(event.userId(), event.country(), event.firstName(), event.lastName(), event.email(), false);
+    }
+
     @EventSourcingHandler(create = true)
     @NotNull
-    public AccountState create(@NotNull AccountCreatedEvent event, AccountState isNull) {
+    public AccountState create(@NotNull AccountCreatedEventV2 event, AccountState isNull) {
         return new AccountState(event.userId(), event.country(), event.firstName(), event.lastName(), event.email());
     }
 }
