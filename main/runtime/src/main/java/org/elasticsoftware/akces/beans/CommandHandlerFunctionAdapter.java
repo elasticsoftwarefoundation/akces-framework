@@ -40,7 +40,6 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState, C extends C
     private final CommandType<C> commandType;
     private final List<DomainEventType<E>> producedDomainEventTypes;
     private final List<DomainEventType<E>> errorEventTypes;
-    //private Method adapterMethod;
     private MethodHandle adapterMethodHandle;
 
     public CommandHandlerFunctionAdapter(Aggregate<S> aggregate,
@@ -80,6 +79,7 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState, C extends C
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Stream<E> apply(C command, S state) {
         try {
             return (Stream<E>) adapterMethodHandle.invoke(aggregate, command, state);
