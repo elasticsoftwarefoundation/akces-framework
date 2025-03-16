@@ -27,6 +27,7 @@ import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.CryptoMa
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.BalanceCreatedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletCreatedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletCreditedEvent;
+import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletDebitedEvent;
 import org.elasticsoftware.cryptotrading.query.jdbc.CryptoMarketRepository;
 import org.elasticsoftware.cryptotrading.web.AccountCommandController;
 import org.elasticsoftware.cryptotrading.web.AccountQueryController;
@@ -490,6 +491,7 @@ public class CryptoTradingQueryApiTest {
                     List.of(
                             WalletCreatedEvent.class,
                             WalletCreditedEvent.class,
+                            WalletDebitedEvent.class,
                             BalanceCreatedEvent.class,
                             AccountCreatedEvent.class,
                             CryptoMarketCreatedEvent.class

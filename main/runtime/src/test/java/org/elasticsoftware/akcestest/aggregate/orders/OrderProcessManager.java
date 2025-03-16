@@ -33,7 +33,11 @@ import java.util.ArrayList;
 import java.util.UUID;
 import java.util.stream.Stream;
 
-@AggregateInfo(value = "OrderProcessManager", indexed = true, indexName = "Users")
+@AggregateInfo(
+        value = "OrderProcessManager",
+        stateClass = OrderProcessManagerState.class,
+        indexed = true,
+        indexName = "Users")
 public class OrderProcessManager implements Aggregate<OrderProcessManagerState> {
     @Override
     public String getName() {

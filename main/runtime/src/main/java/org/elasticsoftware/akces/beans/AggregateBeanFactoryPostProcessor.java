@@ -72,6 +72,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                 BeanDefinition bd = beanFactory.getBeanDefinition(beanName);
                 try {
                     final Class<?> aggregateClass = Class.forName(bd.getBeanClassName());
+                    AggregateInfo aggregateInfo = aggregateClass.getAnnotation(AggregateInfo.class);
                     List<Method> commandHandlers = Arrays.stream(aggregateClass.getMethods())
                             .filter(method -> method.isAnnotationPresent(CommandHandler.class))
                             .toList();
@@ -88,11 +89,11 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .filter(method -> method.isAnnotationPresent(UpcastingHandler.class))
                             .toList();
                     commandHandlers.forEach(commandHandlerMethod ->
-                            processCommandHandler(beanName, commandHandlerMethod, bdr));
+                            processCommandHandler(beanName, aggregateInfo.stateClass(), commandHandlerMethod, bdr));
                     eventHandlers.forEach(eventHandlerMethod ->
-                            processEventHandler(beanName, eventHandlerMethod, bdr));
+                            processEventHandler(beanName, aggregateInfo.stateClass(), eventHandlerMethod, bdr));
                     eventSourcingHandlers.forEach(eventSourcingHandlerMethod ->
-                            processEventSourcingHandler(beanName, eventSourcingHandlerMethod, bdr));
+                            processEventSourcingHandler(beanName, aggregateInfo.stateClass(), eventSourcingHandlerMethod, bdr));
                     eventBridgeHandlers.forEach(eventBridgeHandlerMethod ->
                             processEventBridgeHandler(beanName, eventBridgeHandlerMethod, bdr));
                     upcastingHandlers.forEach(upcastingHandlerMethod ->
@@ -134,12 +135,12 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
         }
     }
 
-    private void processEventSourcingHandler(String aggregateBeanName, Method eventSourcingHandlerMethod, BeanDefinitionRegistry bdr) {
+    private void processEventSourcingHandler(String aggregateBeanName, Class<? extends AggregateState> stateClass, Method eventSourcingHandlerMethod, BeanDefinitionRegistry bdr) {
         EventSourcingHandler eventSourcingHandler = eventSourcingHandlerMethod.getAnnotation(EventSourcingHandler.class);
         if (eventSourcingHandlerMethod.getParameterCount() == 2 &&
                 DomainEvent.class.isAssignableFrom(eventSourcingHandlerMethod.getParameterTypes()[0]) &&
-                AggregateState.class.isAssignableFrom(eventSourcingHandlerMethod.getParameterTypes()[1]) &&
-                AggregateState.class.isAssignableFrom(eventSourcingHandlerMethod.getReturnType())) {
+                stateClass.equals(eventSourcingHandlerMethod.getParameterTypes()[1]) &&
+                stateClass.equals(eventSourcingHandlerMethod.getReturnType())) {
             DomainEventInfo eventInfo = eventSourcingHandlerMethod.getParameterTypes()[0].getAnnotation(DomainEventInfo.class);
             // need to generate a bean name for this based on the method name and params
             String beanName = aggregateBeanName + "_esh_" + eventSourcingHandlerMethod.getName() + "_" + eventInfo.type() + "_" + eventInfo.version();
@@ -159,11 +160,14 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
         }
     }
 
-    private void processEventHandler(String aggregateBeanName, Method eventHandlerMethod, BeanDefinitionRegistry bdr) {
+    private void processEventHandler(String aggregateBeanName,
+                                     Class<? extends AggregateState> stateClass,
+                                     Method eventHandlerMethod,
+                                     BeanDefinitionRegistry bdr) {
         EventHandler eventHandler = eventHandlerMethod.getAnnotation(EventHandler.class);
         if (eventHandlerMethod.getParameterCount() == 2 &&
                 DomainEvent.class.isAssignableFrom(eventHandlerMethod.getParameterTypes()[0]) &&
-                AggregateState.class.isAssignableFrom(eventHandlerMethod.getParameterTypes()[1]) &&
+                stateClass.equals(eventHandlerMethod.getParameterTypes()[1]) &&
                 Stream.class.isAssignableFrom(eventHandlerMethod.getReturnType())) {
             DomainEventInfo eventInfo = eventHandlerMethod.getParameterTypes()[0].getAnnotation(DomainEventInfo.class);
             // need to generate a bean name for this based on the method name and params
@@ -186,12 +190,15 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
         }
     }
 
-    private void processCommandHandler(String aggregateBeanName, Method commandHandlerMethod, BeanDefinitionRegistry bdr) {
+    private void processCommandHandler(String aggregateBeanName,
+                                       Class<? extends AggregateState> stateClass,
+                                       Method commandHandlerMethod,
+                                       BeanDefinitionRegistry bdr) {
         // the method signature should match CommandHandlerFunction
         CommandHandler commandHandler = commandHandlerMethod.getAnnotation(CommandHandler.class);
         if (commandHandlerMethod.getParameterCount() == 2 &&
                 Command.class.isAssignableFrom(commandHandlerMethod.getParameterTypes()[0]) &&
-                AggregateState.class.isAssignableFrom(commandHandlerMethod.getParameterTypes()[1]) &&
+                stateClass.equals(commandHandlerMethod.getParameterTypes()[1]) &&
                 Stream.class.isAssignableFrom(commandHandlerMethod.getReturnType())) {
             CommandInfo commandInfo = commandHandlerMethod.getParameterTypes()[0].getAnnotation(CommandInfo.class);
             // need to generate a bean name for this based on the method name and params

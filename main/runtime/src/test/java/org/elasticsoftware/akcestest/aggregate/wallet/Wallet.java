@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 
-@AggregateInfo(value = "Wallet", stateVersion = 2, indexed = true, indexName = "Users")
+@AggregateInfo(value = "Wallet", stateClass = WalletStateV2.class, indexed = true, indexName = "Users")
 @SuppressWarnings("unused")
 public final class Wallet implements Aggregate<WalletStateV2> {
     @Override

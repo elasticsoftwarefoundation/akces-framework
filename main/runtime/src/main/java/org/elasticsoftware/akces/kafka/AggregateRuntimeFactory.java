@@ -62,30 +62,24 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
         KafkaAggregateRuntime.Builder runtimeBuilder = new KafkaAggregateRuntime.Builder();
 
         AggregateInfo aggregateInfo = aggregate.getClass().getAnnotation(AggregateInfo.class);
-        AggregateStateInfo aggregateStateInfo = aggregate.getStateClass().getAnnotation(AggregateStateInfo.class);
-        if (aggregateStateInfo == null) {
-            throw new IllegalStateException("Aggregate state class " + aggregate.getStateClass().getName() +
-                    " must be annotated with @AggregateStateInfo");
-        }
         // ensure aggregateInfo is not null
         if (aggregateInfo == null) {
             throw new IllegalStateException("Class implementing Aggregate must be annotated with @AggregateInfo");
         }
-
-        // ensure the aggregate class references the correct state class version
-        if (aggregateStateInfo.version() != aggregateInfo.stateVersion()) {
-            throw new IllegalStateException("Aggregate state class version " + aggregateStateInfo.version() +
-                    " does not match the aggregate stateVersion " + aggregateInfo.stateVersion());
+        AggregateStateInfo aggregateStateInfo = aggregateInfo.stateClass().getAnnotation(AggregateStateInfo.class);
+        if (aggregateStateInfo == null) {
+            throw new IllegalStateException("Aggregate state class " + aggregateInfo.stateClass().getName() +
+                    " must be annotated with @AggregateStateInfo");
         }
 
         runtimeBuilder.setStateType(new AggregateStateType<>(
                 aggregateInfo.value(),
                 aggregateStateInfo.version(),
-                aggregate.getStateClass(),
+                aggregateInfo.stateClass(),
                 aggregateInfo.generateGDPRKeyOnCreate(),
                 aggregateInfo.indexed(),
                 aggregateInfo.indexName(),
-                hasPIIDataAnnotation(aggregate.getStateClass())))
+                hasPIIDataAnnotation(aggregateInfo.stateClass())))
                 .setAggregateClass((Class<? extends Aggregate<?>>) aggregate.getClass())
                 .setObjectMapper(objectMapper)
                 .setGenerateGDPRKeyOnCreate(aggregateInfo.generateGDPRKeyOnCreate());
