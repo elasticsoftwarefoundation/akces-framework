@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.aggregate;
 
-public interface ProtocolRecordType<T> {
+public sealed interface ProtocolRecordType<T> permits SchemaType, AggregateStateType {
     String typeName();
 
     int version();

@@ -760,7 +760,7 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
             return this;
         }
 
-        public KafkaAggregateRuntime build() {
+        private Builder validate() {
             // there should be at least one create handler configured
             if (createStateHandler == null && eventCreateHandler == null) {
                 throw new IllegalStateException("No create handler (either from command or event) configured");
@@ -771,8 +771,8 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
                     .filter(domainEventType -> !domainEventType.external())
                     .filter(domainEventType ->
                             !eventSourcingHandlers.containsKey(domainEventType) &&
-                            !createStateHandler.getEventType().equals(domainEventType) &&
-                            !eventUpcastingHandlers.containsKey(domainEventType))
+                                    !createStateHandler.getEventType().equals(domainEventType) &&
+                                    !eventUpcastingHandlers.containsKey(domainEventType))
                     // Skip error events as they don't alter state
                     .filter(domainEventType -> !ErrorEvent.class.isAssignableFrom(domainEventType.typeClass()))
                     .toList();
@@ -870,6 +870,11 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
                                 .collect(Collectors.joining(", ")));
             }
 
+            return this;
+        }
+
+        public KafkaAggregateRuntime build() {
+
             final boolean shouldHandlePIIData = domainEvents.values().stream().map(DomainEventType::typeClass)
                     .anyMatch(GDPRAnnotationUtils::hasPIIDataAnnotation) ||
                     commandTypes.values().stream().flatMap(List::stream).map(CommandType::typeClass)
@@ -894,5 +899,10 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
                     generateGDPRKeyOnCreate,
                     shouldHandlePIIData);
         }
+
+        public KafkaAggregateRuntime validateAndBuild() {
+            return validate().build();
+        }
+
     }
 }

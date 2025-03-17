@@ -15,4 +15,4 @@
 #
 #
 org.springframework.aot.generate.ValueCodeGenerator$Delegate=\
-org.elasticsoftware.akces.beans.DomainEventTypeValueCodeGeneratorDelegate
+org.elasticsoftware.akces.beans.ProtocolRecordTypeValueCodeGeneratorDelegate

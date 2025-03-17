@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.aggregate;
 
-public interface SchemaType<T> extends ProtocolRecordType<T> {
+public sealed interface SchemaType<T> extends ProtocolRecordType<T> permits DomainEventType, CommandType {
     String getSchemaPrefix();
 
     default String getSchemaName() {

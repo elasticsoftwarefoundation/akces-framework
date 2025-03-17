@@ -165,6 +165,6 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
                     }
                 });
 
-        return runtimeBuilder.setSchemaRegistry(schemaRegistry).build();
+        return runtimeBuilder.setSchemaRegistry(schemaRegistry).validateAndBuild();
     }
 }
