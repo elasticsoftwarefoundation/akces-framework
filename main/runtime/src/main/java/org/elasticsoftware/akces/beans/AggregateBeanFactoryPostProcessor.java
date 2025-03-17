@@ -19,10 +19,7 @@ package org.elasticsoftware.akces.beans;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsoftware.akces.AkcesAggregateController;
-import org.elasticsoftware.akces.aggregate.AggregateState;
-import org.elasticsoftware.akces.aggregate.AggregateStateType;
-import org.elasticsoftware.akces.aggregate.CommandType;
-import org.elasticsoftware.akces.aggregate.DomainEventType;
+import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.annotations.*;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.commands.CommandBus;
@@ -67,6 +64,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
     );
 
     @Override
+    @SuppressWarnings("unchecked")
     public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
         if (beanFactory instanceof BeanDefinitionRegistry bdr) {
             logger.info("Processing Aggregate beans");
@@ -74,8 +72,9 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                 logger.info("Processing Aggregate bean {}", beanName);
                 BeanDefinition bd = beanFactory.getBeanDefinition(beanName);
                 try {
-                    final Class<?> aggregateClass = Class.forName(bd.getBeanClassName());
+                    final Class<? extends Aggregate<?>> aggregateClass = (Class<? extends Aggregate<?>>) Class.forName(bd.getBeanClassName());
                     AggregateInfo aggregateInfo = aggregateClass.getAnnotation(AggregateInfo.class);
+                    AggregateValidator validator = new AggregateValidator(aggregateClass, aggregateInfo.stateClass());
                     List<Method> commandHandlers = Arrays.stream(aggregateClass.getMethods())
                             .filter(method -> method.isAnnotationPresent(CommandHandler.class))
                             .toList();
@@ -92,17 +91,36 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .filter(method -> method.isAnnotationPresent(UpcastingHandler.class))
                             .toList();
                     commandHandlers.forEach(commandHandlerMethod ->
-                            processCommandHandler(beanName, aggregateInfo.stateClass(), commandHandlerMethod, bdr));
+                            processCommandHandler(beanName,
+                                    aggregateInfo.stateClass(),
+                                    commandHandlerMethod,
+                                    bdr,
+                                    validator));
                     eventHandlers.forEach(eventHandlerMethod ->
-                            processEventHandler(beanName, aggregateInfo.stateClass(), eventHandlerMethod, bdr));
+                            processEventHandler(beanName,
+                                    aggregateInfo.stateClass(),
+                                    eventHandlerMethod,
+                                    bdr,
+                                    validator));
                     eventSourcingHandlers.forEach(eventSourcingHandlerMethod ->
-                            processEventSourcingHandler(beanName, aggregateInfo.stateClass(), eventSourcingHandlerMethod, bdr));
+                            processEventSourcingHandler(beanName,
+                                    aggregateInfo.stateClass(),
+                                    eventSourcingHandlerMethod,
+                                    bdr,
+                                    validator));
                     eventBridgeHandlers.forEach(eventBridgeHandlerMethod ->
-                            processEventBridgeHandler(beanName, eventBridgeHandlerMethod, bdr));
+                            processEventBridgeHandler(beanName,
+                                    eventBridgeHandlerMethod,
+                                    bdr,
+                                    validator));
                     upcastingHandlers.forEach(upcastingHandlerMethod ->
-                            processUpcastingHandler(beanName, aggregateClass, upcastingHandlerMethod, bdr));
+                            processUpcastingHandler(beanName, aggregateClass, upcastingHandlerMethod, bdr, validator));
+                    // make sure the Aggregate is correctly configured
+                    validator.validate();
                 } catch (ClassNotFoundException e) {
                     throw new ApplicationContextException("Unable to load class for bean " + beanName, e);
+                } catch (IllegalStateException e) {
+                    throw new ApplicationContextException("Invalid Aggregate configuration for bean " + beanName, e);
                 }
                 // now we need to add a bean definition for the AggregateRuntimeFactory
                 bdr.registerBeanDefinition(beanName + "AggregateRuntimeFactory",
@@ -139,7 +157,11 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
     }
 
     @SuppressWarnings("unchecked")
-    private void processEventSourcingHandler(String aggregateBeanName, Class<? extends AggregateState> stateClass, Method eventSourcingHandlerMethod, BeanDefinitionRegistry bdr) {
+    private void processEventSourcingHandler(String aggregateBeanName,
+                                             Class<? extends AggregateState> stateClass,
+                                             Method eventSourcingHandlerMethod,
+                                             BeanDefinitionRegistry bdr,
+                                             AggregateValidator validator) {
         EventSourcingHandler eventSourcingHandler = eventSourcingHandlerMethod.getAnnotation(EventSourcingHandler.class);
         if (eventSourcingHandlerMethod.getParameterCount() == 2 &&
                 DomainEvent.class.isAssignableFrom(eventSourcingHandlerMethod.getParameterTypes()[0]) &&
@@ -165,6 +187,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .addConstructorArgValue(stateClass)
                             .setInitMethodName("init")
                             .getBeanDefinition());
+            validator.detectEventSourcingHandler(domainEventType);
         } else {
             throw new ApplicationContextException("Invalid EventSourcingHandler method signature: " + eventSourcingHandlerMethod);
         }
@@ -174,7 +197,8 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
     private void processEventHandler(String aggregateBeanName,
                                      Class<? extends AggregateState> stateClass,
                                      Method eventHandlerMethod,
-                                     BeanDefinitionRegistry bdr) {
+                                     BeanDefinitionRegistry bdr,
+                                     AggregateValidator validator) {
         EventHandler eventHandler = eventHandlerMethod.getAnnotation(EventHandler.class);
         if (eventHandlerMethod.getParameterCount() == 2 &&
                 DomainEvent.class.isAssignableFrom(eventHandlerMethod.getParameterTypes()[0]) &&
@@ -204,6 +228,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .addConstructorArgValue(errorEventTypes)
                             .setInitMethodName("init")
                             .getBeanDefinition());
+            validator.detectEventHandler(inputEventType, producedDomainEventTypes, errorEventTypes);
         } else {
             throw new ApplicationContextException("Invalid EventHandler method signature: " + eventHandlerMethod);
         }
@@ -213,7 +238,8 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
     private void processCommandHandler(String aggregateBeanName,
                                        Class<? extends AggregateState> stateClass,
                                        Method commandHandlerMethod,
-                                       BeanDefinitionRegistry bdr) {
+                                       BeanDefinitionRegistry bdr,
+                                       AggregateValidator validator) {
         // the method signature should match CommandHandlerFunction
         CommandHandler commandHandler = commandHandlerMethod.getAnnotation(CommandHandler.class);
         if (commandHandlerMethod.getParameterCount() == 2 &&
@@ -243,13 +269,17 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .addConstructorArgValue(errorEventTypes)
                             .setInitMethodName("init").getBeanDefinition()
             );
+            validator.detectCommandHandler(commandType, producedDomainEventTypes, errorEventTypes);
         } else {
             throw new ApplicationContextException("Invalid CommandHandler method signature: " + commandHandlerMethod);
         }
     }
 
     @SuppressWarnings("unchecked")
-    private void processEventBridgeHandler(String aggregateBeanName, Method eventBridgeHandlerMethod, BeanDefinitionRegistry bdr) {
+    private void processEventBridgeHandler(String aggregateBeanName,
+                                           Method eventBridgeHandlerMethod,
+                                           BeanDefinitionRegistry bdr,
+                                           AggregateValidator validator) {
         if (eventBridgeHandlerMethod.getParameterCount() == 2 &&
                 DomainEvent.class.isAssignableFrom(eventBridgeHandlerMethod.getParameterTypes()[0]) &&
                 eventBridgeHandlerMethod.getParameterTypes()[1].equals(CommandBus.class) &&
@@ -273,6 +303,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .addConstructorArgValue(inputEventType)
                             .setInitMethodName("init")
                             .getBeanDefinition());
+            validator.detectEventBridgeHandler(inputEventType);
         } else {
             throw new ApplicationContextException("Invalid EventBridgeHandler method signature: " + eventBridgeHandlerMethod);
         }
@@ -282,7 +313,8 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
     private void processUpcastingHandler(String aggregateBeanName,
                                          Class<?> aggregateClass,
                                          Method upcastingHandlerMethod,
-                                         BeanDefinitionRegistry bdr) {
+                                         BeanDefinitionRegistry bdr,
+                                         AggregateValidator validator) {
         // Handle domain event upcasting
         if (upcastingHandlerMethod.getParameterCount() == 1 &&
                 DomainEvent.class.isAssignableFrom(upcastingHandlerMethod.getParameterTypes()[0]) &&
@@ -350,7 +382,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .addConstructorArgValue(outputEventType)
                             .setInitMethodName("init")
                             .getBeanDefinition());
-
+            validator.detectUpcastingHandler(inputEventType, outputEventType);
             // Handle aggregate state upcasting
         } else if (upcastingHandlerMethod.getParameterCount() == 1 &&
                 AggregateState.class.isAssignableFrom(upcastingHandlerMethod.getParameterTypes()[0]) &&
@@ -420,6 +452,8 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .addConstructorArgValue(outputStateType)
                             .setInitMethodName("init")
                             .getBeanDefinition());
+
+            validator.detectUpcastingHandler(inputStateType, outputStateType);
         } else {
             throw new ApplicationContextException("Invalid UpcastingHandler method signature: " + upcastingHandlerMethod);
         }
