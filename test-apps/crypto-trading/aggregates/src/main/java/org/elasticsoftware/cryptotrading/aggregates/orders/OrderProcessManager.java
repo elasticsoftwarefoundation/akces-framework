@@ -30,16 +30,24 @@ import org.elasticsoftware.cryptotrading.aggregates.orders.commands.FillBuyOrder
 import org.elasticsoftware.cryptotrading.aggregates.orders.commands.PlaceBuyOrderCommand;
 import org.elasticsoftware.cryptotrading.aggregates.orders.commands.RejectOrderCommand;
 import org.elasticsoftware.cryptotrading.aggregates.orders.events.*;
+import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CancelReservationCommand;
+import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreditWalletCommand;
+import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.DebitWalletCommand;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.ReserveAmountCommand;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.AmountReservedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.InsufficientFundsErrorEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.InvalidCryptoCurrencyErrorEvent;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.UUID;
 import java.util.stream.Stream;
 
-@AggregateInfo(value = "OrderProcessManager", indexed = true, indexName = "Users")
+@AggregateInfo(
+        value = "OrderProcessManager",
+        stateClass = OrderProcessManagerState.class,
+        indexed = true,
+        indexName = "Users")
 public class OrderProcessManager implements Aggregate<OrderProcessManagerState> {
     @Override
     public String getName() {
@@ -133,6 +141,23 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
     @CommandHandler(produces = BuyOrderFilledEvent.class, errors = {})
     public Stream<BuyOrderFilledEvent> fillOrder(FillBuyOrderCommand command, OrderProcessManagerState state) {
         if (state.hasAkcesProcess(command.orderId())) {
+            // cancel the reservation of the quote currency
+            getCommandBus().send(new CancelReservationCommand(
+                    state.userId(),
+                    command.quoteCurrency(),
+                    command.orderId()));
+            // debit the quote currency
+            BigDecimal quoteAmount = command.price().multiply(command.quantity());
+            getCommandBus().send(new DebitWalletCommand(
+                    command.userId(),
+                    command.quoteCurrency(),
+                    quoteAmount));
+            // credit the base currency
+            getCommandBus().send(new CreditWalletCommand(
+                    command.userId(),
+                    command.baseCurrency(),
+                    command.quantity()));
+            // TODO: we also need to update the counterparty wallet
             return Stream.of(new BuyOrderFilledEvent(
                     command.userId(),
                     command.orderId(),

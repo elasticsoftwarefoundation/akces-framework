@@ -22,23 +22,17 @@ import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.aggregate.AggregateStateType;
 import org.elasticsoftware.akces.aggregate.UpcastingHandlerFunction;
-import org.elasticsoftware.akces.annotations.AggregateInfo;
-import org.elasticsoftware.akces.annotations.AggregateStateInfo;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.WrongMethodTypeException;
 
-import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
-
 public class AggregateStateUpcastingHandlerFunctionAdapter<T extends AggregateState, R extends AggregateState>
         implements UpcastingHandlerFunction<T, R, AggregateStateType<T>, AggregateStateType<R>> {
 
     private final Aggregate<? extends AggregateState> aggregate;
     private final String adapterMethodName;
-    private final Class<T> inputStateClass;
-    private final Class<R> outputStateClass;
     private final AggregateStateType<T> inputStateType;
     private final AggregateStateType<R> outputStateType;
     private MethodHandle methodHandle;
@@ -46,45 +40,12 @@ public class AggregateStateUpcastingHandlerFunctionAdapter<T extends AggregateSt
     public AggregateStateUpcastingHandlerFunctionAdapter(
                                                       Aggregate<? extends AggregateState> aggregate,
                                                       String adapterMethodName,
-                                                      Class<T> inputStateClass,
-                                                      Class<R> outputStateClass) {
-        AggregateStateInfo inputStateInfo = inputStateClass.getAnnotation(AggregateStateInfo.class);
-        if (inputStateInfo == null) {
-            throw new IllegalArgumentException("Input state class " + inputStateClass.getName() +
-                    " must be annotated with @AggregateStateInfo");
-        }
-        AggregateStateInfo outputStateInfo = outputStateClass.getAnnotation(AggregateStateInfo.class);
-        if (outputStateInfo == null) {
-            throw new IllegalArgumentException("Output state class " + outputStateClass.getName() +
-                    " must be annotated with @AggregateStateInfo");
-        }
-        AggregateInfo aggregateInfo = aggregate.getClass().getAnnotation(AggregateInfo.class);
-        if (aggregateInfo == null) {
-            throw new IllegalArgumentException("Aggregate class " + aggregate.getClass().getName() +
-                    " must be annotated with @AggregateInfo");
-        }
+                                                      AggregateStateType<T> inputStateType,
+                                                      AggregateStateType<R> outputStateType) {
         this.aggregate = aggregate;
         this.adapterMethodName = adapterMethodName;
-        this.inputStateClass = inputStateClass;
-        this.outputStateClass = outputStateClass;
-        this.inputStateType = new AggregateStateType<>(
-                inputStateInfo.type(),
-                inputStateInfo.version(),
-                inputStateClass,
-                aggregateInfo.generateGDPRKeyOnCreate(),
-                aggregateInfo.indexed(),
-                aggregateInfo.indexName(),
-                hasPIIDataAnnotation(inputStateClass)
-        );
-        this.outputStateType = new AggregateStateType<>(
-                outputStateInfo.type(),
-                outputStateInfo.version(),
-                outputStateClass,
-                aggregateInfo.generateGDPRKeyOnCreate(),
-                aggregateInfo.indexed(),
-                aggregateInfo.indexName(),
-                hasPIIDataAnnotation(outputStateClass)
-        );
+        this.inputStateType = inputStateType;
+        this.outputStateType = outputStateType;
     }
 
     @SuppressWarnings("unused")
@@ -93,7 +54,7 @@ public class AggregateStateUpcastingHandlerFunctionAdapter<T extends AggregateSt
             methodHandle = MethodHandles.lookup().findVirtual(
                     aggregate.getClass(),
                     adapterMethodName,
-                    MethodType.methodType(outputStateClass, inputStateClass));
+                    MethodType.methodType(outputStateType.typeClass(), inputStateType.typeClass()));
         } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }

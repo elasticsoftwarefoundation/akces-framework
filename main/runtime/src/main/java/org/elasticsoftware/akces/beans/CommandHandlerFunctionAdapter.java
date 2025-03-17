@@ -28,15 +28,11 @@ import java.lang.invoke.WrongMethodTypeException;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
-
 public class CommandHandlerFunctionAdapter<S extends AggregateState, C extends Command, E extends DomainEvent>
         implements CommandHandlerFunction<S, C, E> {
     private final Aggregate<S> aggregate;
     private final String adapterMethodName;
-    private final Class<C> commandClass;
     private final Class<S> stateClass;
-    private final boolean create;
     private final CommandType<C> commandType;
     private final List<DomainEventType<E>> producedDomainEventTypes;
     private final List<DomainEventType<E>> errorEventTypes;
@@ -44,26 +40,16 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState, C extends C
 
     public CommandHandlerFunctionAdapter(Aggregate<S> aggregate,
                                          String adapterMethodName,
-                                         Class<C> commandClass,
+                                         CommandType<C> commandType,
                                          Class<S> stateClass,
-                                         boolean create,
                                          List<DomainEventType<E>> producedDomainEventTypes,
-                                         List<DomainEventType<E>> errorEventTypes,
-                                         String typeName,
-                                         int version) {
+                                         List<DomainEventType<E>> errorEventTypes) {
         this.aggregate = aggregate;
         this.adapterMethodName = adapterMethodName;
-        this.commandClass = commandClass;
         this.stateClass = stateClass;
-        this.create = create;
         this.producedDomainEventTypes = producedDomainEventTypes;
         this.errorEventTypes = errorEventTypes;
-        this.commandType = new CommandType<>(typeName,
-                version,
-                commandClass,
-                create,
-                false,
-                hasPIIDataAnnotation(commandClass));
+        this.commandType = commandType;
     }
 
     @SuppressWarnings("unused")
@@ -72,7 +58,7 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState, C extends C
             adapterMethodHandle = MethodHandles.lookup().findVirtual(
                     aggregate.getClass(),
                     adapterMethodName,
-                    MethodType.methodType(Stream.class, commandClass, stateClass));
+                    MethodType.methodType(Stream.class, commandType.typeClass(), stateClass));
         } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
@@ -96,7 +82,7 @@ public class CommandHandlerFunctionAdapter<S extends AggregateState, C extends C
 
     @Override
     public boolean isCreate() {
-        return create;
+        return commandType.create();
     }
 
     @Override

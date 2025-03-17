@@ -29,36 +29,21 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.WrongMethodTypeException;
 
-import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
-
 public class EventSourcingHandlerFunctionAdapter<S extends AggregateState, E extends DomainEvent> implements EventSourcingHandlerFunction<S, E> {
     private final Aggregate<S> aggregate;
     private final String adapterMethodName;
-    private final Class<E> domainEventClass;
     private final Class<S> stateClass;
-    private final boolean create;
     private final DomainEventType<E> domainEventType;
     private MethodHandle methodHandle;
 
     public EventSourcingHandlerFunctionAdapter(Aggregate<S> aggregate,
                                                String adapterMethodName,
-                                               Class<E> domainEventClass,
-                                               Class<S> stateClass,
-                                               boolean create,
-                                               String typeName,
-                                               int version) {
+                                               DomainEventType<E> domainEventType,
+                                               Class<S> stateClass) {
         this.aggregate = aggregate;
         this.adapterMethodName = adapterMethodName;
-        this.domainEventClass = domainEventClass;
         this.stateClass = stateClass;
-        this.create = create;
-        this.domainEventType = new DomainEventType<>(typeName,
-                version,
-                domainEventClass,
-                create,
-                false,
-                false,
-                hasPIIDataAnnotation(domainEventClass));
+        this.domainEventType = domainEventType;
     }
 
     @SuppressWarnings("unused")
@@ -67,7 +52,7 @@ public class EventSourcingHandlerFunctionAdapter<S extends AggregateState, E ext
             methodHandle = MethodHandles.lookup().findVirtual(
                     aggregate.getClass(),
                     adapterMethodName,
-                    MethodType.methodType(stateClass, domainEventClass, stateClass));
+                    MethodType.methodType(stateClass, domainEventType.typeClass(), stateClass));
         } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
@@ -100,6 +85,6 @@ public class EventSourcingHandlerFunctionAdapter<S extends AggregateState, E ext
 
     @Override
     public boolean isCreate() {
-        return create;
+        return domainEventType.create();
     }
 }

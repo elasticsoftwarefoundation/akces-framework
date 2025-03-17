@@ -15,12 +15,20 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.cryptotrading.aggregates.wallet.commands;
 
-public sealed interface ProtocolRecordType<T> permits SchemaType, AggregateStateType {
-    String typeName();
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.CommandInfo;
+import org.elasticsoftware.akces.commands.Command;
 
-    int version();
-
-    Class<T> typeClass();
+@CommandInfo(type = "CancelReservation", version = 1)
+public record CancelReservationCommand(
+    @NotNull String userId,
+    @NotNull String currency,
+    @NotNull String referenceId
+) implements Command {
+    @Override
+    public String getAggregateId() {
+        return userId();
+    }
 }

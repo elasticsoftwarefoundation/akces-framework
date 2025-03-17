@@ -19,14 +19,14 @@ package org.elasticsoftware.akces.beans;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsoftware.akces.AkcesAggregateController;
-import org.elasticsoftware.akces.aggregate.AggregateState;
-import org.elasticsoftware.akces.aggregate.DomainEventType;
+import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.annotations.*;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.errors.AggregateAlreadyExistsErrorEvent;
 import org.elasticsoftware.akces.errors.CommandExecutionErrorEvent;
 import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.events.ErrorEvent;
 import org.elasticsoftware.akces.kafka.AggregateRuntimeFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,6 +64,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
     );
 
     @Override
+    @SuppressWarnings("unchecked")
     public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
         if (beanFactory instanceof BeanDefinitionRegistry bdr) {
             logger.info("Processing Aggregate beans");
@@ -71,7 +72,9 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                 logger.info("Processing Aggregate bean {}", beanName);
                 BeanDefinition bd = beanFactory.getBeanDefinition(beanName);
                 try {
-                    final Class<?> aggregateClass = Class.forName(bd.getBeanClassName());
+                    final Class<? extends Aggregate<?>> aggregateClass = (Class<? extends Aggregate<?>>) Class.forName(bd.getBeanClassName());
+                    AggregateInfo aggregateInfo = aggregateClass.getAnnotation(AggregateInfo.class);
+                    AggregateValidator validator = new AggregateValidator(aggregateClass, aggregateInfo.stateClass());
                     List<Method> commandHandlers = Arrays.stream(aggregateClass.getMethods())
                             .filter(method -> method.isAnnotationPresent(CommandHandler.class))
                             .toList();
@@ -88,17 +91,36 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                             .filter(method -> method.isAnnotationPresent(UpcastingHandler.class))
                             .toList();
                     commandHandlers.forEach(commandHandlerMethod ->
-                            processCommandHandler(beanName, commandHandlerMethod, bdr));
+                            processCommandHandler(beanName,
+                                    aggregateInfo.stateClass(),
+                                    commandHandlerMethod,
+                                    bdr,
+                                    validator));
                     eventHandlers.forEach(eventHandlerMethod ->
-                            processEventHandler(beanName, eventHandlerMethod, bdr));
+                            processEventHandler(beanName,
+                                    aggregateInfo.stateClass(),
+                                    eventHandlerMethod,
+                                    bdr,
+                                    validator));
                     eventSourcingHandlers.forEach(eventSourcingHandlerMethod ->
-                            processEventSourcingHandler(beanName, eventSourcingHandlerMethod, bdr));
+                            processEventSourcingHandler(beanName,
+                                    aggregateInfo.stateClass(),
+                                    eventSourcingHandlerMethod,
+                                    bdr,
+                                    validator));
                     eventBridgeHandlers.forEach(eventBridgeHandlerMethod ->
-                            processEventBridgeHandler(beanName, eventBridgeHandlerMethod, bdr));
+                            processEventBridgeHandler(beanName,
+                                    eventBridgeHandlerMethod,
+                                    bdr,
+                                    validator));
                     upcastingHandlers.forEach(upcastingHandlerMethod ->
-                            processUpcastingHandler(beanName, aggregateClass, upcastingHandlerMethod, bdr));
+                            processUpcastingHandler(beanName, aggregateClass, upcastingHandlerMethod, bdr, validator));
+                    // make sure the Aggregate is correctly configured
+                    validator.validate();
                 } catch (ClassNotFoundException e) {
                     throw new ApplicationContextException("Unable to load class for bean " + beanName, e);
+                } catch (IllegalStateException e) {
+                    throw new ApplicationContextException("Invalid Aggregate configuration for bean " + beanName, e);
                 }
                 // now we need to add a bean definition for the AggregateRuntimeFactory
                 bdr.registerBeanDefinition(beanName + "AggregateRuntimeFactory",
@@ -134,87 +156,130 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
         }
     }
 
-    private void processEventSourcingHandler(String aggregateBeanName, Method eventSourcingHandlerMethod, BeanDefinitionRegistry bdr) {
+    @SuppressWarnings("unchecked")
+    private void processEventSourcingHandler(String aggregateBeanName,
+                                             Class<? extends AggregateState> stateClass,
+                                             Method eventSourcingHandlerMethod,
+                                             BeanDefinitionRegistry bdr,
+                                             AggregateValidator validator) {
         EventSourcingHandler eventSourcingHandler = eventSourcingHandlerMethod.getAnnotation(EventSourcingHandler.class);
         if (eventSourcingHandlerMethod.getParameterCount() == 2 &&
                 DomainEvent.class.isAssignableFrom(eventSourcingHandlerMethod.getParameterTypes()[0]) &&
-                AggregateState.class.isAssignableFrom(eventSourcingHandlerMethod.getParameterTypes()[1]) &&
-                AggregateState.class.isAssignableFrom(eventSourcingHandlerMethod.getReturnType())) {
+                stateClass.equals(eventSourcingHandlerMethod.getParameterTypes()[1]) &&
+                stateClass.equals(eventSourcingHandlerMethod.getReturnType())) {
             DomainEventInfo eventInfo = eventSourcingHandlerMethod.getParameterTypes()[0].getAnnotation(DomainEventInfo.class);
             // need to generate a bean name for this based on the method name and params
             String beanName = aggregateBeanName + "_esh_" + eventSourcingHandlerMethod.getName() + "_" + eventInfo.type() + "_" + eventInfo.version();
+            Class<? extends DomainEvent> domainEventClass = (Class<? extends DomainEvent>) eventSourcingHandlerMethod.getParameterTypes()[0];
+            DomainEventType<?> domainEventType = new DomainEventType<>(
+                    eventInfo.type(),
+                    eventInfo.version(),
+                    domainEventClass,
+                    eventSourcingHandler.create(),
+                    false,
+                    false,
+                    hasPIIDataAnnotation(domainEventClass));
             bdr.registerBeanDefinition(beanName,
                     BeanDefinitionBuilder.genericBeanDefinition(EventSourcingHandlerFunctionAdapter.class)
                             .addConstructorArgReference(aggregateBeanName)
                             .addConstructorArgValue(eventSourcingHandlerMethod.getName())
-                            .addConstructorArgValue(eventSourcingHandlerMethod.getParameterTypes()[0])
-                            .addConstructorArgValue(eventSourcingHandlerMethod.getParameterTypes()[1])
-                            .addConstructorArgValue(eventSourcingHandler.create())
-                            .addConstructorArgValue(eventInfo.type())
-                            .addConstructorArgValue(eventInfo.version())
+                            .addConstructorArgValue(domainEventType)
+                            .addConstructorArgValue(stateClass)
                             .setInitMethodName("init")
                             .getBeanDefinition());
+            validator.detectEventSourcingHandler(domainEventType);
         } else {
             throw new ApplicationContextException("Invalid EventSourcingHandler method signature: " + eventSourcingHandlerMethod);
         }
     }
 
-    private void processEventHandler(String aggregateBeanName, Method eventHandlerMethod, BeanDefinitionRegistry bdr) {
+    @SuppressWarnings("unchecked")
+    private void processEventHandler(String aggregateBeanName,
+                                     Class<? extends AggregateState> stateClass,
+                                     Method eventHandlerMethod,
+                                     BeanDefinitionRegistry bdr,
+                                     AggregateValidator validator) {
         EventHandler eventHandler = eventHandlerMethod.getAnnotation(EventHandler.class);
         if (eventHandlerMethod.getParameterCount() == 2 &&
                 DomainEvent.class.isAssignableFrom(eventHandlerMethod.getParameterTypes()[0]) &&
-                AggregateState.class.isAssignableFrom(eventHandlerMethod.getParameterTypes()[1]) &&
+                stateClass.equals(eventHandlerMethod.getParameterTypes()[1]) &&
                 Stream.class.isAssignableFrom(eventHandlerMethod.getReturnType())) {
             DomainEventInfo eventInfo = eventHandlerMethod.getParameterTypes()[0].getAnnotation(DomainEventInfo.class);
             // need to generate a bean name for this based on the method name and params
             String beanName = aggregateBeanName + "_eh_" + eventHandlerMethod.getName() + "_" + eventInfo.type() + "_" + eventInfo.version();
+            Class<? extends DomainEvent> inputEventClass = (Class<? extends DomainEvent>) eventHandlerMethod.getParameterTypes()[0];
+            DomainEventType<?> inputEventType = new DomainEventType<>(
+                    eventInfo.type(),
+                    eventInfo.version(),
+                    inputEventClass,
+                    eventHandler.create(),
+                    true,
+                    ErrorEvent.class.isAssignableFrom(inputEventClass),
+                    hasPIIDataAnnotation(inputEventClass));
+            List<DomainEventType<?>> producedDomainEventTypes = generateDomainEventTypes(eventHandler.produces(), eventHandler.create());
+            List<DomainEventType<?>> errorEventTypes = generateEventHandlerErrorEventTypes(eventHandler.errors(), eventHandler.create());
             bdr.registerBeanDefinition(beanName,
                     BeanDefinitionBuilder.genericBeanDefinition(EventHandlerFunctionAdapter.class)
                             .addConstructorArgReference(aggregateBeanName)
                             .addConstructorArgValue(eventHandlerMethod.getName())
-                            .addConstructorArgValue(eventHandlerMethod.getParameterTypes()[0])
-                            .addConstructorArgValue(eventHandlerMethod.getParameterTypes()[1])
-                            .addConstructorArgValue(eventHandler.create())
-                            .addConstructorArgValue(generateDomainEventTypes(eventHandler.produces(), eventHandler.create()))
-                            .addConstructorArgValue(generateEventHandlerErrorEventTypes(eventHandler.errors(), eventHandler.create()))
-                            .addConstructorArgValue(eventInfo.type())
-                            .addConstructorArgValue(eventInfo.version())
+                            .addConstructorArgValue(inputEventType)
+                            .addConstructorArgValue(stateClass)
+                            .addConstructorArgValue(producedDomainEventTypes)
+                            .addConstructorArgValue(errorEventTypes)
                             .setInitMethodName("init")
                             .getBeanDefinition());
+            validator.detectEventHandler(inputEventType, producedDomainEventTypes, errorEventTypes);
         } else {
             throw new ApplicationContextException("Invalid EventHandler method signature: " + eventHandlerMethod);
         }
     }
 
-    private void processCommandHandler(String aggregateBeanName, Method commandHandlerMethod, BeanDefinitionRegistry bdr) {
+    @SuppressWarnings("unchecked")
+    private void processCommandHandler(String aggregateBeanName,
+                                       Class<? extends AggregateState> stateClass,
+                                       Method commandHandlerMethod,
+                                       BeanDefinitionRegistry bdr,
+                                       AggregateValidator validator) {
         // the method signature should match CommandHandlerFunction
         CommandHandler commandHandler = commandHandlerMethod.getAnnotation(CommandHandler.class);
         if (commandHandlerMethod.getParameterCount() == 2 &&
                 Command.class.isAssignableFrom(commandHandlerMethod.getParameterTypes()[0]) &&
-                AggregateState.class.isAssignableFrom(commandHandlerMethod.getParameterTypes()[1]) &&
+                stateClass.equals(commandHandlerMethod.getParameterTypes()[1]) &&
                 Stream.class.isAssignableFrom(commandHandlerMethod.getReturnType())) {
             CommandInfo commandInfo = commandHandlerMethod.getParameterTypes()[0].getAnnotation(CommandInfo.class);
             // need to generate a bean name for this based on the method name and params
             String beanName = aggregateBeanName + "_ch_" + commandHandlerMethod.getName() + "_" + commandInfo.type() + "_" + commandInfo.version();
+            Class<? extends Command> commandClass = (Class<? extends Command>) commandHandlerMethod.getParameterTypes()[0];
+            CommandType<?> commandType = new CommandType<>(
+                    commandInfo.type(),
+                    commandInfo.version(),
+                    commandClass,
+                    commandHandler.create(),
+                    false,
+                    hasPIIDataAnnotation(commandClass));
+            List<DomainEventType<?>> producedDomainEventTypes = generateDomainEventTypes(commandHandler.produces(), commandHandler.create());
+            List<DomainEventType<?>> errorEventTypes = generateCommandHandlerErrorEventTypes(commandHandler.errors(), commandHandler.create());
             bdr.registerBeanDefinition(beanName,
                     BeanDefinitionBuilder.genericBeanDefinition(CommandHandlerFunctionAdapter.class)
                             .addConstructorArgReference(aggregateBeanName)
                             .addConstructorArgValue(commandHandlerMethod.getName())
-                            .addConstructorArgValue(commandHandlerMethod.getParameterTypes()[0])
-                            .addConstructorArgValue(commandHandlerMethod.getParameterTypes()[1])
-                            .addConstructorArgValue(commandHandler.create())
-                            .addConstructorArgValue(generateDomainEventTypes(commandHandler.produces(), commandHandler.create()))
-                            .addConstructorArgValue(generateCommandHandlerErrorEventTypes(commandHandler.errors(), commandHandler.create()))
-                            .addConstructorArgValue(commandInfo.type())
-                            .addConstructorArgValue(commandInfo.version())
+                            .addConstructorArgValue(commandType)
+                            .addConstructorArgValue(stateClass)
+                            .addConstructorArgValue(producedDomainEventTypes)
+                            .addConstructorArgValue(errorEventTypes)
                             .setInitMethodName("init").getBeanDefinition()
             );
+            validator.detectCommandHandler(commandType, producedDomainEventTypes, errorEventTypes);
         } else {
             throw new ApplicationContextException("Invalid CommandHandler method signature: " + commandHandlerMethod);
         }
     }
 
-    private void processEventBridgeHandler(String aggregateBeanName, Method eventBridgeHandlerMethod, BeanDefinitionRegistry bdr) {
+    @SuppressWarnings("unchecked")
+    private void processEventBridgeHandler(String aggregateBeanName,
+                                           Method eventBridgeHandlerMethod,
+                                           BeanDefinitionRegistry bdr,
+                                           AggregateValidator validator) {
         if (eventBridgeHandlerMethod.getParameterCount() == 2 &&
                 DomainEvent.class.isAssignableFrom(eventBridgeHandlerMethod.getParameterTypes()[0]) &&
                 eventBridgeHandlerMethod.getParameterTypes()[1].equals(CommandBus.class) &&
@@ -222,31 +287,41 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
             DomainEventInfo eventInfo = eventBridgeHandlerMethod.getParameterTypes()[0].getAnnotation(DomainEventInfo.class);
             // Generate bean name based on method name and event info
             String beanName = aggregateBeanName + "_ebh_" + eventBridgeHandlerMethod.getName() + "_" + eventInfo.type() + "_" + eventInfo.version();
+            Class<? extends DomainEvent> domainEventClass = (Class<? extends DomainEvent>) eventBridgeHandlerMethod.getParameterTypes()[0];
+            DomainEventType<?> inputEventType = new DomainEventType<>(
+                    eventInfo.type(),
+                    eventInfo.version(),
+                    domainEventClass,
+                    false,
+                    true,
+                    ErrorEvent.class.isAssignableFrom(domainEventClass),
+                    hasPIIDataAnnotation(domainEventClass));
             bdr.registerBeanDefinition(beanName,
                     BeanDefinitionBuilder.genericBeanDefinition(EventBridgeHandlerFunctionAdapter.class)
                             .addConstructorArgReference(aggregateBeanName)
                             .addConstructorArgValue(eventBridgeHandlerMethod.getName())
-                            .addConstructorArgValue(eventBridgeHandlerMethod.getParameterTypes()[0])
-                            .addConstructorArgValue(eventInfo.type())
-                            .addConstructorArgValue(eventInfo.version())
+                            .addConstructorArgValue(inputEventType)
                             .setInitMethodName("init")
                             .getBeanDefinition());
+            validator.detectEventBridgeHandler(inputEventType);
         } else {
             throw new ApplicationContextException("Invalid EventBridgeHandler method signature: " + eventBridgeHandlerMethod);
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void processUpcastingHandler(String aggregateBeanName,
                                          Class<?> aggregateClass,
                                          Method upcastingHandlerMethod,
-                                         BeanDefinitionRegistry bdr) {
+                                         BeanDefinitionRegistry bdr,
+                                         AggregateValidator validator) {
         // Handle domain event upcasting
         if (upcastingHandlerMethod.getParameterCount() == 1 &&
                 DomainEvent.class.isAssignableFrom(upcastingHandlerMethod.getParameterTypes()[0]) &&
                 DomainEvent.class.isAssignableFrom(upcastingHandlerMethod.getReturnType())) {
 
-            Class<?> inputEventClass = upcastingHandlerMethod.getParameterTypes()[0];
-            Class<?> outputEventClass = upcastingHandlerMethod.getReturnType();
+            Class<? extends DomainEvent> inputEventClass = (Class<? extends DomainEvent>) upcastingHandlerMethod.getParameterTypes()[0];
+            Class<? extends DomainEvent> outputEventClass = (Class<? extends DomainEvent>) upcastingHandlerMethod.getReturnType();
 
             DomainEventInfo inputEventInfo = inputEventClass.getAnnotation(DomainEventInfo.class);
             if (inputEventInfo == null) {
@@ -281,23 +356,40 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                     .map(method -> method.getParameterTypes()[0])
                     .noneMatch(eventClass -> eventClass.getAnnotation(DomainEventInfo.class).type().equals(outputEventInfo.type()));
 
+            DomainEventType<?> inputEventType = new DomainEventType<>(
+                    inputEventInfo.type(),
+                    inputEventInfo.version(),
+                    inputEventClass,
+                    false,
+                    externalEvent,
+                    ErrorEvent.class.isAssignableFrom(inputEventClass),
+                    hasPIIDataAnnotation(inputEventClass));
+
+            DomainEventType<?> outputEventType = new DomainEventType<>(
+                    outputEventInfo.type(),
+                    outputEventInfo.version(),
+                    outputEventClass,
+                    false,
+                    externalEvent,
+                    ErrorEvent.class.isAssignableFrom(outputEventClass),
+                    hasPIIDataAnnotation(outputEventClass));
+
             bdr.registerBeanDefinition(beanName,
                     BeanDefinitionBuilder.genericBeanDefinition(DomainEventUpcastingHandlerFunctionAdapter.class)
                             .addConstructorArgReference(aggregateBeanName)
                             .addConstructorArgValue(upcastingHandlerMethod.getName())
-                            .addConstructorArgValue(inputEventClass)
-                            .addConstructorArgValue(outputEventClass)
-                            .addConstructorArgValue(externalEvent)
+                            .addConstructorArgValue(inputEventType)
+                            .addConstructorArgValue(outputEventType)
                             .setInitMethodName("init")
                             .getBeanDefinition());
-
+            validator.detectUpcastingHandler(inputEventType, outputEventType);
             // Handle aggregate state upcasting
         } else if (upcastingHandlerMethod.getParameterCount() == 1 &&
                 AggregateState.class.isAssignableFrom(upcastingHandlerMethod.getParameterTypes()[0]) &&
                 AggregateState.class.isAssignableFrom(upcastingHandlerMethod.getReturnType())) {
 
-            Class<?> inputStateClass = upcastingHandlerMethod.getParameterTypes()[0];
-            Class<?> outputStateClass = upcastingHandlerMethod.getReturnType();
+            Class<? extends AggregateState> inputStateClass = (Class<? extends AggregateState>) upcastingHandlerMethod.getParameterTypes()[0];
+            Class<? extends AggregateState> outputStateClass = (Class<? extends AggregateState>) upcastingHandlerMethod.getReturnType();
 
             AggregateStateInfo inputStateInfo = inputStateClass.getAnnotation(AggregateStateInfo.class);
             if (inputStateInfo == null) {
@@ -309,6 +401,12 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
             if (outputStateInfo == null) {
                 throw new IllegalArgumentException("Output state class " + outputStateClass.getName() +
                         " must be annotated with @AggregateStateInfo");
+            }
+
+            AggregateInfo aggregateInfo = aggregateClass.getAnnotation(AggregateInfo.class);
+            if (aggregateInfo == null) {
+                throw new IllegalArgumentException("Aggregate class " + aggregateClass.getName() +
+                        " must be annotated with @AggregateInfo");
             }
 
             // see if this is a valid upcaster configuration
@@ -326,14 +424,36 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                     "_" + inputStateInfo.type() + "_" + inputStateInfo.version() +
                     "_to_" + outputStateInfo.version();
 
+            AggregateStateType<?> inputStateType = new AggregateStateType<>(
+                    inputStateInfo.type(),
+                    inputStateInfo.version(),
+                    inputStateClass,
+                    aggregateInfo.generateGDPRKeyOnCreate(),
+                    aggregateInfo.indexed(),
+                    aggregateInfo.indexName(),
+                    hasPIIDataAnnotation(inputStateClass)
+            );
+
+            AggregateStateType<?> outputStateType = new AggregateStateType<>(
+                    outputStateInfo.type(),
+                    outputStateInfo.version(),
+                    outputStateClass,
+                    aggregateInfo.generateGDPRKeyOnCreate(),
+                    aggregateInfo.indexed(),
+                    aggregateInfo.indexName(),
+                    hasPIIDataAnnotation(outputStateClass)
+            );
+
             bdr.registerBeanDefinition(beanName,
                     BeanDefinitionBuilder.genericBeanDefinition(AggregateStateUpcastingHandlerFunctionAdapter.class)
                             .addConstructorArgReference(aggregateBeanName)
                             .addConstructorArgValue(upcastingHandlerMethod.getName())
-                            .addConstructorArgValue(inputStateClass)
-                            .addConstructorArgValue(outputStateClass)
+                            .addConstructorArgValue(inputStateType)
+                            .addConstructorArgValue(outputStateType)
                             .setInitMethodName("init")
                             .getBeanDefinition());
+
+            validator.detectUpcastingHandler(inputStateType, outputStateType);
         } else {
             throw new ApplicationContextException("Invalid UpcastingHandler method signature: " + upcastingHandlerMethod);
         }

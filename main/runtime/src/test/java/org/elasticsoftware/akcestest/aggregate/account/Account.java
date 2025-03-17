@@ -26,7 +26,12 @@ import org.elasticsoftware.akces.annotations.UpcastingHandler;
 
 import java.util.stream.Stream;
 
-@AggregateInfo(value = "Account", generateGDPRKeyOnCreate = true, indexed = true, indexName = "Users")
+@AggregateInfo(
+        value = "Account",
+        stateClass = AccountState.class,
+        generateGDPRKeyOnCreate = true,
+        indexed = true,
+        indexName = "Users")
 @SuppressWarnings("unused")
 public final class Account implements Aggregate<AccountState> {
     @Override

@@ -22,64 +22,29 @@ import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.aggregate.UpcastingHandlerFunction;
-import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
-import org.elasticsoftware.akces.events.ErrorEvent;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.WrongMethodTypeException;
 
-import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
-
 public class DomainEventUpcastingHandlerFunctionAdapter<T extends DomainEvent, R extends DomainEvent>
         implements UpcastingHandlerFunction<T, R, DomainEventType<T>, DomainEventType<R>> {
     private final Aggregate<? extends AggregateState> aggregate;
     private final String adapterMethodName;
-    private final Class<T> inputEventClass;
-    private final Class<R> outputEventClass;
     private final DomainEventType<T> inputEventType;
     private final DomainEventType<R> outputEventType;
     private MethodHandle methodHandle;
 
     public DomainEventUpcastingHandlerFunctionAdapter(Aggregate<? extends AggregateState> aggregate,
                                                       String adapterMethodName,
-                                                      Class<T> inputEventClass,
-                                                      Class<R> outputEventClass,
-                                                      boolean external) {
-        DomainEventInfo inputEventInfo = inputEventClass.getAnnotation(DomainEventInfo.class);
-        if (inputEventInfo == null) {
-            throw new IllegalArgumentException("Input event class " + inputEventClass.getName() +
-                    " must be annotated with @DomainEventInfo");
-        }
-
-        DomainEventInfo outputEventInfo = outputEventClass.getAnnotation(DomainEventInfo.class);
-        if (outputEventInfo == null) {
-            throw new IllegalArgumentException("Output event class " + outputEventClass.getName() +
-                    " must be annotated with @DomainEventInfo");
-        }
-
+                                                      DomainEventType<T> inputEventType,
+                                                      DomainEventType<R> outputEventType) {
         this.aggregate = aggregate;
         this.adapterMethodName = adapterMethodName;
-        this.inputEventClass = inputEventClass;
-        this.inputEventType = new DomainEventType<>(
-                inputEventInfo.type(),
-                inputEventInfo.version(),
-                inputEventClass,
-                false,
-                external,
-                ErrorEvent.class.isAssignableFrom(inputEventClass),
-                hasPIIDataAnnotation(inputEventClass));
-        this.outputEventClass = outputEventClass;
-        this.outputEventType = new DomainEventType<>(
-                outputEventInfo.type(),
-                outputEventInfo.version(),
-                outputEventClass,
-                false,
-                external,
-                ErrorEvent.class.isAssignableFrom(outputEventClass),
-                hasPIIDataAnnotation(outputEventClass));
+        this.inputEventType = inputEventType;
+        this.outputEventType = outputEventType;
     }
 
     @SuppressWarnings("unused")
@@ -88,7 +53,7 @@ public class DomainEventUpcastingHandlerFunctionAdapter<T extends DomainEvent, R
             methodHandle = MethodHandles.lookup().findVirtual(
                     aggregate.getClass(),
                     adapterMethodName,
-                    MethodType.methodType(outputEventClass, inputEventClass));
+                    MethodType.methodType(outputEventType.typeClass(), inputEventType.typeClass()));
         } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }

@@ -15,12 +15,20 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.cryptotrading.aggregates.wallet.events;
 
-public sealed interface ProtocolRecordType<T> permits SchemaType, AggregateStateType {
-    String typeName();
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.DomainEventInfo;
+import org.elasticsoftware.akces.events.ErrorEvent;
 
-    int version();
-
-    Class<T> typeClass();
+@DomainEventInfo(type = "ReservationNotFoundError", version = 1)
+public record ReservationNotFoundErrorEvent(
+    @NotNull String id,
+    @NotNull String currency,
+    @NotNull String referenceId
+) implements ErrorEvent {
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
 }

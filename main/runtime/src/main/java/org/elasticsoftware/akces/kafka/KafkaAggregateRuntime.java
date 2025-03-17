@@ -743,7 +743,7 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
         }
 
         public Builder addStateUpcastingHandler(AggregateStateType<?> inputType,
-                                               UpcastingHandlerFunction<AggregateState, AggregateState, AggregateStateType<AggregateState>, AggregateStateType<AggregateState>> upcastingHandler) {
+                                                UpcastingHandlerFunction<AggregateState, AggregateState, AggregateStateType<AggregateState>, AggregateStateType<AggregateState>> upcastingHandler) {
             this.stateUpcastingHandlers.put(inputType, upcastingHandler);
             return this;
         }
@@ -760,8 +760,121 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
             return this;
         }
 
+        private Builder validate() {
+            // there should be at least one create handler configured
+            if (createStateHandler == null && eventCreateHandler == null) {
+                throw new IllegalStateException("No create handler (either from command or event) configured");
+            }
+
+            // Check if all produced domain events have corresponding event sourcing (or upcasting) handlers
+            List<DomainEventType<?>> eventsWithoutHandlers = domainEvents.values().stream()
+                    .filter(domainEventType -> !domainEventType.external())
+                    .filter(domainEventType ->
+                            !eventSourcingHandlers.containsKey(domainEventType) &&
+                                    !createStateHandler.getEventType().equals(domainEventType) &&
+                                    !eventUpcastingHandlers.containsKey(domainEventType))
+                    // Skip error events as they don't alter state
+                    .filter(domainEventType -> !ErrorEvent.class.isAssignableFrom(domainEventType.typeClass()))
+                    .toList();
+
+            if (!eventsWithoutHandlers.isEmpty()) {
+                throw new IllegalStateException("The following domain events are missing EventSourcingHandlers: " +
+                        eventsWithoutHandlers.stream()
+                                .map(type -> type.typeName() + " v" + type.version())
+                                .collect(Collectors.joining(", ")));
+            }
+
+            // Check if there are handlers for all versions of domain events
+            Map<String, List<DomainEventType<?>>> eventsByName = domainEvents.values().stream()
+                    .filter(domainEventType -> !domainEventType.external())
+                    .collect(Collectors.groupingBy(DomainEventType::typeName));
+
+            for (Map.Entry<String, List<DomainEventType<?>>> entry : eventsByName.entrySet()) {
+                List<DomainEventType<?>> versions = entry.getValue();
+
+                // Sort versions in ascending order
+                versions.sort(Comparator.comparingInt(DomainEventType::version));
+
+                // Check that versions start with 1
+                if (versions.getFirst().version() != 1) {
+                    throw new IllegalStateException("Event type " + versions.getFirst().typeName() +
+                            " is missing version 1. Event versions must start at 1.");
+                }
+
+                // skip if there's only one version
+                if (versions.size() <= 1) continue;
+
+                // Check for gaps in version numbers
+                for (int i = 0; i < versions.size() - 1; i++) {
+                    DomainEventType<?> current = versions.get(i);
+                    DomainEventType<?> next = versions.get(i + 1);
+                    if (next.version() - current.version() > 1) {
+                        throw new IllegalStateException("Gap detected in versions for event type " +
+                                current.typeName() + ": missing version(s) between v" +
+                                current.version() + " and v" + next.version());
+                    }
+                }
+
+                // Check if each version (except the latest) has an upcasting handler
+                for (int i = 0; i < versions.size() - 1; i++) {
+                    DomainEventType<?> olderVersion = versions.get(i);
+                    if (!eventUpcastingHandlers.containsKey(olderVersion) && !eventSourcingHandlers.containsKey(olderVersion)) {
+                        throw new IllegalStateException("Missing handler for " +
+                                olderVersion.typeName() + " v" + olderVersion.version() +
+                                ". All older versions of domain events must have either upcasting handlers or event sourcing handlers.");
+                    }
+                }
+            }
+
+            // Similarly check state upcasting handlers
+            List<AggregateStateType<?>> stateTypes = new ArrayList<>(stateUpcastingHandlers.keySet());
+            stateTypes.add(stateType);
+            Map<String, List<AggregateStateType<?>>> statesByName = stateTypes.stream()
+                    .collect(Collectors.groupingBy(AggregateStateType::typeName));
+
+            for (Map.Entry<String, List<AggregateStateType<?>>> entry : statesByName.entrySet()) {
+                List<AggregateStateType<?>> versions = entry.getValue();
+
+                // Sort versions in ascending order
+                versions.sort(Comparator.comparingInt(AggregateStateType::version));
+
+                // check if the versions start with 1
+                if (versions.getFirst().version() != 1) {
+                    throw new IllegalStateException("State type " + versions.getFirst().typeName() +
+                            " is missing version 1. State versions must start at 1.");
+                }
+
+                // The latest version is the current stateType
+                AggregateStateType<?> latestVersion = stateType;
+
+                // Check if each version (except the latest) has an upcasting handler
+                for (AggregateStateType<?> olderVersion : versions) {
+                    if (olderVersion.version() < latestVersion.version() &&
+                            !stateUpcastingHandlers.containsKey(olderVersion)) {
+                        throw new IllegalStateException("Missing upcasting handler for " +
+                                olderVersion.typeName() + " v" + olderVersion.version() +
+                                ". All older versions of state must have upcasting handlers.");
+                    }
+                }
+            }
+
+            // Check if event handlers are only declared for external events
+            List<DomainEventType<?>> nonExternalEventsWithHandlers = eventHandlers.keySet().stream()
+                    .filter(eventType -> !eventType.external())
+                    .toList();
+
+            if (!nonExternalEventsWithHandlers.isEmpty()) {
+                throw new IllegalStateException("Event handlers found for non-external events: " +
+                        nonExternalEventsWithHandlers.stream()
+                                .map(type -> type.typeName() + " v" + type.version())
+                                .collect(Collectors.joining(", ")));
+            }
+
+            return this;
+        }
+
         public KafkaAggregateRuntime build() {
-            // see if we have a command and/or domain event with PIIData
+
             final boolean shouldHandlePIIData = domainEvents.values().stream().map(DomainEventType::typeClass)
                     .anyMatch(GDPRAnnotationUtils::hasPIIDataAnnotation) ||
                     commandTypes.values().stream().flatMap(List::stream).map(CommandType::typeClass)
@@ -786,5 +899,10 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
                     generateGDPRKeyOnCreate,
                     shouldHandlePIIData);
         }
+
+        public KafkaAggregateRuntime validateAndBuild() {
+            return validate().build();
+        }
+
     }
 }

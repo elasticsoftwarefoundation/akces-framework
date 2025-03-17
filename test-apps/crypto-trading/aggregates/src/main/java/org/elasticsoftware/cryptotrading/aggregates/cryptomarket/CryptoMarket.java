@@ -37,7 +37,7 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 import java.util.stream.Stream;
 
-@AggregateInfo(value = "CryptoMarket")
+@AggregateInfo(value = "CryptoMarket", stateClass = CryptoMarketState.class)
 public class CryptoMarket implements Aggregate<CryptoMarketState> {
     private final CoinbaseService coinbaseService;
     private final MathContext mathContext = new MathContext(8);

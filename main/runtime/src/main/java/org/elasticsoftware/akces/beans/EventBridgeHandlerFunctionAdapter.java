@@ -24,38 +24,24 @@ import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.aggregate.EventBridgeHandlerFunction;
 import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.events.DomainEvent;
-import org.elasticsoftware.akces.events.ErrorEvent;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.WrongMethodTypeException;
 
-import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
-
 public class EventBridgeHandlerFunctionAdapter<S extends AggregateState, E extends DomainEvent> implements EventBridgeHandlerFunction<S, E> {
     private final Aggregate<S> aggregate;
     private final String adapterMethodName;
-    private final Class<E> inputEventClass;
     private final DomainEventType<E> domainEventType;
     private MethodHandle methodHandle;
 
     public EventBridgeHandlerFunctionAdapter(Aggregate<S> aggregate,
                                              String adapterMethodName,
-                                             Class<E> inputEventClass,
-                                             String typeName,
-                                             int version) {
+                                             DomainEventType<E> domainEventType) {
         this.aggregate = aggregate;
         this.adapterMethodName = adapterMethodName;
-        this.inputEventClass = inputEventClass;
-        this.domainEventType = new DomainEventType<>(
-                typeName,
-                version,
-                inputEventClass,
-                false,
-                true,
-                ErrorEvent.class.isAssignableFrom(inputEventClass),
-                hasPIIDataAnnotation(inputEventClass));
+        this.domainEventType = domainEventType;
     }
 
     @SuppressWarnings("unused")
@@ -64,7 +50,7 @@ public class EventBridgeHandlerFunctionAdapter<S extends AggregateState, E exten
             methodHandle = MethodHandles.lookup().findVirtual(
                     aggregate.getClass(),
                     adapterMethodName,
-                    MethodType.methodType(void.class, inputEventClass, CommandBus.class));
+                    MethodType.methodType(void.class, domainEventType.typeClass(), CommandBus.class));
         } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }

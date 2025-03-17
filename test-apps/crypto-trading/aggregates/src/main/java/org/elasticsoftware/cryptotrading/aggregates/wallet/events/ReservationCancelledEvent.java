@@ -15,12 +15,20 @@
  *
  */
 
-package org.elasticsoftware.akces.aggregate;
+package org.elasticsoftware.cryptotrading.aggregates.wallet.events;
 
-public sealed interface ProtocolRecordType<T> permits SchemaType, AggregateStateType {
-    String typeName();
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.DomainEventInfo;
+import org.elasticsoftware.akces.events.DomainEvent;
 
-    int version();
-
-    Class<T> typeClass();
+@DomainEventInfo(type = "ReservationCancelled", version = 1)
+public record ReservationCancelledEvent(
+    @NotNull String id,
+    @NotNull String currency,
+    @NotNull String referenceId
+) implements DomainEvent {
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
 }

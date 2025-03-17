@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces.annotations;
 
+import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.springframework.core.annotation.AliasFor;
 import org.springframework.stereotype.Component;
 
@@ -32,7 +33,7 @@ public @interface AggregateInfo {
     @AliasFor(annotation = Component.class)
     String value();
 
-    int stateVersion() default 1;
+    Class<? extends AggregateState> stateClass();
 
     boolean generateGDPRKeyOnCreate() default false;
 
