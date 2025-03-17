@@ -120,11 +120,13 @@ public class AggregateValidator {
         if (eventSourcingHandlers.stream().noneMatch(DomainEventType::create)) {
             throw new IllegalStateException("No event sourcing handler for create event in aggregate " + aggregateClass.getName());
         }
-        // ensure all produced events have a handler
+        // ensure all produced events have either a handler or an upcasting handler
         for (DomainEventType<?> producedEventType : producedDomainEventTypes) {
             if (eventSourcingHandlers.stream().noneMatch(h -> h.typeName().equals(producedEventType.typeName()) &&
-                    h.version() == producedEventType.version())) {
-                throw new IllegalStateException("No event sourcing handler for produced event " +
+                    h.version() == producedEventType.version()) &&
+                    eventUpcastingHandlers.stream().noneMatch(h -> h.inputType().typeName().equals(producedEventType.typeName()) &&
+                            h.inputType().version() == producedEventType.version())) {
+                throw new IllegalStateException("No event sourcing handler or upcasting handler for produced event " +
                         producedEventType.typeName() + " version " + producedEventType.version() +
                         " in aggregate " + aggregateClass.getName());
             }
