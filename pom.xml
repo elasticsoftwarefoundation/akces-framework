@@ -205,8 +205,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
                     <fork>false</fork>
-                    <source>21</source>
-                    <target>21</target>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
                     <encoding>UTF-8</encoding>
                     <compilerArgs>
                         <arg>-parameters</arg>
@@ -348,10 +348,10 @@
                 <configuration>
                     <rules>
                         <requireMavenVersion>
-                            <version>3.0.5</version>
+                            <version>3.6.3</version>
                         </requireMavenVersion>
                         <requireJavaVersion>
-                            <version>1.17</version>
+                            <version>1.${java.version}</version>
                         </requireJavaVersion>
                         <banDuplicatePomDependencyVersions />
                         <dependencyConvergence />
