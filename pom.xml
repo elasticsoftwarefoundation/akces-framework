@@ -73,7 +73,7 @@
         <!-- java 21+ -->
         <java.version>21</java.version>
         <!-- this is needed for surefire, needs to be kept in sync with the mockito-core version in spring-boot -->
-        <mockito.version>5.16.0</mockito.version>
+        <mockito.version>5.16.1</mockito.version>
         <spring.version>6.2.4</spring.version>
         <spring-boot.version>3.4.3</spring-boot.version>
         <guava.version>33.4.0-jre</guava.version>
