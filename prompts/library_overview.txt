@@ -1,1 +1,0 @@
-This file contains the entire codebase of the Akces Framework. Please provide a comprehensive overview of the library, including its main purpose, key features, and overall architecture.

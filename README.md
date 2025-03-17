@@ -63,6 +63,13 @@ Akces leverages Kafka's distributed architecture for reliable event storage and 
 - **Compatibility Checking**: Ensure backward compatibility
 - **Automatic Generation**: Generate JSON schemas from command and event classes
 
+### Process Managers
+
+- **Orchestration**: Manage complex workflows across multiple aggregates
+- **Stateful Processing**: Maintain process state through events
+- **Event-Driven Flow**: React to events to advance processes
+- **Error Handling**: Built-in compensation logic for failures
+
 ## Architecture
 
 Akces is organized into several Maven modules:
@@ -77,8 +84,8 @@ Akces is organized into several Maven modules:
 
 ### Prerequisites
 
-- Java 17 or higher
-- Apache Kafka 3.x
+- Java 21 or higher
+- Apache Kafka 3.x with KRaft mode enabled
 - Confluent Schema Registry
 - Maven 3.6 or higher
 
@@ -90,28 +97,28 @@ Add the following to your `pom.xml`:
 <dependency>
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-api</artifactId>
-    <version>0.8.12</version>
+    <version>0.9.0</version>
 </dependency>
 
 <!-- For command senders -->
 <dependency>
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-client</artifactId>
-    <version>0.8.12</version>
+    <version>0.9.0</version>
 </dependency>
 
 <!-- For aggregate services -->
 <dependency>
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-runtime</artifactId>
-    <version>0.8.12</version>
+    <version>0.9.0</version>
 </dependency>
 
 <!-- For query models and database models -->
 <dependency>
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-query-support</artifactId>
-    <version>0.8.12</version>
+    <version>0.9.0</version>
 </dependency>
 ```
 
@@ -612,6 +619,56 @@ public class OrderProcessManager implements ProcessManager<OrderProcessManagerSt
         }
         return Stream.empty();
     }
+}
+```
+
+## Schema Evolution
+
+Akces supports evolving your domain model over time:
+
+```java
+// Original version
+@DomainEventInfo(type = "AccountCreated", version = 1)
+public record AccountCreatedEvent(
+    @AggregateIdentifier String userId,
+    String country,
+    String firstName,
+    String lastName,
+    String email
+) implements DomainEvent { 
+    @Override
+    public String getAggregateId() {
+        return userId();
+    }
+}
+
+// New version with additional field
+@DomainEventInfo(type = "AccountCreated", version = 2)
+public record AccountCreatedEventV2(
+    @AggregateIdentifier String userId,
+    String country,
+    String firstName,
+    String lastName,
+    String email,
+    Boolean twoFactorEnabled
+) implements DomainEvent {
+    @Override
+    public String getAggregateId() {
+        return userId();
+    }
+}
+
+// The upcasting handler
+@UpcastingHandler
+public AccountCreatedEventV2 cast(AccountCreatedEvent event) {
+    return new AccountCreatedEventV2(
+        event.userId(), 
+        event.country(), 
+        event.firstName(), 
+        event.lastName(), 
+        event.email(), 
+        false // Default value for new field
+    );
 }
 ```
 

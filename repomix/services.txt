@@ -42,6 +42,7 @@ Notes:
 - Files matching default ignore patterns are excluded
 - Code comments have been removed from supported file types
 - Content has been compressed - code blocks are separated by ⋮---- delimiter
+- Files are sorted by Git change count (files with more changes are at the bottom)
 
 Additional Info:
 ----------------
@@ -454,27 +455,6 @@ statefulSet = new StatefulSetBuilder(statefulSet)
 .build();
 
 ================
-File: services/operator/src/main/java/org/elasticsoftware/akces/operator/query/ConfigMapDependentResource.java
-================
-public class ConfigMapDependentResource extends CRUDKubernetesDependentResource<ConfigMap, QueryService> {
-⋮----
-protected ConfigMap desired(QueryService queryService, Context<QueryService> context) {
-final ObjectMeta queryServiceMetadata = queryService.getMetadata();
-final String queryServiceName = queryServiceMetadata.getName();
-final QueryServiceSpec spec = queryService.getSpec();
-return new ConfigMapBuilder(ReconcilerUtils.loadYaml(ConfigMap.class, getClass(), "configmap.yaml"))
-.editMetadata()
-.withName(queryServiceName + "-config")
-.withNamespace(queryServiceMetadata.getNamespace())
-.addToLabels("app.kubernetes.io/part-of", queryServiceName)
-.addToLabels("app.kubernetes.io/managed-by", "akces-operator")
-.endMetadata()
-.addToData(spec.getApplicationProperties() != null ?
-Map.of("application.properties", spec.getApplicationProperties()) :
-Collections.emptyMap())
-.build();
-
-================
 File: services/operator/src/main/java/org/elasticsoftware/akces/operator/query/QueryService.java
 ================
 public class QueryService extends CustomResource<QueryServiceSpec, QueryServiceStatus> implements Namespaced {
@@ -505,41 +485,6 @@ status.setReadyReplicas(readyReplicas);
 res.setStatus(status);
 
 ================
-File: services/operator/src/main/java/org/elasticsoftware/akces/operator/query/QueryServiceSpec.java
-================
-public class QueryServiceSpec {
-⋮----
-public Integer getReplicas() {
-⋮----
-public void setReplicas(Integer replicas) {
-⋮----
-public String getImage() {
-⋮----
-public void setImage(String image) {
-⋮----
-public List<String> getArgs() {
-return args != null ? args : Collections.emptyList();
-⋮----
-public void setArgs(List<String> args) {
-⋮----
-public ResourceRequirements getResources() {
-⋮----
-public void setResources(ResourceRequirements resources) {
-⋮----
-public String getApplicationName() {
-⋮----
-public void setApplicationName(String applicationName) {
-⋮----
-public List<EnvVar> getEnv() {
-return env != null ? env : Collections.emptyList();
-⋮----
-public void setEnv(List<EnvVar> env) {
-⋮----
-public String getApplicationProperties() {
-⋮----
-public void setApplicationProperties(String applicationProperties) {
-
-================
 File: services/operator/src/main/java/org/elasticsoftware/akces/operator/query/QueryServiceStatus.java
 ================
 public class QueryServiceStatus {
@@ -566,60 +511,6 @@ return new ServiceBuilder(ReconcilerUtils.loadYaml(Service.class, getClass(), "s
 .editSpec()
 .addToSelector("app", queryServiceMetadata.getName())
 .endSpec()
-.build();
-
-================
-File: services/operator/src/main/java/org/elasticsoftware/akces/operator/query/StatefulSetDependentResource.java
-================
-public class StatefulSetDependentResource extends CRUDKubernetesDependentResource<StatefulSet, QueryService> {
-⋮----
-protected StatefulSet desired(QueryService queryService, Context<QueryService> context) {
-StatefulSet statefulSet = ReconcilerUtils.loadYaml(StatefulSet.class, getClass(), "statefulset.yaml");
-final ObjectMeta queryServiceMetadata = queryService.getMetadata();
-final String queryServiceName = queryServiceMetadata.getName();
-⋮----
-statefulSet = new StatefulSetBuilder(statefulSet)
-.editMetadata()
-.withName(queryServiceName)
-.withNamespace(queryServiceMetadata.getNamespace())
-.addToLabels("app", queryServiceName)
-.addToLabels("app.kubernetes.io/part-of", queryServiceName)
-.addToLabels("app.kubernetes.io/managed-by", "akces-operator")
-.endMetadata()
-.editSpec()
-.withServiceName(queryServiceName + "-service")
-.editSelector().addToMatchLabels("app", queryServiceName).endSelector()
-.withReplicas(queryService.getSpec().getReplicas())
-.editTemplate()
-.editMetadata().addToLabels("app", queryServiceName).endMetadata()
-⋮----
-.addToImagePullSecrets(new LocalObjectReference("github-packages-cfg"))
-.editFirstContainer()
-.withImage(queryService.getSpec().getImage())
-.withName("akces-query-service")
-.withArgs(queryService.getSpec().getArgs())
-.editFirstEnv()
-.withValue(queryService.getSpec().getApplicationName())
-.endEnv()
-.addToEnv(queryService.getSpec().getEnv().toArray(new EnvVar[0]))
-.withResources(queryService.getSpec().getResources())
-.endContainer()
-.editFirstVolume()
-.editConfigMap()
-.withName(queryServiceName + "-config")
-.endConfigMap()
-.endVolume()
-.endSpec()
-.endTemplate()
-.editFirstVolumeClaimTemplate()
-⋮----
-.withStorageClassName("akces-data-hyperdisk-balanced")
-.editResources()
-.withRequests(Map.of("storage", new Quantity("4Gi")))
-.endResources()
-⋮----
-.endVolumeClaimTemplate()
-⋮----
 .build();
 
 ================
@@ -693,63 +584,6 @@ File: services/operator/src/main/resources/META-INF/native-image/native-image.pr
 Args=--strict-image-heap
 
 ================
-File: services/operator/src/main/resources/org/elasticsoftware/akces/operator/aggregate/configmap.yaml
-================
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ""
-data:
-  application.properties: |
-    # Spring application properties
-    spring.application.name=${SPRING_APPLICATION_NAME}
-    spring.kafka.enabled=true
-    spring.kafka.bootstrap-servers=akces-kafka-bootstrap.kafka:9092
-    spring.kafka.consumer.properties.session.timeout.ms=45000
-    management.endpoint.health.probes.enabled=true
-    management.health.livenessState.enabled=true
-    management.health.readinessState.enabled=true
-    server.shutdown=graceful
-    spring.mvc.problemdetails.enabled=true
-    akces.schemaregistry.url=http://akces-schema-registry.kafka:8081
-    akces.rocksdb.baseDir=/var/lib/akces-data
-    akces.aggregate.schemas.forceRegister=${ENABLE_SCHEMA_OVERWRITES}
-  logback.xml: |
-    <configuration>
-        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-            <layout class="ch.qos.logback.classic.PatternLayout">
-                <Pattern>
-                    %d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n
-                </Pattern>
-            </layout>
-        </appender>
-
-        <logger name="org.apache.kafka" level="warn" additivity="false">
-            <appender-ref ref="CONSOLE"/>
-        </logger>
-
-        <logger name="org.apache.kafka.clients.producer" level="warn" additivity="false">
-            <appender-ref ref="CONSOLE"/>
-        </logger>
-
-        <logger name="org.apache.kafka.clients.consumer" level="warn" additivity="false">
-            <appender-ref ref="CONSOLE"/>
-        </logger>
-
-        <logger name="org.apache.kafka.clients.NetworkClient" level="error" additivity="false">
-            <appender-ref ref="CONSOLE"/>
-        </logger>
-
-        <logger name="org.apache.kafka.clients.producer.internals.Sender" level="error" additivity="false">
-            <appender-ref ref="CONSOLE"/>
-        </logger>
-
-        <root level="info">
-            <appender-ref ref="CONSOLE"/>
-        </root>
-    </configuration>
-
-================
 File: services/operator/src/main/resources/org/elasticsoftware/akces/operator/aggregate/service.yaml
 ================
 apiVersion: v1
@@ -765,95 +599,6 @@ spec:
       port: 80
       targetPort: 8080
   type: ClusterIP
-
-================
-File: services/operator/src/main/resources/org/elasticsoftware/akces/operator/aggregate/statefulset.yaml
-================
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: ""
-  labels:
-    app.kubernetes.io/part-of: ""
-    app.kubernetes.io/managed-by: ""
-spec:
-  serviceName: ""
-  replicas: 3
-  podManagementPolicy: Parallel
-  selector:
-    matchLabels:
-      app: ""
-  template:
-    metadata:
-      labels:
-        app: ""
-    spec:
-      securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
-      containers:
-        - name: akces-aggregate-service
-          image: ""
-          env:
-            - name: SPRING_APPLICATION_NAME
-              value: "Akces Aggregate Service"
-            - name: SPRING_CONFIG_LOCATION
-              value: "file:/config/application.properties"
-            - name: LOGGING_CONFIG
-              value: "file:/config/logback.xml"
-            - name: BPL_JVM_THREAD_COUNT
-              value: "100"
-            - name: JAVA_TOOL_OPTIONS
-              value: "-XX:+UseZGC -XX:+ZGenerational"
-            - name: ENABLE_SCHEMA_OVERWRITES
-              value: "false"
-          lifecycle:
-            preStop:
-              exec:
-                command: [ "/bin/sh", "-c", "sleep 15" ]
-          ports:
-            - containerPort: 8080
-              name: http
-          readinessProbe:
-            failureThreshold: 3
-            httpGet:
-              path: /actuator/health/readiness
-              port: 8080
-              scheme: HTTP
-            initialDelaySeconds: 1
-            periodSeconds: 10
-            successThreshold: 1
-            timeoutSeconds: 1
-          livenessProbe:
-            failureThreshold: 3
-            httpGet:
-              path: actuator/health/liveness
-              port: 8080
-              scheme: HTTP
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            successThreshold: 1
-            timeoutSeconds: 1
-          volumeMounts:
-            - name: config-volume
-              mountPath: /config
-            - name: akces-data
-              mountPath: /var/lib/akces-data
-              readOnly: false
-      volumes:
-        - name: config-volume
-          configMap:
-            name: ""
-  volumeClaimTemplates:
-    - metadata:
-        name: akces-data
-      spec:
-        accessModes: [ "ReadWriteOnce" ]
-        storageClassName: "akces-data-hyperdisk-balanced"
-        resources:
-          requests:
-            storage: 4Gi
 
 ================
 File: services/operator/src/main/resources/org/elasticsoftware/akces/operator/command/configmap.yaml
@@ -996,54 +741,6 @@ spec:
             name: ""
 
 ================
-File: services/operator/src/main/resources/org/elasticsoftware/akces/operator/query/configmap.yaml
-================
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ""
-data:
-  application-default.properties: |
-    # Spring application properties
-    spring.application.name=${SPRING_APPLICATION_NAME}
-    spring.kafka.enabled=true
-    spring.kafka.bootstrap-servers=akces-kafka-bootstrap.kafka:9092
-    spring.kafka.consumer.properties.session.timeout.ms=45000
-    management.endpoint.health.probes.enabled=true
-    management.health.livenessState.enabled=true
-    management.health.readinessState.enabled=true
-    server.shutdown=graceful
-    spring.mvc.problemdetails.enabled=true
-    akces.schemaregistry.url=http://akces-schema-registry.kafka:8081
-    akces.rocksdb.baseDir=/var/lib/akces-data
-  logback.xml: |
-    <configuration>
-        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-            <layout class="ch.qos.logback.classic.PatternLayout">
-                <Pattern>
-                    %d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n
-                </Pattern>
-            </layout>
-        </appender>
-
-        <logger name="org.apache.kafka" level="warn" additivity="false">
-            <appender-ref ref="CONSOLE"/>
-        </logger>
-
-        <logger name="org.apache.kafka.clients.producer" level="warn" additivity="false">
-            <appender-ref ref="CONSOLE"/>
-        </logger>
-
-        <logger name="org.apache.kafka.clients.consumer" level="warn" additivity="false">
-            <appender-ref ref="CONSOLE"/>
-        </logger>
-
-        <root level="info">
-            <appender-ref ref="CONSOLE"/>
-        </root>
-    </configuration>
-
-================
 File: services/operator/src/main/resources/org/elasticsoftware/akces/operator/query/service.yaml
 ================
 apiVersion: v1
@@ -1059,93 +756,6 @@ spec:
       port: 80
       targetPort: 8080
   type: ClusterIP
-
-================
-File: services/operator/src/main/resources/org/elasticsoftware/akces/operator/query/statefulset.yaml
-================
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: ""
-  labels:
-    app.kubernetes.io/part-of: ""
-    app.kubernetes.io/managed-by: ""
-spec:
-  serviceName: ""
-  replicas: 3
-  podManagementPolicy: Parallel
-  selector:
-    matchLabels:
-      app: ""
-  template:
-    metadata:
-      labels:
-        app: ""
-    spec:
-      securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
-      containers:
-        - name: akces-query-service
-          image: ""
-          env:
-            - name: SPRING_APPLICATION_NAME
-              value: "Akces Query Service"
-            - name: SPRING_CONFIG_LOCATION
-              value: "file:/config/application-default.properties,optional:file:/config/application.properties"
-            - name: LOGGING_CONFIG
-              value: "file:/config/logback.xml"
-            - name: BPL_JVM_THREAD_COUNT
-              value: "100"
-            - name: JAVA_TOOL_OPTIONS
-              value: "-XX:+UseZGC -XX:+ZGenerational"
-          lifecycle:
-            preStop:
-              exec:
-                command: [ "/bin/sh", "-c", "sleep 10" ]
-          ports:
-            - containerPort: 8080
-              name: http
-          readinessProbe:
-            failureThreshold: 3
-            httpGet:
-              path: /actuator/health/readiness
-              port: 8080
-              scheme: HTTP
-            initialDelaySeconds: 1
-            periodSeconds: 10
-            successThreshold: 1
-            timeoutSeconds: 1
-          livenessProbe:
-            failureThreshold: 3
-            httpGet:
-              path: actuator/health/liveness
-              port: 8080
-              scheme: HTTP
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            successThreshold: 1
-            timeoutSeconds: 1
-          volumeMounts:
-            - name: config-volume
-              mountPath: /config
-            - name: akces-data
-              mountPath: /var/lib/akces-data
-              readOnly: false
-      volumes:
-        - name: config-volume
-          configMap:
-            name: ""
-  volumeClaimTemplates:
-    - metadata:
-        name: akces-data
-      spec:
-        accessModes: [ "ReadWriteOnce" ]
-        storageClassName: "akces-data-hyperdisk-balanced"
-        resources:
-          requests:
-            storage: 4Gi
 
 ================
 File: services/operator/src/main/resources/application.properties
@@ -1222,6 +832,310 @@ File: services/operator/src/main/resources/logback.xml
     </root>
 
 </configuration>
+
+================
+File: services/operator/src/main/java/org/elasticsoftware/akces/operator/query/ConfigMapDependentResource.java
+================
+public class ConfigMapDependentResource extends CRUDKubernetesDependentResource<ConfigMap, QueryService> {
+⋮----
+protected ConfigMap desired(QueryService queryService, Context<QueryService> context) {
+final ObjectMeta queryServiceMetadata = queryService.getMetadata();
+final String queryServiceName = queryServiceMetadata.getName();
+final QueryServiceSpec spec = queryService.getSpec();
+return new ConfigMapBuilder(ReconcilerUtils.loadYaml(ConfigMap.class, getClass(), "configmap.yaml"))
+.editMetadata()
+.withName(queryServiceName + "-config")
+.withNamespace(queryServiceMetadata.getNamespace())
+.addToLabels("app.kubernetes.io/part-of", queryServiceName)
+.addToLabels("app.kubernetes.io/managed-by", "akces-operator")
+.endMetadata()
+.addToData(spec.getApplicationProperties() != null ?
+Map.of("application.properties", spec.getApplicationProperties()) :
+Collections.emptyMap())
+.build();
+
+================
+File: services/operator/src/main/java/org/elasticsoftware/akces/operator/query/QueryServiceSpec.java
+================
+public class QueryServiceSpec {
+⋮----
+public Integer getReplicas() {
+⋮----
+public void setReplicas(Integer replicas) {
+⋮----
+public String getImage() {
+⋮----
+public void setImage(String image) {
+⋮----
+public List<String> getArgs() {
+return args != null ? args : Collections.emptyList();
+⋮----
+public void setArgs(List<String> args) {
+⋮----
+public ResourceRequirements getResources() {
+⋮----
+public void setResources(ResourceRequirements resources) {
+⋮----
+public String getApplicationName() {
+⋮----
+public void setApplicationName(String applicationName) {
+⋮----
+public List<EnvVar> getEnv() {
+return env != null ? env : Collections.emptyList();
+⋮----
+public void setEnv(List<EnvVar> env) {
+⋮----
+public String getApplicationProperties() {
+⋮----
+public void setApplicationProperties(String applicationProperties) {
+
+================
+File: services/operator/src/main/java/org/elasticsoftware/akces/operator/query/StatefulSetDependentResource.java
+================
+public class StatefulSetDependentResource extends CRUDKubernetesDependentResource<StatefulSet, QueryService> {
+⋮----
+protected StatefulSet desired(QueryService queryService, Context<QueryService> context) {
+StatefulSet statefulSet = ReconcilerUtils.loadYaml(StatefulSet.class, getClass(), "statefulset.yaml");
+final ObjectMeta queryServiceMetadata = queryService.getMetadata();
+final String queryServiceName = queryServiceMetadata.getName();
+⋮----
+statefulSet = new StatefulSetBuilder(statefulSet)
+.editMetadata()
+.withName(queryServiceName)
+.withNamespace(queryServiceMetadata.getNamespace())
+.addToLabels("app", queryServiceName)
+.addToLabels("app.kubernetes.io/part-of", queryServiceName)
+.addToLabels("app.kubernetes.io/managed-by", "akces-operator")
+.endMetadata()
+.editSpec()
+.withServiceName(queryServiceName + "-service")
+.editSelector().addToMatchLabels("app", queryServiceName).endSelector()
+.withReplicas(queryService.getSpec().getReplicas())
+.editTemplate()
+.editMetadata().addToLabels("app", queryServiceName).endMetadata()
+⋮----
+.addToImagePullSecrets(new LocalObjectReference("github-packages-cfg"))
+.editFirstContainer()
+.withImage(queryService.getSpec().getImage())
+.withName("akces-query-service")
+.withArgs(queryService.getSpec().getArgs())
+.editFirstEnv()
+.withValue(queryService.getSpec().getApplicationName())
+.endEnv()
+.addToEnv(queryService.getSpec().getEnv().toArray(new EnvVar[0]))
+.withResources(queryService.getSpec().getResources())
+.endContainer()
+.editFirstVolume()
+.editConfigMap()
+.withName(queryServiceName + "-config")
+.endConfigMap()
+.endVolume()
+.endSpec()
+.endTemplate()
+.editFirstVolumeClaimTemplate()
+⋮----
+.withStorageClassName("akces-data-hyperdisk-balanced")
+.editResources()
+.withRequests(Map.of("storage", new Quantity("4Gi")))
+.endResources()
+⋮----
+.endVolumeClaimTemplate()
+⋮----
+.build();
+
+================
+File: services/operator/src/main/resources/org/elasticsoftware/akces/operator/aggregate/configmap.yaml
+================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ""
+data:
+  application.properties: |
+    # Spring application properties
+    spring.application.name=${SPRING_APPLICATION_NAME}
+    spring.kafka.enabled=true
+    spring.kafka.bootstrap-servers=akces-kafka-bootstrap.kafka:9092
+    spring.kafka.consumer.properties.session.timeout.ms=45000
+    management.endpoint.health.probes.enabled=true
+    management.health.livenessState.enabled=true
+    management.health.readinessState.enabled=true
+    server.shutdown=graceful
+    spring.mvc.problemdetails.enabled=true
+    akces.schemaregistry.url=http://akces-schema-registry.kafka:8081
+    akces.rocksdb.baseDir=/var/lib/akces-data
+    akces.aggregate.schemas.forceRegister=${ENABLE_SCHEMA_OVERWRITES}
+  logback.xml: |
+    <configuration>
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <layout class="ch.qos.logback.classic.PatternLayout">
+                <Pattern>
+                    %d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n
+                </Pattern>
+            </layout>
+        </appender>
+
+        <logger name="org.apache.kafka" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <logger name="org.apache.kafka.clients.producer" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <logger name="org.apache.kafka.clients.consumer" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <logger name="org.apache.kafka.clients.NetworkClient" level="error" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <logger name="org.apache.kafka.clients.producer.internals.Sender" level="error" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <root level="info">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </configuration>
+
+================
+File: services/operator/src/main/resources/org/elasticsoftware/akces/operator/aggregate/statefulset.yaml
+================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ""
+  labels:
+    app.kubernetes.io/part-of: ""
+    app.kubernetes.io/managed-by: ""
+spec:
+  serviceName: ""
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: ""
+  template:
+    metadata:
+      labels:
+        app: ""
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: akces-aggregate-service
+          image: ""
+          env:
+            - name: SPRING_APPLICATION_NAME
+              value: "Akces Aggregate Service"
+            - name: SPRING_CONFIG_LOCATION
+              value: "file:/config/application.properties"
+            - name: LOGGING_CONFIG
+              value: "file:/config/logback.xml"
+            - name: BPL_JVM_THREAD_COUNT
+              value: "100"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:+UseZGC -XX:+ZGenerational"
+            - name: ENABLE_SCHEMA_OVERWRITES
+              value: "false"
+          lifecycle:
+            preStop:
+              exec:
+                command: [ "/bin/sh", "-c", "sleep 15" ]
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: actuator/health/liveness
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+            - name: akces-data
+              mountPath: /var/lib/akces-data
+              readOnly: false
+      volumes:
+        - name: config-volume
+          configMap:
+            name: ""
+  volumeClaimTemplates:
+    - metadata:
+        name: akces-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: "akces-data-hyperdisk-balanced"
+        resources:
+          requests:
+            storage: 4Gi
+
+================
+File: services/operator/src/main/resources/org/elasticsoftware/akces/operator/query/configmap.yaml
+================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ""
+data:
+  application-default.properties: |
+    # Spring application properties
+    spring.application.name=${SPRING_APPLICATION_NAME}
+    spring.kafka.enabled=true
+    spring.kafka.bootstrap-servers=akces-kafka-bootstrap.kafka:9092
+    spring.kafka.consumer.properties.session.timeout.ms=45000
+    management.endpoint.health.probes.enabled=true
+    management.health.livenessState.enabled=true
+    management.health.readinessState.enabled=true
+    server.shutdown=graceful
+    spring.mvc.problemdetails.enabled=true
+    akces.schemaregistry.url=http://akces-schema-registry.kafka:8081
+    akces.rocksdb.baseDir=/var/lib/akces-data
+  logback.xml: |
+    <configuration>
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <layout class="ch.qos.logback.classic.PatternLayout">
+                <Pattern>
+                    %d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n
+                </Pattern>
+            </layout>
+        </appender>
+
+        <logger name="org.apache.kafka" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <logger name="org.apache.kafka.clients.producer" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <logger name="org.apache.kafka.clients.consumer" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <root level="info">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </configuration>
 
 ================
 File: services/operator/src/test/java/org/elasticsoftware/akces/operator/AkcesOperatorApplicationTests.java
@@ -1319,6 +1233,1134 @@ TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
 "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers()
 
 ================
+File: RELEASE.md
+================
+## Release process
+
+This project uses the Maven Release Plugin and GitHub Actions to create releases.\
+Just run `mvn release:prepare release:perform && git push` in the root to select the version to be released and create a
+VCS tag.
+
+GitHub Actions will
+start [the build process](https://github.com/elasticsoftwarefoundation/akces-framework/actions/workflows/maven-publish.yml).
+
+If successful, the build will be automatically published
+to [Github Packages](https://maven.pkg.github.com/elasticsoftwarefoundation/akces-framework/).
+
+================
+File: services/operator/src/main/resources/org/elasticsoftware/akces/operator/query/statefulset.yaml
+================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ""
+  labels:
+    app.kubernetes.io/part-of: ""
+    app.kubernetes.io/managed-by: ""
+spec:
+  serviceName: ""
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: ""
+  template:
+    metadata:
+      labels:
+        app: ""
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: akces-query-service
+          image: ""
+          env:
+            - name: SPRING_APPLICATION_NAME
+              value: "Akces Query Service"
+            - name: SPRING_CONFIG_LOCATION
+              value: "file:/config/application-default.properties,optional:file:/config/application.properties"
+            - name: LOGGING_CONFIG
+              value: "file:/config/logback.xml"
+            - name: BPL_JVM_THREAD_COUNT
+              value: "100"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:+UseZGC -XX:+ZGenerational"
+          lifecycle:
+            preStop:
+              exec:
+                command: [ "/bin/sh", "-c", "sleep 10" ]
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: actuator/health/liveness
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+            - name: akces-data
+              mountPath: /var/lib/akces-data
+              readOnly: false
+      volumes:
+        - name: config-volume
+          configMap:
+            name: ""
+  volumeClaimTemplates:
+    - metadata:
+        name: akces-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: "akces-data-hyperdisk-balanced"
+        resources:
+          requests:
+            storage: 4Gi
+
+================
+File: FRAMEWORK_OVERVIEW.md
+================
+# Comprehensive Analysis of the Akces Framework
+
+## Introduction
+
+The Akces Framework is a sophisticated event sourcing and CQRS (Command Query Responsibility Segregation) implementation built on Apache Kafka. It provides a complete infrastructure for building distributed, event-driven applications with a clear separation between write and read concerns.
+
+## Core Purpose and Values
+
+Akces addresses several key challenges in distributed systems:
+
+1. **Event Sourcing Implementation**: Provides a comprehensive event sourcing implementation where all changes to application state are captured as a sequence of events.
+
+2. **CQRS Architecture**: Enforces clean separation between command (write) and query (read) responsibilities.
+
+3. **Scalability**: Leverages Kafka's partitioning for horizontal scaling of aggregates.
+
+4. **Privacy By Design**: Built-in GDPR compliance through transparent encryption of personally identifiable information (PII).
+
+5. **Schema Evolution**: Sophisticated schema management with backward compatibility checks.
+
+## Architecture Overview
+
+Akces is organized into five main modules, each with distinct responsibilities:
+
+### 1. API Module (`akces-api`)
+Defines the core interfaces and annotations that make up the programming model.
+- `Aggregate` and `AggregateState` interfaces
+- Command and event interfaces
+- Handler annotations for commands and events
+- Query model interfaces
+
+### 2. Shared Module (`akces-shared`)
+Contains common utilities and shared functionality:
+- Protocol record definitions for Kafka communication
+- GDPR compliance utilities (encryption/decryption)
+- Schema registry integration
+- Serialization/deserialization support
+
+### 3. Runtime Module (`akces-runtime`)
+Implements the core event sourcing infrastructure:
+- Aggregate runtime for handling commands and events
+- State repositories (RocksDB-based and in-memory)
+- Command handling pipeline
+- Event sourcing mechanics
+
+### 4. Client Module (`akces-client`)
+Provides client-side functionality for sending commands and receiving responses:
+- Command sending with synchronous and asynchronous APIs
+- Service discovery for routing commands
+- Schema validation
+
+### 5. Query Support Module (`akces-query-support`)
+Implements the query side of CQRS:
+- Query model runtime
+- Database model support (JDBC, JPA)
+- Event handling for query models
+- State hydration
+
+## Key Components and Patterns
+
+### Aggregate Pattern
+
+At the core of Akces is the concept of aggregates, which are domain entities that:
+- Encapsulate business logic
+- Respond to commands
+- Emit domain events
+- Maintain state through event sourcing
+
+```java
+@AggregateInfo(value = "Wallet", version = 1)
+public final class Wallet implements Aggregate<WalletState> {
+    @CommandHandler(create = true)
+    public Stream<DomainEvent> create(CreateWalletCommand cmd, WalletState isNull) {
+        return Stream.of(new WalletCreatedEvent(cmd.id()));
+    }
+    
+    @EventSourcingHandler(create = true)
+    public WalletState create(WalletCreatedEvent event, WalletState isNull) {
+        return new WalletState(event.id(), new ArrayList<>());
+    }
+}
+```
+
+### Command Handling
+
+Commands are processed through a pipeline that:
+1. Validates the command structure (using JSON Schema)
+2. Routes the command to the appropriate aggregate
+3. Processes the command to produce events
+4. Applies those events to update the aggregate state
+5. Persists the events and updated state
+
+```java
+@CommandInfo(type = "CreateWallet", version = 1)
+public record CreateWalletCommand(@AggregateIdentifier String id, String currency) implements Command {
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
+}
+```
+
+### Event Sourcing
+
+The event sourcing mechanism:
+1. Captures all state changes as immutable events
+2. Stores events in Kafka topics, partitioned by aggregate ID
+3. Rebuilds aggregate state by replaying events
+4. Uses RocksDB to maintain efficient state snapshots
+
+```java
+@DomainEventInfo(type = "WalletCreated", version = 1)
+public record WalletCreatedEvent(@AggregateIdentifier String id) implements DomainEvent {
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
+}
+```
+
+### GDPR Compliance
+
+Akces provides sophisticated GDPR compliance through:
+1. `@PIIData` annotation to mark sensitive fields
+2. Transparent encryption/decryption during serialization
+3. Key management through Kafka topics
+4. Context-based encryption to secure personal data
+
+```java
+public record AccountState(
+    @AggregateIdentifier String userId,
+    String country,
+    @PIIData String firstName,
+    @PIIData String lastName,
+    @PIIData String email
+) implements AggregateState {
+    @Override
+    public String getAggregateId() {
+        return userId();
+    }
+}
+```
+
+### Query Models
+
+For efficient reads, Akces implements:
+1. Query models updated via domain events
+2. State hydration from event streams
+3. Caching mechanisms for efficient access
+4. Support for custom query model implementations
+
+```java
+@QueryModelInfo(value = "WalletQuery", version = 1, indexName = "Wallets")
+public class WalletQueryModel implements QueryModel<WalletQueryModelState> {
+    @QueryModelEventHandler(create = true)
+    public WalletQueryModelState create(WalletCreatedEvent event, WalletQueryModelState isNull) {
+        return new WalletQueryModelState(event.id(), List.of());
+    }
+}
+```
+
+### Database Models
+
+For integration with databases:
+1. Database models updated from domain events
+2. Support for JDBC and JPA
+3. Transactional updates with exactly-once semantics
+4. Partition-aware offset tracking
+
+```java
+@DatabaseModelInfo(value = "WalletDatabase", version = 1)
+public class WalletDatabaseModel extends JdbcDatabaseModel {
+    @DatabaseModelEventHandler
+    public void handle(WalletCreatedEvent event) {
+        jdbcTemplate.update("INSERT INTO wallets (wallet_id) VALUES (?)", event.id());
+    }
+}
+```
+
+### Process Managers
+
+For coordinating complex workflows:
+1. Process managers to orchestrate multi-step processes
+2. Process state tracking to maintain workflow state
+3. Event-driven process advancement
+4. Error handling and compensation logic
+
+```java
+@AggregateInfo(value = "OrderProcessManager", version = 1)
+public class OrderProcessManager implements ProcessManager<OrderProcessManagerState, OrderProcess> {
+    @CommandHandler
+    public Stream<BuyOrderCreatedEvent> placeBuyOrder(PlaceBuyOrderCommand command, OrderProcessManagerState state) {
+        // Initiate a multi-step process
+    }
+    
+    @EventHandler
+    public Stream<DomainEvent> handle(AmountReservedEvent event, OrderProcessManagerState state) {
+        // Continue the process
+    }
+}
+```
+
+## Technical Implementation Details
+
+### Partition-Based Processing
+
+Akces utilizes Kafka's partitioning for scalability:
+- Aggregates are distributed across partitions based on their ID
+- Each partition is processed independently
+- Partitions can be rebalanced across nodes as needed
+- State is maintained efficiently per partition
+
+### Transactional Processing
+
+Commands are processed transactionally:
+- Kafka transactions ensure atomicity
+- State updates are coordinated with event publishing
+- Exactly-once semantics are preserved
+- Failures result in transaction rollbacks
+
+### Schema Management
+
+Schema evolution is handled through:
+- Schema registry integration (Confluent Schema Registry)
+- JSON Schema validation for commands and events
+- Automatic schema compatibility checks
+- Version management for backward compatibility
+
+### State Management
+
+Aggregate state is managed efficiently:
+- RocksDB for persistent state storage
+- Transactional state updates
+- Optimistic concurrency control
+- In-memory caching for performance
+
+## Key Innovations
+
+1. **Integrated GDPR Compliance**: Unlike many frameworks, Akces has built-in support for handling personal data with transparent encryption.
+
+2. **Event Indexing**: Automatic indexing of events for efficient temporal queries and state reconstruction.
+
+3. **Flexible Deployment Models**: Support for different deployment topologies from monolithic to fully distributed.
+
+4. **RocksDB Integration**: Efficient state storage using RocksDB for high performance with durability.
+
+5. **Process Manager Support**: First-class support for process managers to handle complex workflows.
+
+## Advantages Over Similar Frameworks
+
+Compared to other event sourcing frameworks like Axon or EventStore:
+
+1. **Kafka Foundation**: Built on Kafka for enterprise-grade scalability and reliability.
+
+2. **Privacy by Design**: First-class GDPR compliance baked into the core.
+
+3. **Schema Evolution**: Sophisticated schema management with backward compatibility checks.
+
+4. **Programming Model**: Clean, annotation-based programming model that minimizes boilerplate.
+
+5. **Complete CQRS Stack**: Full support for both command and query sides with multiple implementation options.
+
+## Usage Scenarios
+
+Akces is well-suited for:
+
+1. **Financial Systems**: Where audit trails and transaction integrity are critical
+2. **Customer Data Platforms**: Where GDPR compliance is essential
+3. **Distributed Commerce Systems**: With complex workflows across services
+4. **High-Scale Event-Driven Systems**: Requiring reliable event processing
+5. **Systems with Complex Temporal Requirements**: Needing historical state reconstruction
+
+## Limitations and Considerations
+
+1. **Kafka Dependency**: Requires a well-configured Kafka cluster
+2. **Learning Curve**: Event sourcing and CQRS patterns require a mindset shift
+3. **Eventual Consistency**: Query models may lag behind command processing
+4. **Infrastructure Complexity**: Requires Schema Registry and additional components
+
+## Conclusion
+
+The Akces Framework provides a comprehensive solution for building event-sourced, CQRS-based applications with a focus on scalability, privacy, and developer experience. Its clean programming model, combined with sophisticated runtime components, addresses many common challenges in distributed systems development.
+
+The framework's integration with Kafka provides a reliable foundation for processing, while its schema management and GDPR compliance features address important enterprise concerns. The separation between command handling and query models follows best practices for complex domain modeling while maintaining high performance for read operations.
+
+By providing a complete implementation of event sourcing and CQRS patterns, Akces enables developers to focus on domain logic rather than infrastructure concerns, ultimately leading to more maintainable and scalable distributed applications.
+
+================
+File: README.md
+================
+# Akces Framework
+
+## Overview
+
+Akces is a powerful CQRS (Command Query Responsibility Segregation) and Event Sourcing framework built on Apache Kafka. It provides a comprehensive infrastructure for building distributed, event-driven applications with a clear separation between write operations (commands) and read operations (queries).
+
+The framework implements the full event sourcing pattern, capturing all changes to application state as a sequence of events. These events serve as the system of record and can be replayed to reconstruct the state at any point in time, providing a complete audit trail and enabling temporal queries.
+
+Akces leverages Kafka's distributed architecture for reliable event storage and processing, making it highly scalable and resilient. It also provides built-in support for privacy protection (GDPR compliance), schema evolution, and efficient state management.
+
+## Core Concepts
+
+- **Aggregates**: Domain entities that encapsulate business logic and maintain consistency boundaries
+- **Commands**: Requests to perform actions that change the state of an aggregate
+- **Domain Events**: Immutable records of facts that have occurred, representing state changes
+- **Command Handlers**: Process commands and produce events 
+- **Event Sourcing Handlers**: Apply events to update aggregate state
+- **Query Models**: Read-optimized projections of aggregate state
+- **Database Models**: Persistent storage of aggregate data optimized for queries
+- **Process Managers**: Coordinate workflows across multiple aggregates
+
+## Key Features
+
+### Command Processing
+
+- **Command Bus**: Distribute commands to appropriate aggregates
+- **Command Validation**: Automatic schema-based validation using JSON Schema
+- **Command Routing**: Intelligent routing based on aggregate IDs
+- **Transactional Processing**: Atomic processing with Kafka transactions
+
+### Event Sourcing
+
+- **Event Store**: Kafka-based storage for all domain events
+- **State Reconstruction**: Rebuild aggregate state by replaying events
+- **Event Handlers**: React to events to trigger additional processes
+- **Event Bridging**: Connect events from one aggregate to commands on another
+
+### Aggregate Management
+
+- **Partition-Based Processing**: Scale horizontally through Kafka partitioning
+- **State Snapshots**: Efficient state storage using RocksDB
+- **Aggregate Lifecycle**: Manage aggregate creation and updates
+- **Event Indexing**: Index events for efficient retrieval
+
+### Query Support
+
+- **Query Models**: Build specialized read models from events
+- **State Hydration**: Efficiently load and cache query model state
+- **Database Integration**: Support for both JDBC and JPA database models
+- **Event-Driven Updates**: Keep read models in sync with write models
+
+### Privacy & GDPR
+
+- **PII Data Protection**: Automatic encryption of personal data
+- **Transparent Handling**: Annotation-based marking of sensitive fields
+- **Key Management**: Secure handling of encryption keys
+- **Context-Aware Processing**: Apply encryption based on context
+
+### Schema Management
+
+- **Schema Registry Integration**: Work with Confluent Schema Registry
+- **Schema Evolution**: Support versioning and evolution of schemas
+- **Compatibility Checking**: Ensure backward compatibility
+- **Automatic Generation**: Generate JSON schemas from command and event classes
+
+### Process Managers
+
+- **Orchestration**: Manage complex workflows across multiple aggregates
+- **Stateful Processing**: Maintain process state through events
+- **Event-Driven Flow**: React to events to advance processes
+- **Error Handling**: Built-in compensation logic for failures
+
+## Architecture
+
+Akces is organized into several Maven modules:
+
+- **api**: Core interfaces and annotations defining the programming model
+- **runtime**: Implementation of event sourcing and command handling
+- **shared**: Common utilities, serialization, and GDPR functionality
+- **client**: Client library for sending commands and processing responses
+- **query-support**: Support for query models and database models
+
+## Getting Started
+
+### Prerequisites
+
+- Java 21 or higher
+- Apache Kafka 3.x with KRaft mode enabled
+- Confluent Schema Registry
+- Maven 3.6 or higher
+
+### Maven Dependencies
+
+Add the following to your `pom.xml`:
+
+```xml
+<dependency>
+    <groupId>org.elasticsoftwarefoundation.akces</groupId>
+    <artifactId>akces-api</artifactId>
+    <version>0.9.0</version>
+</dependency>
+
+<!-- For command senders -->
+<dependency>
+    <groupId>org.elasticsoftwarefoundation.akces</groupId>
+    <artifactId>akces-client</artifactId>
+    <version>0.9.0</version>
+</dependency>
+
+<!-- For aggregate services -->
+<dependency>
+    <groupId>org.elasticsoftwarefoundation.akces</groupId>
+    <artifactId>akces-runtime</artifactId>
+    <version>0.9.0</version>
+</dependency>
+
+<!-- For query models and database models -->
+<dependency>
+    <groupId>org.elasticsoftwarefoundation.akces</groupId>
+    <artifactId>akces-query-support</artifactId>
+    <version>0.9.0</version>
+</dependency>
+```
+
+### Configuration
+
+Configure the framework in your `application.yaml`:
+
+```yaml
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      enable-auto-commit: false
+      isolation-level: read_committed
+      max-poll-records: 500
+      heartbeat-interval: 2000
+      auto-offset-reset: latest
+      properties:
+        max.poll.interval.ms: 10000
+        session.timeout.ms: 30000
+        partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor
+    producer:
+      acks: all
+      retries: 2147483647
+      properties:
+        linger.ms: 0
+        retry.backoff.ms: 0
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 1
+
+akces:
+  schemaregistry:
+    url: http://localhost:8081
+  rocksdb:
+    baseDir: /tmp/akces
+```
+
+## Usage Examples
+
+### Defining an Aggregate
+
+```java
+@AggregateInfo(value = "Wallet", version = 1, indexed = true, indexName = "Wallets")
+public final class Wallet implements Aggregate<WalletState> {
+    @Override
+    public Class<WalletState> getStateClass() {
+        return WalletState.class;
+    }
+
+    @CommandHandler(create = true, produces = {WalletCreatedEvent.class, BalanceCreatedEvent.class})
+    public Stream<DomainEvent> create(CreateWalletCommand cmd, WalletState isNull) {
+        return Stream.of(new WalletCreatedEvent(cmd.id()), 
+                         new BalanceCreatedEvent(cmd.id(), cmd.currency()));
+    }
+
+    @EventSourcingHandler(create = true)
+    public WalletState create(WalletCreatedEvent event, WalletState isNull) {
+        return new WalletState(event.id(), new ArrayList<>());
+    }
+    
+    @EventSourcingHandler
+    public WalletState createBalance(BalanceCreatedEvent event, WalletState state) {
+        List<WalletState.Balance> balances = new ArrayList<>(state.balances());
+        balances.add(new WalletState.Balance(event.currency(), BigDecimal.ZERO));
+        return new WalletState(state.id(), balances);
+    }
+    
+    @CommandHandler(produces = {WalletCreditedEvent.class})
+    public Stream<DomainEvent> credit(CreditWalletCommand cmd, WalletState currentState) {
+        WalletState.Balance balance = currentState.balances().stream()
+                .filter(b -> b.currency().equals(cmd.currency()))
+                .findFirst()
+                .orElse(null);
+                
+        if (balance == null) {
+            return Stream.of(new InvalidCurrencyErrorEvent(cmd.id(), cmd.currency()));
+        }
+        
+        if (cmd.amount().compareTo(BigDecimal.ZERO) < 0) {
+            return Stream.of(new InvalidAmountErrorEvent(cmd.id(), cmd.currency()));
+        }
+        
+        return Stream.of(new WalletCreditedEvent(currentState.id(), 
+                                               cmd.currency(), 
+                                               cmd.amount(), 
+                                               balance.amount().add(cmd.amount())));
+    }
+}
+```
+
+### Defining the Aggregate State
+
+```java
+public record WalletState(String id, List<Balance> balances) implements AggregateState {
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
+
+    public record Balance(String currency, BigDecimal amount, BigDecimal reservedAmount) {
+        public Balance(String currency, BigDecimal amount) {
+            this(currency, amount, BigDecimal.ZERO);
+        }
+
+        public BigDecimal getAvailableAmount() {
+            return amount.subtract(reservedAmount);
+        }
+    }
+}
+```
+
+### Creating Commands
+
+```java
+@CommandInfo(type = "CreateWallet", version = 1)
+public record CreateWalletCommand(
+    @AggregateIdentifier 
+    @NotNull String id, 
+    
+    @NotNull String currency
+) implements Command {
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
+}
+
+@CommandInfo(type = "CreditWallet", version = 1)
+public record CreditWalletCommand(
+    @AggregateIdentifier 
+    @NotNull String id,
+    
+    @NotNull String currency,
+    
+    @NotNull BigDecimal amount
+) implements Command {
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
+}
+```
+
+### Creating Events
+
+```java
+@DomainEventInfo(type = "WalletCreated", version = 1)
+public record WalletCreatedEvent(
+    @AggregateIdentifier 
+    @NotNull String id
+) implements DomainEvent {
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
+}
+
+@DomainEventInfo(type = "BalanceCreated", version = 1)
+public record BalanceCreatedEvent(
+    @AggregateIdentifier 
+    @NotNull String id, 
+    
+    @NotNull String currency
+) implements DomainEvent {
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
+}
+
+@DomainEventInfo(type = "WalletCredited", version = 1)
+public record WalletCreditedEvent(
+    @AggregateIdentifier 
+    @NotNull String id,
+    
+    @NotNull String currency,
+    
+    @NotNull BigDecimal amount,
+    
+    @NotNull BigDecimal newBalance
+) implements DomainEvent {
+    @Override
+    public String getAggregateId() {
+        return id();
+    }
+}
+```
+
+### Error Events
+
+```java
+@DomainEventInfo(type = "InvalidCurrencyError", version = 1)
+public record InvalidCurrencyErrorEvent(
+    @AggregateIdentifier 
+    @NotNull String walletId,
+    
+    @NotNull String currency
+) implements ErrorEvent {
+    @Override
+    public String getAggregateId() {
+        return walletId();
+    }
+}
+
+@DomainEventInfo(type = "InvalidAmountError", version = 1)
+public record InvalidAmountErrorEvent(
+    @AggregateIdentifier 
+    @NotNull String walletId,
+    
+    @NotNull String currency
+) implements ErrorEvent {
+    @Override
+    public String getAggregateId() {
+        return walletId();
+    }
+}
+```
+
+### Sending Commands
+
+```java
+@Service
+public class WalletService {
+    private final AkcesClient akcesClient;
+    
+    @Autowired
+    public WalletService(AkcesClient akcesClient) {
+        this.akcesClient = akcesClient;
+    }
+    
+    public String createWallet(String currency) {
+        String walletId = UUID.randomUUID().toString();
+        CreateWalletCommand command = new CreateWalletCommand(walletId, currency);
+        
+        // Send command and wait for response
+        List<DomainEvent> events = akcesClient.send("DEFAULT_TENANT", command)
+            .toCompletableFuture()
+            .join();
+            
+        // Check for success
+        if (events.stream().anyMatch(e -> e instanceof ErrorEvent)) {
+            throw new RuntimeException("Failed to create wallet");
+        }
+        
+        return walletId;
+    }
+    
+    public void creditWallet(String walletId, String currency, BigDecimal amount) {
+        CreditWalletCommand command = new CreditWalletCommand(walletId, currency, amount);
+        
+        try {
+            // Send command without waiting for response
+            akcesClient.sendAndForget("DEFAULT_TENANT", command);
+        } catch (CommandRefusedException e) {
+            // Handle specific command exceptions
+            throw new RuntimeException("Command refused: " + e.getMessage());
+        } catch (CommandValidationException e) {
+            throw new RuntimeException("Invalid command: " + e.getMessage());
+        }
+    }
+}
+```
+
+### Creating a Query Model
+
+```java
+@QueryModelInfo(value = "WalletQuery", version = 1, indexName = "Wallets")
+public class WalletQueryModel implements QueryModel<WalletQueryModelState> {
+    @Override
+    public Class<WalletQueryModelState> getStateClass() {
+        return WalletQueryModelState.class;
+    }
+    
+    @Override
+    public String getIndexName() {
+        return "Wallets";
+    }
+
+    @QueryModelEventHandler(create = true)
+    public WalletQueryModelState create(WalletCreatedEvent event, WalletQueryModelState isNull) {
+        return new WalletQueryModelState(event.id(), List.of());
+    }
+    
+    @QueryModelEventHandler
+    public WalletQueryModelState createBalance(BalanceCreatedEvent event, WalletQueryModelState state) {
+        List<WalletQueryModelState.Balance> balances = new ArrayList<>(state.balances());
+        balances.add(new WalletQueryModelState.Balance(event.currency(), BigDecimal.ZERO));
+        return new WalletQueryModelState(state.walletId(), balances);
+    }
+    
+    @QueryModelEventHandler
+    public WalletQueryModelState creditWallet(WalletCreditedEvent event, WalletQueryModelState state) {
+        return new WalletQueryModelState(
+            state.walletId(),
+            state.balances().stream()
+                .map(balance -> {
+                    if (balance.currency().equals(event.currency())) {
+                        return new WalletQueryModelState.Balance(
+                            balance.currency(),
+                            balance.amount().add(event.amount()),
+                            balance.reservedAmount()
+                        );
+                    }
+                    return balance;
+                })
+                .toList()
+        );
+    }
+}
+
+public record WalletQueryModelState(String walletId, List<Balance> balances) implements QueryModelState {
+    @Override
+    public String getIndexKey() {
+        return walletId();
+    }
+    
+    public record Balance(String currency, BigDecimal amount, BigDecimal reservedAmount) {
+        public Balance(String currency, BigDecimal amount) {
+            this(currency, amount, BigDecimal.ZERO);
+        }
+        
+        public BigDecimal getAvailableAmount() {
+            return amount.subtract(reservedAmount);
+        }
+    }
+}
+```
+
+### Querying a Model
+
+```java
+@RestController
+@RequestMapping("/wallets")
+public class WalletController {
+    private final QueryModels queryModels;
+    
+    @Autowired
+    public WalletController(QueryModels queryModels) {
+        this.queryModels = queryModels;
+    }
+    
+    @GetMapping("/{walletId}")
+    public ResponseEntity<WalletQueryModelState> getWallet(@PathVariable String walletId) {
+        try {
+            WalletQueryModelState wallet = queryModels.getHydratedState(WalletQueryModel.class, walletId)
+                .toCompletableFuture()
+                .get(5, TimeUnit.SECONDS);
+                
+            return ResponseEntity.ok(wallet);
+        } catch (QueryModelIdNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
+    }
+}
+```
+
+### Creating a Database Model
+
+```java
+@DatabaseModelInfo(value = "WalletDB", version = 1)
+public class WalletDatabaseModel extends JdbcDatabaseModel {
+
+    @Autowired
+    public WalletDatabaseModel(JdbcTemplate jdbcTemplate, PlatformTransactionManager transactionManager) {
+        super(jdbcTemplate, transactionManager);
+    }
+    
+    @DatabaseModelEventHandler
+    public void handle(WalletCreatedEvent event) {
+        jdbcTemplate.update(
+            "INSERT INTO wallets (wallet_id, created_at) VALUES (?, NOW())",
+            event.id()
+        );
+    }
+    
+    @DatabaseModelEventHandler
+    public void handle(BalanceCreatedEvent event) {
+        jdbcTemplate.update(
+            "INSERT INTO wallet_balances (wallet_id, currency, amount, reserved_amount) VALUES (?, ?, 0, 0)",
+            event.id(),
+            event.currency()
+        );
+    }
+    
+    @DatabaseModelEventHandler
+    public void handle(WalletCreditedEvent event) {
+        jdbcTemplate.update(
+            "UPDATE wallet_balances SET amount = ? WHERE wallet_id = ? AND currency = ?",
+            event.newBalance(),
+            event.id(),
+            event.currency()
+        );
+    }
+}
+```
+
+### GDPR and PII Data
+
+Akces provides built-in support for handling personal identifiable information (PII):
+
+```java
+@AggregateStateInfo(value = "UserState", version = 1)
+public record UserState(
+    @AggregateIdentifier 
+    String userId,
+    
+    String country,
+    
+    @PIIData 
+    String firstName,
+    
+    @PIIData 
+    String lastName,
+    
+    @PIIData 
+    String email
+) implements AggregateState {
+    @Override
+    public String getAggregateId() {
+        return userId();
+    }
+}
+```
+
+With this annotation, the framework automatically:
+- Encrypts PII data before storing it
+- Decrypts PII data when loading it
+- Manages encryption keys securely
+- Ensures only authorized access to decrypted data
+
+### Process Managers
+
+For coordinating complex workflows across multiple aggregates:
+
+```java
+@AggregateInfo(value = "OrderProcessManager", version = 1)
+public class OrderProcessManager implements ProcessManager<OrderProcessManagerState, OrderProcess> {
+    
+    @Override
+    public Class<OrderProcessManagerState> getStateClass() {
+        return OrderProcessManagerState.class;
+    }
+    
+    @EventHandler(create = true)
+    public Stream<UserOrderProcessesCreatedEvent> create(AccountCreatedEvent event, OrderProcessManagerState isNull) {
+        return Stream.of(new UserOrderProcessesCreatedEvent(event.userId()));
+    }
+    
+    @EventSourcingHandler(create = true)
+    public OrderProcessManagerState create(UserOrderProcessesCreatedEvent event, OrderProcessManagerState isNull) {
+        return new OrderProcessManagerState(event.userId());
+    }
+    
+    @CommandHandler
+    public Stream<BuyOrderCreatedEvent> placeBuyOrder(PlaceBuyOrderCommand command, OrderProcessManagerState state) {
+        String orderId = UUID.randomUUID().toString();
+        
+        // Reserve funds first - send command to Wallet aggregate
+        getCommandBus().send(new ReserveAmountCommand(
+            state.userId(),
+            command.market().quoteCurrency(),
+            command.quantity().multiply(command.limitPrice()),
+            orderId
+        ));
+        
+        // Create order record
+        return Stream.of(new BuyOrderCreatedEvent(
+            state.userId(),
+            orderId,
+            command.market(),
+            command.quantity(),
+            command.limitPrice(),
+            command.clientReference()
+        ));
+    }
+    
+    @EventHandler
+    public Stream<DomainEvent> handle(AmountReservedEvent event, OrderProcessManagerState state) {
+        if (state.hasAkcesProcess(event.referenceId())) {
+            OrderProcess process = state.getAkcesProcess(event.referenceId());
+            return Stream.of(new BuyOrderPlacedEvent(
+                state.userId(),
+                process.orderId(),
+                process.market(),
+                process.quantity(),
+                process.limitPrice()
+            ));
+        }
+        return Stream.empty();
+    }
+    
+    @EventHandler
+    public Stream<DomainEvent> handle(InsufficientFundsErrorEvent errorEvent, OrderProcessManagerState state) {
+        if (state.hasAkcesProcess(errorEvent.referenceId())) {
+            return Stream.of(state.getAkcesProcess(errorEvent.referenceId()).handle(errorEvent));
+        }
+        return Stream.empty();
+    }
+}
+```
+
+## Schema Evolution
+
+Akces supports evolving your domain model over time:
+
+```java
+// Original version
+@DomainEventInfo(type = "AccountCreated", version = 1)
+public record AccountCreatedEvent(
+    @AggregateIdentifier String userId,
+    String country,
+    String firstName,
+    String lastName,
+    String email
+) implements DomainEvent { 
+    @Override
+    public String getAggregateId() {
+        return userId();
+    }
+}
+
+// New version with additional field
+@DomainEventInfo(type = "AccountCreated", version = 2)
+public record AccountCreatedEventV2(
+    @AggregateIdentifier String userId,
+    String country,
+    String firstName,
+    String lastName,
+    String email,
+    Boolean twoFactorEnabled
+) implements DomainEvent {
+    @Override
+    public String getAggregateId() {
+        return userId();
+    }
+}
+
+// The upcasting handler
+@UpcastingHandler
+public AccountCreatedEventV2 cast(AccountCreatedEvent event) {
+    return new AccountCreatedEventV2(
+        event.userId(), 
+        event.country(), 
+        event.firstName(), 
+        event.lastName(), 
+        event.email(), 
+        false // Default value for new field
+    );
+}
+```
+
+## Running the Framework
+
+### Aggregate Service
+
+```java
+@SpringBootApplication
+public class AggregateServiceApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(AggregateServiceApplication.class, args);
+    }
+}
+```
+
+### Query Service
+
+```java
+@SpringBootApplication
+public class QueryServiceApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(QueryServiceApplication.class, args);
+    }
+}
+```
+
+### Client Application
+
+```java
+@SpringBootApplication
+public class ClientApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(ClientApplication.class, args);
+    }
+}
+```
+
+## Benefits of Using Akces
+
+- **Scalability**: Built on Kafka for horizontal scaling across multiple nodes
+- **Reliability**: Event sourcing ensures data integrity and complete audit trails
+- **Flexibility**: Clean separation of commands and queries with CQRS
+- **Performance**: Efficient state management with RocksDB and optimized query models
+- **Security**: Built-in GDPR compliance with transparent PII handling
+- **Evolution**: Schema evolution with backward compatibility checks
+- **Developer Experience**: Intuitive annotation-based programming model
+- **Observability**: Complete visibility into all commands and events
+
+## License
+
+Apache License 2.0
+
+## Release Process
+
+This project uses the Maven Release Plugin and GitHub Actions to create releases.
+Run `mvn release:prepare release:perform && git push` to select the version to be released and create a VCS tag.
+
+GitHub Actions will start [the build process](https://github.com/elasticsoftwarefoundation/akces-framework/actions/workflows/maven-publish.yml).
+
+If successful, the build will be automatically published to [Github Packages](https://maven.pkg.github.com/elasticsoftwarefoundation/akces-framework/).
+
+================
 File: services/operator/pom.xml
 ================
 <?xml version="1.0" encoding="UTF-8"?>
@@ -1344,7 +2386,7 @@ File: services/operator/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-services</artifactId>
-        <version>0.8.13-SNAPSHOT</version>
+        <version>0.9.0-SNAPSHOT</version>
     </parent>
     <artifactId>akces-operator</artifactId>
     <name>Elastic Software Foundation :: Akces :: Services :: Akces Operator</name>
@@ -1480,7 +2522,7 @@ File: services/pom.xml
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-parent</artifactId>
-        <version>0.8.13-SNAPSHOT</version>
+        <version>0.9.0-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -1491,7 +2533,7 @@ File: services/pom.xml
     <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
 
     <properties>
-        <operator-sdk.version>5.0.3</operator-sdk.version>
+        <operator-sdk.version>5.0.4</operator-sdk.version>
         <bouncycastle.version>1.80</bouncycastle.version>
         <fabric8.version>7.1.0</fabric8.version>
     </properties>
@@ -1501,7 +2543,7 @@ File: services/pom.xml
             <dependency>
                 <groupId>io.javaoperatorsdk</groupId>
                 <artifactId>operator-framework-spring-boot-starter</artifactId>
-                <version>6.0.0</version>
+                <version>6.0.1</version>
                 <exclusions>
                     <exclusion>
                         <groupId>io.fabric8</groupId>
@@ -1512,7 +2554,7 @@ File: services/pom.xml
             <dependency>
                 <groupId>io.javaoperatorsdk</groupId>
                 <artifactId>operator-framework-spring-boot-starter-test</artifactId>
-                <version>6.0.0</version>
+                <version>6.0.1</version>
             </dependency>
             <dependency>
                 <groupId>io.javaoperatorsdk</groupId>
@@ -1719,935 +2761,6 @@ File: services/pom.xml
         </profile>
     </profiles>
 </project>
-
-================
-File: FRAMEWORK_OVERVIEW.md
-================
-# Comprehensive Review of Akces Framework
-
-After carefully analyzing the codebase, I can provide an updated comprehensive overview of the Akces Framework, building upon and refining the existing FRAMEWORK_OVERVIEW.md.
-
-## Main Purpose
-
-Akces is a sophisticated event-sourcing and CQRS (Command Query Responsibility Segregation) framework built on Apache Kafka. Its primary purpose is to provide developers with a structured approach to building distributed, event-driven applications with a clear separation between write and read concerns. The framework handles the complex infrastructure required for event-sourcing while allowing developers to focus on domain logic.
-
-Key goals of the framework include:
-- Simplifying the implementation of event-sourced applications
-- Providing a scalable architecture for distributed processing
-- Enforcing clean separation between command and query responsibilities
-- Supporting privacy-by-design through GDPR-compliant data handling
-- Enabling schema evolution with backward compatibility checks
-
-## Core Architectural Components
-
-Akces is organized around several key architectural components that work together:
-
-### 1. Aggregate Module
-
-The aggregate module is responsible for handling commands and maintaining state through event sourcing. Key components include:
-
-- **Aggregates**: Domain entities that encapsulate business logic and respond to commands
-- **Aggregate States**: Immutable representations of aggregate state
-- **Command Handlers**: Process commands and emit domain events
-- **Event Sourcing Handlers**: Apply events to update aggregate state
-- **Event Handlers**: React to events to produce further events
-- **Event Bridge Handlers**: Connect events from one aggregate to commands on another
-
-The runtime leverages Kafka partitioning for horizontal scaling, with each partition handling a subset of aggregates based on their IDs.
-
-### 2. Command Processing
-
-The command processing pipeline includes:
-
-- **Command Bus**: Routes commands to appropriate aggregates
-- **Command Validation**: Schema-based validation using JSON Schema
-- **Command Execution**: Transactional processing that produces events
-- **Command Response Handling**: Collects and returns resulting events
-
-### 3. Query Model System
-
-For the read side, Akces provides:
-
-- **Query Models**: Domain-specific projections optimized for reading
-- **Query Model States**: Immutable state representations 
-- **Query Model Event Handlers**: Update query models based on domain events
-- **Database Models**: Persistent storage models updated from events
-- **JDBC/JPA Integration**: Support for different database technologies
-
-### 4. Process Managers
-
-To orchestrate complex workflows:
-
-- **Process Managers**: Coordinate interactions between multiple aggregates
-- **Process States**: Track the status of long-running processes
-- **AkcesProcess**: Domain-specific process representation
-
-### 5. GDPR Compliance Layer
-
-For handling sensitive data:
-
-- **PIIData Annotation**: Mark fields containing personal data
-- **GDPR Context**: Encryption/decryption context for an aggregate
-- **Transparent Serialization**: Automatic encryption/decryption during serialization
-- **Key Management**: Secure handling of encryption keys
-
-## Technical Implementation Details
-
-### Event Sourcing Implementation
-
-The event sourcing mechanism in Akces follows these principles:
-
-1. **Immutable Events**: All domain events are immutable records of facts
-2. **Event Storage**: Events are stored in Kafka topics, partitioned by aggregate ID
-3. **State Reconstruction**: Aggregate state is derived by replaying events
-4. **State Snapshots**: RocksDB is used to maintain efficient state snapshots
-
-The `KafkaAggregateRuntime` class manages the event sourcing logic, handling:
-- Command processing and validation
-- Event application to state
-- State persistence
-- Event publishing
-
-### Partitioning and Scalability
-
-Akces achieves scalability through:
-
-1. **Partition-based Processing**: Each instance processes specific partitions
-2. **Consistent Hashing**: Aggregate IDs are consistently hashed to partitions
-3. **Parallel Processing**: Multiple partitions can be processed concurrently
-4. **Atomic Transactions**: Kafka transactions ensure atomicity of operations
-
-The `AggregatePartition` class handles partition-specific processing, managing:
-- Command handling for a partition
-- Event processing for a partition
-- State management for a partition
-
-### Schema Evolution
-
-Akces provides sophisticated schema evolution through:
-
-1. **Schema Registry Integration**: Works with Confluent Schema Registry
-2. **Schema Versioning**: Clear versioning of all commands and events
-3. **Compatibility Checking**: Ensures backward compatibility
-4. **JSON Schema Generation**: Automatic schema generation from classes
-
-The `KafkaSchemaRegistry` class handles schema management, providing:
-- Schema registration and validation
-- Compatibility checking
-- Schema versioning support
-
-### GDPR Compliance Implementation
-
-The GDPR compliance layer uses:
-
-1. **AES Encryption**: For sensitive data fields
-2. **Jackson Serialization Integration**: Custom serializers/deserializers
-3. **Key Management**: Secure storage of encryption keys in Kafka
-4. **Annotation-based Marking**: Easy identification of sensitive fields
-
-### Query Model Implementation
-
-The query model system provides:
-
-1. **Event-driven Updates**: Query models updated via events
-2. **State Hydration**: Efficient state loading and caching
-3. **Database Integration**: Support for JDBC and JPA databases
-4. **Partition-aware Processing**: Scalable across nodes
-
-## Module Structure
-
-Akces is organized into several Maven modules:
-
-1. **api**: Core interfaces and annotations defining the programming model
-   - Aggregate, Command, and Event interfaces
-   - Handler annotations for commands and events
-   - Query model and database model interfaces
-
-2. **runtime**: Implements the core event sourcing runtime
-   - Aggregate runtime for command/event handling
-   - State repositories (RocksDB/in-memory)
-   - Kafka integration
-   - Command handling pipeline
-
-3. **shared**: Common utilities and shared functionality
-   - Protocol records for communication
-   - GDPR compliance utilities
-   - Serialization/deserialization support
-   - Schema registry integration
-
-4. **client**: Client-side library for interacting with aggregates
-   - Command sending
-   - Response handling
-   - Discovery of available aggregates
-
-5. **query-support**: Support for query models and database models
-   - Query model runtime 
-   - Database model support
-   - Event handling for models
-   - State hydration
-
-## Programming Model
-
-Akces provides a clean, annotation-based programming model:
-
-### Defining Aggregates
-
-```java
-@AggregateInfo(value = "Wallet", version = 1)
-public class Wallet implements Aggregate<WalletState> {
-    @CommandHandler(create = true)
-    public Stream<DomainEvent> create(CreateWalletCommand cmd, WalletState isNull) {
-        // Command handling logic
-    }
-    
-    @EventSourcingHandler(create = true)
-    public WalletState create(WalletCreatedEvent event, WalletState isNull) {
-        // Event application logic
-    }
-}
-```
-
-### Defining Commands and Events
-
-```java
-@CommandInfo(type = "CreateWallet", version = 1)
-public record CreateWalletCommand(@AggregateIdentifier String id, String currency) implements Command {
-    @Override
-    public String getAggregateId() {
-        return id();
-    }
-}
-
-@DomainEventInfo(type = "WalletCreated", version = 1)
-public record WalletCreatedEvent(@AggregateIdentifier String id) implements DomainEvent {
-    @Override
-    public String getAggregateId() {
-        return id();
-    }
-}
-```
-
-### Defining Query Models
-
-```java
-@QueryModelInfo(value = "WalletQuery", version = 1, indexName = "Wallets")
-public class WalletQueryModel implements QueryModel<WalletQueryModelState> {
-    @QueryModelEventHandler(create = true)
-    public WalletQueryModelState create(WalletCreatedEvent event, WalletQueryModelState isNull) {
-        // Create logic
-    }
-}
-```
-
-### GDPR Annotation
-
-```java
-public record UserInfo(
-    @AggregateIdentifier String userId,
-    @PIIData String firstName,
-    @PIIData String lastName,
-    @PIIData String email
-) implements AggregateState {
-    // ...
-}
-```
-
-## Runtime Components
-
-The key runtime components include:
-
-1. **AkcesAggregateController**: Manages aggregate partitions and lifecycle
-2. **AkcesClientController**: Handles command sending and response processing
-3. **AkcesQueryModelController**: Manages query model state hydration
-4. **AkcesDatabaseModelController**: Handles database model updates
-5. **AggregatePartition**: Processes commands and events for a partition
-
-## Enhanced Features Not Fully Captured in Original Overview
-
-### 1. Robust Partition Management
-
-The framework provides sophisticated partition management with:
-- Automatic rebalancing when nodes join/leave
-- Coordinated partition shutdown and cleanup
-- Atomic transaction processing within partitions
-- Optimized state loading from RocksDB
-
-### 2. Advanced Schema Handling
-
-Schema management is more sophisticated than initially described:
-- Diff-based compatibility checking 
-- Schema evolution with strict version checking
-- Automatic schema registration with configurable validation
-- Support for external schemas with relaxed validation
-
-### 3. Transaction Support
-
-The transactional model provides:
-- Exactly-once processing semantics
-- Atomic command handling with consistent state updates
-- Transaction isolation for command processing
-- Consistent offset management
-
-### 4. Optimized State Handling
-
-State management is highly optimized:
-- Efficient RocksDB storage with custom serialization
-- In-memory caching for high-performance scenarios
-- Partition-aware state access patterns
-- Transactional state updates coordinated with events
-
-### 5. Flexible Deployment Models
-
-The framework supports different deployment topologies:
-- Separate command and query services
-- Combined services for smaller applications
-- Scalable partitioning across multiple nodes
-- Stream processing integration
-
-### 6. Process Manager Capabilities
-
-Process managers provide orchestration capabilities:
-- Coordination of multi-step processes
-- State tracking for long-running operations
-- Event-driven process advancement
-- Error handling and compensation
-
-## Conclusion
-
-Akces Framework provides a comprehensive solution for building event-sourced, CQRS-based applications with a focus on scalability, resilience, and privacy. Its clean programming model, combined with a robust runtime implementation, makes it well-suited for complex domain problems requiring sophisticated state management and high scalability.
-
-The framework's integration with Kafka provides a reliable foundation for distributed processing, while its schema management and GDPR compliance features address important enterprise concerns. The separation between command handling and query models follows best practices for complex domain modeling while maintaining high performance for read operations.
-
-================
-File: README.md
-================
-# Akces Framework
-
-## Overview
-
-Akces Framework is a robust CQRS (Command Query Responsibility Segregation) and Event Sourcing framework built on Apache Kafka. The framework provides a comprehensive infrastructure for building distributed, event-driven applications with a clean separation between command and query operations.
-
-At its core, Akces implements the full event sourcing pattern, capturing all changes to application state as a sequence of events. These events can be replayed to reconstruct the state at any point in time, providing a complete audit trail and enabling powerful temporal queries.
-
-The framework leverages Kafka's distributed architecture for reliable event storage and processing, making it highly scalable and resilient. It also provides built-in support for personal data protection (GDPR compliance), schema evolution, and efficient state management.
-
-## Core Concepts
-
-- **Aggregates**: Domain entities that encapsulate business logic and maintain state through events
-- **Commands**: Requests to change the state of an aggregate
-- **Domain Events**: Facts that have occurred, representing state changes
-- **Command Handlers**: Process commands and produce events
-- **Event Sourcing Handlers**: Apply events to update aggregate state
-- **Query Models**: Read-optimized projections of aggregate state
-- **Database Models**: Persistent storage of aggregate data
-
-## Main Features
-
-### Command Handling
-- **Command Bus**: A distributed command bus for routing commands to appropriate aggregates
-- **Command Validation**: Automatic schema validation using JSON Schema
-- **Command Handlers**: Annotation-based command handling with automatic event publishing
-- **Transaction Support**: Transactional processing of commands
-
-### Event Sourcing
-- **Event Store**: Kafka-based event store for persisting all domain events
-- **Event Handlers**: Annotation-based event handling for processing domain events
-- **Event Sourcing Handlers**: Automatic state reconstruction from domain events
-- **Event Bridging**: Bridge events between different aggregates
-
-### Aggregate Management
-- **Aggregate Runtimes**: Lifecycle management for aggregates
-- **State Management**: Efficient state storage using RocksDB
-- **Partitioning**: Automatic partitioning of aggregates across nodes for scalability
-- **Event Indexing**: Automatic indexing of events for efficient querying
-
-### Query Support
-- **Query Models**: Build specialized read models from domain events
-- **Database Models**: Automatically sync data to databases for efficient querying
-- **Materialized Views**: Build and maintain materialized views of aggregate state
-- **State Hydration**: Efficiently load and cache query model state
-
-### Privacy & GDPR Support
-- **PII Data Handling**: Built-in support for Personal Identifiable Information (PII)
-- **Data Encryption**: Transparent encryption/decryption of sensitive data
-- **Annotation-based PII Marking**: Easy identification of sensitive fields
-- **Key Management**: Secure management of encryption keys
-
-### Schema Management
-- **Schema Evolution**: Support for evolving schemas with backward compatibility
-- **Schema Registry Integration**: Works with Confluent Schema Registry for schema management
-- **Schema Validation**: Automatic validation of commands and events against their schemas
-- **Schema Compatibility Checks**: Ensure backward compatibility of schema changes
-
-## Architecture
-
-The framework consists of several modules:
-
-- **api**: Core interfaces and annotations defining the framework's programming model
-- **shared**: Common utilities, serialization, and GDPR support
-- **runtime**: The runtime environment for aggregates, including command handling and event sourcing
-- **client**: Client library for interacting with aggregate services
-- **query-support**: Support for query models and database models
-
-## Setup Instructions
-
-### Prerequisites
-
-- Java 17 or higher
-- Apache Kafka 3.x
-- Confluent Schema Registry
-- Maven 3.6+
-
-### Maven Dependencies
-
-Add the following to your `pom.xml`:
-
-```xml
-<dependency>
-    <groupId>org.elasticsoftwarefoundation.akces</groupId>
-    <artifactId>akces-api</artifactId>
-    <version>0.8.1</version>
-</dependency>
-
-<dependency>
-    <groupId>org.elasticsoftwarefoundation.akces</groupId>
-    <artifactId>akces-client</artifactId>
-    <version>0.8.1</version>
-</dependency>
-
-<!-- For running aggregates -->
-<dependency>
-    <groupId>org.elasticsoftwarefoundation.akces</groupId>
-    <artifactId>akces-runtime</artifactId>
-    <version>0.8.1</version>
-</dependency>
-
-<!-- For query models -->
-<dependency>
-    <groupId>org.elasticsoftwarefoundation.akces</groupId>
-    <artifactId>akces-query-support</artifactId>
-    <version>0.8.1</version>
-</dependency>
-```
-
-### Configuration
-
-Create an `application.yaml` file with the following configuration:
-
-```yaml
-spring:
-  kafka:
-    bootstrap-servers: localhost:9092
-    consumer:
-      enable-auto-commit: false
-      isolation-level: read_committed
-      max-poll-records: 500
-      heartbeat-interval: 2000
-      auto-offset-reset: latest
-      properties:
-        max.poll.interval.ms: 10000
-        session.timeout.ms: 30000
-        partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor
-    producer:
-      acks: all
-      retries: 2147483647
-      properties:
-        enable.idempotence: true
-        max.in.flight.requests.per.connection: 1
-
-akces:
-  schemaregistry:
-    url: http://localhost:8081
-  rocksdb:
-    baseDir: /tmp/akces
-```
-
-## Usage Examples
-
-### Define an Aggregate
-
-```java
-@AggregateInfo(value = "Wallet", version = 1, generateGDPRKeyOnCreate = true, indexed = true, indexName = "Wallets")
-public final class Wallet implements Aggregate<WalletState> {
-    @Override
-    public Class<WalletState> getStateClass() {
-        return WalletState.class;
-    }
-
-    @CommandHandler(create = true, produces = {WalletCreatedEvent.class, BalanceCreatedEvent.class})
-    public Stream<DomainEvent> create(CreateWalletCommand cmd, WalletState isNull) {
-        return Stream.of(new WalletCreatedEvent(cmd.id()), new BalanceCreatedEvent(cmd.id(), cmd.currency()));
-    }
-
-    @EventSourcingHandler(create = true)
-    public WalletState create(WalletCreatedEvent event, WalletState isNull) {
-        return new WalletState(event.id(), new ArrayList<>());
-    }
-    
-    @EventSourcingHandler
-    public WalletState createBalance(BalanceCreatedEvent event, WalletState state) {
-        List<WalletState.Balance> balances = new ArrayList<>(state.balances());
-        balances.add(new WalletState.Balance(event.currency(), BigDecimal.ZERO));
-        return new WalletState(state.id(), balances);
-    }
-    
-    @CommandHandler(produces = {WalletCreditedEvent.class, InvalidAmountErrorEvent.class, InvalidCurrencyErrorEvent.class})
-    public Stream<DomainEvent> credit(CreditWalletCommand cmd, WalletState currentState) {
-        WalletState.Balance balance = currentState.balances().stream()
-                .filter(b -> b.currency().equals(cmd.currency()))
-                .findFirst().orElse(null);
-                
-        if (balance == null) {
-            return Stream.of(new InvalidCurrencyErrorEvent(cmd.id(), cmd.currency()));
-        }
-        
-        if (cmd.amount().compareTo(BigDecimal.ZERO) < 0) {
-            return Stream.of(new InvalidAmountErrorEvent(cmd.id(), cmd.currency()));
-        }
-        
-        return Stream.of(new WalletCreditedEvent(currentState.id(), cmd.currency(), cmd.amount(), 
-                balance.amount().add(cmd.amount())));
-    }
-}
-```
-
-### Define an Aggregate State
-
-```java
-public record WalletState(String id, List<Balance> balances) implements AggregateState {
-    @Override
-    public String getAggregateId() {
-        return id();
-    }
-
-    public record Balance(String currency, BigDecimal amount, BigDecimal reservedAmount) {
-        public Balance(String currency, BigDecimal amount) {
-            this(currency, amount, BigDecimal.ZERO);
-        }
-
-        public BigDecimal getAvailableAmount() {
-            return amount.subtract(reservedAmount);
-        }
-    }
-}
-```
-
-### Create Commands
-
-```java
-@CommandInfo(type = "CreateWallet", version = 1)
-public record CreateWalletCommand(@AggregateIdentifier @NotNull String id, 
-                                  @NotNull String currency) implements Command {
-    @Override
-    public String getAggregateId() {
-        return id();
-    }
-}
-
-@CommandInfo(type = "CreditWallet", version = 1)
-public record CreditWalletCommand(@AggregateIdentifier @NotNull String id,
-                                 @NotNull String currency,
-                                 @NotNull BigDecimal amount) implements Command {
-    @Override
-    public String getAggregateId() {
-        return id();
-    }
-}
-```
-
-### Create Events
-
-```java
-@DomainEventInfo(type = "WalletCreated", version = 1)
-public record WalletCreatedEvent(@AggregateIdentifier @NotNull String id) implements DomainEvent {
-    @Override
-    public String getAggregateId() {
-        return id();
-    }
-}
-
-@DomainEventInfo(type = "BalanceCreated", version = 1)
-public record BalanceCreatedEvent(@AggregateIdentifier @NotNull String id, 
-                                 @NotNull String currency) implements DomainEvent {
-    @Override
-    public String getAggregateId() {
-        return id();
-    }
-}
-
-@DomainEventInfo(type = "WalletCredited", version = 1)
-public record WalletCreditedEvent(@AggregateIdentifier @NotNull String id,
-                                 @NotNull String currency,
-                                 @NotNull BigDecimal amount,
-                                 @NotNull BigDecimal newBalance) implements DomainEvent {
-    @Override
-    public String getAggregateId() {
-        return id();
-    }
-}
-```
-
-### Error Events
-
-```java
-@DomainEventInfo(type = "InvalidCurrencyError", version = 1)
-public record InvalidCurrencyErrorEvent(@AggregateIdentifier @NotNull String walletId,
-                                       @NotNull String currency) implements ErrorEvent {
-    @Override
-    public String getAggregateId() {
-        return walletId();
-    }
-}
-
-@DomainEventInfo(type = "InvalidAmountError", version = 1)
-public record InvalidAmountErrorEvent(@AggregateIdentifier @NotNull String walletId,
-                                     @NotNull String currency) implements ErrorEvent {
-    @Override
-    public String getAggregateId() {
-        return walletId();
-    }
-}
-```
-
-### Sending Commands
-
-```java
-@Autowired
-private AkcesClient akcesClient;
-
-public void createWallet() {
-    String walletId = UUID.randomUUID().toString();
-    CreateWalletCommand command = new CreateWalletCommand(walletId, "USD");
-    
-    // Send command and get events synchronously
-    List<DomainEvent> events = akcesClient.send("DEFAULT_TENANT", command)
-        .toCompletableFuture()
-        .join();
-    
-    // Or send command asynchronously
-    akcesClient.sendAndForget("DEFAULT_TENANT", command);
-}
-
-public void creditWallet(String walletId, String currency, BigDecimal amount) {
-    CreditWalletCommand command = new CreditWalletCommand(walletId, currency, amount);
-    
-    try {
-        List<DomainEvent> events = akcesClient.send("DEFAULT_TENANT", command)
-            .toCompletableFuture()
-            .join();
-            
-        // Check if we received an error event
-        if (events.stream().anyMatch(event -> event instanceof ErrorEvent)) {
-            ErrorEvent error = (ErrorEvent) events.stream()
-                .filter(event -> event instanceof ErrorEvent)
-                .findFirst()
-                .orElse(null);
-            // Handle error
-        }
-    } catch (Exception e) {
-        // Handle exceptions (validation errors, connectivity issues, etc.)
-    }
-}
-```
-
-### Create a Query Model
-
-```java
-@QueryModelInfo(value = "WalletQuery", version = 1, indexName = "Wallets")
-public class WalletQueryModel implements QueryModel<WalletQueryModelState> {
-    @Override
-    public Class<WalletQueryModelState> getStateClass() {
-        return WalletQueryModelState.class;
-    }
-    
-    @Override
-    public String getIndexName() {
-        return "Wallets";
-    }
-
-    @QueryModelEventHandler(create = true)
-    public WalletQueryModelState create(WalletCreatedEvent event, WalletQueryModelState isNull) {
-        return new WalletQueryModelState(event.id(), List.of());
-    }
-    
-    @QueryModelEventHandler
-    public WalletQueryModelState createBalance(BalanceCreatedEvent event, WalletQueryModelState currentState) {
-        WalletQueryModelState.Balance balance = new WalletQueryModelState.Balance(event.currency(), BigDecimal.ZERO);
-        List<WalletQueryModelState.Balance> balances = new ArrayList<>(currentState.balances());
-        balances.add(balance);
-        return new WalletQueryModelState(currentState.walletId(), balances);
-    }
-    
-    @QueryModelEventHandler
-    public WalletQueryModelState creditWallet(WalletCreditedEvent event, WalletQueryModelState currentState) {
-        return new WalletQueryModelState(
-                currentState.walletId(),
-                currentState.balances().stream().map(balance -> {
-                    if (balance.currency().equals(event.currency())) {
-                        return new WalletQueryModelState.Balance(
-                                balance.currency(),
-                                balance.amount().add(event.amount()),
-                                balance.reservedAmount()
-                        );
-                    }
-                    return balance;
-                }).toList());
-    }
-}
-
-public record WalletQueryModelState(String walletId, List<Balance> balances) implements QueryModelState {
-    @Override
-    public String getIndexKey() {
-        return walletId();
-    }
-    
-    public record Balance(String currency, BigDecimal amount, BigDecimal reservedAmount) {
-        public Balance(String currency, BigDecimal amount) {
-            this(currency, amount, BigDecimal.ZERO);
-        }
-        
-        public BigDecimal getAvailableAmount() {
-            return amount.subtract(reservedAmount);
-        }
-    }
-}
-```
-
-### Query a Model
-
-```java
-@Autowired
-private QueryModels queryModels;
-
-public WalletQueryModelState getWallet(String walletId) {
-    return queryModels.getHydratedState(WalletQueryModel.class, walletId)
-        .toCompletableFuture()
-        .join();
-}
-
-public void displayWalletBalances(String walletId) {
-    try {
-        WalletQueryModelState wallet = queryModels.getHydratedState(WalletQueryModel.class, walletId)
-            .toCompletableFuture()
-            .get(5, TimeUnit.SECONDS);
-            
-        wallet.balances().forEach(balance -> {
-            System.out.printf("Currency: %s, Amount: %s, Available: %s%n", 
-                balance.currency(), 
-                balance.amount().toPlainString(), 
-                balance.getAvailableAmount().toPlainString());
-        });
-    } catch (QueryModelIdNotFoundException e) {
-        System.out.println("Wallet not found: " + e.getModelId());
-    } catch (Exception e) {
-        System.out.println("Error retrieving wallet: " + e.getMessage());
-    }
-}
-```
-
-### Create a Database Model
-
-```java
-@DatabaseModelInfo(value = "WalletDatabase", version = 1)
-public class WalletDatabaseModel extends JdbcDatabaseModel {
-    @DatabaseModelEventHandler
-    public void handle(WalletCreatedEvent event) {
-        jdbcTemplate.update("""
-            INSERT INTO wallets (wallet_id, created_date) 
-            VALUES (?, NOW())
-            """, 
-            event.id());
-    }
-    
-    @DatabaseModelEventHandler
-    public void handle(BalanceCreatedEvent event) {
-        jdbcTemplate.update("""
-            INSERT INTO wallet_balances (wallet_id, currency, amount) 
-            VALUES (?, ?, ?)
-            """, 
-            event.id(), event.currency(), 0.00);
-    }
-    
-    @DatabaseModelEventHandler
-    public void handle(WalletCreditedEvent event) {
-        jdbcTemplate.update("""
-            UPDATE wallet_balances
-            SET amount = ?
-            WHERE wallet_id = ? AND currency = ?
-            """,
-            event.newBalance(), event.id(), event.currency());
-    }
-}
-```
-
-## GDPR and PII Data
-
-The framework provides built-in support for Personal Identifiable Information (PII):
-
-```java
-@AggregateStateInfo(value = "AccountState", version = 1)
-public record AccountState(@AggregateIdentifier String userId, 
-                          String country, 
-                          @PIIData String firstName, 
-                          @PIIData String lastName, 
-                          @PIIData String email) implements AggregateState {
-    @Override
-    public String getAggregateId() {
-        return userId();
-    }
-}
-```
-
-PII data is automatically encrypted when stored and decrypted when retrieved. The encryption is transparent to the application code.
-
-## Process Managers
-
-Akces also supports process managers for coordinating complex workflows across multiple aggregates:
-
-```java
-@AggregateInfo(value = "OrderProcessManager", version = 1)
-public class OrderProcessManager implements ProcessManager<OrderProcessManagerState, OrderProcess> {
-    @Override
-    public Class<OrderProcessManagerState> getStateClass() {
-        return OrderProcessManagerState.class;
-    }
-    
-    @EventHandler(create = true)
-    public Stream<UserOrderProcessesCreatedEvent> create(AccountCreatedEvent event, OrderProcessManagerState isNull) {
-        return Stream.of(new UserOrderProcessesCreatedEvent(event.userId()));
-    }
-    
-    @CommandHandler
-    public Stream<BuyOrderCreatedEvent> placeBuyOrder(PlaceBuyOrderCommand command, OrderProcessManagerState state) {
-        String orderId = UUID.randomUUID().toString();
-        // Start a multi-step process
-        getCommandBus().send(new ReserveAmountCommand(
-                state.userId(),
-                command.market().quoteCurrency(),
-                command.quantity().multiply(command.limitPrice()),
-                orderId));
-        
-        return Stream.of(new BuyOrderCreatedEvent(
-                state.userId(),
-                orderId,
-                command.market(),
-                command.quantity(),
-                command.limitPrice(),
-                command.clientReference()));
-    }
-    
-    @EventHandler
-    public Stream<DomainEvent> handle(AmountReservedEvent event, OrderProcessManagerState state) {
-        OrderProcess orderProcess = state.getAkcesProcess(event.referenceId());
-        
-        if (orderProcess instanceof BuyOrderProcess) {
-            return Stream.of(new BuyOrderPlacedEvent(
-                    state.userId(), 
-                    orderProcess.orderId(), 
-                    orderProcess.market(), 
-                    orderProcess.quantity(), 
-                    orderProcess.limitPrice()));
-        }
-        
-        return Stream.empty();
-    }
-    
-    @EventHandler
-    public Stream<DomainEvent> handle(InsufficientFundsErrorEvent errorEvent, OrderProcessManagerState state) {
-        return Stream.of(state.getAkcesProcess(errorEvent.referenceId()).handle(errorEvent));
-    }
-}
-```
-
-## Running the Framework
-
-### Aggregate Service
-
-```java
-@SpringBootApplication
-public class AggregateServiceApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(AggregateServiceApplication.class, args);
-    }
-}
-```
-
-### Query Service
-
-```java
-@SpringBootApplication
-public class QueryServiceApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(QueryServiceApplication.class, args);
-    }
-}
-```
-
-### Client Application
-
-```java
-@SpringBootApplication
-public class ClientApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(ClientApplication.class, args);
-    }
-    
-    @Bean
-    public CommandLineRunner commandLineRunner(AkcesClient akcesClient) {
-        return args -> {
-            // Create a new wallet
-            String walletId = UUID.randomUUID().toString();
-            CreateWalletCommand createCommand = new CreateWalletCommand(walletId, "USD");
-            
-            List<DomainEvent> createEvents = akcesClient.send(createCommand)
-                .toCompletableFuture()
-                .join();
-                
-            System.out.println("Wallet created: " + walletId);
-            
-            // Credit the wallet
-            CreditWalletCommand creditCommand = new CreditWalletCommand(walletId, "USD", new BigDecimal("1000.00"));
-            
-            List<DomainEvent> creditEvents = akcesClient.send(creditCommand)
-                .toCompletableFuture()
-                .join();
-                
-            System.out.println("Wallet credited: " + walletId);
-        };
-    }
-}
-```
-
-## Benefits of Using Akces Framework
-
-- **Scalability**: Built on Kafka for horizontal scalability across distributed nodes
-- **Reliability**: Event sourcing ensures data integrity and provides complete audit trails
-- **Flexibility**: Clean separation of commands and queries following CQRS principles
-- **Performance**: Efficient state management with RocksDB and optimized query models
-- **Security**: Built-in support for data privacy and GDPR compliance
-- **Evolution**: Schema evolution with backward compatibility checks
-- **Developer Experience**: Intuitive annotation-based programming model
-- **Observability**: Transparent view of all commands and events flowing through the system
-- **Temporal Queries**: Ability to reconstruct state at any point in time
-
-## License
-
-Apache License 2.0
-
-================
-File: RELEASE.md
-================
-## Release process
-
-This project uses the Maven Release Plugin and GitHub Actions to create releases.\
-Just run `mvn release:prepare release:perform && git push` in the root to select the version to be released and create a
-VCS tag.
-
-GitHub Actions will
-start [the build process](https://github.com/elasticsoftwarefoundation/akces-framework/actions/workflows/maven-publish.yml).
-
-If successful, the build will be automatically published
-to [Github Packages](https://maven.pkg.github.com/elasticsoftwarefoundation/akces-framework/).
 
 
 
