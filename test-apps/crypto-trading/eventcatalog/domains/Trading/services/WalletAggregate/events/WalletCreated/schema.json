@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WalletCreated",
+  "type": "object",
+  "properties": {
+    "userId": {
+      "type": "string",
+      "description": "The user ID that owns the wallet (aggregate identifier)."
+    },
+    "walletId": {
+      "type": "string",
+      "description": "The unique identifier for the newly created wallet."
+    },
+    "currency": {
+      "type": "string",
+      "description": "The type of cryptocurrency for this wallet (e.g., \"BTC\", \"ETH\")."
+    },
+    "initialBalance": {
+      "type": "string",
+      "description": "The initial balance of the wallet (represented as a string to preserve decimal precision)."
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the wallet was created."
+    }
+  },
+  "required": ["userId", "walletId", "currency", "initialBalance", "createdAt"],
+  "additionalProperties": false
+}

@@ -1,0 +1,75 @@
+---
+id: Accounts
+name: Accounts
+version: 1.0.0
+owners:
+  - framework-developers
+services:
+  - id: AccountAggregate
+  - id: AccountApiService
+badges:
+  - content: Accounts Domain
+    backgroundColor: blue
+    textColor: white
+---
+
+
+
+import Footer from '@catalog/components/footer.astro';
+
+## Overview
+
+<Admonition type="info">The Accounts domain represents a foundational bounded context within our system, managing user identities and profiles.</Admonition>
+
+The Accounts domain manages all aspects of user identity, authentication, and profile management. It serves as the core user management system that other domains rely on for user context and permissions.
+
+<Tiles>
+    <Tile icon="UserGroupIcon" href="/docs/teams/framework-developers" title="Contact the team" description="Questions? Contact the domain owners" />
+    <Tile icon="RectangleGroupIcon" href={`/visualiser/domains/${frontmatter.id}/${frontmatter.version}`} title={`${frontmatter.services.length} services are in this domain`} description="View the services and their interactions" />
+    <Tile icon="BookOpenIcon" href="/domains/Accounts/dictionary" title="Domain Dictionary" description="Review the ubiquitous language for this domain" />
+</Tiles>
+
+## Bounded Context
+
+<NodeGraph />
+
+## Key Concepts
+
+The Accounts domain is built around several key aggregates and services:
+
+### AccountAggregate
+
+The core aggregate responsible for managing user account lifecycle, from creation to closure. It maintains the source of truth for account information and status.
+
+[Explore AccountAggregate](/services/AccountAggregate)
+
+### Commands
+
+- [CreateAccount](/commands/CreateAccount) - Creates a new user account
+
+### Events
+
+- [AccountCreatedEvent](/events/AccountCreatedEvent) - Emitted when an account is created
+
+## Integration Patterns
+
+The Accounts domain exposes several integration patterns for other domains:
+
+### Event Subscription
+
+Services can subscribe to account events to react to changes in account status or information. This is the preferred method for maintaining eventually consistent views of account data.
+
+### Service-to-Service API
+
+For operations requiring immediate consistency, the Accounts domain exposes authenticated API endpoints that other services can call directly.
+
+## Compliance and Security
+
+The Accounts domain implements strict security and compliance controls:
+
+- GDPR compliance for personal data handling
+- Role-based access control for account operations
+- Audit logging for all account modifications
+- Data retention policies for closed accounts
+
+<Footer />

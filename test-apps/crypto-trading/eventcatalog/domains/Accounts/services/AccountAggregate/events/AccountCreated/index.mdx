@@ -1,0 +1,43 @@
+---
+id: AccountCreated
+name: Account Created Event
+version: 1.0.0
+summary: |
+  Event emitted when a user account is successfully created
+owners:
+    - framework-developers
+schemaPath: 'schema.json'
+repository:
+    language: Java
+    url: https://github.com/elasticsoftwarefoundation/akces-framework/blob/main/test-apps/crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/account/events/AccountCreatedEvent.java
+---
+
+
+
+import Footer from '@catalog/components/footer.astro';
+
+## Overview
+
+The AccountCreatedEvent represents the successful creation of a new user account in the system. This event is the first in the account lifecycle and contains all essential information about the newly created account.
+
+## Architecture diagram
+
+<NodeGraph/>
+
+## Event details
+
+This event is produced by the `CreateAccount` command when a new user account is successfully created. It contains all the initial identity information for the user, which can be used by downstream consumers to build user profiles, send welcome emails, or initialize related entities.
+
+## Event structure
+
+```java
+public record AccountCreatedEvent(
+    UUID userId,
+    String country,
+    String firstName,
+    String lastName,
+    String email
+) {}
+```
+
+<Footer />

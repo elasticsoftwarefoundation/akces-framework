@@ -1,0 +1,39 @@
+---
+id: CreateAccount
+name: Create Account
+version: 1.0.0
+summary: |
+  Command that creates a new user account in the system
+owners:
+    - framework-developers
+schemaPath: 'schema.json'
+repository:
+    language: Java
+    url: https://github.com/elasticsoftwarefoundation/akces-framework/blob/main/test-apps/crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/account/commands/CreateAccountCommand.java
+---
+
+
+
+import Footer from '@catalog/components/footer.astro';
+
+## Overview
+
+The CreateAccount command initiates the creation of a new user account in the system. This is the first step in the user onboarding process and establishes the basic identity of the user in the platform.
+
+## Architecture diagram
+
+<NodeGraph/>
+
+## Command Handler
+
+The command handler validates the input and produces an `AccountCreatedEvent` when successful. The handler is responsible for ensuring all required fields are provided before creating the account.
+
+```java
+@CommandHandler(create = true, produces = AccountCreatedEvent.class, errors = {})
+public Stream<AccountCreatedEvent> create(CreateAccountCommand cmd, AccountState isNull) {
+    return Stream.of(new AccountCreatedEvent(cmd.userId(), cmd.country(),
+                                           cmd.firstName(), cmd.lastName(), cmd.email()));
+}
+```
+
+<Footer />
