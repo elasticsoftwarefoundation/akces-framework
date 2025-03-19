@@ -44,6 +44,11 @@
             <artifactId>spring-expression</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.google.auto.service</groupId>
+            <artifactId>auto-service</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
             <groupId>jakarta.annotation</groupId>
             <artifactId>jakarta.annotation-api</artifactId>
             <scope>test</scope>
@@ -56,7 +61,6 @@
         <dependency>
             <groupId>com.google.testing.compile</groupId>
             <artifactId>compile-testing</artifactId>
-            <version>0.21.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

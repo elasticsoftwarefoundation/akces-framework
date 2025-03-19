@@ -70,6 +70,12 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>org.elasticsoftwarefoundation.akces</groupId>
+            <artifactId>akces-eventcatalog</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
 
     </dependencies>
 

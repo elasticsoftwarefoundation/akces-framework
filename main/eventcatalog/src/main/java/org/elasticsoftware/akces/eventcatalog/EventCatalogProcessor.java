@@ -17,12 +17,10 @@
 
 package org.elasticsoftware.akces.eventcatalog;
 
+import com.google.auto.service.AutoService;
 import org.elasticsoftware.akces.annotations.*;
 
-import javax.annotation.processing.AbstractProcessor;
-import javax.annotation.processing.RoundEnvironment;
-import javax.annotation.processing.SupportedAnnotationTypes;
-import javax.annotation.processing.SupportedSourceVersion;
+import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.*;
 import javax.lang.model.type.DeclaredType;
@@ -43,6 +41,7 @@ import java.util.stream.Stream;
         "org.elasticsoftware.akces.annotations.EventHandler"
 })
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
+@AutoService(Processor.class)
 public class EventCatalogProcessor extends AbstractProcessor {
 
     private final Map<CommandInfo, TypeElement> commandCache = new HashMap<>();
