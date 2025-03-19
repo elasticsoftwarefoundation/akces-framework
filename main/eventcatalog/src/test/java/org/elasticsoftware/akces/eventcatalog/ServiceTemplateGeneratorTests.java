@@ -113,8 +113,7 @@ public class ServiceTemplateGeneratorTests {
             id: MinimalAggregate
             version: 1.0.0
             name: Minimal Aggregate
-            summary: |
-              Test minimal aggregate
+            summary: Test minimal aggregate
             owners:
                 - tester
             receives:
@@ -164,8 +163,7 @@ public class ServiceTemplateGeneratorTests {
             id: PaymentAggregate
             version: 1.0.0
             name: Payment Aggregate
-            summary: |
-              Aggregate that manages payment processing
+            summary: Aggregate that manages payment processing
             owners:
                 - framework-developers
             receives:

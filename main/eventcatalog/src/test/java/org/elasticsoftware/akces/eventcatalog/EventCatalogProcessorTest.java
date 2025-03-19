@@ -235,8 +235,8 @@ public record AccountCreatedEventV2(
                 .hadNoteContaining("Aggregate Account handles commands");
 
         // check the generated files
-        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/AccountAggregate/commands/CreateAccount/index.mdx");
-        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/AccountAggregate/commands/CreateAccount/schema.json");
+        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/Account/commands/CreateAccount/index.mdx");
+        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/Account/commands/CreateAccount/schema.json");
 
         compilation.generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/AccountAggregate/commands/CreateAccount/index.mdx")
             .ifPresent(file -> {
@@ -882,20 +882,20 @@ public record ReserveAmountCommand(
         assertThat(compilation).succeeded();
 
         // check for files created
-        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/AccountAggregate/commands/CreateAccount/index.mdx");
-        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/AccountAggregate/commands/CreateAccount/schema.json");
-        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/AccountAggregate/events/AccountCreated/index.mdx");
-        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/AccountAggregate/events/AccountCreated/schema.json");
-        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManagerAggregate/commands/PlaceBuyOrder/index.mdx");
-        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManagerAggregate/commands/PlaceBuyOrder/schema.json");
-        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManagerAggregate/events/BuyOrderCreated/index.mdx");
-        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManagerAggregate/events/BuyOrderCreated/schema.json");
-        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManagerAggregate/events/BuyOrderPlaced/index.mdx");
-        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManagerAggregate/events/BuyOrderPlaced/schema.json");
-        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManagerAggregate/events/BuyOrderRejected/index.mdx");
-        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManagerAggregate/events/BuyOrderRejected/schema.json");
-        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManagerAggregate/events/UserOrderProcessesCreated/index.mdx");
-        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManagerAggregate/events/UserOrderProcessesCreated/schema.json");
+        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/Account/commands/CreateAccount/index.mdx");
+        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/Account/commands/CreateAccount/schema.json");
+        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/Account/events/AccountCreated/index.mdx");
+        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/Account/events/AccountCreated/schema.json");
+        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManager/commands/PlaceBuyOrder/index.mdx");
+        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManager/commands/PlaceBuyOrder/schema.json");
+        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManager/events/BuyOrderCreated/index.mdx");
+        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManager/events/BuyOrderCreated/schema.json");
+        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManager/events/BuyOrderPlaced/index.mdx");
+        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManager/events/BuyOrderPlaced/schema.json");
+        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManager/events/BuyOrderRejected/index.mdx");
+        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManager/events/BuyOrderRejected/schema.json");
+        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManager/events/UserOrderProcessesCreated/index.mdx");
+        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManager/events/UserOrderProcessesCreated/schema.json");
 
 
     }

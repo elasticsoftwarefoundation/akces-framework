@@ -50,8 +50,7 @@ class MessageTemplateGeneratorTests {
             id: AccountCreated
             name: Account Created Event
             version: 1.0.0
-            summary: |
-              Event emitted when a user account is successfully created
+            summary: Event emitted when a user account is successfully created
             owners:
                 - framework-developers
             schemaPath: 'schema.json'
@@ -89,8 +88,7 @@ class MessageTemplateGeneratorTests {
             id: MultiOwnerEvent
             name: Multi Owner Event
             version: 1.0.0
-            summary: |
-              Event with multiple owners
+            summary: Event with multiple owners
             owners:
                 - jwijgerd
                 - framework-developers
