@@ -22,7 +22,7 @@ import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
-@CommandInfo(type = "CreateAccount")
+@CommandInfo(type = "CreateAccount", description = "Create a new account")
 public record CreateAccountCommand(
         @AggregateIdentifier @NotNull String userId,
         @NotNull String country,

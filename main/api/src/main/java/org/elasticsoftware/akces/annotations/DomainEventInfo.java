@@ -28,4 +28,6 @@ public @interface DomainEventInfo {
     String type();
 
     int version() default 1;
+
+    String description() default "";
 }

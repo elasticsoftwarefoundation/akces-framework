@@ -33,6 +33,8 @@ import java.io.Writer;
 import java.util.*;
 import java.util.stream.Stream;
 
+import static java.util.Objects.requireNonNull;
+
 @SupportedAnnotationTypes({
         "org.elasticsoftware.akces.annotations.CommandInfo",
         "org.elasticsoftware.akces.annotations.DomainEventInfo",
@@ -88,8 +90,22 @@ public class EventCatalogProcessor extends AbstractProcessor {
         matchHandlersToAggregates();
         // then based on the CommandHandler.produces and CommandHandler.errors and EventHandler.produces and EventHandler.errors we can create the list of events and the list of commands
         buildEventRelationships();
+        // get the repository base url and owners from the configuration
+        String repoBaseUrl = processingEnv.getOptions().getOrDefault(
+                "eventcatalog.repositoryBaseUrl",
+                "https://github.com/elasticsoftwarefoundation/akces-framework/"
+        );
+        // Ensure trailing slash
+        if (!repoBaseUrl.endsWith("/")) {
+            repoBaseUrl += "/";
+        }
+        List<String> owners = Arrays.asList(processingEnv.getOptions().getOrDefault(
+                "eventcatalog.owners",
+                "framework-developers"
+        ).split("\\s*,\\s*"));
+
         // for each aggregate, generate the catalog entry.
-        generateCatalogEntries();
+        generateCatalogEntries(repoBaseUrl,owners);
 
         // Mark as processed
         processed = true;
@@ -454,6 +470,30 @@ public class EventCatalogProcessor extends AbstractProcessor {
     }
 
     /**
+     * Extract a single Class value from an annotation and convert it to TypeElement
+     *
+     * @param annotationMirror the annotation mirror to extract from
+     * @param elementName the name of the annotation attribute
+     * @return the TypeElement representing the class, or null if not found
+     */
+    private TypeElement getClassFromAnnotation(AnnotationMirror annotationMirror, String elementName) {
+        for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entry :
+                annotationMirror.getElementValues().entrySet()) {
+
+            if (elementName.equals(entry.getKey().getSimpleName().toString())) {
+                AnnotationValue annotationValue = entry.getValue();
+                Object value = annotationValue.getValue();
+
+                // Single class values are represented directly as DeclaredType
+                if (value instanceof DeclaredType declaredType) {
+                    return (TypeElement) declaredType.asElement();
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * Extract a simple value from an annotation
      */
     private String getAnnotationValue(AnnotationMirror annotationMirror, String elementName) {
@@ -489,7 +529,7 @@ public class EventCatalogProcessor extends AbstractProcessor {
     }
 
 
-    private void generateCatalogEntries() {
+    private void generateCatalogEntries(String repositoryBaseUrl, List<String> owners) {
         // For each aggregate, find its domain and create service documentation
         for (Map.Entry<AggregateInfo, TypeElement> entry : aggregateCache.entrySet()) {
             AggregateInfo aggregateInfo = entry.getKey();
@@ -498,14 +538,20 @@ public class EventCatalogProcessor extends AbstractProcessor {
             String aggregateName = aggregateInfo.value().isEmpty() ?
                     aggregateType.getSimpleName().toString() : aggregateInfo.value();
 
+            // get the AggregateStateInfo annotation from the aggregateInfo.stateClass
+            AnnotationMirror aggregateInfoMirror = getAnnotationMirror(aggregateType, AggregateInfo.class.getCanonicalName());
+            // get the stateClass type from the mirror
+            TypeElement stateClass = getClassFromAnnotation(requireNonNull(aggregateInfoMirror), "stateClass");
+            AggregateStateInfo stateInfo = requireNonNull(stateClass).getAnnotation(AggregateStateInfo.class);
+
             // Generate service documentation
-            String servicePath = "META-INF/eventcatalog/services/" + aggregateName + "Aggregate";
+            String servicePath = "META-INF/eventcatalog/services/" + aggregateName;
             String serviceDoc = ServiceTemplateGenerator.generate(new ServiceTemplateGenerator.ServiceMetadata(
                     aggregateName,
-                    "1.0.0", // TODO: take this version from the aggregate`state info
+                    stateInfo.version()+".0.0",
                     aggregateName,
-                    "",
-                    List.of("framework-developers"),
+                    aggregateInfo.description(),
+                    owners,
                     // iterate over all handle commands and handled events
                     Stream.concat(
                                     aggregateHandledCommands.getOrDefault(aggregateInfo, Collections.emptySet()).stream()
@@ -533,7 +579,7 @@ public class EventCatalogProcessor extends AbstractProcessor {
                                     getAnnotationValue(mirror, "version") + ".0.0"))
                             .toList(),
                     "Java",
-                    "https://github.com/elasticsoftwarefoundation/akces-framework"));
+                    repositoryBaseUrl + aggregateType.getQualifiedName().toString().replace('.', '/') + ".java"));
 
             processingEnv.getMessager().printMessage(
                     Diagnostic.Kind.NOTE,
@@ -557,17 +603,17 @@ public class EventCatalogProcessor extends AbstractProcessor {
                     // Generate command documentation
                     String commandName = commandInfo.type();
                     String commandPath = "META-INF/eventcatalog/services/" +
-                            aggregateName + "Aggregate/commands/" + commandName;
+                            aggregateName + "/commands/" + commandName;
 
                     String commandDoc = MessageTemplateGenerator.generate(new MessageTemplateGenerator.EventMetadata(
                                     commandInfo.type(),
                                     commandInfo.type(),
                                     commandInfo.version() + ".0.0",
-                                    "",
-                                    List.of("framework-developers"),
+                                    commandInfo.description(),
+                                    owners,
                                     "schema.json",
                                     "Java",
-                                    "https://github.com/elasticsoftwarefoundation/akces-framework" // TODO: generate the path
+                                    repositoryBaseUrl + commandType.getQualifiedName().toString().replace('.', '/') + ".java"
                             )
                     );
 
@@ -579,7 +625,7 @@ public class EventCatalogProcessor extends AbstractProcessor {
                     );
 
                     // Generate command schema
-                    String schema = JsonSchemaGenerator.generate(processingEnv, commandType, "command", commandInfo.type(), commandInfo.version());
+                    String schema = JsonSchemaGenerator.generate(processingEnv, commandType, "commands", commandInfo.type(), commandInfo.version());
 
                     writeToEventCatalog(commandPath, "schema.json", schema);
 
@@ -608,17 +654,17 @@ public class EventCatalogProcessor extends AbstractProcessor {
                     String eventName = eventInfo.type();
                     String versionSuffix = eventInfo.version() > 1 ? "-v" + eventInfo.version() : "";
                     String eventPath = "META-INF/eventcatalog/services/" +
-                            aggregateName + "Aggregate/events/" + eventName;
+                            aggregateName + "/events/" + eventName;
 
                     String eventDoc = MessageTemplateGenerator.generate(new MessageTemplateGenerator.EventMetadata(
                             eventInfo.type(),
                             eventInfo.type(),
                             eventInfo.version() + ".0.0",
-                            "",
-                            List.of("framework-developers"),
+                            eventInfo.description(),
+                            owners,
                             "schema.json",
                             "Java",
-                            "https://github.com/elasticsoftwarefoundation/akces-framework" // TODO: generate the path
+                            repositoryBaseUrl + eventType.getQualifiedName().toString().replace('.', '/') + ".java"
                     ));
 
                     writeToEventCatalog(eventPath, "index.mdx", eventDoc);

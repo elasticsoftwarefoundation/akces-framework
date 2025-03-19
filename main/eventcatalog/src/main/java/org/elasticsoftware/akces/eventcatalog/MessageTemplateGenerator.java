@@ -38,8 +38,7 @@ public class MessageTemplateGenerator {
     id: %s
     name: %s
     version: %s
-    summary: |
-      %s
+    summary: %s
     owners:
     %s
     schemaPath: '%s'

@@ -21,7 +21,7 @@ import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
-@CommandInfo(type = "CreateCryptoMarket", version = 1)
+@CommandInfo(type = "CreateCryptoMarket", version = 1, description = "Create a new crypto market")
 public record CreateCryptoMarketCommand(
         @NotNull String id,
         @NotNull String baseCurrency,

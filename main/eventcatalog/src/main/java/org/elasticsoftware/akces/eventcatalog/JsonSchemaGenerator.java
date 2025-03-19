@@ -37,6 +37,7 @@ public class JsonSchemaGenerator {
             // Create JSON schema based on class structure
             Map<String, Object> schema = new HashMap<>();
             schema.put("$schema", "http://json-schema.org/draft-07/schema#");
+            schema.put("id", "urn:" + category + ":" + type + ":" + version);
             schema.put("title", type);
             schema.put("type", "object");
 

@@ -76,8 +76,7 @@ public class ServiceTemplateGenerator {
 id: #{service.id}
 version: #{service.version}
 name: #{service.name}
-summary: |
-  #{service.summary}
+summary: #{service.summary}
 owners:
 #{ownersList}
 receives:
