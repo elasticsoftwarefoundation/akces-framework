@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "urn:event:WalletCreated:1",
+  "additionalProperties": false,
+  "title": "WalletCreated",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "id"
+  ]
+}

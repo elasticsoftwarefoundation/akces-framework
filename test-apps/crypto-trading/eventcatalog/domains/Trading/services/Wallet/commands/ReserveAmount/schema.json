@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "urn:commands:ReserveAmount:1",
+  "additionalProperties": false,
+  "title": "ReserveAmount",
+  "type": "object",
+  "properties": {
+    "amount": {
+      "type": "object"
+    },
+    "currency": {
+      "type": "object"
+    },
+    "userId": {
+      "type": "object"
+    },
+    "referenceId": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "userId",
+    "currency",
+    "amount",
+    "referenceId"
+  ]
+}

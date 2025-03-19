@@ -125,7 +125,14 @@ public class ServiceTemplateGeneratorTests {
             repository:
               language: Java
               url: https://example.com/repo
-            ---""";
+            ---
+            import Footer from '@catalog/components/footer.astro';
+
+            ## Architecture diagram
+            
+            <NodeGraph />
+            
+            <Footer />""";
 
         assertEquals(expected, result);
     }
@@ -181,7 +188,14 @@ public class ServiceTemplateGeneratorTests {
             repository:
               language: Java
               url: https://github.com/elasticsoftwarefoundation/akces-framework/blob/main/test-apps/crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/payment/Payment.java
-            ---""";
+            ---
+            import Footer from '@catalog/components/footer.astro';
+
+            ## Architecture diagram
+            
+            <NodeGraph />
+            
+            <Footer />""";
 
         assertEquals(expected, result);
     }

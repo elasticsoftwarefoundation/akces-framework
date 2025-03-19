@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "urn:commands:DebitWallet:1",
+  "additionalProperties": false,
+  "title": "DebitWallet",
+  "type": "object",
+  "properties": {
+    "amount": {
+      "type": "object"
+    },
+    "currency": {
+      "type": "object"
+    },
+    "id": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "id",
+    "currency",
+    "amount"
+  ]
+}

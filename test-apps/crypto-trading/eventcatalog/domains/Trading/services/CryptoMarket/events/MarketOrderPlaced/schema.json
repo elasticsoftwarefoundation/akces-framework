@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "urn:event:MarketOrderPlaced:1",
+  "additionalProperties": false,
+  "title": "MarketOrderPlaced",
+  "type": "object",
+  "properties": {
+    "side": {
+      "type": "object"
+    },
+    "size": {
+      "type": "object"
+    },
+    "orderId": {
+      "type": "object"
+    },
+    "funds": {
+      "type": "object"
+    },
+    "ownerId": {
+      "type": "object"
+    },
+    "marketId": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "marketId",
+    "orderId",
+    "ownerId",
+    "side"
+  ]
+}

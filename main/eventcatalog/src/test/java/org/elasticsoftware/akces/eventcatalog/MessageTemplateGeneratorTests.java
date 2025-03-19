@@ -36,7 +36,6 @@ class MessageTemplateGeneratorTests {
             List.of(
                 "framework-developers"
             ),
-            "schema.json",
             "Java",
             "https://github.com/elasticsoftwarefoundation/akces-framework/blob/main/test-apps/crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/account/events/AccountCreatedEvent.java"
         );
@@ -53,11 +52,21 @@ class MessageTemplateGeneratorTests {
             summary: Event emitted when a user account is successfully created
             owners:
                 - framework-developers
-            schemaPath: 'schema.json'
             repository:
                 language: Java
                 url: https://github.com/elasticsoftwarefoundation/akces-framework/blob/main/test-apps/crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/account/events/AccountCreatedEvent.java
-            ---""";
+            ---
+            import Footer from '@catalog/components/footer.astro';
+
+            ## Architecture diagram
+            
+            <NodeGraph />
+            
+            ## JSON Schema
+            
+            <Schema schemaPath="schema.json" />
+            
+            <Footer />""";
 
         assertEquals(expected, result);
     }
@@ -74,7 +83,6 @@ class MessageTemplateGeneratorTests {
                 "jwijgerd",
                 "framework-developers"
             ),
-            "schema.json",
             "Java",
             "https://github.com/example/repo"
         );
@@ -92,11 +100,21 @@ class MessageTemplateGeneratorTests {
             owners:
                 - jwijgerd
                 - framework-developers
-            schemaPath: 'schema.json'
             repository:
                 language: Java
                 url: https://github.com/example/repo
-            ---""";
+            ---
+            import Footer from '@catalog/components/footer.astro';
+
+            ## Architecture diagram
+            
+            <NodeGraph />
+            
+            ## JSON Schema
+            
+            <Schema schemaPath="schema.json" />
+            
+            <Footer />""";
 
         assertEquals(expected, result);
     }

@@ -28,24 +28,33 @@ public class MessageTemplateGenerator {
             String version,
             String summary,
             List<String> owners,
-            String schemaPath,
             String language,
             String repositoryUrl
         ) {}
 
         private static final String EVENT_TEMPLATE = """
-    ---
-    id: %s
-    name: %s
-    version: %s
-    summary: %s
-    owners:
-    %s
-    schemaPath: '%s'
-    repository:
-        language: %s
-        url: %s
-    ---""";
+        ---
+        id: %s
+        name: %s
+        version: %s
+        summary: %s
+        owners:
+        %s
+        repository:
+            language: %s
+            url: %s
+        ---
+        import Footer from '@catalog/components/footer.astro';
+        
+        ## Architecture diagram
+        
+        <NodeGraph />
+        
+        ## JSON Schema
+        
+        <Schema schemaPath="schema.json" />
+        
+        <Footer />""";
 
         public static String generate(EventMetadata event) {
             // Format the owners list
@@ -63,7 +72,6 @@ public class MessageTemplateGenerator {
                 event.version(),
                 event.summary(),
                 ownersList,
-                event.schemaPath(),
                 event.language(),
                 event.repositoryUrl()
             );

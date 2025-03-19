@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "urn:event:MarketOrderFilled:1",
+  "additionalProperties": false,
+  "title": "MarketOrderFilled",
+  "type": "object",
+  "properties": {
+    "quoteCurrency": {
+      "type": "object"
+    },
+    "counterpartyId": {
+      "type": "object"
+    },
+    "side": {
+      "type": "object"
+    },
+    "quantity": {
+      "type": "object"
+    },
+    "orderId": {
+      "type": "object"
+    },
+    "price": {
+      "type": "object"
+    },
+    "ownerId": {
+      "type": "object"
+    },
+    "baseCurrency": {
+      "type": "object"
+    },
+    "marketId": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "marketId",
+    "orderId",
+    "ownerId",
+    "counterpartyId",
+    "side",
+    "baseCurrency",
+    "quoteCurrency",
+    "price",
+    "quantity"
+  ]
+}

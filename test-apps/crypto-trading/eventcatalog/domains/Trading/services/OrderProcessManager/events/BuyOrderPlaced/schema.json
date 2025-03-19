@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "urn:event:BuyOrderPlaced:1",
+  "additionalProperties": false,
+  "title": "BuyOrderPlaced",
+  "type": "object",
+  "properties": {
+    "market": {
+      "type": "object"
+    },
+    "amount": {
+      "type": "object"
+    },
+    "limitPrice": {
+      "type": "object"
+    },
+    "orderId": {
+      "type": "object"
+    },
+    "userId": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "userId",
+    "orderId",
+    "market",
+    "amount"
+  ]
+}

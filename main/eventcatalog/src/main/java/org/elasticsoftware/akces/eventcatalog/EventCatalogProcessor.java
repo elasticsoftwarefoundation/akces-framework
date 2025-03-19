@@ -550,34 +550,38 @@ public class EventCatalogProcessor extends AbstractProcessor {
                     aggregateName,
                     stateInfo.version()+".0.0",
                     aggregateName,
-                    aggregateInfo.description(),
+                    aggregateInfo.description().isBlank() ? aggregateName + " Aggregate" : aggregateInfo.description(),
                     owners,
                     // iterate over all handle commands and handled events
                     Stream.concat(
                                     aggregateHandledCommands.getOrDefault(aggregateInfo, Collections.emptySet()).stream()
-                                            .map(typeElement -> commandAnnotations.get(typeElement))
-                                            .filter(Objects::nonNull),
-                                    aggregateHandledEvents.getOrDefault(aggregateInfo, Collections.emptySet()).stream()
-                                            .map(typeElement -> eventAnnotations.get(typeElement))
+                                            .map(typeElement -> typeElement.getAnnotation(CommandInfo.class))
                                             .filter(Objects::nonNull)
-                            )
-                            .map(mirror -> new ServiceTemplateGenerator.Message(
-                                    getAnnotationValue(mirror, "type"),
-                                    getAnnotationValue(mirror, "version") + ".0.0"))
-                            .toList(),
+                                            .map(annotation -> new ServiceTemplateGenerator.Message(
+                                                    annotation.type(),
+                                                    annotation.version() + ".0.0")),
+                                    aggregateHandledEvents.getOrDefault(aggregateInfo, Collections.emptySet()).stream()
+                                            .map(typeElement -> typeElement.getAnnotation(DomainEventInfo.class))
+                                            .filter(Objects::nonNull)
+                                            .map(annotation -> new ServiceTemplateGenerator.Message(
+                                                    annotation.type(),
+                                                    annotation.version() + ".0.0"))
+                            ).toList(),
                     // iterator over all events and error events
                     Stream.concat(
                                     aggregateProducedEvents.getOrDefault(aggregateInfo, Collections.emptySet()).stream()
-                                            .map(typeElement -> eventAnnotations.get(typeElement))
-                                            .filter(Objects::nonNull),
-                                    aggregateErrorEvents.getOrDefault(aggregateInfo, Collections.emptySet()).stream()
-                                            .map(typeElement -> eventAnnotations.get(typeElement))
+                                            .map(typeElement -> typeElement.getAnnotation(DomainEventInfo.class))
                                             .filter(Objects::nonNull)
-                            )
-                            .map(mirror -> new ServiceTemplateGenerator.Message(
-                                    getAnnotationValue(mirror, "type"),
-                                    getAnnotationValue(mirror, "version") + ".0.0"))
-                            .toList(),
+                                            .map(annotation -> new ServiceTemplateGenerator.Message(
+                                                    annotation.type(),
+                                                    annotation.version() + ".0.0")),
+                                    aggregateErrorEvents.getOrDefault(aggregateInfo, Collections.emptySet()).stream()
+                                            .map(typeElement -> typeElement.getAnnotation(DomainEventInfo.class))
+                                            .filter(Objects::nonNull)
+                                            .map(annotation -> new ServiceTemplateGenerator.Message(
+                                                    annotation.type(),
+                                                    annotation.version() + ".0.0"))
+                            ).toList(),
                     "Java",
                     repositoryBaseUrl + aggregateType.getQualifiedName().toString().replace('.', '/') + ".java"));
 
@@ -609,9 +613,8 @@ public class EventCatalogProcessor extends AbstractProcessor {
                                     commandInfo.type(),
                                     commandInfo.type(),
                                     commandInfo.version() + ".0.0",
-                                    commandInfo.description(),
+                                    commandInfo.description().isBlank() ? commandInfo.type() + " Command" : commandInfo.description(),
                                     owners,
-                                    "schema.json",
                                     "Java",
                                     repositoryBaseUrl + commandType.getQualifiedName().toString().replace('.', '/') + ".java"
                             )
@@ -660,9 +663,8 @@ public class EventCatalogProcessor extends AbstractProcessor {
                             eventInfo.type(),
                             eventInfo.type(),
                             eventInfo.version() + ".0.0",
-                            eventInfo.description(),
+                            eventInfo.description().isBlank() ? eventInfo.type() + " DomainEvent" : eventInfo.description(),
                             owners,
-                            "schema.json",
                             "Java",
                             repositoryBaseUrl + eventType.getQualifiedName().toString().replace('.', '/') + ".java"
                     ));

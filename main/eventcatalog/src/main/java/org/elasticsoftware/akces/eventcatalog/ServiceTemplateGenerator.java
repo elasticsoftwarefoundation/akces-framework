@@ -86,7 +86,14 @@ sends:
 repository:
   language: #{service.language}
   url: #{service.repositoryUrl}
----""";
+---
+import Footer from '@catalog/components/footer.astro';
+
+## Architecture diagram
+
+<NodeGraph />
+
+<Footer />""";
 
     public record ServiceMetadata(
         String id,

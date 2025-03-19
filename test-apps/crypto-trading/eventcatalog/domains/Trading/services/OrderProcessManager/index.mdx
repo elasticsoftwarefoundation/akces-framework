@@ -1,0 +1,43 @@
+---
+id: OrderProcessManager
+version: 1.0.0
+name: OrderProcessManager
+summary: OrderProcessManager Aggregate
+owners:
+    - framework-developers
+receives:
+  - id: RejectOrder
+    version: 1.0.0
+  - id: PlaceBuyOrder
+    version: 1.0.0
+  - id: FillBuyOrder
+    version: 1.0.0
+  - id: AccountCreated
+    version: 1.0.0
+  - id: InvalidCryptoCurrencyError
+    version: 1.0.0
+  - id: AmountReserved
+    version: 1.0.0
+sends:
+  - id: BuyOrderFilled
+    version: 1.0.0
+  - id: BuyOrderPlaced
+    version: 1.0.0
+  - id: UserOrderProcessesCreated
+    version: 1.0.0
+  - id: BuyOrderRejected
+    version: 1.0.0
+  - id: BuyOrderCreated
+    version: 1.0.0
+repository:
+  language: Java
+  url: https://github.com/elasticsoftwarefoundation/akces-framework/tree/main/test-apps/crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/orders/OrderProcessManager.java
+---
+
+import Footer from '@catalog/components/footer.astro';
+
+## Architecture diagram
+
+<NodeGraph />
+
+<Footer />
