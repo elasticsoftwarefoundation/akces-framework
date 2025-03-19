@@ -23,12 +23,12 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class DomainEventTemplateGeneratorTests {
+class MessageTemplateGeneratorTests {
 
     @Test
     void shouldGenerateEventTemplate() {
         // Given
-        DomainEventTemplateGenerator.EventMetadata accountCreated = new DomainEventTemplateGenerator.EventMetadata(
+        MessageTemplateGenerator.EventMetadata accountCreated = new MessageTemplateGenerator.EventMetadata(
             "AccountCreated",
             "Account Created Event",
             "1.0.0",
@@ -42,7 +42,7 @@ class DomainEventTemplateGeneratorTests {
         );
 
         // When
-        String result = DomainEventTemplateGenerator.generate(accountCreated);
+        String result = MessageTemplateGenerator.generate(accountCreated);
 
         // Then
         String expected = """
@@ -66,7 +66,7 @@ class DomainEventTemplateGeneratorTests {
     @Test
     void shouldHandleMultipleOwners() {
         // Given
-        DomainEventTemplateGenerator.EventMetadata event = new DomainEventTemplateGenerator.EventMetadata(
+        MessageTemplateGenerator.EventMetadata event = new MessageTemplateGenerator.EventMetadata(
             "MultiOwnerEvent",
             "Multi Owner Event",
             "1.0.0",
@@ -81,7 +81,7 @@ class DomainEventTemplateGeneratorTests {
         );
 
         // When
-        String result = DomainEventTemplateGenerator.generate(event);
+        String result = MessageTemplateGenerator.generate(event);
 
         // Then
         String expected = """

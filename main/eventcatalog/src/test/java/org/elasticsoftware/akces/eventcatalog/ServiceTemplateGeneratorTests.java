@@ -38,8 +38,8 @@ public class ServiceTemplateGeneratorTests {
                         "jwijgerd",
                         "framework-developers"
                 ),
-                List.of(new ServiceTemplateGenerator.Command("CreateAccount", "1.0.0")),
-                List.of(new ServiceTemplateGenerator.Event("AccountCreatedEvent", "1.0.0")),
+                List.of(new ServiceTemplateGenerator.Message("CreateAccount", "1.0.0")),
+                List.of(new ServiceTemplateGenerator.Message("AccountCreated", "1.0.0")),
                 "Java",
                 "https://github.com/elasticsoftwarefoundation/akces-framework/test-apps/crypto-trading/eventcatalog/domains/Accounts/services/AccountAggregate"
         );
@@ -59,7 +59,7 @@ public class ServiceTemplateGeneratorTests {
 
         // Verify commands and events
         assertTrue(result.contains("- id: CreateAccount"));
-        assertTrue(result.contains("- id: AccountCreatedEvent"));
+        assertTrue(result.contains("- id: AccountCreated"));
 
         // Verify repository info
         assertTrue(result.contains("language: Java"));
@@ -98,8 +98,8 @@ public class ServiceTemplateGeneratorTests {
                 "Minimal Aggregate",
                 "Test minimal aggregate",
                 List.of("tester"),
-                List.of(new ServiceTemplateGenerator.Command("TestCommand", "1.0.0")),
-                List.of(new ServiceTemplateGenerator.Event("TestEvent", "1.0.0")),
+                List.of(new ServiceTemplateGenerator.Message("TestCommand", "1.0.0")),
+                List.of(new ServiceTemplateGenerator.Message("TestEvent", "1.0.0")),
                 "Java",
                 "https://example.com/repo"
         );
@@ -143,13 +143,13 @@ public class ServiceTemplateGeneratorTests {
                         "framework-developers"
                 ),
                 List.of(
-                        new ServiceTemplateGenerator.Command("InitiatePayment", "1.0.0"),
-                        new ServiceTemplateGenerator.Command("CancelPayment", "1.0.0"),
-                        new ServiceTemplateGenerator.Command("RefundPayment", "1.0.0")
+                        new ServiceTemplateGenerator.Message("InitiatePayment", "1.0.0"),
+                        new ServiceTemplateGenerator.Message("CancelPayment", "1.0.0"),
+                        new ServiceTemplateGenerator.Message("RefundPayment", "1.0.0")
                 ),
                 List.of(
-                        new ServiceTemplateGenerator.Event("PaymentInitiated", "1.0.0"),
-                        new ServiceTemplateGenerator.Event("PaymentCancelled", "1.0.0")
+                        new ServiceTemplateGenerator.Message("PaymentInitiated", "1.0.0"),
+                        new ServiceTemplateGenerator.Message("PaymentCancelled", "1.0.0")
                 ),
                 "Java",
                 "https://github.com/elasticsoftwarefoundation/akces-framework/blob/main/test-apps/crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/payment/Payment.java"

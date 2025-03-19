@@ -19,7 +19,7 @@
 
     import java.util.List;
 
-    public class DomainEventTemplateGenerator {
+public class MessageTemplateGenerator {
 
         // Define POJO classes for the data model
         public record EventMetadata(

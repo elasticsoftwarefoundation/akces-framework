@@ -21,39 +21,6 @@ import java.util.List;
 
 public class ServiceTemplateGenerator {
 
-    // Define POJO classes for the data model
-    public record Command(String id, String version) {}
-    public record Event(String id, String version) {}
-    public record ServiceMetadata(
-        String id,
-        String version,
-        String name,
-        String summary,
-        List<String> owners,
-        List<Command> receives,
-        List<Event> sends,
-        String language,
-        String repositoryUrl
-    ) {}
-
-    private static final String SERVICE_TEMPLATE = """
----
-id: #{service.id}
-version: #{service.version}
-name: #{service.name}
-summary: |
-  #{service.summary}
-owners:
-#{ownersList}
-receives:
-#{receivesList}
-sends:
-#{sendsList}
-repository:
-  language: #{service.language}
-  url: #{service.repositoryUrl}
----""";
-
     public static String generate(ServiceMetadata service) {
         // Format the owners list
         StringBuilder ownersBuilder = new StringBuilder();
@@ -67,7 +34,7 @@ repository:
         if (service.receives().isEmpty()) {
             receivesBuilder.append("  []");
         } else {
-            for (Command command : service.receives()) {
+            for (Message command : service.receives()) {
                 receivesBuilder.append("  - id: ").append(command.id()).append("\n");
                 receivesBuilder.append("    version: ").append(command.version()).append("\n");
             }
@@ -79,7 +46,7 @@ repository:
         if (service.sends().isEmpty()) {
             sendsBuilder.append("  []");
         } else {
-            for (Event event : service.sends()) {
+            for (Message event : service.sends()) {
                 sendsBuilder.append("  - id: ").append(event.id()).append("\n");
                 sendsBuilder.append("    version: ").append(event.version()).append("\n");
             }
@@ -99,4 +66,38 @@ repository:
             .replace("#{service.language}", service.language())
             .replace("#{service.repositoryUrl}", service.repositoryUrl());
     }
+
+    // Define POJO classes for the data model
+    public record Message(String id, String version) {
+    }
+
+    private static final String SERVICE_TEMPLATE = """
+---
+id: #{service.id}
+version: #{service.version}
+name: #{service.name}
+summary: |
+  #{service.summary}
+owners:
+#{ownersList}
+receives:
+#{receivesList}
+sends:
+#{sendsList}
+repository:
+  language: #{service.language}
+  url: #{service.repositoryUrl}
+---""";
+
+    public record ServiceMetadata(
+        String id,
+        String version,
+        String name,
+        String summary,
+        List<String> owners,
+        List<Message> receives,
+        List<Message> sends,
+        String language,
+        String repositoryUrl
+    ) {}
 }
