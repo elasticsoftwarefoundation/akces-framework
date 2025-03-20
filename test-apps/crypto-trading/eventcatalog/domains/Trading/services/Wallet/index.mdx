@@ -6,40 +6,40 @@ summary: Wallet Aggregate
 owners:
     - framework-developers
 receives:
+  - id: CreditWallet
+    version: 1.0.0
+  - id: CreateBalance
+    version: 1.0.0
   - id: CancelReservation
     version: 1.0.0
   - id: CreateWallet
     version: 1.0.0
-  - id: DebitWallet
-    version: 1.0.0
-  - id: CreateBalance
-    version: 1.0.0
   - id: ReserveAmount
     version: 1.0.0
-  - id: CreditWallet
+  - id: DebitWallet
     version: 1.0.0
   - id: AccountCreated
     version: 1.0.0
 sends:
-  - id: ReservationCancelled
-    version: 1.0.0
-  - id: WalletDebited
-    version: 1.0.0
-  - id: BalanceCreated
-    version: 1.0.0
   - id: AmountReserved
     version: 1.0.0
   - id: WalletCredited
     version: 1.0.0
+  - id: WalletDebited
+    version: 1.0.0
+  - id: ReservationCancelled
+    version: 1.0.0
+  - id: BalanceCreated
+    version: 1.0.0
   - id: WalletCreated
-    version: 1.0.0
-  - id: InvalidCryptoCurrencyError
-    version: 1.0.0
-  - id: ReservationNotFoundError
     version: 1.0.0
   - id: InvalidAmountError
     version: 1.0.0
   - id: InsufficientFundsError
+    version: 1.0.0
+  - id: InvalidCryptoCurrencyError
+    version: 1.0.0
+  - id: ReservationNotFoundError
     version: 1.0.0
   - id: BalanceAlreadyExistsError
     version: 1.0.0

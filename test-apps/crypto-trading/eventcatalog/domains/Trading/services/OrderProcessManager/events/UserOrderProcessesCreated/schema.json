@@ -2,11 +2,10 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "id": "urn:event:UserOrderProcessesCreated:1",
   "additionalProperties": false,
-  "title": "UserOrderProcessesCreated",
   "type": "object",
   "properties": {
     "userId": {
-      "type": "object"
+      "type": "string"
     }
   },
   "required": [

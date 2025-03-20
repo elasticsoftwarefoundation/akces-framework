@@ -38,7 +38,6 @@ public class JsonSchemaGenerator {
             Map<String, Object> schema = new HashMap<>();
             schema.put("$schema", "http://json-schema.org/draft-07/schema#");
             schema.put("id", "urn:" + category + ":" + type + ":" + version);
-            schema.put("title", type);
             schema.put("type", "object");
 
             // Generate properties map for the schema
@@ -46,39 +45,7 @@ public class JsonSchemaGenerator {
             List<String> requiredProps = new ArrayList<>();
 
             // Extract fields from the class
-            for (Element enclosedElement : typeElement.getEnclosedElements()) {
-                if (enclosedElement.getKind() == ElementKind.FIELD) {
-                    VariableElement field = (VariableElement) enclosedElement;
-
-                    // Skip static and transient fields
-                    Set<Modifier> modifiers = field.getModifiers();
-                    if (modifiers.contains(Modifier.STATIC) || modifiers.contains(Modifier.TRANSIENT)) {
-                        continue;
-                    }
-
-                    String fieldName = field.getSimpleName().toString();
-                    TypeMirror fieldType = field.asType();
-
-                    Map<String, Object> fieldSchema = mapTypeToJsonSchema(fieldType);
-
-                    // Add description if available from JavaDoc
-                    String docComment = processingEnv.getElementUtils().getDocComment(field);
-                    if (docComment != null && !docComment.isEmpty()) {
-                        fieldSchema.put("description", docComment.trim());
-                    }
-
-                    // Check for @NotNull or similar annotations
-                    boolean required = hasRequiredAnnotation(field);
-                    if (required) {
-                        requiredProps.add(fieldName);
-                    }
-
-                    // Handle special formats
-                    handleSpecialFormats(fieldName, fieldType, fieldSchema);
-
-                    properties.put(fieldName, fieldSchema);
-                }
-            }
+            extractProperties(processingEnv, typeElement, requiredProps, properties);
 
             schema.put("properties", properties);
 
@@ -100,44 +67,40 @@ public class JsonSchemaGenerator {
         }
     }
 
-    private static void handleSpecialFormats(String fieldName, TypeMirror fieldType, Map<String, Object> fieldSchema) {
-        // Set formats based on field names or types
-        String typeName = fieldType.toString();
+    private static void extractProperties(ProcessingEnvironment processingEnv, TypeElement typeElement, List<String> requiredProps, Map<String, Object> properties) {
+        for (Element enclosedElement : typeElement.getEnclosedElements()) {
+            if (enclosedElement.getKind() == ElementKind.FIELD) {
+                VariableElement field = (VariableElement) enclosedElement;
 
-        // UUID fields
-        if (fieldName.toLowerCase().contains("uuid") ||
-                fieldName.toLowerCase().endsWith("id") ||
-                typeName.contains("UUID")) {
-            if ("string".equals(fieldSchema.get("type"))) {
-                fieldSchema.put("format", "uuid");
-            }
-        }
-
-        // Email fields
-        if (fieldName.toLowerCase().contains("email")) {
-            if ("string".equals(fieldSchema.get("type"))) {
-                fieldSchema.put("format", "email");
-            }
-        }
-
-        // Date/time fields
-        if (fieldName.toLowerCase().contains("date") ||
-                fieldName.toLowerCase().contains("time") ||
-                typeName.contains("Date") ||
-                typeName.contains("Time")) {
-            if ("string".equals(fieldSchema.get("type"))) {
-                if (typeName.contains("LocalDate")) {
-                    fieldSchema.put("format", "date");
-                } else if (typeName.contains("LocalTime")) {
-                    fieldSchema.put("format", "time");
-                } else {
-                    fieldSchema.put("format", "date-time");
+                // Skip static and transient fields
+                Set<Modifier> modifiers = field.getModifiers();
+                if (modifiers.contains(Modifier.STATIC) || modifiers.contains(Modifier.TRANSIENT)) {
+                    continue;
                 }
+
+                String fieldName = field.getSimpleName().toString();
+                TypeMirror fieldType = field.asType();
+
+                // Check for @NotNull or similar annotations
+                boolean required = hasRequiredAnnotation(field);
+                if (required) {
+                    requiredProps.add(fieldName);
+                }
+
+                Map<String, Object> fieldSchema = mapTypeToJsonSchema(fieldType, required, processingEnv);
+
+                // Add description if available from JavaDoc
+                String docComment = processingEnv.getElementUtils().getDocComment(field);
+                if (docComment != null && !docComment.isEmpty()) {
+                    fieldSchema.put("description", docComment.trim());
+                }
+
+                properties.put(fieldName, fieldSchema);
             }
         }
     }
 
-    private static Map<String, Object> mapTypeToJsonSchema(TypeMirror typeMirror) {
+    private static Map<String, Object> mapTypeToJsonSchema(TypeMirror typeMirror, boolean required, ProcessingEnvironment processingEnv) {
         Map<String, Object> schema = new HashMap<>();
 
         // Handle primitive types
@@ -164,24 +127,26 @@ public class JsonSchemaGenerator {
         }
 
         // Handle common Java types
-        String typeName = typeMirror.toString();
+        String typeName = getQualifiedClassName(typeMirror, processingEnv);
         if (typeName.equals("java.lang.String")) {
-            schema.put("type", "string");
+            schema.put("type", required ? "string" : List.of("string", "null"));
         } else if (typeName.equals("java.lang.Boolean")) {
-            schema.put("type", "boolean");
+            schema.put("type", required ? "boolean" : List.of("boolean", "null"));
         } else if (typeName.equals("java.lang.Integer") ||
                 typeName.equals("java.lang.Long") ||
                 typeName.equals("java.lang.Short") ||
                 typeName.equals("java.lang.Byte")) {
-            schema.put("type", "integer");
+            schema.put("type", required ? "integer" : List.of("integer", "null"));
         } else if (typeName.equals("java.lang.Float") ||
                 typeName.equals("java.lang.Double")) {
-            schema.put("type", "number");
+            schema.put("type", required ? "number" : List.of("number", "null"));
         } else if (typeName.equals("java.util.UUID")) {
-            schema.put("type", "string");
+            schema.put("type", required ? "string" : List.of("string", "null"));
             schema.put("format", "uuid");
+        } else if (typeName.equals("java.math.BigDecimal")) {
+            schema.put("type", required ? "string" : List.of("string", "null"));
         } else if (typeName.startsWith("java.time.")) {
-            schema.put("type", "string");
+            schema.put("type", required ? "string" : List.of("string", "null"));
             if (typeName.contains("LocalDate")) {
                 schema.put("format", "date");
             } else if (typeName.contains("LocalTime")) {
@@ -192,12 +157,12 @@ public class JsonSchemaGenerator {
         } else if (typeName.startsWith("java.util.List") ||
                 typeName.startsWith("java.util.ArrayList") ||
                 typeName.startsWith("java.util.Collection")) {
-            schema.put("type", "array");
+            schema.put("type", required ? "array" : List.of("array", "null"));
 
             // Try to determine the item type for generics
             if (typeMirror instanceof DeclaredType declaredType && !declaredType.getTypeArguments().isEmpty()) {
                 TypeMirror itemType = declaredType.getTypeArguments().getFirst();
-                schema.put("items", mapTypeToJsonSchema(itemType));
+                schema.put("items", mapTypeToJsonSchema(itemType, true, processingEnv));
             } else {
                 // Default to any type if we can't determine
                 Map<String, Object> anyType = new HashMap<>();
@@ -206,32 +171,89 @@ public class JsonSchemaGenerator {
             }
         } else if (typeName.startsWith("java.util.Map") ||
                 typeName.startsWith("java.util.HashMap")) {
-            schema.put("type", "object");
+            schema.put("type", required ? "object" : List.of("object", "null"));
             schema.put("additionalProperties", true);
         } else if (typeName.startsWith("java.util.Set") ||
                 typeName.startsWith("java.util.HashSet")) {
-            schema.put("type", "array");
+            schema.put("type", required ? "array" : List.of("array", "null"));
             schema.put("uniqueItems", true);
 
             // Try to determine item type
             if (typeMirror instanceof DeclaredType declaredType && !declaredType.getTypeArguments().isEmpty()) {
                 TypeMirror itemType = declaredType.getTypeArguments().getFirst();
-                schema.put("items", mapTypeToJsonSchema(itemType));
+                schema.put("items", mapTypeToJsonSchema(itemType, true, processingEnv));
             } else {
                 Map<String, Object> anyType = new HashMap<>();
                 anyType.put("type", "object");
                 schema.put("items", anyType);
             }
-        } else if (typeMirror instanceof DeclaredType) {
-            // For custom objects, refer to them as objects
-            schema.put("type", "object");
-            // You could recursively generate the schema for this type too
+        } else if (typeMirror instanceof DeclaredType declaredType) {
+            // Check if it's an Enum type
+            TypeElement typeElement = getTypeElementFromTypeMirror(typeMirror, processingEnv);
+            if (typeElement != null && typeElement.getKind() == ElementKind.ENUM) {
+                // For enums, use string type with enum values
+                schema.put("type", required ? "string" : List.of("string", "null"));
+
+                // Extract enum constants
+                List<String> enumValues = new ArrayList<>();
+                for (Element enclosedElement : typeElement.getEnclosedElements()) {
+                    if (enclosedElement.getKind() == ElementKind.ENUM_CONSTANT) {
+                        enumValues.add(enclosedElement.getSimpleName().toString());
+                    }
+                }
+
+                if (!enumValues.isEmpty()) {
+                    schema.put("enum", enumValues);
+                }
+            } else {
+                // For custom objects, refer to them as objects
+                schema.put("type", required ? "object" : List.of("object", "null"));
+                // map the embedded properties
+                // Generate properties map for the schema
+                Map<String, Object> properties = new HashMap<>();
+                List<String> requiredProps = new ArrayList<>();
+
+                // Extract fields from the class
+                if (typeElement != null) {
+                    extractProperties(processingEnv, typeElement, requiredProps, properties);
+                    schema.put("properties", properties);
+                    // Add required properties if any exist
+                    if (!requiredProps.isEmpty()) {
+                        schema.put("required", requiredProps);
+                    }
+                    // Disallow additional properties
+                    schema.put("additionalProperties", false);
+                }
+            }
         } else {
             // Default to string for unknown types
-            schema.put("type", "string");
+            schema.put("type", required ? "string" : List.of("string", "null"));
         }
 
         return schema;
+    }
+
+    private static String getQualifiedClassName(TypeMirror typeMirror, ProcessingEnvironment processingEnv) {
+        // For declared types (classes, interfaces)
+        if (typeMirror instanceof DeclaredType declaredType) {
+            Element element = declaredType.asElement();
+            if (element instanceof TypeElement typeElement) {
+                return typeElement.getQualifiedName().toString();
+            }
+        }
+
+        // For cases when typeMirror is not a DeclaredType
+        // Try to get the erasure and then process it
+        TypeMirror erasure = processingEnv.getTypeUtils().erasure(typeMirror);
+        if (erasure instanceof DeclaredType declaredType) {
+            Element element = declaredType.asElement();
+            if (element instanceof TypeElement typeElement) {
+                return typeElement.getQualifiedName().toString();
+            }
+        }
+
+        // Fallback (not ideal, but better than nothing)
+        return typeMirror.toString();
     }
 
     private static boolean hasRequiredAnnotation(Element element) {
@@ -380,5 +402,26 @@ public class JsonSchemaGenerator {
             }
         }
         return escaped.toString();
+    }
+
+    /**
+     * Helper method to get a TypeElement from a TypeMirror.
+     */
+    private static TypeElement getTypeElementFromTypeMirror(TypeMirror typeMirror, ProcessingEnvironment processingEnv) {
+        try {
+            if (typeMirror instanceof DeclaredType declaredType) {
+                Element element = declaredType.asElement();
+                if (element instanceof TypeElement typeElement) {
+                    return typeElement;
+                }
+            }
+            return null;
+        } catch (Exception e) {
+            processingEnv.getMessager().printMessage(
+                    Diagnostic.Kind.WARNING,
+                    "Could not get TypeElement for: " + typeMirror + " - " + e.getMessage()
+            );
+            return null;
+        }
     }
 }

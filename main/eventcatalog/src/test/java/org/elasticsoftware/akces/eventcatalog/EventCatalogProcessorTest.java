@@ -17,13 +17,24 @@
 
 package org.elasticsoftware.akces.eventcatalog;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.testing.compile.Compilation;
 import com.google.testing.compile.JavaFileObjects;
+import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import io.confluent.kafka.schemaregistry.json.diff.Difference;
+import io.confluent.kafka.schemaregistry.json.diff.SchemaDiff;
+import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
+import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 
 import javax.tools.JavaFileObject;
 import javax.tools.StandardLocation;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.util.List;
 
 import static com.google.testing.compile.CompilationSubject.assertThat;
 import static com.google.testing.compile.Compiler.javac;
@@ -260,7 +271,7 @@ public record AccountCreatedEventV2(
     }
 
     @Test
-    void testProcessorWithMultipleAggregates() {
+    void testProcessorWithMultipleAggregates() throws IOException {
         // Create sample input files
         JavaFileObject accountAggregateFile = JavaFileObjects.forSourceString(
                 "org.elasticsoftware.akcestest.aggregate.account.Account",
@@ -897,6 +908,30 @@ public record ReserveAmountCommand(
         assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManager/events/UserOrderProcessesCreated/index.mdx");
         assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManager/events/UserOrderProcessesCreated/schema.json");
 
+        // check the generated schema
+        Jackson2ObjectMapperBuilder builder = new Jackson2ObjectMapperBuilder();
+        builder.modulesToInstall(new AkcesGDPRModule());
+        builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+        ObjectMapper objectMapper = builder.build();
+
+        validateGeneratedSchema(compilation, objectMapper,"META-INF/eventcatalog/services/Account/commands/CreateAccount/schema.json","{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"country\":{\"type\":\"string\"},\"email\":{\"type\":\"string\"},\"firstName\":{\"type\":\"string\"},\"lastName\":{\"type\":\"string\"},\"userId\":{\"type\":\"string\"}},\"required\":[\"country\",\"email\",\"firstName\",\"lastName\",\"userId\"],\"additionalProperties\":false}");
+        validateGeneratedSchema(compilation, objectMapper, "META-INF/eventcatalog/services/OrderProcessManager/events/BuyOrderCreated/schema.json", "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"clientReference\":{\"type\":\"string\"},\"limitPrice\":{\"type\":\"string\"},\"market\":{\"type\":\"object\",\"properties\":{\"baseCurrency\":{\"type\":[\"string\",\"null\"]},\"id\":{\"type\":[\"string\",\"null\"]},\"quoteCurrency\":{\"type\":[\"string\",\"null\"]}},\"additionalProperties\":false},\"orderId\":{\"type\":\"string\"},\"quantity\":{\"type\":\"string\"},\"userId\":{\"type\":\"string\"}},\"required\":[\"clientReference\",\"limitPrice\",\"market\",\"orderId\",\"quantity\",\"userId\"],\"additionalProperties\":false}");
+
+    }
+
+    private void validateGeneratedSchema(Compilation compilation, ObjectMapper objectMapper, String schemaLocation, String schemaRegistrySchemaString) throws IOException {
+        JsonNode schemaRegistrySchema = objectMapper.readTree(schemaRegistrySchemaString);
+        String eventCatalogSchemaString = compilation.generatedFile(StandardLocation.CLASS_OUTPUT, schemaLocation).orElseThrow().getCharContent(true).toString();
+        System.out.println(eventCatalogSchemaString);
+        JsonNode eventCatalogSchema = objectMapper.readTree(eventCatalogSchemaString);
+
+        List<Difference> differences = SchemaDiff.compare(new JsonSchema(schemaRegistrySchema).rawSchema(), new JsonSchema(eventCatalogSchema).rawSchema());
+
+        Assertions.assertTrue(differences.isEmpty(), "Schema differences found: " + differences);
+    }
+
+    @Test
+    public void testSchemaWithEnumAndList() {
 
     }
 }

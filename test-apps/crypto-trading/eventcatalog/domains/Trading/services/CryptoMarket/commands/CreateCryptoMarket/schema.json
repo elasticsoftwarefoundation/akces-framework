@@ -2,26 +2,25 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "id": "urn:commands:CreateCryptoMarket:1",
   "additionalProperties": false,
-  "title": "CreateCryptoMarket",
   "type": "object",
   "properties": {
     "quoteCurrency": {
-      "type": "object"
+      "type": "string"
     },
     "quoteIncrement": {
-      "type": "object"
+      "type": "string"
     },
     "baseIncrement": {
-      "type": "object"
+      "type": "string"
     },
     "defaultCounterPartyId": {
-      "type": "object"
+      "type": "string"
     },
     "id": {
-      "type": "object"
+      "type": "string"
     },
     "baseCurrency": {
-      "type": "object"
+      "type": "string"
     }
   },
   "required": [

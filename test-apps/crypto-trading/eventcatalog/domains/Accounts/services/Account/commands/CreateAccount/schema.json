@@ -2,23 +2,22 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "id": "urn:commands:CreateAccount:1",
   "additionalProperties": false,
-  "title": "CreateAccount",
   "type": "object",
   "properties": {
     "country": {
-      "type": "object"
+      "type": "string"
     },
     "firstName": {
-      "type": "object"
+      "type": "string"
     },
     "lastName": {
-      "type": "object"
+      "type": "string"
     },
     "userId": {
-      "type": "object"
+      "type": "string"
     },
     "email": {
-      "type": "object"
+      "type": "string"
     }
   },
   "required": [

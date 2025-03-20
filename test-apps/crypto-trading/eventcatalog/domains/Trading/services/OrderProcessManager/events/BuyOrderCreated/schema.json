@@ -2,23 +2,43 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "id": "urn:event:BuyOrderCreated:1",
   "additionalProperties": false,
-  "title": "BuyOrderCreated",
   "type": "object",
   "properties": {
     "market": {
-      "type": "object"
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "baseCrypto": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "quoteCrypto": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
     },
     "amount": {
-      "type": "object"
+      "type": "string"
     },
     "orderId": {
-      "type": "object"
+      "type": "string"
     },
     "clientReference": {
-      "type": "object"
+      "type": "string"
     },
     "userId": {
-      "type": "object"
+      "type": "string"
     }
   },
   "required": [

@@ -6,28 +6,28 @@ summary: OrderProcessManager Aggregate
 owners:
     - framework-developers
 receives:
+  - id: FillBuyOrder
+    version: 1.0.0
   - id: RejectOrder
     version: 1.0.0
   - id: PlaceBuyOrder
     version: 1.0.0
-  - id: FillBuyOrder
-    version: 1.0.0
-  - id: AccountCreated
+  - id: AmountReserved
     version: 1.0.0
   - id: InvalidCryptoCurrencyError
     version: 1.0.0
-  - id: AmountReserved
+  - id: AccountCreated
     version: 1.0.0
 sends:
-  - id: BuyOrderFilled
-    version: 1.0.0
-  - id: BuyOrderPlaced
+  - id: BuyOrderCreated
     version: 1.0.0
   - id: UserOrderProcessesCreated
     version: 1.0.0
+  - id: BuyOrderFilled
+    version: 1.0.0
   - id: BuyOrderRejected
     version: 1.0.0
-  - id: BuyOrderCreated
+  - id: BuyOrderPlaced
     version: 1.0.0
 repository:
   language: Java

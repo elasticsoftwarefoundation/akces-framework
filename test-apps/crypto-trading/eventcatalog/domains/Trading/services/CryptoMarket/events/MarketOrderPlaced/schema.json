@@ -2,26 +2,35 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "id": "urn:event:MarketOrderPlaced:1",
   "additionalProperties": false,
-  "title": "MarketOrderPlaced",
   "type": "object",
   "properties": {
     "side": {
-      "type": "object"
+      "type": "string",
+      "enum": [
+        "BUY",
+        "SELL"
+      ]
     },
     "size": {
-      "type": "object"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "orderId": {
-      "type": "object"
+      "type": "string"
     },
     "funds": {
-      "type": "object"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "ownerId": {
-      "type": "object"
+      "type": "string"
     },
     "marketId": {
-      "type": "object"
+      "type": "string"
     }
   },
   "required": [
