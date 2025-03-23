@@ -1,0 +1,60 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: auth-api-query
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      auto-offset-reset: earliest
+      group-id: ${spring.application.name}
+  
+  # In-memory database configuration
+  datasource:
+    url: jdbc:h2:mem:authdb
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+    show-sql: false
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+# Akces configuration
+akces:
+  querymodel:
+    topic:
+      event: auth-api-events
+    schema:
+      registry:
+        url: http://localhost:8081
+    enabled: true
+  databasemodel:
+    topic:
+      event: auth-api-events
+    schema:
+      registry:
+        url: http://localhost:8081
+    enabled: true
+
+# Logging configuration
+logging:
+  level:
+    root: INFO
+    org.elasticsoftware: INFO
+    org.apache.kafka: WARN
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

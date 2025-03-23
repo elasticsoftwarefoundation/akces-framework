@@ -1,0 +1,44 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: auth-api-command
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      auto-offset-reset: earliest
+      group-id: ${spring.application.name}
+    producer:
+      acks: all
+  
+  # Disable JPA in the command service
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+
+# Akces configuration
+akces:
+  client:
+    topic:
+      command: auth-api-commands
+      event: auth-api-events
+    schema:
+      registry:
+        url: http://localhost:8081
+    default-timeout: 30000
+    
+# Logging configuration
+logging:
+  level:
+    root: INFO
+    org.elasticsoftware: INFO
+    org.apache.kafka: WARN
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

@@ -32,6 +32,7 @@
 
     <properties>
         <operator-sdk.version>5.0.4</operator-sdk.version>
+        <operator-framework-spring-boot.version>6.0.1</operator-framework-spring-boot.version>
         <bouncycastle.version>1.80</bouncycastle.version>
         <fabric8.version>7.1.0</fabric8.version>
     </properties>
@@ -41,7 +42,7 @@
             <dependency>
                 <groupId>io.javaoperatorsdk</groupId>
                 <artifactId>operator-framework-spring-boot-starter</artifactId>
-                <version>6.0.1</version>
+                <version>${operator-framework-spring-boot.version}</version>
                 <exclusions>
                     <exclusion>
                         <groupId>io.fabric8</groupId>
@@ -52,7 +53,7 @@
             <dependency>
                 <groupId>io.javaoperatorsdk</groupId>
                 <artifactId>operator-framework-spring-boot-starter-test</artifactId>
-                <version>6.0.1</version>
+                <version>${operator-framework-spring-boot.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.javaoperatorsdk</groupId>

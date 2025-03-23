@@ -117,6 +117,7 @@
     </dependencyManagement>
     <modules>
         <module>crypto-trading</module>
+        <module>auth-api</module>
     </modules>
     <build>
         <plugins>
