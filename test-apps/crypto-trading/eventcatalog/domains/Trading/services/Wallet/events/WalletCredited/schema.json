@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "id": "urn:event:WalletCredited:1",
+  "id": "urn:akces-domainevent:crypto-trading.WalletCredited:1",
   "additionalProperties": false,
   "type": "object",
   "properties": {

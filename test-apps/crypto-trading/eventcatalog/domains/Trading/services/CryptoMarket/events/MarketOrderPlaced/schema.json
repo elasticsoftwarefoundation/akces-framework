@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "id": "urn:event:MarketOrderPlaced:1",
+  "id": "urn:akces-domainevent:crypto-trading.MarketOrderPlaced:1",
   "additionalProperties": false,
   "type": "object",
   "properties": {

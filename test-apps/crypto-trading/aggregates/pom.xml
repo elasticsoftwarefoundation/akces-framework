@@ -88,6 +88,7 @@
                     <compilerArgs>
                         <arg>-Aeventcatalog.repositoryBaseUrl=https://github.com/elasticsoftwarefoundation/akces-framework/tree/main/test-apps/crypto-trading/aggregates/src/main/java</arg>
                         <arg>-Aeventcatalog.owners=framework-developers</arg>
+                        <arg>-Aeventcatalog.schemaDomain=crypto-trading</arg>
                     </compilerArgs>
                 </configuration>
             </plugin>

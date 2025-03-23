@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "id": "urn:commands:DebitWallet:1",
+  "id": "urn:akces-command:crypto-trading.DebitWallet:1",
   "additionalProperties": false,
   "type": "object",
   "properties": {

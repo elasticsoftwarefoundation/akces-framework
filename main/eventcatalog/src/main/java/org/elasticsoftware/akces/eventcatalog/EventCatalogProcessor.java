@@ -104,8 +104,13 @@ public class EventCatalogProcessor extends AbstractProcessor {
                 "framework-developers"
         ).split("\\s*,\\s*"));
 
+        String schemaDomain = processingEnv.getOptions().getOrDefault(
+                "eventcatalog.schemaDomain",
+                "akces-framework"
+        );
+
         // for each aggregate, generate the catalog entry.
-        generateCatalogEntries(repoBaseUrl,owners);
+        generateCatalogEntries(repoBaseUrl, owners, schemaDomain);
 
         // Mark as processed
         processed = true;
@@ -529,7 +534,7 @@ public class EventCatalogProcessor extends AbstractProcessor {
     }
 
 
-    private void generateCatalogEntries(String repositoryBaseUrl, List<String> owners) {
+    private void generateCatalogEntries(String repositoryBaseUrl, List<String> owners, String schemaDomain) {
         // For each aggregate, find its domain and create service documentation
         for (Map.Entry<AggregateInfo, TypeElement> entry : aggregateCache.entrySet()) {
             AggregateInfo aggregateInfo = entry.getKey();
@@ -628,7 +633,7 @@ public class EventCatalogProcessor extends AbstractProcessor {
                     );
 
                     // Generate command schema
-                    String schema = JsonSchemaGenerator.generate(processingEnv, commandType, "commands", commandInfo.type(), commandInfo.version());
+                    String schema = JsonSchemaGenerator.generate(processingEnv, commandType, "akces-command:" + schemaDomain , commandInfo.type(), commandInfo.version());
 
                     writeToEventCatalog(commandPath, "schema.json", schema);
 
@@ -677,7 +682,7 @@ public class EventCatalogProcessor extends AbstractProcessor {
                     );
 
                     // Generate event schema
-                    String schema = JsonSchemaGenerator.generate(processingEnv, eventType, "event", eventInfo.type(), eventInfo.version());
+                    String schema = JsonSchemaGenerator.generate(processingEnv, eventType,  "akces-domainevent:" + schemaDomain, eventInfo.type(), eventInfo.version());
 
                     writeToEventCatalog(eventPath, "schema.json", schema);
 

@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "id": "urn:commands:CancelReservation:1",
+  "id": "urn:akces-command:crypto-trading.CancelReservation:1",
   "additionalProperties": false,
   "type": "object",
   "properties": {
