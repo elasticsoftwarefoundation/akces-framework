@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "urn:akces-domainevent:crypto-trading.WalletCredited:1",
+  "additionalProperties": false,
+  "type": "object",
+  "properties": {
+    "amount": {
+      "type": "string"
+    },
+    "balance": {
+      "type": "string"
+    },
+    "currency": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "currency",
+    "amount",
+    "balance"
+  ]
+}

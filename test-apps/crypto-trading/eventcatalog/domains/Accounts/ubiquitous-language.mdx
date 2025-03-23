@@ -1,0 +1,22 @@
+---
+dictionary:
+  - id: Account
+    name: Account
+    summary: "A user's identity and profile within the system."
+    icon: User
+    description: |
+      An Account represents the core identity of a user in the system. It contains:
+      - Unique identifier
+      - Personal information (name, email)
+      - Country and locale settings
+      - Account status (active, suspended, verified, closed)
+
+      Accounts are the foundation for all user-related operations and serve as the primary security boundary.
+  - id: UserId
+    name: User ID
+    summary: "A unique identifier associated with a user account."
+    icon: Fingerprint
+    description: |
+      The UserId is a system-generated UUID that uniquely identifies a user account across all services.
+      It serves as the correlation key for all events and commands related to a specific user.
+---

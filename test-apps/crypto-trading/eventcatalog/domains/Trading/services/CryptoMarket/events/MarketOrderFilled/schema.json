@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "urn:akces-domainevent:crypto-trading.MarketOrderFilled:1",
+  "additionalProperties": false,
+  "type": "object",
+  "properties": {
+    "quoteCurrency": {
+      "type": "string"
+    },
+    "counterpartyId": {
+      "type": "string"
+    },
+    "side": {
+      "type": "string",
+      "enum": [
+        "BUY",
+        "SELL"
+      ]
+    },
+    "quantity": {
+      "type": "string"
+    },
+    "orderId": {
+      "type": "string"
+    },
+    "price": {
+      "type": "string"
+    },
+    "ownerId": {
+      "type": "string"
+    },
+    "baseCurrency": {
+      "type": "string"
+    },
+    "marketId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "marketId",
+    "orderId",
+    "ownerId",
+    "counterpartyId",
+    "side",
+    "baseCurrency",
+    "quoteCurrency",
+    "price",
+    "quantity"
+  ]
+}

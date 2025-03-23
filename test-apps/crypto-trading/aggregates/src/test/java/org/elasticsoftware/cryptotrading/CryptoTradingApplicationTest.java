@@ -209,7 +209,7 @@ public class CryptoTradingApplicationTest {
 
     @Test
     @Order(2)
-    void testCreateAllEURMarketsAndMakeATrade() {
+    void testCreateBTCEURMarketAndMakeATrade() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
                 !prderProcessManagerController.isRunning() ||
@@ -218,7 +218,7 @@ public class CryptoTradingApplicationTest {
             Thread.onSpinWait();
         }
         // these are the events in the order we expect
-        String[] eventTypes = new String[]{
+        String[] expectedEventTypes = new String[]{
                 "AccountCreated",
                 "AccountCreated",
                 "WalletCreated",
@@ -246,17 +246,6 @@ public class CryptoTradingApplicationTest {
                         "Limited",
                         "no-reply@coinbase.com"));
 
-        // create all EUR markets
-//        coinbaseService.getProducts().stream().filter(product -> product.quoteCurrency().equals("EUR")).forEach(product -> {
-//            akcesClientController.sendAndForget("TEST", new CreateCryptoMarketCommand(
-//                    product.id(),
-//                    product.baseCurrency(),
-//                    product.quoteCurrency(),
-//                    product.baseIncrement(),
-//                    product.quoteIncrement(),
-//                    counterPartyId
-//            ));
-//        });
         Product product = coinbaseService.getProduct("BTC-EUR");
         akcesClientController.sendAndForget("TEST", new CreateCryptoMarketCommand(
                 product.id(),
@@ -305,14 +294,21 @@ public class CryptoTradingApplicationTest {
                     testConsumer.seekToBeginning(partitions);
                 }
             });
+            List<String> actualEventTypes = new ArrayList<>();
             int count = 0;
-            while (count < 17) {
+            while (count < expectedEventTypes.length) {
                 for (ConsumerRecord<String, ProtocolRecord> record : testConsumer.poll(Duration.ofMillis(100))) {
-                    Assertions.assertEquals(eventTypes[count],record.value().name());
+                    actualEventTypes.add(record.value().name());
                     count++;
                 }
             }
+            Assertions.assertEquals(expectedEventTypes.length, actualEventTypes.size());
+            // check that all events are received (in not particular order)
+            for (String expectedEventType : expectedEventTypes) {
+                Assertions.assertTrue(actualEventTypes.contains(expectedEventType));
+            }
         }
+
     }
 
     public static class Initializer

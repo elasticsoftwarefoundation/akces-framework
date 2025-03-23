@@ -113,14 +113,7 @@ public class JsonSchemaTests {
 
     @Test
     public void testNullableString() throws IOException {
-        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(SchemaVersion.DRAFT_7, OptionPreset.PLAIN_JSON);
-        configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS, JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
-        configBuilder.with(new JacksonModule());
-        configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
-        configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
-        configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
-        SchemaGeneratorConfig config = configBuilder.build();
-        SchemaGenerator generator = new SchemaGenerator(config);
+        SchemaGenerator generator = createSchemaGenerator();
 
         JsonNode schema = generator.generateSchema(InvalidAmountErrorEvent.class);
         JsonSchema jsonSchema = new JsonSchema(schema);
@@ -179,5 +172,16 @@ public class JsonSchemaTests {
         JsonSchema registeredSchema = new JsonSchema(objectMapper.readValue(registeredSchemaString, Schema.class));
 
         Assertions.assertTrue(registeredSchema.deepEquals(localSchema));
+    }
+
+    @Test
+    public void renderSchemas() {
+        SchemaGenerator generator = createSchemaGenerator();
+        // render all schemas for Account aggregate
+        System.out.println(generator.generateSchema(org.elasticsoftware.akcestest.aggregate.account.CreateAccountCommand.class));
+        System.out.println(generator.generateSchema(org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent.class));
+        System.out.println(generator.generateSchema(org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEventV2.class));
+        System.out.println(generator.generateSchema(org.elasticsoftware.akcestest.aggregate.orders.BuyOrderCreatedEvent.class));
+
     }
 }

@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "urn:akces-domainevent:crypto-trading.BuyOrderRejected:1",
+  "additionalProperties": false,
+  "type": "object",
+  "properties": {
+    "orderId": {
+      "type": "string"
+    },
+    "clientReference": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "userId",
+    "orderId",
+    "clientReference"
+  ]
+}

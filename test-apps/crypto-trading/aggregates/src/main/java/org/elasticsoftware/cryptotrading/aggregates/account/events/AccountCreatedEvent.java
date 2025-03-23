@@ -24,7 +24,7 @@ import org.elasticsoftware.akces.annotations.PIIData;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 
-@DomainEventInfo(type = "AccountCreated")
+@DomainEventInfo(type = "AccountCreated", description = "Account created")
 public record AccountCreatedEvent(
         @AggregateIdentifier @NotNull String userId,
         @NotNull String country,

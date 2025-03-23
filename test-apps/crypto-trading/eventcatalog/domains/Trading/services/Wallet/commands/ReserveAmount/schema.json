@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "urn:akces-command:crypto-trading.ReserveAmount:1",
+  "additionalProperties": false,
+  "type": "object",
+  "properties": {
+    "amount": {
+      "type": "string"
+    },
+    "currency": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "referenceId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "userId",
+    "currency",
+    "amount",
+    "referenceId"
+  ]
+}

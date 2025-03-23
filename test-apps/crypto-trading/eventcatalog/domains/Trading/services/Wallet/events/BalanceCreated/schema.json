@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "urn:akces-domainevent:crypto-trading.BalanceCreated:1",
+  "additionalProperties": false,
+  "type": "object",
+  "properties": {
+    "currency": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "currency"
+  ]
+}

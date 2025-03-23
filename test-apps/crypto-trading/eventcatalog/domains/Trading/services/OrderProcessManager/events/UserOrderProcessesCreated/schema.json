@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "urn:akces-domainevent:crypto-trading.UserOrderProcessesCreated:1",
+  "additionalProperties": false,
+  "type": "object",
+  "properties": {
+    "userId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "userId"
+  ]
+}

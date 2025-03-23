@@ -1,0 +1,24 @@
+---
+id: Account
+version: 1.0.0
+name: Account
+summary: Account Aggregate
+owners:
+    - framework-developers
+receives:
+  - id: CreateAccount
+    version: 1.0.0
+sends:
+  - id: AccountCreated
+    version: 1.0.0
+repository:
+  language: Java
+  url: https://github.com/elasticsoftwarefoundation/akces-framework/tree/main/test-apps/crypto-trading/aggregates/src/main/java/org/elasticsoftware/cryptotrading/aggregates/account/Account.java
+---
+import Footer from '@catalog/components/footer.astro';
+
+## Architecture diagram
+
+<NodeGraph />
+
+<Footer />

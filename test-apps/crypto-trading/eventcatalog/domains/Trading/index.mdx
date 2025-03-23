@@ -1,0 +1,88 @@
+---
+id: Trading
+name: Trading
+version: 1.0.0
+owners:
+  - jwijgerd
+  - framework-developers
+services:
+  - id: Wallet
+  - id: OrderProcessManager
+  - id: CryptoMarket
+---
+
+import Footer from '@catalog/components/footer.astro';
+
+## Overview
+
+<Admonition type="info">The Trading domain provides cryptocurrency trading capabilities, managing wallets, orders, and market interactions.</Admonition>
+
+The Trading domain encapsulates all cryptocurrency trading functionality, including wallet management, order processing, and market interactions. It enables users to securely buy, sell, and hold various cryptocurrencies.
+
+<Tiles>
+    <Tile icon="UserGroupIcon" href="/docs/teams/framework-developers" title="Contact the team" description="Questions? Contact the domain owners" />
+    <Tile icon="RectangleGroupIcon" href={`/visualiser/domains/${frontmatter.id}/${frontmatter.version}`} title={`${frontmatter.services.length} services are in this domain`} description="View the services and their interactions" />
+    <Tile icon="BookOpenIcon" href="/domains/Trading/dictionary" title="Domain Dictionary" description="Review the ubiquitous language for this domain" />
+</Tiles>
+
+## Bounded Context
+
+<NodeGraph />
+
+## Key Concepts
+
+The Trading domain is organized around three primary aggregates:
+
+### WalletAggregate
+
+Manages the cryptocurrency holdings for users, tracking balances, deposits, withdrawals, and transfers.
+
+[Explore WalletAggregate](/services/WalletAggregate)
+
+### OrderProcessManager
+
+Handles the lifecycle of trading orders, from creation to fulfillment, coordinating between wallets and markets.
+
+[Explore OrderProcessManager](/services/OrderProcessManager)
+
+### CryptoMarketAggregate
+
+Provides market data and execution capabilities for cryptocurrency trades.
+
+[Explore CryptoMarketAggregate](/services/CryptoMarketAggregate)
+
+### Commands
+
+- CreateWallet - Creates a new cryptocurrency wallet for a user
+- DepositFunds - Adds funds to a user's wallet
+- WithdrawFunds - Removes funds from a user's wallet
+- PlaceOrder - Creates a new buy/sell order
+- CancelOrder - Cancels an existing order
+- UpdateMarketPrice - Updates current market prices for cryptocurrencies
+
+### Events
+
+- WalletCreatedEvent - Emitted when a new wallet is created
+
+## Integration Patterns
+
+The Trading domain integrates with other domains through:
+
+### Event Integration
+
+The Trading domain publishes events that other domains can subscribe to for maintaining consistent views and triggering related processes.
+
+### API Integration
+
+For operations requiring immediate consistency, the Trading domain provides authenticated APIs that other services can call directly.
+
+## Risk Management
+
+The Trading domain implements several risk management controls:
+
+- Transaction limits for deposits and withdrawals
+- Real-time fraud detection for suspicious trading patterns
+- Circuit breakers to halt trading during extreme market volatility
+- Comprehensive audit logging of all financial transactions
+
+<Footer />

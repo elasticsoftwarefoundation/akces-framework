@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "urn:akces-domainevent:crypto-trading.BuyOrderPlaced:1",
+  "additionalProperties": false,
+  "type": "object",
+  "properties": {
+    "market": {
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "baseCrypto": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "quoteCrypto": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "amount": {
+      "type": "string"
+    },
+    "limitPrice": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "orderId": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "userId",
+    "orderId",
+    "market",
+    "amount"
+  ]
+}

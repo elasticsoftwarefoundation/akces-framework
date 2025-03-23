@@ -40,4 +40,6 @@ public @interface AggregateInfo {
     boolean indexed() default false;
 
     String indexName() default "UNDEFINED";
+
+    String description() default "";
 }

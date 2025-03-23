@@ -126,7 +126,7 @@ public class CryptoTradingQueryApiTest {
     AkcesAggregateController accountController;
     @Inject
     @Qualifier("OrderProcessManagerAkcesController")
-    AkcesAggregateController prderProcessManagerController;
+    AkcesAggregateController orderProcessManagerController;
     @Inject
     @Qualifier("CryptoMarketAkcesController")
     AkcesAggregateController cryptoMarketController;
@@ -163,7 +163,7 @@ public class CryptoTradingQueryApiTest {
     void contextLoads() {
         assertThat(walletController).isNotNull();
         assertThat(accountController).isNotNull();
-        assertThat(prderProcessManagerController).isNotNull();
+        assertThat(orderProcessManagerController).isNotNull();
         assertThat(akcesClientController).isNotNull();
         assertThat(cryptoMarketController).isNotNull();
 
@@ -174,7 +174,7 @@ public class CryptoTradingQueryApiTest {
 
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
-                !prderProcessManagerController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
                 !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
@@ -205,7 +205,7 @@ public class CryptoTradingQueryApiTest {
     void testCreateAccount() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
-                !prderProcessManagerController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
                 !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
@@ -232,7 +232,7 @@ public class CryptoTradingQueryApiTest {
     void testCreateAccountAndCreditWallet() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
-                !prderProcessManagerController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
                 !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
@@ -268,7 +268,7 @@ public class CryptoTradingQueryApiTest {
     void testCreateAccountAndCreditWalletWithoutBalance() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
-                !prderProcessManagerController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
                 !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
@@ -303,7 +303,7 @@ public class CryptoTradingQueryApiTest {
     void testCreateAccountAndAddBtcBalance() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
-                !prderProcessManagerController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
                 !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
@@ -333,7 +333,7 @@ public class CryptoTradingQueryApiTest {
     void testGetAccount() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
-                !prderProcessManagerController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
                 !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
@@ -370,7 +370,7 @@ public class CryptoTradingQueryApiTest {
     void testInvalidApiVersion() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
-                !prderProcessManagerController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
                 !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
@@ -385,7 +385,7 @@ public class CryptoTradingQueryApiTest {
     void testCryptoMarkets() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
-                !prderProcessManagerController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
                 !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
@@ -403,7 +403,7 @@ public class CryptoTradingQueryApiTest {
     void testCryptoMarket() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
-                !prderProcessManagerController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
                 !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
@@ -429,7 +429,7 @@ public class CryptoTradingQueryApiTest {
     void testPlaceBuyOrder() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
-                !prderProcessManagerController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
                 !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();

@@ -24,7 +24,7 @@ import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.data.Side;
 
 import java.math.BigDecimal;
 
-@CommandInfo(type = "PlaceMarketOrder", version = 1)
+@CommandInfo(type = "PlaceMarketOrder", version = 1, description = "Place a market order")
 public record PlaceMarketOrderCommand(@NotNull String marketId,
                                       @NotNull String orderId,
                                       @NotNull String ownerId,

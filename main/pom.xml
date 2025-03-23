@@ -41,6 +41,7 @@
         <java-uuid-generator.version>5.1.0</java-uuid-generator.version>
         <rocksdb.version>9.10.0</rocksdb.version>
         <semver4j.version>5.6.0</semver4j.version>
+        <auto-service.version>1.1.1</auto-service.version>
         <!-- testing -->
         <testng-version>7.11.0</testng-version>
         <awaitility.version>4.3.0</awaitility.version>
@@ -54,6 +55,7 @@
         <joda-time.version>2.13.1</joda-time.version>
         <logback.version>1.5.17</logback.version>
         <testcontainers.version>1.20.6</testcontainers.version>
+        <compile-testing.version>0.21.0</compile-testing.version>
     </properties>
 
     <scm>
@@ -455,6 +457,16 @@
                 <artifactId>rocksdbjni</artifactId>
                 <version>${rocksdb.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.google.testing.compile</groupId>
+                <artifactId>compile-testing</artifactId>
+                <version>${compile-testing.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.auto.service</groupId>
+                <artifactId>auto-service</artifactId>
+                <version>${auto-service.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -464,6 +476,7 @@
         <module>client</module>
         <module>shared</module>
         <module>query-support</module>
+        <module>eventcatalog</module>
     </modules>
 
     <build>
