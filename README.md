@@ -34,6 +34,7 @@ Akces leverages Kafka's distributed architecture for reliable event storage and 
 - **State Reconstruction**: Rebuild aggregate state by replaying events
 - **Event Handlers**: React to events to trigger additional processes
 - **Event Bridging**: Connect events from one aggregate to commands on another
+- **Upcasting**: Support for evolving events and state schemas over time
 
 ### Aggregate Management
 
@@ -48,11 +49,12 @@ Akces leverages Kafka's distributed architecture for reliable event storage and 
 - **State Hydration**: Efficiently load and cache query model state
 - **Database Integration**: Support for both JDBC and JPA database models
 - **Event-Driven Updates**: Keep read models in sync with write models
+- **Caching**: Built-in caching mechanism for improved read performance
 
 ### Privacy & GDPR
 
 - **PII Data Protection**: Automatic encryption of personal data
-- **Transparent Handling**: Annotation-based marking of sensitive fields
+- **Transparent Handling**: Annotation-based marking of sensitive fields (`@PIIData`)
 - **Key Management**: Secure handling of encryption keys
 - **Context-Aware Processing**: Apply encryption based on context
 
@@ -79,6 +81,7 @@ Akces is organized into several Maven modules:
 - **shared**: Common utilities, serialization, and GDPR functionality
 - **client**: Client library for sending commands and processing responses
 - **query-support**: Support for query models and database models
+- **eventcatalog**: Annotation processor for generating API documentation
 
 ## Getting Started
 
@@ -94,32 +97,42 @@ Akces is organized into several Maven modules:
 Add the following to your `pom.xml`:
 
 ```xml
+<dependencies>
 <dependency>
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-api</artifactId>
-    <version>0.9.0</version>
+    <version>0.9.1</version>
 </dependency>
 
 <!-- For command senders -->
 <dependency>
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-client</artifactId>
-    <version>0.9.0</version>
+    <version>0.9.1</version>
 </dependency>
 
 <!-- For aggregate services -->
 <dependency>
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-runtime</artifactId>
-    <version>0.9.0</version>
+    <version>0.9.1</version>
 </dependency>
 
 <!-- For query models and database models -->
 <dependency>
     <groupId>org.elasticsoftwarefoundation.akces</groupId>
     <artifactId>akces-query-support</artifactId>
-    <version>0.9.0</version>
+    <version>0.9.1</version>
 </dependency>
+
+<!-- For API documentation generation -->
+<dependency>
+    <groupId>org.elasticsoftwarefoundation.akces</groupId>
+    <artifactId>akces-eventcatalog</artifactId>
+    <version>0.9.1</version>
+    <scope>provided</scope>
+</dependency>
+</dependencies>
 ```
 
 ### Configuration
@@ -154,6 +167,9 @@ akces:
     url: http://localhost:8081
   rocksdb:
     baseDir: /tmp/akces
+  aggregate:
+    schemas:
+      forceRegister: false  # Set to true to force schema registration even if incompatible
 ```
 
 ## Usage Examples
@@ -186,7 +202,7 @@ public final class Wallet implements Aggregate<WalletState> {
         return new WalletState(state.id(), balances);
     }
     
-    @CommandHandler(produces = {WalletCreditedEvent.class})
+    @CommandHandler(produces = {WalletCreditedEvent.class}, errors = {InvalidCurrencyErrorEvent.class, InvalidAmountErrorEvent.class})
     public Stream<DomainEvent> credit(CreditWalletCommand cmd, WalletState currentState) {
         WalletState.Balance balance = currentState.balances().stream()
                 .filter(b -> b.currency().equals(cmd.currency()))
@@ -212,6 +228,7 @@ public final class Wallet implements Aggregate<WalletState> {
 ### Defining the Aggregate State
 
 ```java
+@AggregateStateInfo(type = "WalletState", version = 1)
 public record WalletState(String id, List<Balance> balances) implements AggregateState {
     @Override
     public String getAggregateId() {
@@ -522,7 +539,7 @@ public class WalletDatabaseModel extends JdbcDatabaseModel {
 Akces provides built-in support for handling personal identifiable information (PII):
 
 ```java
-@AggregateStateInfo(value = "UserState", version = 1)
+@AggregateStateInfo(type = "UserState", version = 1)
 public record UserState(
     @AggregateIdentifier 
     String userId,
@@ -548,8 +565,58 @@ public record UserState(
 With this annotation, the framework automatically:
 - Encrypts PII data before storing it
 - Decrypts PII data when loading it
-- Manages encryption keys securely
+- Manages encryption keys securely through a dedicated Kafka topic
 - Ensures only authorized access to decrypted data
+
+### Schema Evolution
+
+Akces supports evolving your domain model over time:
+
+```java
+// Original version
+@DomainEventInfo(type = "AccountCreated", version = 1)
+public record AccountCreatedEvent(
+    @AggregateIdentifier String userId,
+    String country,
+    String firstName,
+    String lastName,
+    String email
+) implements DomainEvent { 
+    @Override
+    public String getAggregateId() {
+        return userId();
+    }
+}
+
+// New version with additional field
+@DomainEventInfo(type = "AccountCreated", version = 2)
+public record AccountCreatedEventV2(
+    @AggregateIdentifier String userId,
+    String country,
+    String firstName,
+    String lastName,
+    String email,
+    Boolean twoFactorEnabled
+) implements DomainEvent {
+    @Override
+    public String getAggregateId() {
+        return userId();
+    }
+}
+
+// The upcasting handler
+@UpcastingHandler
+public AccountCreatedEventV2 cast(AccountCreatedEvent event) {
+    return new AccountCreatedEventV2(
+        event.userId(), 
+        event.country(), 
+        event.firstName(), 
+        event.lastName(), 
+        event.email(), 
+        false // Default value for new field
+    );
+}
+```
 
 ### Process Managers
 
@@ -622,56 +689,6 @@ public class OrderProcessManager implements ProcessManager<OrderProcessManagerSt
 }
 ```
 
-## Schema Evolution
-
-Akces supports evolving your domain model over time:
-
-```java
-// Original version
-@DomainEventInfo(type = "AccountCreated", version = 1)
-public record AccountCreatedEvent(
-    @AggregateIdentifier String userId,
-    String country,
-    String firstName,
-    String lastName,
-    String email
-) implements DomainEvent { 
-    @Override
-    public String getAggregateId() {
-        return userId();
-    }
-}
-
-// New version with additional field
-@DomainEventInfo(type = "AccountCreated", version = 2)
-public record AccountCreatedEventV2(
-    @AggregateIdentifier String userId,
-    String country,
-    String firstName,
-    String lastName,
-    String email,
-    Boolean twoFactorEnabled
-) implements DomainEvent {
-    @Override
-    public String getAggregateId() {
-        return userId();
-    }
-}
-
-// The upcasting handler
-@UpcastingHandler
-public AccountCreatedEventV2 cast(AccountCreatedEvent event) {
-    return new AccountCreatedEventV2(
-        event.userId(), 
-        event.country(), 
-        event.firstName(), 
-        event.lastName(), 
-        event.email(), 
-        false // Default value for new field
-    );
-}
-```
-
 ## Running the Framework
 
 ### Aggregate Service
@@ -680,7 +697,9 @@ public AccountCreatedEventV2 cast(AccountCreatedEvent event) {
 @SpringBootApplication
 public class AggregateServiceApplication {
     public static void main(String[] args) {
-        SpringApplication.run(AggregateServiceApplication.class, args);
+        SpringApplication application = new SpringApplication(AggregateServiceApplication.class);
+        application.setSources(Set.of(args));
+        application.run();
     }
 }
 ```
@@ -691,18 +710,22 @@ public class AggregateServiceApplication {
 @SpringBootApplication
 public class QueryServiceApplication {
     public static void main(String[] args) {
-        SpringApplication.run(QueryServiceApplication.class, args);
+        SpringApplication application = new SpringApplication(QueryServiceApplication.class);
+        application.setSources(Set.of(args));
+        application.run();
     }
 }
 ```
 
-### Client Application
+### Command Service
 
 ```java
 @SpringBootApplication
-public class ClientApplication {
+public class CommandServiceApplication {
     public static void main(String[] args) {
-        SpringApplication.run(ClientApplication.class, args);
+        SpringApplication application = new SpringApplication(CommandServiceApplication.class);
+        application.setSources(Set.of(args));
+        application.run();
     }
 }
 ```
@@ -717,6 +740,38 @@ public class ClientApplication {
 - **Evolution**: Schema evolution with backward compatibility checks
 - **Developer Experience**: Intuitive annotation-based programming model
 - **Observability**: Complete visibility into all commands and events
+
+## API Documentation Generation
+
+Akces includes an annotation processor that can generate EventCatalog-compatible documentation for your commands and events:
+
+```xml
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <configuration>
+                <annotationProcessorPaths>
+                    <path>
+                        <groupId>org.elasticsoftwarefoundation.akces</groupId>
+                        <artifactId>akces-eventcatalog</artifactId>
+                        <version>0.9.1</version>
+                    </path>
+                </annotationProcessorPaths>
+                <annotationProcessors>
+                    <annotationProcessor>org.elasticsoftware.akces.eventcatalog.EventCatalogProcessor</annotationProcessor>
+                </annotationProcessors>
+                <compilerArgs>
+                    <arg>-Aakces.eventcatalog.repoBaseUrl=https://github.com/yourusername/yourrepo/blob/main/</arg>
+                    <arg>-Aakces.eventcatalog.owners=team1,team2</arg>
+                    <arg>-Aakces.eventcatalog.schemaDomain=example.com</arg>
+                </compilerArgs>
+            </configuration>
+        </plugin>
+    </plugins>
+</build>
+```
 
 ## License
 
