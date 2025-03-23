@@ -43,6 +43,11 @@ import static java.util.Objects.requireNonNull;
         "org.elasticsoftware.akces.annotations.EventHandler"
 })
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
+@SupportedOptions({
+        "eventcatalog.owners",
+        "eventcatalog.repositoryBaseUrl",
+        "eventcatalog.schemaDomain"
+})
 @AutoService(Processor.class)
 public class EventCatalogProcessor extends AbstractProcessor {
 

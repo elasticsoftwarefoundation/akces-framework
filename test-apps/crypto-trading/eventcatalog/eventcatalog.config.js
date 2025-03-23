@@ -6,9 +6,9 @@
       homepageLink: 'https://github.com/elasticsoftwarefoundation/akces-framework/',
       editUrl: 'https://github.com/elasticsoftwarefoundation/akces-framework/edit/master',
       // By default set to false, add true to get urls ending in /
-      trailingSlash: false,
+      trailingSlash: true,
       // Base URL for the site
-      base: '/',
+      base: '/akces-framework/',
       // Customize the logo
       logo: {
         alt: 'AKCES Framework Logo',
