@@ -90,6 +90,7 @@
     </dependencyManagement>
     <modules>
         <module>operator</module>
+        <module>mcp-server</module>
     </modules>
     <build>
         <plugins>
