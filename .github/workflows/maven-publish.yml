@@ -11,7 +11,7 @@ jobs:
   build:
     concurrency: release
     name: Release to Github Packages
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       packages: write
