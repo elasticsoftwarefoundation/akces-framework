@@ -17,13 +17,13 @@
 
 package org.elasticsoftware.akcestest.aggregate.wallet;
 
+import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.ErrorEvent;
 
-import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 
 @DomainEventInfo(type = "InsufficientFundsError")

@@ -750,7 +750,7 @@ import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.ErrorEvent;
 
-import javax.annotation.Nonnull;
+import jakarta.annotation.Nonnull;
 import java.math.BigDecimal;
 
 @DomainEventInfo(type = "InsufficientFundsError")
@@ -775,7 +775,7 @@ import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.ErrorEvent;
 
-import javax.annotation.Nonnull;
+import jakarta.annotation.Nonnull;
 
 @DomainEventInfo(type = "InvalidCurrencyError")
 public record InvalidCurrencyErrorEvent(
