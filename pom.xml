@@ -230,6 +230,7 @@
                     <argLine>
                         -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar
                         -Xshare:off
+                        --add-opens=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED
                     </argLine>
                     <systemPropertyVariables>
                         <log4j2.is.webapp>false</log4j2.is.webapp>
