@@ -87,7 +87,7 @@ jobs:
         compile
         test-compile
         -U
-    - name: Verify with Maven
+    - name: Install with Maven
       run: >
         mvn
         --show-version
@@ -96,7 +96,7 @@ jobs:
         --activate-profiles ci
         --file pom.xml
         --settings $GITHUB_WORKSPACE/settings.xml
-        verify
+        install
         -U
 
     - name: Perform CodeQL Analysis
