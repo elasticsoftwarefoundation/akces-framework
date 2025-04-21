@@ -10,7 +10,7 @@ on:
 jobs:
   build:
     concurrency: release
-    name: Release to Github Packages
+    name: Release to Maven Central
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -25,9 +25,9 @@ jobs:
           distribution: temurin
           java-version: 21
           check-latest: true
-          server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
-          server-username: GITHUB_ACTOR # env variable for username in deploy
-          server-password: GITHUB_TOKEN # env variable for token in deploy
+          server-id: central # Value of the distributionManagement/repository/id field of the pom.xml
+          server-username: MAVEN_USERNAME # env variable for username in deploy
+          server-password: MAVEN_CENTRAL_TOKEN # env variable for token in deploy
           settings-path: ${{ github.workspace }}
       - name: Cache Maven packages
         uses: actions/cache@v4
@@ -41,7 +41,7 @@ jobs:
           --show-version
           --batch-mode
           --no-transfer-progress
-          --activate-profiles maven-release
+          --activate-profiles release
           --file pom.xml
           --settings $GITHUB_WORKSPACE/settings.xml
           clean
@@ -55,24 +55,31 @@ jobs:
           --show-version
           --batch-mode
           --no-transfer-progress
-          --activate-profiles maven-release
+          --activate-profiles release
           --file pom.xml
           --settings $GITHUB_WORKSPACE/settings.xml
           install
           -DskipTests
-      - name: Publish to Github Packages
+        env:
+          SIGN_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          SIGN_KEY_PASS: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+      - name: Publish to Maven Central
         run: >
           mvn
           --show-version
           --batch-mode
           --no-transfer-progress
-          --activate-profiles maven-release
+          --activate-profiles release
           --file pom.xml
           --settings $GITHUB_WORKSPACE/settings.xml
           deploy
           -DskipTests
+          -Dmaven.install.skip=true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SIGN_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          SIGN_KEY_PASS: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+          MAVEN_USERNAME: ${{ secrets.CENTRAL_PUBLISHER_MAVEN_USERNAME }}
+          MAVEN_CENTRAL_TOKEN: ${{ secrets.CENTRAL_PUBLISHER_MAVEN_CENTRAL_TOKEN }}
           MAVEN_OPTS: "--add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.text=ALL-UNNAMED --add-opens=java.desktop/java.awt.font=ALL-UNNAMED"
       - name: Publish Services Docker Images
         working-directory: ${{ github.workspace }}/services
