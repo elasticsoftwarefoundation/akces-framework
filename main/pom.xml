@@ -47,7 +47,7 @@
         <awaitility.version>4.3.0</awaitility.version>
         <persistence-api.version>2.2</persistence-api.version>
         <plexus-utils.version>4.0.2</plexus-utils.version>
-        <netty.version>4.1.119.Final</netty.version>
+        <netty.version>4.2.0.Final</netty.version>
         <micrometer.version>1.14.6</micrometer.version>
         <fast-uuid.version>0.2.0</fast-uuid.version>
         <confluent.version>7.9.0</confluent.version>
