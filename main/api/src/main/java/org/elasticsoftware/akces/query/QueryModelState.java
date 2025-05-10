@@ -18,10 +18,10 @@
 package org.elasticsoftware.akces.query;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 
 public interface QueryModelState {
     @JsonIgnore
-    @NotNull
+    @Nonnull
     String getIndexKey();
 }

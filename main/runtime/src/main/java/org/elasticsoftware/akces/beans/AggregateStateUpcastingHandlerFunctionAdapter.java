@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.beans;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.aggregate.AggregateStateType;
@@ -62,7 +62,7 @@ public class AggregateStateUpcastingHandlerFunctionAdapter<T extends AggregateSt
 
     @Override
     @SuppressWarnings("unchecked")
-    public R apply(@NotNull T state) {
+    public R apply(@Nonnull T state) {
         try {
             return (R) methodHandle.invoke(aggregate, state);
         } catch (WrongMethodTypeException | ClassCastException e) {

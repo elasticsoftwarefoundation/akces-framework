@@ -17,8 +17,8 @@
 
 package org.elasticsoftware.akces.aggregate;
 
+import jakarta.annotation.Nonnull;
 import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.commands.CommandBusHolder;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -29,7 +29,7 @@ import java.util.stream.Stream;
 @FunctionalInterface
 public interface EventHandlerFunction<S extends AggregateState, InputEvent extends DomainEvent, E extends DomainEvent> {
     @NotEmpty
-    Stream<E> apply(@NotNull InputEvent event, S state);
+    Stream<E> apply(@Nonnull InputEvent event, S state);
 
     default DomainEventType<InputEvent> getEventType() {
         throw new UnsupportedOperationException("When implementing EventHandlerFunction directly, you must override getEventType()");

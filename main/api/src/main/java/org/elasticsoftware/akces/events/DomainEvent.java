@@ -18,10 +18,10 @@
 package org.elasticsoftware.akces.events;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 
 public interface DomainEvent {
     @JsonIgnore
-    @NotNull
+    @Nonnull
     String getAggregateId();
 }

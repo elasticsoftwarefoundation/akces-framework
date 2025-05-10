@@ -17,7 +17,7 @@
 
  package org.elasticsoftware.akces.query.database.beans;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils;
@@ -67,7 +67,7 @@ import java.lang.invoke.MethodType;
      }
 
      @Override
-     public void accept(@NotNull E event) {
+     public void accept(@Nonnull E event) {
          try {
              adapterMethodHandle.invoke(databaseModel, event);
          } catch (Throwable e) {

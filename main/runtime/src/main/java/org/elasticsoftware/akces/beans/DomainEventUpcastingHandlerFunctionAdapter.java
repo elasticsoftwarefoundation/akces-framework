@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.beans;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
@@ -61,7 +61,7 @@ public class DomainEventUpcastingHandlerFunctionAdapter<T extends DomainEvent, R
 
     @Override
     @SuppressWarnings("unchecked")
-    public R apply(@NotNull T event) {
+    public R apply(@Nonnull T event) {
         try {
             return (R) methodHandle.invoke(aggregate, event);
         } catch (WrongMethodTypeException | ClassCastException e) {

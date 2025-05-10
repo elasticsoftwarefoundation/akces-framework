@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.beans;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
@@ -68,7 +68,7 @@ public class EventHandlerFunctionAdapter<S extends AggregateState, InputEvent ex
 
     @Override
     @SuppressWarnings("unchecked")
-    public Stream<E> apply(@NotNull InputEvent event, S state) {
+    public Stream<E> apply(@Nonnull InputEvent event, S state) {
         try {
             return (Stream<E>) methodHandle.invoke(aggregate, event, state);
         } catch (WrongMethodTypeException | ClassCastException e) {

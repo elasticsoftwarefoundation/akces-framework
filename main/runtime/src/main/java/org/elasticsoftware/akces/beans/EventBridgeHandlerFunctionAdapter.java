@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.beans;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
@@ -57,7 +57,7 @@ public class EventBridgeHandlerFunctionAdapter<S extends AggregateState, E exten
     }
 
     @Override
-    public void apply(@NotNull E event, CommandBus commandBus) {
+    public void apply(@Nonnull E event, CommandBus commandBus) {
         try {
             methodHandle.invoke(aggregate, event, commandBus);
         } catch (WrongMethodTypeException | ClassCastException e) {

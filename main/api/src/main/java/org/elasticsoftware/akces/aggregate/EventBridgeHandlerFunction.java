@@ -17,13 +17,13 @@
 
 package org.elasticsoftware.akces.aggregate;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 @FunctionalInterface
 public interface EventBridgeHandlerFunction<S extends AggregateState,E extends DomainEvent> {
-    void apply(@NotNull E event, @NotNull CommandBus commandBus);
+    void apply(@Nonnull E event, @Nonnull CommandBus commandBus);
 
     default DomainEventType<E> getEventType() {
         throw new UnsupportedOperationException("When implementing EventBridgeHandlerFunction directly, you must override getEventType()");

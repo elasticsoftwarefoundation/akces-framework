@@ -17,13 +17,13 @@
 
 package org.elasticsoftware.akces.query;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 @FunctionalInterface
 public interface DatabaseModelEventHandlerFunction<E extends DomainEvent> {
-    void accept(@NotNull E event);
+    void accept(@Nonnull E event);
 
     default DomainEventType<E> getEventType() {
         throw new UnsupportedOperationException("When implementing QueryModelEventHandlerFunction directly, you must override getEventType()");

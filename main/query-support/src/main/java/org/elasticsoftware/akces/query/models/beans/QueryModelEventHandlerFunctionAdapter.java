@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.query.models.beans;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.query.QueryModel;
@@ -75,7 +75,7 @@ public class QueryModelEventHandlerFunctionAdapter<S extends QueryModelState, E 
     }
 
     @Override
-    public @NotNull S apply(@NotNull E event, S state) {
+    public @Nonnull S apply(@Nonnull E event, S state) {
         try {
             return (S) adapterMethodHandle.invoke(queryModel, event, state);
         } catch (Throwable e) {

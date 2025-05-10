@@ -18,10 +18,10 @@
 package org.elasticsoftware.akces.processmanager;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 
 public interface AkcesProcess {
     @JsonIgnore
-    @NotNull
+    @Nonnull
     String getProcessId();
 }

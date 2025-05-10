@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.aggregate;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.commands.CommandBusHolder;
@@ -28,8 +28,8 @@ import java.util.stream.Stream;
 
 @FunctionalInterface
 public interface CommandHandlerFunction<S extends AggregateState, C extends Command, E extends DomainEvent> {
-    @NotNull
-    Stream<E> apply(@NotNull C command, S state);
+    @Nonnull
+    Stream<E> apply(@Nonnull C command, S state);
 
     default boolean isCreate() {
         throw new UnsupportedOperationException("When implementing CommandHandlerFunction directly, you must override isCreate()");

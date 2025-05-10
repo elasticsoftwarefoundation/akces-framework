@@ -18,15 +18,15 @@
 package org.elasticsoftware.akces.aggregate;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 
 public interface AggregateState {
     @JsonIgnore
-    @NotNull
+    @Nonnull
     String getAggregateId();
 
     @JsonIgnore
-    @NotNull
+    @Nonnull
     default String getIndexKey() {
         return getAggregateId();
     }

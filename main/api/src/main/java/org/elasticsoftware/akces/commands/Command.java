@@ -18,10 +18,10 @@
 package org.elasticsoftware.akces.commands;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 
 public interface Command {
     @JsonIgnore
-    @NotNull
+    @Nonnull
     String getAggregateId();
 }
