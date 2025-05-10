@@ -151,7 +151,7 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
     private void aggregateAlreadyExists(ProtocolRecord commandOrDomainEventRecord,
                                         Consumer<ProtocolRecord> protocolRecordConsumer) {
         AggregateAlreadyExistsErrorEvent errorEvent = new AggregateAlreadyExistsErrorEvent(commandOrDomainEventRecord.aggregateId(), this.getName());
-        DomainEventType<?> type = getDomainEventType(AggregateAlreadyExistsErrorEvent.class);
+        DomainEventType<?> type = getDomainEventType(errorEvent.getClass());
         DomainEventRecord eventRecord = new DomainEventRecord(
                 commandOrDomainEventRecord.tenantId(),
                 type.typeName(),
@@ -178,7 +178,7 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
                 this.getName(),
                 commandRecord.name(),
                 errorDescription);
-        DomainEventType<?> type = getDomainEventType(AggregateAlreadyExistsErrorEvent.class);
+        DomainEventType<?> type = getDomainEventType(errorEvent.getClass());
         DomainEventRecord eventRecord = new DomainEventRecord(
                 commandRecord.tenantId(),
                 type.typeName(),
@@ -265,7 +265,7 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
                                BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer,
                                Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
         // it is possible to receive a command that doesn't have PIIData. However it could be that the state
-        // does have PIIData. in that case we need to load the proper
+        // does have PIIData. in that case we need to load the proper GDPRContext
         Command command = materialize(commandType, commandRecord);
         AggregateStateRecord currentStateRecord = stateRecordSupplier.get();
         AggregateState currentState = materialize(currentStateRecord);
