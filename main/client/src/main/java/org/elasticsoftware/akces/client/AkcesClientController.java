@@ -289,7 +289,8 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                         serialize(commandRequest.command()),
                         PayloadEncoding.JSON,
                         commandRequest.command().getAggregateId(),
-                        commandRequest.correlationId() != null ? commandRequest.correlationId() : UUID.randomUUID().toString(), commandResponsePartition.toString());
+                        commandRequest.correlationId() != null ? commandRequest.correlationId() : UUID.randomUUID().toString(),
+                        commandResponsePartition.toString());
                 // create the ProducerRecord
                 ProducerRecord<String, ProtocolRecord> producerRecord =
                         new ProducerRecord<>(

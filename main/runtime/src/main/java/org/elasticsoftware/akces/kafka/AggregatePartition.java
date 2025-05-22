@@ -458,7 +458,10 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         String autoOffsetResetConfig = (String) Optional.ofNullable(consumerFactory.getConfigurationProperties()
                 .get(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG)).orElse("latest");
         if ("latest".equals(autoOffsetResetConfig)) {
-            List<TopicPartition> topicPartitions = Stream.concat(Stream.of(commandPartition, domainEventPartition, statePartition), externalEventPartitions.stream()).toList();
+            List<TopicPartition> topicPartitions = Stream.concat(Stream.concat(
+                            Stream.of(commandPartition, domainEventPartition, statePartition),
+                            runtime.shouldHandlePIIData() ? Stream.of(gdprKeyPartition) : Stream.empty()),
+                            externalEventPartitions.stream()).toList();
             final Map<TopicPartition, Long> beginningOffsets = consumer.beginningOffsets(topicPartitions);
             final Map<TopicPartition, OffsetAndMetadata> committedOffsets = consumer.committed(new HashSet<>(topicPartitions));
             final Map<TopicPartition, OffsetAndMetadata> uncommittedTopicPartitions = new HashMap<>();
