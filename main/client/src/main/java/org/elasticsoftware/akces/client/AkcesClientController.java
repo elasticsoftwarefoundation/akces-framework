@@ -493,7 +493,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
             AggregateServiceCommandType commandType = resolveCommandType(type, version);
             if (commandType != null) {
                 // see if we have a schema for this command
-                ParsedSchema schema = schemaRegistry.validate(commandType.toLocalCommandType(commandClass));
+                ParsedSchema schema = schemaRegistry.validate(commandType.toExternalCommandType(commandClass));
                 commandSchemas.computeIfAbsent(
                         commandType.typeName(),
                         k -> new ConcurrentHashMap<>()).put(commandType.version(), schema);

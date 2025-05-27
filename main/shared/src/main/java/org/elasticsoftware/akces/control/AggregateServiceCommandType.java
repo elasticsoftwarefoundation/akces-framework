@@ -28,7 +28,7 @@ public record AggregateServiceCommandType(
         boolean create,
         String schemaName
 ) {
-    public <C extends Command> CommandType<C> toLocalCommandType(Class<C> typeClass) {
+    public <C extends Command> CommandType<C> toExternalCommandType(Class<C> typeClass) {
         return new CommandType<>(typeName, version, typeClass, create, true, hasPIIDataAnnotation(typeClass));
     }
 }

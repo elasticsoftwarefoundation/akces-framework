@@ -31,30 +31,6 @@ public final class PartitionUtils {
     private PartitionUtils() {
     }
 
-    public static Map<Integer, AggregatePartition> toAggregatePartitions(Collection<TopicPartition> topicPartitions) {
-        Set<Integer> partitions = topicPartitions.stream().map(TopicPartition::partition).collect(Collectors.toSet());
-        Map<Integer, AggregatePartition> aggregatePartitions = new HashMap<>();
-        partitions.forEach(partition -> {
-            Set<TopicPartition> aggregatePartition = topicPartitions.stream().filter(topicPartition ->
-                    topicPartition.partition() == partition &&
-                            (topicPartition.topic().endsWith(COMMANDS_SUFFIX) ||
-                                    topicPartition.topic().endsWith(DOMAINEVENTS_SUFFIX) ||
-                                    topicPartition.topic().endsWith(AGGREGRATESTATE_SUFFIX))).collect(Collectors.toSet());
-            if (aggregatePartition.size() == 3) {
-                TopicPartition command = aggregatePartition.stream().filter(topicPartition ->
-                        topicPartition.topic().endsWith(COMMANDS_SUFFIX)).findFirst().orElseThrow();
-                TopicPartition domainEvent = aggregatePartition.stream().filter(topicPartition ->
-                        topicPartition.topic().endsWith(DOMAINEVENTS_SUFFIX)).findFirst().orElseThrow();
-                TopicPartition aggregateState = aggregatePartition.stream().filter(topicPartition ->
-                        topicPartition.topic().endsWith(AGGREGRATESTATE_SUFFIX)).findFirst().orElseThrow();
-                //aggregatePartitions.put(partition, new AggregatePartition(consumer, producer, partition, command, domainEvent, aggregateState));
-            } else {
-                throw new NoSuchElementException("Partition " + partition + " is incomplete, found " + aggregatePartition);
-            }
-        });
-        return aggregatePartitions;
-    }
-
     public static TopicPartition toCommandTopicPartition(AggregateRuntime aggregate, int partition) {
         return new TopicPartition(aggregate.getName() + COMMANDS_SUFFIX, partition);
     }
@@ -69,11 +45,6 @@ public final class PartitionUtils {
 
     public static TopicPartition toGDPRKeysTopicPartition(AggregateRuntime aggregate, int partition) {
         return new TopicPartition("Akces-GDPRKeys", partition);
-    }
-
-    public static List<TopicPartition> toExternalDomainEventTopicPartitions(AggregateRuntime aggregate, int partition) {
-        return aggregate.getExternalDomainEventTypes().stream().map(externalDomainEvent ->
-                new TopicPartition(externalDomainEvent.typeName() + DOMAINEVENTS_SUFFIX, partition)).collect(Collectors.toList());
     }
 
     public static TopicPartition parseReplyToTopicPartition(String replyTo) {
