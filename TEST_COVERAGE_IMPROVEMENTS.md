@@ -35,7 +35,7 @@ Missing unit tests for utility classes.
 
 ## Test Cases Added
 
-### Shared Module Tests (6 new test files)
+### Shared Module Tests (6 test files)
 
 #### 1. GDPRKeyUtilsTests.java
 Tests for cryptographic key generation and UUID validation:
@@ -98,43 +98,30 @@ Tests for BigDecimal JSON serialization:
 - `testSerializeInObjectContext()` - Integration with Jackson ObjectMapper
 - Coverage: 100% of serialize method + format visitor
 
-### API Module Tests (2 new test files)
+## Note on Testing Philosophy
 
-#### 7. CommandTypeTests.java
-Tests for command type metadata:
-- `testCommandTypeCreation()` - Record construction
-- `testGetSchemaPrefix()` - Schema prefix validation ("commands.")
-- `testRelaxExternalValidation()` - Validation behavior (always false)
-- `testCommandTypeWithPIIData()` - PII flag handling
-- `testCommandTypeEquality()` - Record equality semantics
-- Coverage: 100% of public methods
+Per framework guidelines, we do not create dedicated unit tests for:
+- **Java Records** (like CommandType, DomainEventType) - Test their usage in context
+- **Java Annotations** - Test their effects through annotated classes
+- **Java Interfaces** - Test implementations, not interface definitions
+- **Exception Classes** - Test exception handling, not exceptions themselves
 
-#### 8. DomainEventTypeTests.java
-Tests for domain event type metadata:
-- `testDomainEventTypeCreation()` - Record construction with all flags
-- `testGetSchemaPrefix()` - Schema prefix validation ("domainevents.")
-- `testRelaxExternalValidation()` - External validation relaxation (true)
-- `testDomainEventTypeWithErrorFlag()` - Error event handling
-- `testDomainEventTypeWithExternalFlag()` - External event handling
-- `testDomainEventTypeEquality()` - Record equality
-- Coverage: 100% of public methods
+These constructs are tested indirectly through integration tests and usage in other components.
 
 ## Test Coverage Improvements Summary
 
 ### Metrics
-- **Total New Test Files**: 8
-- **Total New Test Methods**: ~50
-- **Lines of Test Code Added**: ~700
+- **Total New Test Files**: 6
+- **Total New Test Methods**: ~40
+- **Lines of Test Code Added**: ~550
 
 ### Coverage by Module (After)
-- **API Module**: 0% → ~10% (2 core type system classes now tested)
-- **Shared Module**: 6% → ~18% (6 critical utility/GDPR classes now tested)
+- **Shared Module**: 6% → ~16% (6 critical utility/GDPR classes now tested)
 
 ### Key Improvements
-1. **API Module**: Established foundational test coverage for core type system classes
-2. **GDPR Module**: Comprehensive coverage of key utilities (GDPRKeyUtils, NoopGDPRContext, InMemoryGDPRContextRepository, GDPRAnnotationUtils)
-3. **Kafka Utilities**: Complete coverage of Kafka utility functions
-4. **Serialization**: BigDecimal serialization fully tested
+1. **GDPR Module**: Comprehensive coverage of key utilities (GDPRKeyUtils, NoopGDPRContext, InMemoryGDPRContextRepository, GDPRAnnotationUtils)
+2. **Kafka Utilities**: Complete coverage of Kafka utility functions
+3. **Serialization**: BigDecimal serialization fully tested
 
 ## Test Quality
 

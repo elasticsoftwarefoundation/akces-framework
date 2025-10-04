@@ -309,21 +309,30 @@ public AccountCreatedEventV2 cast(AccountCreatedEvent event) {
 
 ## Testing Guidelines
 
-### 1. Unit Tests
+### 1. What NOT to Test Directly
+**Do not create dedicated unit tests for:**
+- **Java Annotations** - Test their effects through the classes that use them
+- **Java Records** - Test their usage in context, not record functionality itself
+- **Java Interfaces** - Test implementations, not interface definitions
+- **Exception Classes** - Test exception handling in the code that throws them, not the exceptions themselves
+
+These language constructs should only be tested indirectly as part of testing other components that use them.
+
+### 2. Unit Tests
 - Test aggregate logic in isolation
 - Mock external dependencies
 - Test command validation
 - Verify correct events are emitted
 - Test state transitions
 
-### 2. Integration Tests
+### 3. Integration Tests
 - Use embedded Kafka for testing
 - Test complete command/event flows
 - Verify query model updates
 - Test error handling scenarios
 - Use Spring Boot test framework
 
-### 3. Test Structure
+### 4. Test Structure
 ```java
 @SpringBootTest
 @DirtiesContext
