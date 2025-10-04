@@ -315,8 +315,9 @@ public AccountCreatedEventV2 cast(AccountCreatedEvent event) {
 - **Java Records** - Test their usage in context, not record functionality itself
 - **Java Interfaces** - Test implementations, not interface definitions
 - **Exception Classes** - Test exception handling in the code that throws them, not the exceptions themselves
+- **Enum Classes** - Test their usage in context, not enum functionality itself
 
-These language constructs should only be tested indirectly as part of testing other components that use them.
+These language constructs should only be tested indirectly as part of testing other components that use them. They should also not be counted towards code coverage metrics.
 
 ### 2. Unit Tests
 - Test aggregate logic in isolation
