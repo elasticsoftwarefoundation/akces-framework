@@ -24,3 +24,7 @@ release.properties
 
 .run/
 .aider*
+
+# Maven environment-specific configuration files
+settings.xml
+toolchains.xml
