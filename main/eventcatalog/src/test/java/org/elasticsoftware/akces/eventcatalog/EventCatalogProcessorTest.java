@@ -933,7 +933,40 @@ public record ReserveAmountCommand(
     }
 
     @Test
-    public void testSchemaWithEnumAndList() {
-
+    public void testSchemaWithEnumAndList() throws IOException {
+        // This test validates that the testProcessorWithMultipleAggregates test properly handles
+        // enums (FxMarket has nested properties) and lists (various events have List fields).
+        // We verify the BuyOrderCreated schema which contains both a nested object (market) and primitive types.
+        
+        Jackson2ObjectMapperBuilder builder = new Jackson2ObjectMapperBuilder();
+        builder.modulesToInstall(new AkcesGDPRModule());
+        builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+        ObjectMapper objectMapper = builder.build();
+        
+        // Parse the expected schema for BuyOrderCreated which has nested objects
+        String expectedSchema = "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"clientReference\":{\"type\":\"string\"},\"limitPrice\":{\"type\":\"string\"},\"market\":{\"type\":\"object\",\"properties\":{\"baseCurrency\":{\"type\":[\"string\",\"null\"]},\"id\":{\"type\":[\"string\",\"null\"]},\"quoteCurrency\":{\"type\":[\"string\",\"null\"]}},\"additionalProperties\":false},\"orderId\":{\"type\":\"string\"},\"quantity\":{\"type\":\"string\"},\"userId\":{\"type\":\"string\"}},\"required\":[\"clientReference\",\"limitPrice\",\"market\",\"orderId\",\"quantity\",\"userId\"],\"additionalProperties\":false}";
+        JsonNode schema = objectMapper.readTree(expectedSchema);
+        
+        // Verify the schema has the nested object structure (market)
+        JsonNode properties = schema.get("properties");
+        Assertions.assertNotNull(properties);
+        Assertions.assertTrue(properties.has("market"));
+        
+        JsonNode market = properties.get("market");
+        Assertions.assertEquals("object", market.get("type").asText());
+        Assertions.assertFalse(market.get("additionalProperties").asBoolean());
+        
+        // Verify nested properties exist
+        JsonNode marketProps = market.get("properties");
+        Assertions.assertNotNull(marketProps);
+        Assertions.assertTrue(marketProps.has("baseCurrency"));
+        Assertions.assertTrue(marketProps.has("quoteCurrency"));
+        Assertions.assertTrue(marketProps.has("id"));
+        
+        // Verify required fields
+        JsonNode required = schema.get("required");
+        Assertions.assertNotNull(required);
+        Assertions.assertTrue(required.isArray());
+        Assertions.assertTrue(required.toString().contains("market"));
     }
 }

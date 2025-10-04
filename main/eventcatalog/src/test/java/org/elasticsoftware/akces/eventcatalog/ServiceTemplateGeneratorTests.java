@@ -199,4 +199,125 @@ public class ServiceTemplateGeneratorTests {
 
         assertEquals(expected, result);
     }
+
+    @Test
+    void shouldHandleSingleCommandAndEvent() {
+        // Given
+        ServiceTemplateGenerator.ServiceMetadata singleAggregate = new ServiceTemplateGenerator.ServiceMetadata(
+                "SimpleAggregate",
+                "1.0.0",
+                "Simple Aggregate",
+                "Simplest possible aggregate",
+                List.of("simple-team"),
+                List.of(new ServiceTemplateGenerator.Message("SimpleCommand", "1.0.0")),
+                List.of(new ServiceTemplateGenerator.Message("SimpleEvent", "1.0.0")),
+                "Go",
+                "https://example.com/simple"
+        );
+
+        // When
+        String result = ServiceTemplateGenerator.generate(singleAggregate);
+
+        // Then
+        assertTrue(result.contains("id: SimpleAggregate"));
+        assertTrue(result.contains("version: 1.0.0"));
+        assertTrue(result.contains("- id: SimpleCommand"));
+        assertTrue(result.contains("- id: SimpleEvent"));
+        assertTrue(result.contains("language: Go"));
+    }
+
+    @Test
+    void shouldHandleComplexNames() {
+        // Given
+        ServiceTemplateGenerator.ServiceMetadata complexAggregate = new ServiceTemplateGenerator.ServiceMetadata(
+                "User-Account_Aggregate.v2",
+                "2.3.4",
+                "User Account Aggregate (Version 2)",
+                "Aggregate with complex naming",
+                List.of("user-team", "account-team"),
+                List.of(new ServiceTemplateGenerator.Message("Create-User_Command", "2.0.0")),
+                List.of(new ServiceTemplateGenerator.Message("User_Created-Event", "2.0.0")),
+                "TypeScript",
+                "https://github.com/example/user-account"
+        );
+
+        // When
+        String result = ServiceTemplateGenerator.generate(complexAggregate);
+
+        // Then
+        assertTrue(result.contains("id: User-Account_Aggregate.v2"));
+        assertTrue(result.contains("version: 2.3.4"));
+        assertTrue(result.contains("Create-User_Command"));
+        assertTrue(result.contains("User_Created-Event"));
+    }
+
+    @Test
+    void shouldGenerateWithLongDescription() {
+        // Given
+        ServiceTemplateGenerator.ServiceMetadata longDescAggregate = new ServiceTemplateGenerator.ServiceMetadata(
+                "DetailedAggregate",
+                "1.0.0",
+                "Detailed Aggregate",
+                "This is a very detailed aggregate that handles multiple complex business operations and orchestrates various workflows across different bounded contexts within the system architecture",
+                List.of("detailed-team"),
+                List.of(new ServiceTemplateGenerator.Message("DetailCommand", "1.0.0")),
+                List.of(new ServiceTemplateGenerator.Message("DetailEvent", "1.0.0")),
+                "Java",
+                "https://example.com/detailed"
+        );
+
+        // When
+        String result = ServiceTemplateGenerator.generate(longDescAggregate);
+
+        // Then
+        assertTrue(result.contains("Detailed Aggregate"));
+        assertTrue(result.contains("complex business operations"));
+        assertTrue(result.contains("bounded contexts"));
+    }
+
+    @Test
+    void shouldHandleEmptyReceivesOnly() {
+        // Given
+        ServiceTemplateGenerator.ServiceMetadata emptyReceivesAggregate = new ServiceTemplateGenerator.ServiceMetadata(
+                "ReadOnlyAggregate",
+                "1.0.0",
+                "Read Only Aggregate",
+                "Only sends events",
+                List.of("readonly-team"),
+                List.of(),
+                List.of(new ServiceTemplateGenerator.Message("DataLoadedEvent", "1.0.0")),
+                "Java",
+                "https://example.com/readonly"
+        );
+
+        // When
+        String result = ServiceTemplateGenerator.generate(emptyReceivesAggregate);
+
+        // Then
+        assertTrue(result.contains("receives:\n  []"));
+        assertTrue(result.contains("- id: DataLoadedEvent"));
+    }
+
+    @Test
+    void shouldHandleEmptySendsOnly() {
+        // Given
+        ServiceTemplateGenerator.ServiceMetadata emptySendsAggregate = new ServiceTemplateGenerator.ServiceMetadata(
+                "WriteOnlyAggregate",
+                "1.0.0",
+                "Write Only Aggregate",
+                "Only receives commands",
+                List.of("writeonly-team"),
+                List.of(new ServiceTemplateGenerator.Message("ProcessCommand", "1.0.0")),
+                List.of(),
+                "Java",
+                "https://example.com/writeonly"
+        );
+
+        // When
+        String result = ServiceTemplateGenerator.generate(emptySendsAggregate);
+
+        // Then
+        assertTrue(result.contains("- id: ProcessCommand"));
+        assertTrue(result.contains("sends:\n  []"));
+    }
 }

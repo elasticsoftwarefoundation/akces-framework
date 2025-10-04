@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MessageTemplateGeneratorTests {
 
@@ -117,5 +118,91 @@ class MessageTemplateGeneratorTests {
             <Footer />""";
 
         assertEquals(expected, result);
+    }
+
+    @Test
+    void shouldHandleSingleOwner() {
+        // Given
+        MessageTemplateGenerator.EventMetadata event = new MessageTemplateGenerator.EventMetadata(
+            "SingleOwnerEvent",
+            "Single Owner Event",
+            "2.0.0",
+            "Event with single owner",
+            List.of("single-owner"),
+            "Kotlin",
+            "https://github.com/example/single"
+        );
+
+        // When
+        String result = MessageTemplateGenerator.generate(event);
+
+        // Then
+        String expected = """
+            ---
+            id: SingleOwnerEvent
+            name: Single Owner Event
+            version: 2.0.0
+            summary: Event with single owner
+            owners:
+                - single-owner
+            repository:
+                language: Kotlin
+                url: https://github.com/example/single
+            ---
+            import Footer from '@catalog/components/footer.astro';
+
+            ## Architecture diagram
+            
+            <NodeGraph />
+            
+            ## JSON Schema
+            
+            <Schema schemaPath="schema.json" />
+            
+            <Footer />""";
+
+        assertEquals(expected, result);
+    }
+
+    @Test
+    void shouldGenerateWithDifferentVersion() {
+        // Given
+        MessageTemplateGenerator.EventMetadata event = new MessageTemplateGenerator.EventMetadata(
+            "VersionedEvent",
+            "Versioned Event",
+            "3.2.1",
+            "Event with specific version",
+            List.of("versioning-team"),
+            "Python",
+            "https://github.com/example/versioned"
+        );
+
+        // When
+        String result = MessageTemplateGenerator.generate(event);
+
+        // Then
+        assertTrue(result.contains("version: 3.2.1"));
+        assertTrue(result.contains("language: Python"));
+    }
+
+    @Test
+    void shouldGenerateWithSpecialCharactersInSummary() {
+        // Given
+        MessageTemplateGenerator.EventMetadata event = new MessageTemplateGenerator.EventMetadata(
+            "SpecialEvent",
+            "Special Event",
+            "1.0.0",
+            "Event with special chars: & < > \"quotes\" 'apostrophes'",
+            List.of("special-team"),
+            "Java",
+            "https://github.com/example/special"
+        );
+
+        // When
+        String result = MessageTemplateGenerator.generate(event);
+
+        // Then
+        assertTrue(result.contains("Special Event"));
+        assertTrue(result.contains("Event with special chars: & < > \"quotes\" 'apostrophes'"));
     }
 }
