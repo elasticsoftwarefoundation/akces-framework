@@ -70,9 +70,9 @@ public class InMemoryGDPRContextRepositoryTests {
     public void testPrepareAndCommit() {
         String aggregateId = "test-aggregate-123";
         byte[] keyBytes = GDPRKeyUtils.createKey().getEncoded();
-        GDPRKeyRecord record = new GDPRKeyRecord(aggregateId, keyBytes);
+        GDPRKeyRecord record = new GDPRKeyRecord("TEST_TENANT", aggregateId, keyBytes);
         
-        RecordMetadata metadata = new RecordMetadata(new TopicPartition("gdpr-keys", 0), 0L, 100L, 0L, 0, 0);
+        RecordMetadata metadata = new RecordMetadata(new TopicPartition("gdpr-keys", 0), 100, 0, System.currentTimeMillis(), 0, 0);
         CompletableFuture<RecordMetadata> future = CompletableFuture.completedFuture(metadata);
         
         repository.prepare(record, future);
@@ -86,9 +86,9 @@ public class InMemoryGDPRContextRepositoryTests {
     public void testGetReturnsEncryptingContextAfterCommit() {
         String aggregateId = "ef234add-e0df-4769-b5f4-612a3207bad3";
         byte[] keyBytes = GDPRKeyUtils.createKey().getEncoded();
-        GDPRKeyRecord record = new GDPRKeyRecord(aggregateId, keyBytes);
+        GDPRKeyRecord record = new GDPRKeyRecord("TEST_TENANT", aggregateId, keyBytes);
         
-        RecordMetadata metadata = new RecordMetadata(new TopicPartition("gdpr-keys", 0), 0L, 50L, 0L, 0, 0);
+        RecordMetadata metadata = new RecordMetadata(new TopicPartition("gdpr-keys", 0), 50, 0, System.currentTimeMillis(), 0, 0);
         CompletableFuture<RecordMetadata> future = CompletableFuture.completedFuture(metadata);
         
         repository.prepare(record, future);
@@ -110,9 +110,9 @@ public class InMemoryGDPRContextRepositoryTests {
     public void testRollback() {
         String aggregateId = "rollback-test-id";
         byte[] keyBytes = GDPRKeyUtils.createKey().getEncoded();
-        GDPRKeyRecord record = new GDPRKeyRecord(aggregateId, keyBytes);
+        GDPRKeyRecord record = new GDPRKeyRecord("TEST_TENANT", aggregateId, keyBytes);
         
-        RecordMetadata metadata = new RecordMetadata(new TopicPartition("gdpr-keys", 0), 0L, 75L, 0L, 0, 0);
+        RecordMetadata metadata = new RecordMetadata(new TopicPartition("gdpr-keys", 0), 75, 0, System.currentTimeMillis(), 0, 0);
         CompletableFuture<RecordMetadata> future = CompletableFuture.completedFuture(metadata);
         
         repository.prepare(record, future);
@@ -126,7 +126,7 @@ public class InMemoryGDPRContextRepositoryTests {
     public void testProcess() {
         String aggregateId = "process-test-id";
         byte[] keyBytes = GDPRKeyUtils.createKey().getEncoded();
-        GDPRKeyRecord record = new GDPRKeyRecord(aggregateId, keyBytes);
+        GDPRKeyRecord record = new GDPRKeyRecord("TEST_TENANT", aggregateId, keyBytes);
         
         ConsumerRecord<String, ProtocolRecord> consumerRecord = 
             new ConsumerRecord<>("gdpr-keys", 0, 200L, aggregateId, record);
@@ -141,7 +141,7 @@ public class InMemoryGDPRContextRepositoryTests {
     public void testProcessWithNullRecord() {
         String aggregateId = "deleted-aggregate-id";
         byte[] keyBytes = GDPRKeyUtils.createKey().getEncoded();
-        GDPRKeyRecord record = new GDPRKeyRecord(aggregateId, keyBytes);
+        GDPRKeyRecord record = new GDPRKeyRecord("TEST_TENANT", aggregateId, keyBytes);
         
         // First add a record
         ConsumerRecord<String, ProtocolRecord> addRecord = 
@@ -160,11 +160,11 @@ public class InMemoryGDPRContextRepositoryTests {
 
     @Test
     public void testMultipleCommits() {
-        RecordMetadata metadata1 = new RecordMetadata(new TopicPartition("gdpr-keys", 0), 0L, 10L, 0L, 0, 0);
-        RecordMetadata metadata2 = new RecordMetadata(new TopicPartition("gdpr-keys", 0), 0L, 20L, 0L, 0, 0);
+        RecordMetadata metadata1 = new RecordMetadata(new TopicPartition("gdpr-keys", 0), 10, 0, System.currentTimeMillis(), 0, 0);
+        RecordMetadata metadata2 = new RecordMetadata(new TopicPartition("gdpr-keys", 0), 20, 0, System.currentTimeMillis(), 0, 0);
         
-        GDPRKeyRecord record1 = new GDPRKeyRecord("agg-1", GDPRKeyUtils.createKey().getEncoded());
-        GDPRKeyRecord record2 = new GDPRKeyRecord("agg-2", GDPRKeyUtils.createKey().getEncoded());
+        GDPRKeyRecord record1 = new GDPRKeyRecord("TEST_TENANT", "agg-1", GDPRKeyUtils.createKey().getEncoded());
+        GDPRKeyRecord record2 = new GDPRKeyRecord("TEST_TENANT", "agg-2", GDPRKeyUtils.createKey().getEncoded());
         
         repository.prepare(record1, CompletableFuture.completedFuture(metadata1));
         repository.prepare(record2, CompletableFuture.completedFuture(metadata2));
@@ -179,9 +179,9 @@ public class InMemoryGDPRContextRepositoryTests {
     public void testClose() {
         String aggregateId = "close-test-id";
         byte[] keyBytes = GDPRKeyUtils.createKey().getEncoded();
-        GDPRKeyRecord record = new GDPRKeyRecord(aggregateId, keyBytes);
+        GDPRKeyRecord record = new GDPRKeyRecord("TEST_TENANT", aggregateId, keyBytes);
         
-        RecordMetadata metadata = new RecordMetadata(new TopicPartition("gdpr-keys", 0), 0L, 50L, 0L, 0, 0);
+        RecordMetadata metadata = new RecordMetadata(new TopicPartition("gdpr-keys", 0), 50, 0, System.currentTimeMillis(), 0, 0);
         repository.prepare(record, CompletableFuture.completedFuture(metadata));
         repository.commit();
         
