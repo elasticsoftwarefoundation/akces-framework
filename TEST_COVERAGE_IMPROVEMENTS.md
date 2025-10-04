@@ -19,8 +19,6 @@ This document summarizes the test coverage analysis and improvements made to the
 All core framework classes lacked unit tests:
 - `DomainEventType.java`
 - `CommandType.java`
-- `AkcesException.java`
-- `UnknownAkcesProcessException.java`
 - 40+ other annotation and interface classes
 
 #### Shared Module (Partially Tested)
@@ -33,11 +31,11 @@ Only GDPR-related classes had some tests. Missing tests for:
 - **Control Classes**: 5 control classes
 
 #### Client Module
-Missing unit tests for exception classes and other utility classes.
+Missing unit tests for utility classes.
 
 ## Test Cases Added
 
-### Shared Module Tests (7 new test files)
+### Shared Module Tests (6 new test files)
 
 #### 1. GDPRKeyUtilsTests.java
 Tests for cryptographic key generation and UUID validation:
@@ -100,7 +98,7 @@ Tests for BigDecimal JSON serialization:
 - `testSerializeInObjectContext()` - Integration with Jackson ObjectMapper
 - Coverage: 100% of serialize method + format visitor
 
-### API Module Tests (4 new test files)
+### API Module Tests (2 new test files)
 
 #### 7. CommandTypeTests.java
 Tests for command type metadata:
@@ -121,50 +119,22 @@ Tests for domain event type metadata:
 - `testDomainEventTypeEquality()` - Record equality
 - Coverage: 100% of public methods
 
-#### 9. AkcesExceptionTests.java
-Tests for base framework exception:
-- `testAkcesExceptionCreation()` - Basic construction
-- `testAkcesExceptionWithNullValues()` - Null handling
-- `testAkcesExceptionIsRuntimeException()` - Type hierarchy
-- `testAkcesExceptionCanBeThrown()` - Throwability
-- `testAkcesExceptionPreservesAggregateInfo()` - Data preservation
-- Coverage: Complete exception behavior
-
-#### 10. UnknownAkcesProcessExceptionTests.java
-Tests for process manager exception:
-- `testExceptionCreation()` - Construction with process ID
-- `testExceptionIsAkcesException()` - Type hierarchy
-- `testExceptionCanBeThrown()` - Throwability
-- `testExceptionWithNullProcessId()` - Null handling
-- Coverage: Complete exception behavior
-
-### Client Module Tests (1 new test file)
-
-#### 11. UnroutableCommandExceptionTests.java
-Tests for command routing exception:
-- `testExceptionCreation()` - Construction
-- `testExceptionMessage()` - Message validation
-- `testExceptionCanBeThrown()` - Throwability
-- Coverage: Core exception functionality
-
 ## Test Coverage Improvements Summary
 
 ### Metrics
-- **Total New Test Files**: 11
-- **Total New Test Methods**: ~70
-- **Lines of Test Code Added**: ~950
+- **Total New Test Files**: 8
+- **Total New Test Methods**: ~50
+- **Lines of Test Code Added**: ~700
 
 ### Coverage by Module (After)
-- **API Module**: 0% → ~15% (4 core classes now tested)
-- **Shared Module**: 6% → ~20% (7 critical utility/GDPR classes now tested)
-- **Client Module**: Improved exception coverage
+- **API Module**: 0% → ~10% (2 core type system classes now tested)
+- **Shared Module**: 6% → ~18% (6 critical utility/GDPR classes now tested)
 
 ### Key Improvements
 1. **API Module**: Established foundational test coverage for core type system classes
 2. **GDPR Module**: Comprehensive coverage of key utilities (GDPRKeyUtils, NoopGDPRContext, InMemoryGDPRContextRepository, GDPRAnnotationUtils)
 3. **Kafka Utilities**: Complete coverage of Kafka utility functions
 4. **Serialization**: BigDecimal serialization fully tested
-5. **Exception Handling**: Core exception classes now tested
 
 ## Test Quality
 
