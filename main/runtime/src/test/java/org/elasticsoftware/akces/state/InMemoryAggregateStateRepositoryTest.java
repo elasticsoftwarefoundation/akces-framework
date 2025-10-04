@@ -179,6 +179,79 @@ class InMemoryAggregateStateRepositoryTest {
         assertEquals(-1, repository.getOffset());
     }
 
+    @Test
+    void testMultipleCommitsUpdateOffset() {
+        InMemoryAggregateStateRepository repository = new InMemoryAggregateStateRepository();
+        
+        // First batch
+        AggregateStateRecord record1 = createStateRecord("id1");
+        Future<RecordMetadata> metadata1 = createMetadataFuture(10);
+        repository.prepare(record1, metadata1);
+        repository.commit();
+        assertEquals(10, repository.getOffset());
+        
+        // Second batch
+        AggregateStateRecord record2 = createStateRecord("id2");
+        Future<RecordMetadata> metadata2 = createMetadataFuture(20);
+        repository.prepare(record2, metadata2);
+        repository.commit();
+        assertEquals(20, repository.getOffset());
+    }
+
+    @Test
+    void testPrepareUpdatesExistingRecord() {
+        InMemoryAggregateStateRepository repository = new InMemoryAggregateStateRepository();
+        
+        // Add initial record
+        AggregateStateRecord record1 = createStateRecord("id1");
+        Future<RecordMetadata> metadata1 = createMetadataFuture(10);
+        repository.prepare(record1, metadata1);
+        repository.commit();
+        
+        // Update the same record
+        AggregateStateRecord record2 = new AggregateStateRecord(
+            "AKCES",
+            "TestAggregate",
+            1,
+            new byte[]{4, 5, 6},  // Different payload
+            PayloadEncoding.JSON,
+            "id1",  // Same ID
+            UUID.randomUUID().toString(),
+            2  // Different version
+        );
+        Future<RecordMetadata> metadata2 = createMetadataFuture(15);
+        repository.prepare(record2, metadata2);
+        repository.commit();
+        
+        AggregateStateRecord result = repository.get("id1");
+        assertNotNull(result);
+        assertEquals(2, result.generation());
+        assertArrayEquals(new byte[]{4, 5, 6}, result.payload());
+    }
+
+    @Test
+    void testProcessMultipleRecords() {
+        InMemoryAggregateStateRepository repository = new InMemoryAggregateStateRepository();
+        
+        List<ConsumerRecord<String, ProtocolRecord>> records = new ArrayList<>();
+        
+        AggregateStateRecord state1 = createStateRecord("id1");
+        records.add(new ConsumerRecord<>("test-topic", 0, 20, "id1", state1));
+        
+        AggregateStateRecord state2 = createStateRecord("id2");
+        records.add(new ConsumerRecord<>("test-topic", 0, 21, "id2", state2));
+        
+        AggregateStateRecord state3 = createStateRecord("id3");
+        records.add(new ConsumerRecord<>("test-topic", 0, 22, "id3", state3));
+        
+        repository.process(records);
+        
+        assertNotNull(repository.get("id1"));
+        assertNotNull(repository.get("id2"));
+        assertNotNull(repository.get("id3"));
+        assertEquals(22, repository.getOffset());  // Should be the last offset
+    }
+
     private AggregateStateRecord createStateRecord(String aggregateId) {
         return new AggregateStateRecord(
             "AKCES",
