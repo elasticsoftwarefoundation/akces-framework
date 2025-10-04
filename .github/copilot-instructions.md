@@ -332,7 +332,16 @@ These language constructs should only be tested indirectly as part of testing ot
 - Test error handling scenarios
 - Use Spring Boot test framework
 
-### 4. Test Structure
+### 4. Test Execution and Validation
+**Always run Maven tests to validate your changes:**
+- Run `mvn test` in the module directory after writing or modifying tests
+- Ensure all tests compile without errors
+- Verify all tests pass before committing changes
+- Fix any compilation or test failures immediately
+- For shared module: `cd main/shared && mvn test`
+- For specific modules: `cd main/{module-name} && mvn test`
+
+### 5. Test Structure
 ```java
 @SpringBootTest
 @DirtiesContext
