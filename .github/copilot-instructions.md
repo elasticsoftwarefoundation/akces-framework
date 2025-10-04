@@ -326,7 +326,7 @@ These language constructs should only be tested indirectly as part of testing ot
 - Test state transitions
 
 ### 3. Integration Tests
-- Use embedded Kafka for testing
+- Use Kafka TestContainers for testing
 - Test complete command/event flows
 - Verify query model updates
 - Test error handling scenarios
