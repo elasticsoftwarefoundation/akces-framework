@@ -87,7 +87,7 @@ Akces is organized into several Maven modules:
 
 ### Prerequisites
 
-- Java 21 or higher
+- Java 25 or higher
 - Apache Kafka 3.x with KRaft mode enabled
 - Confluent Schema Registry
 - Maven 3.6 or higher

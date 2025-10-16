@@ -5,7 +5,7 @@
 The Akces Framework is a sophisticated CQRS (Command Query Responsibility Segregation) and Event Sourcing framework built on Apache Kafka. It provides a comprehensive infrastructure for building distributed, event-driven applications with a clear separation between write operations (commands) and read operations (queries).
 
 **Key Technologies:**
-- Java 21+
+- Java 25+
 - Apache Kafka 3.x (KRaft mode)
 - Spring Boot 3.x
 - Maven for build management
