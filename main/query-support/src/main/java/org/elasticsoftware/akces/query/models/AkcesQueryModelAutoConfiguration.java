@@ -18,20 +18,29 @@
 package org.elasticsoftware.akces.query.models;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.json.JsonSchemaProvider;
+import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
 import org.elasticsoftware.akces.gdpr.RocksDBGDPRContextRepositoryFactory;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.kafka.CustomKafkaConsumerFactory;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.query.models.beans.QueryModelBeanFactoryPostProcessor;
 import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
+import org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorage;
+import org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorageImpl;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
+import org.elasticsoftware.akces.serialization.SchemaRecordSerde;
 import org.elasticsoftware.akces.util.EnvironmentPropertiesPrinter;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,11 +56,12 @@ import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 
 import java.math.BigDecimal;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 
 @Configuration
 @PropertySource("classpath:akces-querymodel.properties")
+@PropertySource("classpath:akces-schemas.properties")
 public class AkcesQueryModelAutoConfiguration {
     private final ProtocolRecordSerde serde = new ProtocolRecordSerde();
 
@@ -70,15 +80,67 @@ public class AkcesQueryModelAutoConfiguration {
     }
 
     @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
-    @Bean(name = "akcesQueryModelSchemaRegistryClient")
-    public SchemaRegistryClient createSchemaRegistryClient(@Value("${akces.schemaregistry.url:http://localhost:8081}") String url) {
-        return new CachedSchemaRegistryClient(url, 1000, List.of(new JsonSchemaProvider()), null);
+    @Bean(name = "akcesQueryModelSchemaRecordSerde")
+    public SchemaRecordSerde schemaRecordSerde(ObjectMapper objectMapper) {
+        return new SchemaRecordSerde(objectMapper);
+    }
+
+    @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
+    @Bean(name = "akcesQueryModelSchemaProducer")
+    public Producer<String, SchemaRecord> schemaProducer(
+            @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers,
+            @Qualifier("akcesQueryModelSchemaRecordSerde") SchemaRecordSerde serde) {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ProducerConfig.ACKS_CONFIG, "all");
+        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        return new KafkaProducer<>(props, new StringSerializer(), serde.serializer());
+    }
+
+    @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
+    @Bean(name = "akcesQueryModelSchemaConsumer")
+    public Consumer<String, SchemaRecord> schemaConsumer(
+            @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers,
+            @Qualifier("akcesQueryModelSchemaRecordSerde") SchemaRecordSerde serde) {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "akces-query-model-schema-consumer");
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
+        return new KafkaConsumer<>(props, new StringDeserializer(), serde.deserializer());
+    }
+
+    @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
+    @Bean(name = "akcesQueryModelSchemaAdminClient")
+    public AdminClient schemaAdminClient(@Value("${spring.kafka.bootstrap-servers}") String bootstrapServers) {
+        Map<String, Object> props = new HashMap<>();
+        props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        return AdminClient.create(props);
+    }
+
+    @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
+    @Bean(name = "akcesQueryModelSchemaStorage", initMethod = "initialize", destroyMethod = "close")
+    public KafkaTopicSchemaStorage schemaStorage(
+            @Value("${akces.schemas.topic}") String schemasTopic,
+            @Value("${akces.schemas.replication.factor}") int replicationFactor,
+            @Qualifier("akcesQueryModelSchemaProducer") Producer<String, SchemaRecord> producer,
+            @Qualifier("akcesQueryModelSchemaConsumer") Consumer<String, SchemaRecord> consumer,
+            @Qualifier("akcesQueryModelSchemaAdminClient") AdminClient adminClient) {
+        return new KafkaTopicSchemaStorageImpl(
+                schemasTopic,
+                producer,
+                consumer,
+                adminClient,
+                replicationFactor
+        );
     }
 
     @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
     @Bean(name = "akcesQueryModelSchemaRegistry")
-    public KafkaSchemaRegistry createSchemaRegistry(@Qualifier("akcesQueryModelSchemaRegistryClient") SchemaRegistryClient schemaRegistryClient, ObjectMapper objectMapper) {
-        return new KafkaSchemaRegistry(schemaRegistryClient, objectMapper);
+    public KafkaSchemaRegistry createSchemaRegistry(
+            @Qualifier("akcesQueryModelSchemaStorage") KafkaTopicSchemaStorage schemaStorage,
+            ObjectMapper objectMapper) {
+        return new KafkaSchemaRegistry(schemaStorage, objectMapper);
     }
 
     @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
