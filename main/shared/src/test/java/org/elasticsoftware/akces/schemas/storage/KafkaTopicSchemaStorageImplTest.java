@@ -55,7 +55,6 @@ class KafkaTopicSchemaStorageImplTest {
     private KafkaTopicSchemaStorageImpl storage;
     
     private static final String TOPIC_NAME = "test-schemas";
-    private static final long CACHE_TTL = 3600;
     private static final int REPLICATION_FACTOR = 1;
 
     @SuppressWarnings("unchecked")
@@ -85,7 +84,6 @@ class KafkaTopicSchemaStorageImplTest {
             consumer,
             adminClient,
             objectMapper,
-            CACHE_TTL,
             REPLICATION_FACTOR
         );
     }
@@ -250,47 +248,5 @@ class KafkaTopicSchemaStorageImplTest {
         verify(producer).close();
         verify(consumer).close();
         verify(adminClient).close();
-    }
-
-    @Test
-    void testCacheExpiration() throws Exception {
-        // Given - storage with 1 second TTL
-        KafkaTopicSchemaStorageImpl shortTtlStorage = new KafkaTopicSchemaStorageImpl(
-            TOPIC_NAME,
-            producer,
-            consumer,
-            adminClient,
-            objectMapper,
-            1, // 1 second TTL
-            REPLICATION_FACTOR
-        );
-        
-        try {
-            shortTtlStorage.initialize();
-            
-            String schemaName = "TestCommand";
-            int version = 1;
-            JsonSchema schema = new JsonSchema("{\"type\": \"object\"}");
-            
-            CompletableFuture<RecordMetadata> future = CompletableFuture.completedFuture(null);
-            when(producer.send(any(ProducerRecord.class))).thenReturn(future);
-            
-            // Register a schema
-            shortTtlStorage.registerSchema(schemaName, schema, version);
-            
-            // Verify it's in cache immediately
-            Optional<SchemaRecord> result1 = shortTtlStorage.getSchema(schemaName, version);
-            assertTrue(result1.isPresent());
-            
-            // Wait for cache to expire
-            Thread.sleep(1500);
-            
-            // Should be expired from cache now
-            Optional<SchemaRecord> result2 = shortTtlStorage.getSchema(schemaName, version);
-            assertTrue(result2.isEmpty());
-            
-        } finally {
-            shortTtlStorage.close();
-        }
     }
 }

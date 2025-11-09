@@ -57,7 +57,6 @@ class KafkaTopicSchemaStorageIntegrationTest {
             .withKraft();
 
     private static final String TOPIC_NAME = "test-schemas";
-    private static final long CACHE_TTL = 60; // 60 seconds
     private static final int REPLICATION_FACTOR = 1;
 
     private KafkaTopicSchemaStorageImpl storage;
@@ -99,7 +98,6 @@ class KafkaTopicSchemaStorageIntegrationTest {
                 consumer,
                 adminClient,
                 objectMapper,
-                CACHE_TTL,
                 REPLICATION_FACTOR
         );
 

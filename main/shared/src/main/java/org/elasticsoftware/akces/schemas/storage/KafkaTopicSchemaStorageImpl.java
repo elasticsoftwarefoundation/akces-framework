@@ -65,7 +65,6 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     private final ScheduledExecutorService pollExecutor;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final int replicationFactor;
-    private final long cacheTtlSeconds;
     
     /**
      * Creates a new Kafka-based schema storage.
@@ -75,7 +74,6 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
      * @param consumer Kafka consumer for reading schemas
      * @param adminClient Kafka admin client for topic management
      * @param objectMapper Jackson ObjectMapper for JSON serialization
-     * @param cacheTtlSeconds cache TTL in seconds (0 for no expiration)
      * @param replicationFactor replication factor for the schema topic
      */
     public KafkaTopicSchemaStorageImpl(
@@ -84,22 +82,16 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
             Consumer<String, byte[]> consumer,
             Admin adminClient,
             ObjectMapper objectMapper,
-            long cacheTtlSeconds,
             int replicationFactor) {
         this.topicName = topicName;
         this.producer = producer;
         this.consumer = consumer;
         this.adminClient = adminClient;
         this.objectMapper = objectMapper;
-        this.cacheTtlSeconds = cacheTtlSeconds;
         this.replicationFactor = replicationFactor;
         
-        // Initialize cache
-        var cacheBuilder = Caffeine.newBuilder();
-        if (cacheTtlSeconds > 0) {
-            cacheBuilder.expireAfterWrite(Duration.ofSeconds(cacheTtlSeconds));
-        }
-        this.cache = cacheBuilder.build();
+        // Initialize cache with no expiration
+        this.cache = Caffeine.newBuilder().build();
         
         // Create background polling executor
         this.pollExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
