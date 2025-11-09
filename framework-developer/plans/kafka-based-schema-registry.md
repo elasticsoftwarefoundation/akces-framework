@@ -12,8 +12,18 @@ Replace HTTP-based Confluent Schema Registry with Kafka topic-based storage. Ret
 - **Topic**: `akces-schemas` (compacted, 1 partition, configurable replication)
 - **Key**: `{type}-{schemaName}-v{version}` where type is `commands` or `domainevents`
   - Examples: `commands-CreateWalletCommand-v1`, `domainevents-WalletCreatedEvent-v1`
-- **Value**: JSON with schema definition, version, and timestamp
+- **Value**: Protobuf-encoded SchemaRecord containing schema definition, version, and timestamp
 - **Caching**: In-memory Caffeine cache with background polling, configurable TTL (default: 1 hour)
+
+**Protobuf Definition** (`SchemaRecord.proto`):
+```protobuf
+message SchemaRecord {
+  optional string schemaName = 1;
+  optional int32 version = 2;
+  optional string schema = 3;        // JSON Schema as string
+  optional int64 registeredAt = 4;   // Unix timestamp in milliseconds
+}
+```
 
 ### New Components
 
@@ -31,8 +41,8 @@ public record SchemaRecord(String schemaName, int version, JsonSchema schema, St
 ```
 
 **Implementation** (`KafkaTopicSchemaStorageImpl`):
-- Kafka Producer for writes
-- Kafka Consumer for reads
+- Kafka Producer for writes (protobuf serialization)
+- Kafka Consumer for reads (protobuf deserialization)
 - Caffeine cache for performance
 - Background polling thread for cache updates
 - Tombstone records for deletion (null value)
@@ -56,8 +66,10 @@ akces.schemas.cache.ttl=3600
 ## Implementation Phases
 
 ### Phase 1: Core Infrastructure (2-3 days)
+- [ ] Create `SchemaRecord.proto` protobuf definition
+- [ ] Generate Java classes from protobuf
 - [ ] Create `KafkaTopicSchemaStorage` interface
-- [ ] Implement `KafkaTopicSchemaStorageImpl` with Kafka producer/consumer
+- [ ] Implement `KafkaTopicSchemaStorageImpl` with Kafka producer/consumer and protobuf serialization
 - [ ] Add Caffeine caching layer
 - [ ] Implement topic initialization and background polling
 - [ ] Replace SchemaRegistryClient in `KafkaSchemaRegistry` with KafkaTopicSchemaStorage
@@ -80,6 +92,12 @@ akces.schemas.cache.ttl=3600
 - [ ] Document schema storage in Kafka
 
 ## Technical Decisions
+
+### Value Encoding
+- Use Protobuf for efficient binary serialization
+- Protobuf SchemaRecord message with fields: schemaName, version, schema (JSON as string), registeredAt
+- Consistent with existing framework patterns (CommandRecord, DomainEventRecord)
+- Smaller message size compared to JSON encoding
 
 ### Topic Structure
 - Single compacted topic for all schemas (simpler management)
