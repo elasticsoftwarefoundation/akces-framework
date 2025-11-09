@@ -59,7 +59,7 @@ public record SchemaRecord(String schemaName, int version, JsonSchema schema, St
 
 **Configuration**:
 ```properties
-akces.schemas.topic=akces-schemas
+akces.schemas.topic=Akces-Schemas
 akces.schemas.cache.ttl=3600
 ```
 
