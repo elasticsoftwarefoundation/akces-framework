@@ -26,7 +26,8 @@ import java.util.Optional;
 
 /**
  * Storage interface for managing JSON schemas in a Kafka topic.
- * This interface provides methods to register, retrieve, and delete schemas.
+ * This interface provides methods to register and retrieve schemas.
+ * Schemas cannot be deleted, only overwritten by registering a new version.
  * Implementations are expected to use a Kafka compacted topic for persistence
  * and maintain an in-memory cache for performance.
  */
@@ -60,15 +61,6 @@ public interface KafkaTopicSchemaStorage {
      * @throws SchemaException if there's an error retrieving the schema
      */
     Optional<SchemaRecord> getSchema(String schemaName, int version) throws SchemaException;
-    
-    /**
-     * Deletes a specific version of a schema by writing a tombstone record.
-     * 
-     * @param schemaName the name of the schema
-     * @param version the version number to delete
-     * @throws SchemaException if the schema cannot be deleted
-     */
-    void deleteSchema(String schemaName, int version) throws SchemaException;
     
     /**
      * Initializes the storage, creating the Kafka topic if necessary

@@ -152,29 +152,6 @@ class KafkaTopicSchemaStorageIntegrationTest {
     }
 
     @Test
-    void testDeleteSchema() throws Exception {
-        // Given
-        String schemaName = "TestCommand";
-        int version = 1;
-        JsonSchema schema = new JsonSchema("{\"type\": \"object\"}");
-
-        storage.registerSchema(schemaName, schema, version);
-        Thread.sleep(1000);
-
-        // Verify it exists
-        Optional<SchemaRecord> before = storage.getSchema(schemaName, version);
-        assertTrue(before.isPresent());
-
-        // When
-        storage.deleteSchema(schemaName, version);
-        Thread.sleep(2000);
-
-        // Then
-        Optional<SchemaRecord> after = storage.getSchema(schemaName, version);
-        assertTrue(after.isEmpty());
-    }
-
-    @Test
     void testSchemaNotFound() throws Exception {
         // When
         Optional<SchemaRecord> result = storage.getSchema("NonExistent", 1);

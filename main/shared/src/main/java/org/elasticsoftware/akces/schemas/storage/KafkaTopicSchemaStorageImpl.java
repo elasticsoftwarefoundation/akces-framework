@@ -195,29 +195,6 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     }
     
     @Override
-    public void deleteSchema(String schemaName, int version) throws SchemaException {
-        String key = createKey(schemaName, version);
-        
-        try {
-            // Write tombstone record (null value)
-            ProducerRecord<String, SchemaRecord> tombstone = new ProducerRecord<>(topicName, key, null);
-            producer.send(tombstone).get(10, TimeUnit.SECONDS);
-            producer.flush();
-            
-            // Remove from cache
-            cache.invalidate(key);
-            
-            logger.debug("Deleted schema {} version {}", schemaName, version);
-        } catch (Exception e) {
-            throw new SchemaException(
-                    "Failed to delete schema",
-                    schemaName,
-                    SchemaRecord.class,
-                    e);
-        }
-    }
-    
-    @Override
     public void close() {
         running.set(false);
         pollExecutor.shutdown();
@@ -335,11 +312,7 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
         String key = record.key();
         SchemaRecord value = record.value();
         
-        if (value == null) {
-            // Tombstone - remove from cache
-            cache.invalidate(key);
-            logger.trace("Removed schema from cache: {}", key);
-        } else {
+        if (value != null) {
             cache.put(key, value);
             logger.trace("Added schema to cache: {}", key);
         }

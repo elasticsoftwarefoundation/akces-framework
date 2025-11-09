@@ -213,7 +213,6 @@ public class KafkaSchemaRegistry {
                     logger.warn("Found an incompatible schema for {} v{} but forceRegisterOnIncompatibleSchema=true. Overwriting existing entry", 
                             schemaName, schemaType.version());
                     try {
-                        schemaStorage.deleteSchema(schemaName, schemaType.version());
                         schemaStorage.registerSchema(schemaName, localSchema, schemaType.version());
                     } catch (SchemaException e) {
                         logger.error("Exception during overwrite of Schema {} with version {}", 

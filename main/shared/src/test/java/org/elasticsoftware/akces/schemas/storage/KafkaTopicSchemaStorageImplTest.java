@@ -202,38 +202,6 @@ class KafkaTopicSchemaStorageImplTest {
     }
 
     @Test
-    void testDeleteSchema() throws Exception {
-        // Given
-        storage.initialize();
-        String schemaName = "TestCommand";
-        int version = 1;
-        JsonSchema schema = new JsonSchema("{\"type\": \"object\"}");
-        
-        CompletableFuture<RecordMetadata> future = CompletableFuture.completedFuture(null);
-        when(producer.send(any(ProducerRecord.class))).thenReturn(future);
-        
-        // First register
-        storage.registerSchema(schemaName, schema, version);
-        
-        // When
-        storage.deleteSchema(schemaName, version);
-        
-        // Then
-        ArgumentCaptor<ProducerRecord<String, SchemaRecord>> captor = 
-            ArgumentCaptor.forClass(ProducerRecord.class);
-        verify(producer, times(2)).send(captor.capture());
-        
-        // Second call should be the tombstone
-        ProducerRecord<String, SchemaRecord> tombstone = captor.getAllValues().get(1);
-        assertEquals("TestCommand-v1", tombstone.key());
-        assertNull(tombstone.value());
-        
-        // Verify it's removed from cache
-        Optional<SchemaRecord> result = storage.getSchema(schemaName, version);
-        assertTrue(result.isEmpty());
-    }
-
-    @Test
     void testClose() {
         // Given
         storage.initialize();
