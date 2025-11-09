@@ -55,6 +55,7 @@ import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.protocol.*;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
+import org.elasticsoftware.akces.serialization.SchemaRecordSerde;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Test;
@@ -173,8 +174,101 @@ public class AkcesClientTests {
                 "compression.type", "lz4"));
     }
 
-    // Schema registration is now handled automatically by the framework
-    // through KafkaTopicSchemaStorage when schemas are first used
+    public static <C extends Command> void prepareCommandSchemas(String bootstrapServers, List<Class<C>> commandClasses) {
+        Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
+        objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
+        objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(objectMapperBuilder.build(),
+                SchemaVersion.DRAFT_7,
+                OptionPreset.PLAIN_JSON);
+        configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
+                JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
+        configBuilder.with(new JacksonModule());
+        configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
+        configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
+        configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
+        // we need to override the default behavior of the generator to write BigDecimal as type = number
+        configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
+            if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
+                JsonNode typeNode = collectedTypeAttributes.get("type");
+                if (typeNode.isArray()) {
+                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
+                } else
+                    collectedTypeAttributes.put("type", "string");
+            }
+        });
+        SchemaGeneratorConfig config = configBuilder.build();
+        SchemaGenerator jsonSchemaGenerator = new SchemaGenerator(config);
+        
+        // Write schemas to Akces-Schemas topic
+        SchemaRecordSerde serde = new SchemaRecordSerde();
+        Map<String, Object> producerProps = Map.of(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
+                ProducerConfig.ACKS_CONFIG, "all",
+                ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+        
+        try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
+            for (Class<C> commandClass : commandClasses) {
+                CommandInfo info = commandClass.getAnnotation(CommandInfo.class);
+                JsonSchema schema = new JsonSchema(jsonSchemaGenerator.generateSchema(commandClass), List.of(), Map.of(), info.version());
+                SchemaRecord record = new SchemaRecord("commands." + info.type(), info.version(), schema, System.currentTimeMillis());
+                String key = "commands." + info.type() + "-v" + info.version();
+                ProducerRecord<String, SchemaRecord> producerRecord = new ProducerRecord<>("Akces-Schemas", key, record);
+                producer.send(producerRecord).get();
+            }
+            producer.flush();
+        } catch (Exception e) {
+            throw new ApplicationContextException("Problem preparing command schemas", e);
+        }
+    }
+
+    public static <D extends DomainEvent> void prepareDomainEventSchemas(String bootstrapServers, List<Class<D>> domainEventClasses) {
+        Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
+        objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
+        objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(objectMapperBuilder.build(),
+                SchemaVersion.DRAFT_7,
+                OptionPreset.PLAIN_JSON);
+        configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
+                JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
+        configBuilder.with(new JacksonModule());
+        configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
+        configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
+        configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
+        // we need to override the default behavior of the generator to write BigDecimal as type = number
+        configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
+            if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
+                JsonNode typeNode = collectedTypeAttributes.get("type");
+                if (typeNode.isArray()) {
+                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
+                } else
+                    collectedTypeAttributes.put("type", "string");
+            }
+        });
+        SchemaGeneratorConfig config = configBuilder.build();
+        SchemaGenerator jsonSchemaGenerator = new SchemaGenerator(config);
+        
+        // Write schemas to Akces-Schemas topic
+        SchemaRecordSerde serde = new SchemaRecordSerde();
+        Map<String, Object> producerProps = Map.of(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
+                ProducerConfig.ACKS_CONFIG, "all",
+                ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+        
+        try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
+            for (Class<D> domainEventClass : domainEventClasses) {
+                DomainEventInfo info = domainEventClass.getAnnotation(DomainEventInfo.class);
+                JsonSchema schema = new JsonSchema(jsonSchemaGenerator.generateSchema(domainEventClass), List.of(), Map.of(), info.version());
+                SchemaRecord record = new SchemaRecord("domainevents." + info.type(), info.version(), schema, System.currentTimeMillis());
+                String key = "domainevents." + info.type() + "-v" + info.version();
+                ProducerRecord<String, SchemaRecord> producerRecord = new ProducerRecord<>("Akces-Schemas", key, record);
+                producer.send(producerRecord).get();
+            }
+            producer.flush();
+        } catch (Exception e) {
+            throw new ApplicationContextException("Problem preparing domain event schemas", e);
+        }
+    }
 
     public static void prepareExternalServices(String bootstrapServers) {
         AkcesControlRecordSerde controlSerde = new AkcesControlRecordSerde(new ObjectMapper());
@@ -459,9 +553,10 @@ public class AkcesClientTests {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
-            // Schema registration is now automatic through KafkaTopicSchemaStorage
+            // Prepare schemas by writing to Akces-Schemas topic
+            prepareCommandSchemas(kafka.getBootstrapServers(), List.of(CreateAccountCommand.class));
+            prepareDomainEventSchemas(kafka.getBootstrapServers(), List.of(AccountCreatedEvent.class));
             prepareExternalServices(kafka.getBootstrapServers());
-            //prepareExternalServices(kafka.getBootstrapServers());
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
                     applicationContext,
                     "spring.kafka.enabled=true",

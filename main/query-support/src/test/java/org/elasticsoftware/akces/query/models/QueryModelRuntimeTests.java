@@ -49,6 +49,8 @@ import org.elasticsoftware.akces.query.models.wallet.WalletQueryModel;
 import org.elasticsoftware.akces.query.models.wallet.WalletQueryModelState;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
+import org.elasticsoftware.akces.serialization.SchemaRecordSerde;
+import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
 import org.elasticsoftware.akcestest.aggregate.account.CreateAccountCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.*;
@@ -191,6 +193,54 @@ public class QueryModelRuntimeTests {
                 "min.cleanable.dirty.ratio", "0.1",
                 "delete.retention.ms", "604800000",
                 "compression.type", "lz4"));
+    }
+
+    public static <D extends DomainEvent> void prepareDomainEventSchemas(String bootstrapServers, List<Class<?>> domainEventClasses) {
+        Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
+        objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
+        objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(objectMapperBuilder.build(),
+                SchemaVersion.DRAFT_7,
+                OptionPreset.PLAIN_JSON);
+        configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
+                JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
+        configBuilder.with(new JacksonModule());
+        configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
+        configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
+        configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
+        // we need to override the default behavior of the generator to write BigDecimal as type = number
+        configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
+            if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
+                JsonNode typeNode = collectedTypeAttributes.get("type");
+                if (typeNode.isArray()) {
+                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
+                } else
+                    collectedTypeAttributes.put("type", "string");
+            }
+        });
+        SchemaGeneratorConfig config = configBuilder.build();
+        SchemaGenerator jsonSchemaGenerator = new SchemaGenerator(config);
+        
+        // Write schemas to Akces-Schemas topic
+        SchemaRecordSerde serde = new SchemaRecordSerde();
+        Map<String, Object> producerProps = Map.of(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
+                ProducerConfig.ACKS_CONFIG, "all",
+                ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+        
+        try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
+            for (Class<?> domainEventClass : domainEventClasses) {
+                DomainEventInfo info = domainEventClass.getAnnotation(DomainEventInfo.class);
+                JsonSchema schema = new JsonSchema(jsonSchemaGenerator.generateSchema(domainEventClass), List.of(), Map.of(), info.version());
+                SchemaRecord record = new SchemaRecord("domainevents." + info.type(), info.version(), schema, System.currentTimeMillis());
+                String key = "domainevents." + info.type() + "-v" + info.version();
+                ProducerRecord<String, SchemaRecord> producerRecord = new ProducerRecord<>("Akces-Schemas", key, record);
+                producer.send(producerRecord).get();
+            }
+            producer.flush();
+        } catch (Exception e) {
+            throw new ApplicationContextException("Problem preparing domain event schemas", e);
+        }
     }
 
     @BeforeAll
@@ -546,7 +596,13 @@ public class QueryModelRuntimeTests {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
-            // Schema registration is now automatic through KafkaTopicSchemaStorage
+            // Prepare schemas by writing to Akces-Schemas topic
+            prepareDomainEventSchemas(kafka.getBootstrapServers(), List.of(
+                    WalletCreatedEvent.class,
+                    WalletCreditedEvent.class,
+                    BalanceCreatedEvent.class,
+                    AccountCreatedEvent.class
+            ));
             try {
                 prepareAggregateServiceRecords(kafka.getBootstrapServers());
             } catch (IOException e) {
