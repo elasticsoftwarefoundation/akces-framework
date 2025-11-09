@@ -28,7 +28,7 @@ akces-framework/
 ├── test-apps/                     # Example applications
 │   └── crypto-trading/           # Crypto trading example app
 ├── bom/                          # Bill of Materials for dependencies
-└── prompts/                      # LLM prompt scripts for documentation
+
 ```
 
 ## Core Concepts

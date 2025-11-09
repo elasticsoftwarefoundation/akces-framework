@@ -31,14 +31,14 @@
     <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
 
     <properties>
-        <protobuf.version>4.32.1</protobuf.version>
-        <log4j.version>2.25.1</log4j.version>
-        <jackson.version>2.19.2</jackson.version>
+        <protobuf.version>4.33.0</protobuf.version>
+        <log4j.version>2.25.2</log4j.version>
+        <jackson.version>2.20.1</jackson.version>
         <slf4j.version>2.0.17</slf4j.version>
         <javassist.version>3.30.2-GA</javassist.version>
         <lz4.version>1.8.0</lz4.version>
         <kafka.version>3.9.1</kafka.version>
-        <java-uuid-generator.version>5.1.0</java-uuid-generator.version>
+        <java-uuid-generator.version>5.1.1</java-uuid-generator.version>
         <rocksdb.version>10.2.1</rocksdb.version>
         <semver4j.version>6.0.0</semver4j.version>
         <auto-service.version>1.1.1</auto-service.version>
@@ -47,13 +47,13 @@
         <awaitility.version>4.3.0</awaitility.version>
         <persistence-api.version>2.2</persistence-api.version>
         <plexus-utils.version>4.0.2</plexus-utils.version>
-        <netty.version>4.2.6.Final</netty.version>
-        <micrometer.version>1.15.2</micrometer.version>
+        <netty.version>4.2.7.Final</netty.version>
+        <micrometer.version>1.16.0</micrometer.version>
         <fast-uuid.version>0.2.0</fast-uuid.version>
-        <confluent.version>8.0.0</confluent.version>
+        <confluent.version>8.1.0</confluent.version>
         <victools.version>4.38.0</victools.version>
         <joda-time.version>2.14.0</joda-time.version>
-        <logback.version>1.5.19</logback.version>
+        <logback.version>1.5.20</logback.version>
         <testcontainers.version>1.21.3</testcontainers.version>
         <compile-testing.version>0.23.0</compile-testing.version>
     </properties>
