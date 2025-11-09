@@ -17,27 +17,29 @@
 
 package org.elasticsoftware.akces.schemas.storage;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.errors.TopicExistsException;
 import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.schemas.SchemaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -53,8 +55,6 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     
     private static final Logger logger = LoggerFactory.getLogger(KafkaTopicSchemaStorageImpl.class);
     private static final Duration POLL_TIMEOUT = Duration.ofMillis(100);
-    private static final int MAX_RETRIES = 3;
-    private static final long RETRY_BACKOFF_MS = 100;
     
     private final String topicName;
     private final Producer<String, SchemaRecord> producer;
@@ -63,7 +63,6 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     private final Cache<String, SchemaRecord> cache;
     private final ScheduledExecutorService pollExecutor;
     private final AtomicBoolean running = new AtomicBoolean(false);
-    private final int replicationFactor;
     
     /**
      * Creates a new Kafka-based schema storage.
@@ -84,7 +83,6 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
         this.producer = producer;
         this.consumer = consumer;
         this.adminClient = adminClient;
-        this.replicationFactor = replicationFactor;
         
         // Initialize cache with no expiration
         this.cache = Caffeine.newBuilder().build();
@@ -100,9 +98,6 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     @Override
     public void initialize() throws SchemaException {
         try {
-            // Create topic if it doesn't exist
-            createTopicIfNeeded();
-            
             // Use manual assignment for the consumer
             List<TopicPartition> partitions = consumer.partitionsFor(topicName).stream()
                     .map(info -> new TopicPartition(info.topic(), info.partition()))
@@ -212,34 +207,6 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
         adminClient.close();
         
         logger.info("Closed Kafka schema storage");
-    }
-    
-    /**
-     * Creates the schema topic if it doesn't exist.
-     */
-    private void createTopicIfNeeded() {
-        try {
-            Map<String, String> topicConfigs = new HashMap<>();
-            topicConfigs.put("cleanup.policy", "compact");
-            topicConfigs.put("min.compaction.lag.ms", "0");
-            topicConfigs.put("delete.retention.ms", "86400000"); // 1 day
-            
-            NewTopic newTopic = new NewTopic(topicName, 1, (short) replicationFactor)
-                    .configs(topicConfigs);
-            
-            adminClient.createTopics(Collections.singletonList(newTopic)).all().get(30, TimeUnit.SECONDS);
-            logger.info("Created schema topic: {}", topicName);
-        } catch (ExecutionException e) {
-            if (e.getCause() instanceof TopicExistsException) {
-                logger.debug("Schema topic already exists: {}", topicName);
-            } else {
-                logger.error("Failed to create schema topic", e);
-                throw new RuntimeException("Failed to create schema topic", e);
-            }
-        } catch (Exception e) {
-            logger.error("Failed to create schema topic", e);
-            throw new RuntimeException("Failed to create schema topic", e);
-        }
     }
     
     /**

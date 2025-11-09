@@ -82,12 +82,6 @@ public class WalletConfiguration {
             }
 
             @Override
-            public void deleteSchema(String schemaName, int version) {
-                String key = schemaName + "-v" + version;
-                schemas.remove(key);
-            }
-
-            @Override
             public void initialize() {
                 // No-op for mock
             }
