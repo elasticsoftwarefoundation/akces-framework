@@ -72,12 +72,12 @@ public final class SchemaRecordSerde implements Serde<SchemaRecord> {
         /**
          * Converts this DTO to SchemaRecord (String → JsonSchema).
          */
-        SchemaRecord toSchemaRecord(ObjectMapper jsonMapper) throws JsonProcessingException {
+        SchemaRecord toSchemaRecord(ObjectMapper jsonMapper) {
             try {
                 return new SchemaRecord(
                         schemaName,
                         version,
-                        jsonMapper.readValue(schema, JsonSchema.class),
+                        new JsonSchema(schema),
                         registeredAt
                 );
             } catch (Exception e) {

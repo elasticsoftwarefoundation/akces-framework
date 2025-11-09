@@ -27,11 +27,10 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.common.serialization.ByteArrayDeserializer;
-import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.elasticsoftware.akces.protocol.SchemaRecord;
+import org.elasticsoftware.akces.serialization.SchemaRecordSerde;
 import org.junit.jupiter.api.*;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -60,30 +59,30 @@ class KafkaTopicSchemaStorageIntegrationTest {
     private static final int REPLICATION_FACTOR = 1;
 
     private KafkaTopicSchemaStorageImpl storage;
-    private Producer<String, byte[]> producer;
-    private Consumer<String, byte[]> consumer;
+    private Producer<String, SchemaRecord> producer;
+    private Consumer<String, SchemaRecord> consumer;
     private AdminClient adminClient;
 
     @BeforeEach
     void setUp() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        SchemaRecordSerde serde = new SchemaRecordSerde(objectMapper);
+        
         // Create Kafka producer
         Map<String, Object> producerProps = new HashMap<>();
         producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
         producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-        producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class);
         producerProps.put(ProducerConfig.ACKS_CONFIG, "all");
         producerProps.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
-        producer = new KafkaProducer<>(producerProps);
+        producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer());
 
         // Create Kafka consumer
         Map<String, Object> consumerProps = new HashMap<>();
         consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
-        consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class);
         consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "test-group-" + System.currentTimeMillis());
         consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        consumer = new KafkaConsumer<>(consumerProps);
+        consumer = new KafkaConsumer<>(consumerProps, new StringDeserializer(), serde.deserializer());
 
         // Create admin client
         Map<String, Object> adminProps = new HashMap<>();
@@ -91,13 +90,11 @@ class KafkaTopicSchemaStorageIntegrationTest {
         adminClient = AdminClient.create(adminProps);
 
         // Create storage
-        ObjectMapper objectMapper = new ObjectMapper();
         storage = new KafkaTopicSchemaStorageImpl(
                 TOPIC_NAME,
                 producer,
                 consumer,
                 adminClient,
-                objectMapper,
                 REPLICATION_FACTOR
         );
 

@@ -57,10 +57,9 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     private static final long RETRY_BACKOFF_MS = 100;
     
     private final String topicName;
-    private final Producer<String, byte[]> producer;
-    private final Consumer<String, byte[]> consumer;
+    private final Producer<String, SchemaRecord> producer;
+    private final Consumer<String, SchemaRecord> consumer;
     private final Admin adminClient;
-    private final ObjectMapper objectMapper;
     private final Cache<String, SchemaRecord> cache;
     private final ScheduledExecutorService pollExecutor;
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -73,21 +72,18 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
      * @param producer Kafka producer for writing schemas
      * @param consumer Kafka consumer for reading schemas
      * @param adminClient Kafka admin client for topic management
-     * @param objectMapper Jackson ObjectMapper for JSON serialization
      * @param replicationFactor replication factor for the schema topic
      */
     public KafkaTopicSchemaStorageImpl(
             String topicName,
-            Producer<String, byte[]> producer,
-            Consumer<String, byte[]> consumer,
+            Producer<String, SchemaRecord> producer,
+            Consumer<String, SchemaRecord> consumer,
             Admin adminClient,
-            ObjectMapper objectMapper,
             int replicationFactor) {
         this.topicName = topicName;
         this.producer = producer;
         this.consumer = consumer;
         this.adminClient = adminClient;
-        this.objectMapper = objectMapper;
         this.replicationFactor = replicationFactor;
         
         // Initialize cache with no expiration
@@ -147,8 +143,7 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
         SchemaRecord record = new SchemaRecord(schemaName, version, schema, System.currentTimeMillis());
         
         try {
-            byte[] value = serializeSchemaRecord(record);
-            ProducerRecord<String, byte[]> producerRecord = new ProducerRecord<>(topicName, key, value);
+            ProducerRecord<String, SchemaRecord> producerRecord = new ProducerRecord<>(topicName, key, record);
             
             // Send with retries
             producer.send(producerRecord).get(10, TimeUnit.SECONDS);
@@ -205,7 +200,7 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
         
         try {
             // Write tombstone record (null value)
-            ProducerRecord<String, byte[]> tombstone = new ProducerRecord<>(topicName, key, null);
+            ProducerRecord<String, SchemaRecord> tombstone = new ProducerRecord<>(topicName, key, null);
             producer.send(tombstone).get(10, TimeUnit.SECONDS);
             producer.flush();
             
@@ -293,7 +288,7 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
             final int maxEmptyPolls = 3;
             
             while (!done) {
-                ConsumerRecords<String, byte[]> records = consumer.poll(POLL_TIMEOUT);
+                ConsumerRecords<String, SchemaRecord> records = consumer.poll(POLL_TIMEOUT);
                 if (records.isEmpty()) {
                     emptyPolls++;
                     if (emptyPolls >= maxEmptyPolls) {
@@ -301,7 +296,7 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
                     }
                 } else {
                     emptyPolls = 0;
-                    for (ConsumerRecord<String, byte[]> record : records) {
+                    for (ConsumerRecord<String, SchemaRecord> record : records) {
                         processRecord(record);
                         recordCount++;
                     }
@@ -324,8 +319,8 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
         }
         
         try {
-            ConsumerRecords<String, byte[]> records = consumer.poll(POLL_TIMEOUT);
-            for (ConsumerRecord<String, byte[]> record : records) {
+            ConsumerRecords<String, SchemaRecord> records = consumer.poll(POLL_TIMEOUT);
+            for (ConsumerRecord<String, SchemaRecord> record : records) {
                 processRecord(record);
             }
         } catch (Exception e) {
@@ -336,22 +331,17 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     /**
      * Processes a single consumer record, updating the cache.
      */
-    private void processRecord(ConsumerRecord<String, byte[]> record) {
+    private void processRecord(ConsumerRecord<String, SchemaRecord> record) {
         String key = record.key();
-        byte[] value = record.value();
+        SchemaRecord value = record.value();
         
         if (value == null) {
             // Tombstone - remove from cache
             cache.invalidate(key);
             logger.trace("Removed schema from cache: {}", key);
         } else {
-            try {
-                SchemaRecord schemaRecord = deserializeSchemaRecord(value);
-                cache.put(key, schemaRecord);
-                logger.trace("Added schema to cache: {}", key);
-            } catch (Exception e) {
-                logger.error("Failed to deserialize schema record for key: {}", key, e);
-            }
+            cache.put(key, value);
+            logger.trace("Added schema to cache: {}", key);
         }
     }
     
@@ -360,36 +350,5 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
      */
     private String createKey(String schemaName, int version) {
         return schemaName + "-v" + version;
-    }
-    
-    /**
-     * Serializes a SchemaRecord to bytes using JSON.
-     */
-    private byte[] serializeSchemaRecord(SchemaRecord record) throws Exception {
-        // Create a simple map for serialization
-        Map<String, Object> map = new HashMap<>();
-        map.put("schemaName", record.schemaName());
-        map.put("version", record.version());
-        map.put("schema", record.schema().toString());
-        map.put("registeredAt", record.registeredAt());
-        
-        return objectMapper.writeValueAsBytes(map);
-    }
-    
-    /**
-     * Deserializes bytes to a SchemaRecord using JSON.
-     */
-    private SchemaRecord deserializeSchemaRecord(byte[] bytes) throws Exception {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> map = objectMapper.readValue(bytes, Map.class);
-        
-        String schemaName = (String) map.get("schemaName");
-        int version = ((Number) map.get("version")).intValue();
-        String schemaStr = (String) map.get("schema");
-        long registeredAt = ((Number) map.get("registeredAt")).longValue();
-        
-        JsonSchema schema = new JsonSchema(schemaStr);
-        
-        return new SchemaRecord(schemaName, version, schema, registeredAt);
     }
 }

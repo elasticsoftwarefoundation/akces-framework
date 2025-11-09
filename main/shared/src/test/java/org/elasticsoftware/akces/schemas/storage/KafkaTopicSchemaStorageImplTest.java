@@ -48,10 +48,9 @@ import static org.mockito.Mockito.*;
 
 class KafkaTopicSchemaStorageImplTest {
 
-    private Producer<String, byte[]> producer;
-    private Consumer<String, byte[]> consumer;
+    private Producer<String, SchemaRecord> producer;
+    private Consumer<String, SchemaRecord> consumer;
     private Admin adminClient;
-    private ObjectMapper objectMapper;
     private KafkaTopicSchemaStorageImpl storage;
     
     private static final String TOPIC_NAME = "test-schemas";
@@ -63,7 +62,6 @@ class KafkaTopicSchemaStorageImplTest {
         producer = mock(Producer.class);
         consumer = mock(Consumer.class);
         adminClient = mock(Admin.class);
-        objectMapper = new ObjectMapper();
         
         // Setup admin client mock
         CreateTopicsResult createTopicsResult = mock(CreateTopicsResult.class);
@@ -83,7 +81,6 @@ class KafkaTopicSchemaStorageImplTest {
             producer,
             consumer,
             adminClient,
-            objectMapper,
             REPLICATION_FACTOR
         );
     }
@@ -127,12 +124,12 @@ class KafkaTopicSchemaStorageImplTest {
         storage.registerSchema(schemaName, schema, version);
         
         // Then
-        ArgumentCaptor<ProducerRecord<String, byte[]>> captor = 
+        ArgumentCaptor<ProducerRecord<String, SchemaRecord>> captor = 
             ArgumentCaptor.forClass(ProducerRecord.class);
         verify(producer).send(captor.capture());
         verify(producer).flush();
         
-        ProducerRecord<String, byte[]> record = captor.getValue();
+        ProducerRecord<String, SchemaRecord> record = captor.getValue();
         assertEquals(TOPIC_NAME, record.topic());
         assertEquals("TestCommand-v1", record.key());
         assertNotNull(record.value());
@@ -222,12 +219,12 @@ class KafkaTopicSchemaStorageImplTest {
         storage.deleteSchema(schemaName, version);
         
         // Then
-        ArgumentCaptor<ProducerRecord<String, byte[]>> captor = 
+        ArgumentCaptor<ProducerRecord<String, SchemaRecord>> captor = 
             ArgumentCaptor.forClass(ProducerRecord.class);
         verify(producer, times(2)).send(captor.capture());
         
         // Second call should be the tombstone
-        ProducerRecord<String, byte[]> tombstone = captor.getAllValues().get(1);
+        ProducerRecord<String, SchemaRecord> tombstone = captor.getAllValues().get(1);
         assertEquals("TestCommand-v1", tombstone.key());
         assertNull(tombstone.value());
         
