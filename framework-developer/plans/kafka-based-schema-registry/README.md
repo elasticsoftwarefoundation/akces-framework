@@ -192,11 +192,12 @@ replication.factor: 3
 
 ### Key Format
 ```
-{schemaName}-v{version}
+{type}-{schemaName}-v{version}
+# Where type is: commands | domainevents
 # Examples:
-# CreateWalletCommand-v1
-# CreateWalletCommand-v2
-# WalletCreatedEvent-v1
+# commands-CreateWalletCommand-v1
+# commands-CreateWalletCommand-v2
+# domainevents-WalletCreatedEvent-v1
 ```
 
 ### Value Format
@@ -213,7 +214,7 @@ replication.factor: 3
 - In-memory cache using Caffeine
 - Background polling for updates
 - TTL configurable (default 1 hour)
-- Cache keys: `{schemaName}-v{version}`
+- Cache keys: `{type}-{schemaName}-v{version}`
 
 ## 📚 Reference
 

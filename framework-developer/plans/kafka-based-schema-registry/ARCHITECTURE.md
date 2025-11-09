@@ -99,13 +99,13 @@
 │  │                                                          │  │
 │  │  Records:                                                │  │
 │  │  ┌──────────────────────────────────────────────────┐  │  │
-│  │  │ Key: CreateWalletCommand-v1                      │  │  │
+│  │  │ Key: commands-CreateWalletCommand-v1             │  │  │
 │  │  │ Value: {schema JSON, version, timestamp}         │  │  │
 │  │  ├──────────────────────────────────────────────────┤  │  │
-│  │  │ Key: CreateWalletCommand-v2                      │  │  │
+│  │  │ Key: commands-CreateWalletCommand-v2             │  │  │
 │  │  │ Value: {schema JSON, version, timestamp}         │  │  │
 │  │  ├──────────────────────────────────────────────────┤  │  │
-│  │  │ Key: WalletCreatedEvent-v1                       │  │  │
+│  │  │ Key: domainevents-WalletCreatedEvent-v1          │  │  │
 │  │  │ Value: {schema JSON, version, timestamp}         │  │  │
 │  │  └──────────────────────────────────────────────────┘  │  │
 │  └──────────────────────────────────────────────────────────┘  │
@@ -241,7 +241,7 @@
 
 ```json
 {
-  "key": "CreateWalletCommand-v1",
+  "key": "commands-CreateWalletCommand-v1",
   "value": {
     "schemaName": "CreateWalletCommand",
     "version": 1,

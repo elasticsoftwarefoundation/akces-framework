@@ -83,7 +83,7 @@ Application → KafkaSchemaRegistry (unchanged API)
 
 ### Storage Model
 - **Topic**: `akces-schemas` (compacted)
-- **Key**: `{schemaName}-v{version}` (e.g., `CreateWalletCommand-v1`)
+- **Key**: `{type}-{schemaName}-v{version}` where type is `commands` or `domainevents` (e.g., `commands-CreateWalletCommand-v1`, `domainevents-WalletCreatedEvent-v1`)
 - **Value**: JSON with schema definition and metadata
 - **Partitions**: 1 (maintains ordering)
 - **Replication**: Configurable (default: 3)

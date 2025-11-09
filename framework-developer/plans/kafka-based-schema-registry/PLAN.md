@@ -49,7 +49,7 @@ Tests use Testcontainers to spin up:
 ### Schema Storage Topic
 Create a compacted Kafka topic to store schemas:
 - **Topic Name**: `akces-schemas` (configurable via `akces.schemas.topic`)
-- **Key Format**: `<schemaName>-v<version>` (e.g., `CreateWalletCommand-v1`)
+- **Key Format**: `<type>-<schemaName>-v<version>` where type is `commands` or `domainevents` (e.g., `commands-CreateWalletCommand-v1`, `domainevents-WalletCreatedEvent-v1`)
 - **Value Format**: JSON containing:
   ```json
   {
@@ -190,14 +190,15 @@ Implements a subset of `SchemaRegistryClient` interface needed by `KafkaSchemaRe
 - **Single Topic vs Multiple Topics**: Use a single compacted topic for all schemas
   - Pros: Simpler management, easier to backup/restore
   - Cons: All schemas in one namespace
-- **Key Format**: `<schemaName>-v<version>`
+- **Key Format**: `<type>-<schemaName>-v<version>` where type is `commands` or `domainevents`
   - Ensures unique keys per schema version
+  - Allows separation between command and domain event schemas
   - Allows compaction to work correctly
   - Natural ordering when listing
 
 ### 2. Caching Strategy
 - Use Caffeine cache with configurable TTL (default: 1 hour)
-- Cache key: `<schemaName>-v<version>`
+- Cache key: `<type>-<schemaName>-v<version>`
 - Invalidate on write/delete
 - Initial load: Read all records from topic on startup
 

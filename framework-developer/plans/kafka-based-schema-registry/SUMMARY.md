@@ -62,7 +62,7 @@
 ### 2. Schema Topic Structure
 **Topic**: `akces-schemas`
 - **Cleanup**: Compacted (retains latest per key)
-- **Key**: `{schemaName}-v{version}`
+- **Key**: `{type}-{schemaName}-v{version}` where type is `commands` or `domainevents`
 - **Value**: JSON schema + metadata
 - **Partitions**: 1 (for ordering)
 
@@ -153,7 +153,7 @@ Remove Schema Registry from deployment after validation period.
 | Caching | Caffeine with background poll | Performance + consistency |
 | Compatibility | Keep Confluent libs | Proven validation logic |
 | Migration | Dual-mode support | Zero downtime migration |
-| Key Format | `{name}-v{version}` | Natural, unique, sortable |
+| Key Format | `{type}-{name}-v{version}` | Natural, unique, sortable, type-separated |
 
 ## Testing Strategy
 
