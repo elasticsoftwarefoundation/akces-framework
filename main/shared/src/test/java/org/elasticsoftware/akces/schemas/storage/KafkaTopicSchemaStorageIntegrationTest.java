@@ -49,10 +49,11 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @Testcontainers
 class KafkaTopicSchemaStorageIntegrationTest {
+    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.1";
 
     @Container
     private static final KafkaContainer kafka = new KafkaContainer(
-            DockerImageName.parse("confluentinc/cp-kafka:7.5.3"))
+            DockerImageName.parse("confluentinc/cp-kafka:" + CONFLUENT_PLATFORM_VERSION))
             .withKraft();
 
     private static final String TOPIC_NAME = "test-schemas";

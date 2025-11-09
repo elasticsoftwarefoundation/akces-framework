@@ -33,6 +33,7 @@ import org.elasticsoftware.akces.protocol.SchemaRecord;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.Collections;
 
 public final class SchemaRecordSerde implements Serde<SchemaRecord> {
     private static final String schemaRecordProto = """
@@ -64,7 +65,7 @@ public final class SchemaRecordSerde implements Serde<SchemaRecord> {
             return new SchemaRecordDTO(
                     record.schemaName(),
                     record.version(),
-                    jsonMapper.writeValueAsString(record.schema()),
+                    jsonMapper.writeValueAsString(record.schema().toJsonNode()),
                     record.registeredAt()
             );
         }
@@ -77,7 +78,7 @@ public final class SchemaRecordSerde implements Serde<SchemaRecord> {
                 return new SchemaRecord(
                         schemaName,
                         version,
-                        new JsonSchema(schema),
+                        new JsonSchema(jsonMapper.readTree(schema), Collections.emptyList(), Collections.emptyMap(), version ),
                         registeredAt
                 );
             } catch (Exception e) {
