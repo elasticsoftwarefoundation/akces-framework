@@ -4,7 +4,7 @@
 Current implementation requires deploying and managing a separate Confluent Schema Registry service, adding operational complexity and consuming 500Mi-1Gi memory + CPU per deployment.
 
 ## Solution
-Replace HTTP-based Confluent Schema Registry with Kafka topic-based storage while retaining Confluent libraries for schema validation and compatibility checking.
+Replace HTTP-based Confluent Schema Registry with Kafka topic-based storage. Retain Confluent libraries for schema validation and compatibility checking only (no external service dependency).
 
 ## Architecture
 
@@ -39,24 +39,18 @@ public record SchemaRecord(String schemaName, int version, JsonSchema schema, St
 
 ### Modified Components
 
-**KafkaSchemaRegistry** - Add constructor accepting `KafkaTopicSchemaStorage`, maintain existing API
+**KafkaSchemaRegistry** - Replace SchemaRegistryClient with KafkaTopicSchemaStorage, maintain existing public API
 
-**AutoConfiguration Classes** - Add conditional beans based on `akces.schemas.storage` property:
+**AutoConfiguration Classes** - Replace SchemaRegistryClient beans with KafkaTopicSchemaStorage:
 - `main/client/.../AkcesClientAutoConfiguration.java`
 - `main/runtime/.../AggregateServiceApplication.java`
 - `main/query-support/.../AkcesQueryModelAutoConfiguration.java`
 - `main/query-support/.../AkcesDatabaseModelAutoConfiguration.java`
 
-**Configuration** (dual-mode support):
+**Configuration**:
 ```properties
-# Kafka mode (new, default)
-akces.schemas.storage=kafka
 akces.schemas.topic=akces-schemas
 akces.schemas.cache.ttl=3600
-
-# Registry mode (legacy, still supported)
-akces.schemas.storage=registry
-akces.schemaregistry.url=http://localhost:8081
 ```
 
 ## Implementation Phases
@@ -66,25 +60,24 @@ akces.schemaregistry.url=http://localhost:8081
 - [ ] Implement `KafkaTopicSchemaStorageImpl` with Kafka producer/consumer
 - [ ] Add Caffeine caching layer
 - [ ] Implement topic initialization and background polling
-- [ ] Update `KafkaSchemaRegistry` to support both backends
+- [ ] Replace SchemaRegistryClient in `KafkaSchemaRegistry` with KafkaTopicSchemaStorage
 - [ ] Unit tests for storage layer
 
 ### Phase 2: Auto-Configuration (1 day)
-- [ ] Update all AutoConfiguration classes with conditional beans
-- [ ] Add configuration properties with defaults
-- [ ] Support dual-mode operation (kafka/registry)
+- [ ] Replace SchemaRegistryClient beans with KafkaTopicSchemaStorage in all AutoConfiguration classes
+- [ ] Remove SchemaRegistryClient dependencies
+- [ ] Update configuration properties
 
 ### Phase 3: Testing (1-2 days)
-- [ ] Integration tests with Kafka (remove Schema Registry container requirement)
-- [ ] Backward compatibility tests with registry mode
+- [ ] Integration tests with Kafka (remove Schema Registry container)
 - [ ] Performance benchmarks
-- [ ] Migration scenario tests
+- [ ] Update existing tests to work without Schema Registry
 
 ### Phase 4: Documentation & Deployment (1 day)
-- [ ] Update README (mark Schema Registry as optional)
-- [ ] Migration guide
-- [ ] Update Kubernetes operator configs to default to Kafka mode
+- [ ] Update README (remove Schema Registry requirement)
+- [ ] Update Kubernetes operator configs
 - [ ] Update test applications
+- [ ] Document schema storage in Kafka
 
 ## Technical Decisions
 
@@ -110,24 +103,24 @@ akces.schemaregistry.url=http://localhost:8081
 - Confluent `SchemaDiff` - Compatibility checking
 - Confluent `JsonSchema` classes
 
-**Make Optional**:
-- `io.confluent:kafka-schema-registry-client` - Only for registry mode
+**Remove**:
+- `io.confluent:kafka-schema-registry-client` - No longer needed
 
 **No New Dependencies** - All required deps (Kafka, Jackson, Caffeine) already present
 
 ## Migration Path
 
-1. Deploy new version (defaults to current registry mode)
-2. Validate everything works
-3. Switch to kafka mode via configuration
-4. Monitor and verify
-5. Remove Schema Registry deployment (optional)
+This is a breaking change that removes the Schema Registry dependency:
+
+1. Users must migrate to new version
+2. Schema Registry service is no longer needed
+3. Existing schemas will need to be re-registered on first startup (schemas are generated from code)
 
 ## Impact
 
 **Resource Savings**: -500Mi to -1Gi memory, -250m to -500m CPU per deployment  
 **Performance**: <1ms cached reads (unchanged), 50-200ms writes (similar)  
-**Breaking Changes**: None (backward compatible)  
+**Breaking Changes**: Yes - removes Schema Registry dependency, schemas re-generated from code on startup  
 **Timeline**: 5-7 days
 
 ## Risks & Mitigations
@@ -136,12 +129,11 @@ akces.schemaregistry.url=http://localhost:8081
 |------|--------|------------|
 | Topic compaction removes needed data | High | Proper key design ensures retention |
 | Performance degradation | Medium | Aggressive caching, benchmarking |
-| Migration complexity | Medium | Dual-mode support, clear guide |
 
 ## Success Criteria
 
 - ✅ All existing tests pass with Kafka backend
 - ✅ No runtime Schema Registry dependency
-- ✅ Zero breaking changes to public APIs
+- ✅ Schema Registry completely removed from codebase
 - ✅ Performance within 10% of current
-- ✅ Complete migration documentation
+- ✅ Complete documentation
