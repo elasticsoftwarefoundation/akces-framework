@@ -291,7 +291,8 @@ public class DatabaseModelRuntimeTests {
         SchemaGenerator jsonSchemaGenerator = new SchemaGenerator(config);
         
         // Write schemas to Akces-Schemas topic
-        SchemaRecordSerde serde = new SchemaRecordSerde();
+        ObjectMapper mapper = objectMapperBuilder.build();
+        SchemaRecordSerde serde = new SchemaRecordSerde(mapper);
         Map<String, Object> producerProps = Map.of(
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
                 ProducerConfig.ACKS_CONFIG, "all",
