@@ -153,6 +153,7 @@ public class QueryModelRuntimeTests {
                 createCompactedTopic("Akces-Control", 3),
                 createTopic("Akces-CommandResponses", 3, 604800000L),
                 createCompactedTopic("Akces-GDPRKeys", 3),
+                createCompactedTopic("Akces-Schemas", 3),
                 createTopic("Wallet-Commands", 3),
                 createTopic("Wallet-DomainEvents", 3),
                 createTopic("Account-Commands", 3),

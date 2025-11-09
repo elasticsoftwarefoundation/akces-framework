@@ -160,13 +160,7 @@ public class DatabaseModelRuntimeTests {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
-            prepareDomainEventSchemas("http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081),
-                    List.of(
-                            WalletCreatedEvent.class,
-                            WalletCreditedEvent.class,
-                            BalanceCreatedEvent.class,
-                            AccountCreatedEvent.class
-                    ));
+            // Schema registration is now automatic through KafkaTopicSchemaStorage
             try {
                 prepareAggregateServiceRecords(kafka.getBootstrapServers());
             } catch (IOException e) {
@@ -176,7 +170,7 @@ public class DatabaseModelRuntimeTests {
                     applicationContext,
                     "akces.rocksdb.baseDir=/tmp/akces",
                     "spring.kafka.enabled=true",
-                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers() + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081),
+                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
                     "spring.datasource.url=" + postgresql.getJdbcUrl(),
                     "spring.datasource.username=akces",
                     "spring.datasource.password=akces",
@@ -222,6 +216,7 @@ public class DatabaseModelRuntimeTests {
                 createCompactedTopic("Akces-Control", 3),
                 createTopic("Akces-CommandResponses", 3, 604800000L),
                 createCompactedTopic("Akces-GDPRKeys", 3),
+                createCompactedTopic("Akces-Schemas", 3),
                 createTopic("Wallet-Commands", 3),
                 createTopic("Wallet-DomainEvents", 3),
                 createTopic("Account-Commands", 3),
