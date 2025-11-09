@@ -25,9 +25,6 @@ import com.github.victools.jsonschema.generator.*;
 import com.github.victools.jsonschema.module.jackson.JacksonModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
-import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import jakarta.inject.Inject;
 import org.apache.kafka.clients.admin.TopicDescription;
@@ -56,6 +53,7 @@ import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.protocol.*;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
+import org.elasticsoftware.akces.serialization.SchemaRecordSerde;
 import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
 import org.elasticsoftware.akcestest.aggregate.account.AccountState;
 import org.elasticsoftware.akcestest.aggregate.account.CreateAccountCommand;
@@ -134,24 +132,9 @@ public class RuntimeTests {
                     .withNetwork(network)
                     .withNetworkAliases("kafka");
 
-    @Container
-    private static final GenericContainer<?> schemaRegistry =
-            new GenericContainer<>(DockerImageName.parse("confluentinc/cp-schema-registry:" + CONFLUENT_PLATFORM_VERSION))
-                    .withNetwork(network)
-                    .withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "kafka:9092")
-                    .withEnv("SCHEMA_REGISTRY_HOST_NAME", "localhost")
-                    .withEnv("SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL","none")
-                    .withExposedPorts(8081)
-                    .withNetworkAliases("schema-registry")
-                    .dependsOn(kafka);
-
     @Inject
     @Qualifier("aggregateServiceKafkaAdmin")
     KafkaAdmin adminClient;
-
-    @Inject
-    @Qualifier("aggregateServiceSchemaRegistryClient")
-    SchemaRegistryClient schemaRegistryClient;
 
     @Inject
     @Qualifier("WalletAkcesController")
@@ -236,7 +219,7 @@ public class RuntimeTests {
                 .mapToObj(i -> new TopicPartition(topic, i));
     }
 
-    public static <C extends Command> void prepareOldCommandSchemas(SchemaRegistryClient src) {
+    public static <C extends Command> void prepareOldCommandSchemas(String bootstrapServers) {
         Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
         objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
         objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
@@ -261,17 +244,28 @@ public class RuntimeTests {
         });
         SchemaGeneratorConfig config = configBuilder.build();
         SchemaGenerator jsonSchemaGenerator = new SchemaGenerator(config);
-        try {
-            src.register("commands.CreateWallet",
-                    new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.CreateWalletCommand.class), List.of(), Map.of(), 1),
-                    1,
-                    -1);
-        } catch (IOException | RestClientException e) {
+        
+        // Write schemas to Akces-Schemas topic
+        ObjectMapper mapper = objectMapperBuilder.build();
+        SchemaRecordSerde serde = new SchemaRecordSerde(mapper);
+        Map<String, Object> producerProps = Map.of(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
+                ProducerConfig.ACKS_CONFIG, "all",
+                ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+        
+        try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
+            JsonSchema schema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.CreateWalletCommand.class), List.of(), Map.of(), 1);
+            SchemaRecord record = new SchemaRecord("commands.CreateWallet", 1, schema, System.currentTimeMillis());
+            String key = "commands.CreateWallet-v1";
+            ProducerRecord<String, SchemaRecord> producerRecord = new ProducerRecord<>("Akces-Schemas", key, record);
+            producer.send(producerRecord).get();
+            producer.flush();
+        } catch (Exception e) {
             throw new ApplicationContextException("Problem populating SchemaRegistry", e);
         }
     }
 
-    public static <D extends DomainEvent> void prepareOldDomainEventSchemas(SchemaRegistryClient src) {
+    public static <D extends DomainEvent> void prepareOldDomainEventSchemas(String bootstrapServers) {
         Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
         objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
         objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
@@ -296,20 +290,33 @@ public class RuntimeTests {
         });
         SchemaGeneratorConfig config = configBuilder.build();
         SchemaGenerator jsonSchemaGenerator = new SchemaGenerator(config);
-        try {
-            src.register("domainevents.BalanceCreated",
-                    new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.BalanceCreatedEvent.class), List.of(), Map.of(), 1),
-                    1,
-                    -1);
-            src.register("domainevents.BuyOrderPlaced",
-                    new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.BuyOrderPlacedEvent.class), List.of(), Map.of(), 1),
-                    1,
-                    -1);
-            src.register("domainevents.WalletCredited",
-                    new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.WalletCreditedEvent.class), List.of(), Map.of(), 1),
-                    1,
-                    -1);
-        } catch (IOException | RestClientException e) {
+        
+        // Write schemas to Akces-Schemas topic
+        ObjectMapper mapper = objectMapperBuilder.build();
+        SchemaRecordSerde serde = new SchemaRecordSerde(mapper);
+        Map<String, Object> producerProps = Map.of(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
+                ProducerConfig.ACKS_CONFIG, "all",
+                ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+        
+        try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
+            // Register BalanceCreated schema
+            JsonSchema balanceCreatedSchema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.BalanceCreatedEvent.class), List.of(), Map.of(), 1);
+            SchemaRecord balanceCreatedRecord = new SchemaRecord("domainevents.BalanceCreated", 1, balanceCreatedSchema, System.currentTimeMillis());
+            producer.send(new ProducerRecord<>("Akces-Schemas", "domainevents.BalanceCreated-v1", balanceCreatedRecord)).get();
+            
+            // Register BuyOrderPlaced schema
+            JsonSchema buyOrderPlacedSchema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.BuyOrderPlacedEvent.class), List.of(), Map.of(), 1);
+            SchemaRecord buyOrderPlacedRecord = new SchemaRecord("domainevents.BuyOrderPlaced", 1, buyOrderPlacedSchema, System.currentTimeMillis());
+            producer.send(new ProducerRecord<>("Akces-Schemas", "domainevents.BuyOrderPlaced-v1", buyOrderPlacedRecord)).get();
+            
+            // Register WalletCredited schema
+            JsonSchema walletCreditedSchema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.WalletCreditedEvent.class), List.of(), Map.of(), 1);
+            SchemaRecord walletCreditedRecord = new SchemaRecord("domainevents.WalletCredited", 1, walletCreditedSchema, System.currentTimeMillis());
+            producer.send(new ProducerRecord<>("Akces-Schemas", "domainevents.WalletCredited-v1", walletCreditedRecord)).get();
+            
+            producer.flush();
+        } catch (Exception e) {
             throw new ApplicationContextException("Problem populating SchemaRegistry", e);
         }
     }
@@ -331,14 +338,18 @@ public class RuntimeTests {
 
     @Test
     @Order(2)
-    public void createSchemas() throws RestClientException, IOException {
+    public void waitForControllersToStart() {
         while (!walletAggregateController.isRunning() ||
                 !accountAggregateController.isRunning() ||
                 !orderProcessManagerAggregateController.isRunning() ||
                 !akcesClient.isRunning()) {
             Thread.onSpinWait();
         }
-        System.out.println(schemaRegistryClient.getAllSubjects());
+        // Controllers are running
+        assertNotNull(walletAggregateController);
+        assertNotNull(accountAggregateController);
+        assertNotNull(orderProcessManagerAggregateController);
+        assertNotNull(akcesClient);
     }
 
     @Test
@@ -894,10 +905,10 @@ public class RuntimeTests {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
-            SchemaRegistryClient src = new CachedSchemaRegistryClient("http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081), 100);
-            prepareExternalSchemas(src, List.of(AccountCreatedEvent.class));
-            prepareOldCommandSchemas(src);
-            prepareOldDomainEventSchemas(src);
+            // Prepare schemas by writing to Akces-Schemas topic
+            prepareExternalSchemas(kafka.getBootstrapServers(), List.of(AccountCreatedEvent.class));
+            prepareOldCommandSchemas(kafka.getBootstrapServers());
+            prepareOldDomainEventSchemas(kafka.getBootstrapServers());
             try {
                 prepareAggregateServiceRecords(kafka.getBootstrapServers());
             } catch (IOException e) {
@@ -909,8 +920,7 @@ public class RuntimeTests {
                     "akces.aggregate.schemas.forceRegister=true",
                     "akces.rocksdb.baseDir=/tmp/akces",
                     "spring.kafka.enabled=true",
-                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
-                    "akces.schemaregistry.url=http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081)
+                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers()
             );
         }
     }
