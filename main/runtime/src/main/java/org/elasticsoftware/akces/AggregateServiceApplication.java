@@ -20,12 +20,6 @@ package org.elasticsoftware.akces;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
-import org.apache.kafka.clients.consumer.Consumer;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.Producer;
-import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.elasticsoftware.akces.beans.AggregateBeanFactoryPostProcessor;
@@ -110,27 +104,24 @@ public class AggregateServiceApplication {
         return new SchemaRecordSerde(objectMapper);
     }
 
-    @Bean(name = "aggregateServiceSchemaProducer")
-    public Producer<String, SchemaRecord> schemaProducer(
-            @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers,
+    @Bean(name = "aggregateServiceSchemaProducerFactory")
+    public ProducerFactory<String, SchemaRecord> schemaProducerFactory(
+            KafkaProperties properties,
             @Qualifier("aggregateServiceSchemaRecordSerde") SchemaRecordSerde serde) {
-        Map<String, Object> props = new HashMap<>();
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ProducerConfig.ACKS_CONFIG, "all");
-        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
-        return new KafkaProducer<>(props, new StringSerializer(), serde.serializer());
+        return new CustomKafkaProducerFactory<>(
+                properties.buildProducerProperties(null),
+                new StringSerializer(),
+                serde.serializer());
     }
 
-    @Bean(name = "aggregateServiceSchemaConsumer")
-    public Consumer<String, SchemaRecord> schemaConsumer(
-            @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers,
+    @Bean(name = "aggregateServiceSchemaConsumerFactory")
+    public ConsumerFactory<String, SchemaRecord> schemaConsumerFactory(
+            KafkaProperties properties,
             @Qualifier("aggregateServiceSchemaRecordSerde") SchemaRecordSerde serde) {
-        Map<String, Object> props = new HashMap<>();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "akces-aggregate-service-schema-consumer");
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        return new KafkaConsumer<>(props, new StringDeserializer(), serde.deserializer());
+        return new CustomKafkaConsumerFactory<>(
+                properties.buildConsumerProperties(null),
+                new StringDeserializer(),
+                serde.deserializer());
     }
 
     @Bean(name = "aggregateServiceSchemaAdminClient")
@@ -144,13 +135,13 @@ public class AggregateServiceApplication {
     public KafkaTopicSchemaStorage schemaStorage(
             @Value("${akces.schemas.topic}") String schemasTopic,
             @Value("${akces.schemas.replication.factor}") int replicationFactor,
-            @Qualifier("aggregateServiceSchemaProducer") Producer<String, SchemaRecord> producer,
-            @Qualifier("aggregateServiceSchemaConsumer") Consumer<String, SchemaRecord> consumer,
+            @Qualifier("aggregateServiceSchemaProducerFactory") ProducerFactory<String, SchemaRecord> producerFactory,
+            @Qualifier("aggregateServiceSchemaConsumerFactory") ConsumerFactory<String, SchemaRecord> consumerFactory,
             @Qualifier("aggregateServiceSchemaAdminClient") AdminClient adminClient) {
         return new KafkaTopicSchemaStorageImpl(
                 schemasTopic,
-                producer,
-                consumer,
+                producerFactory.createProducer("aggregateServiceSchemaProducer"),
+                consumerFactory.createConsumer("akces-aggregate-service-schema", "schema-storage"),
                 adminClient,
                 replicationFactor
         );

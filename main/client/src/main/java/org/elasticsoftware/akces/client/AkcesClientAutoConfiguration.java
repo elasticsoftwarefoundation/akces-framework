@@ -20,12 +20,6 @@ package org.elasticsoftware.akces.client;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
-import org.apache.kafka.clients.consumer.Consumer;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.Producer;
-import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
@@ -96,27 +90,24 @@ public class AkcesClientAutoConfiguration {
         return new SchemaRecordSerde(objectMapper);
     }
 
-    @Bean(name = "akcesClientSchemaProducer")
-    public Producer<String, SchemaRecord> createSchemaProducer(
-            @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers,
+    @Bean(name = "akcesClientSchemaProducerFactory")
+    public ProducerFactory<String, SchemaRecord> createSchemaProducerFactory(
+            KafkaProperties properties,
             @Qualifier("akcesClientSchemaRecordSerde") SchemaRecordSerde serde) {
-        Map<String, Object> props = new HashMap<>();
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ProducerConfig.ACKS_CONFIG, "all");
-        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
-        return new KafkaProducer<>(props, new StringSerializer(), serde.serializer());
+        return new CustomKafkaProducerFactory<>(
+                properties.buildProducerProperties(null),
+                new StringSerializer(),
+                serde.serializer());
     }
 
-    @Bean(name = "akcesClientSchemaConsumer")
-    public Consumer<String, SchemaRecord> createSchemaConsumer(
-            @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers,
+    @Bean(name = "akcesClientSchemaConsumerFactory")
+    public ConsumerFactory<String, SchemaRecord> createSchemaConsumerFactory(
+            KafkaProperties properties,
             @Qualifier("akcesClientSchemaRecordSerde") SchemaRecordSerde serde) {
-        Map<String, Object> props = new HashMap<>();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "akces-client-schema-consumer");
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        return new KafkaConsumer<>(props, new StringDeserializer(), serde.deserializer());
+        return new CustomKafkaConsumerFactory<>(
+                properties.buildConsumerProperties(null),
+                new StringDeserializer(),
+                serde.deserializer());
     }
 
     @Bean(name = "akcesClientSchemaAdminClient")
@@ -130,13 +121,13 @@ public class AkcesClientAutoConfiguration {
     public KafkaTopicSchemaStorage createSchemaStorage(
             @Value("${akces.schemas.topic}") String schemasTopic,
             @Value("${akces.schemas.replication.factor}") int replicationFactor,
-            @Qualifier("akcesClientSchemaProducer") Producer<String, SchemaRecord> producer,
-            @Qualifier("akcesClientSchemaConsumer") Consumer<String, SchemaRecord> consumer,
+            @Qualifier("akcesClientSchemaProducerFactory") ProducerFactory<String, SchemaRecord> producerFactory,
+            @Qualifier("akcesClientSchemaConsumerFactory") ConsumerFactory<String, SchemaRecord> consumerFactory,
             @Qualifier("akcesClientSchemaAdminClient") AdminClient adminClient) {
         return new KafkaTopicSchemaStorageImpl(
                 schemasTopic,
-                producer,
-                consumer,
+                producerFactory.createProducer("akcesClientSchemaProducer"),
+                consumerFactory.createConsumer("akces-client-schema", "schema-storage"),
                 adminClient,
                 replicationFactor
         );
