@@ -115,11 +115,20 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
             // Create topic if it doesn't exist
             createTopicIfNeeded();
             
-            // Subscribe consumer to the topic
-            consumer.subscribe(Collections.singletonList(topicName));
+            // Use manual assignment for the consumer
+            List<TopicPartition> partitions = consumer.partitionsFor(topicName).stream()
+                    .map(info -> new TopicPartition(info.topic(), info.partition()))
+                    .collect(Collectors.toList());
             
-            // Load initial cache from the beginning of the topic
-            loadInitialCache();
+            if (partitions.isEmpty()) {
+                logger.warn("No partitions found for topic: {}", topicName);
+            } else {
+                // Assign partitions to consumer
+                consumer.assign(partitions);
+                
+                // Load initial cache from the beginning of the topic
+                loadInitialCache();
+            }
             
             // Start background polling
             running.set(true);
@@ -274,27 +283,32 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
      */
     private void loadInitialCache() {
         try {
-            // Get topic partitions
-            List<TopicPartition> partitions = consumer.partitionsFor(topicName).stream()
-                    .map(info -> new TopicPartition(info.topic(), info.partition()))
-                    .collect(Collectors.toList());
+            // Get assigned partitions
+            Set<TopicPartition> assignedPartitions = consumer.assignment();
             
-            if (partitions.isEmpty()) {
-                logger.warn("No partitions found for topic: {}", topicName);
+            if (assignedPartitions.isEmpty()) {
+                logger.warn("No partitions assigned for topic: {}", topicName);
                 return;
             }
             
             // Seek to beginning
-            consumer.seekToBeginning(partitions);
+            consumer.seekToBeginning(assignedPartitions);
             
             // Read all records
             boolean done = false;
             int recordCount = 0;
+            int emptyPolls = 0;
+            final int maxEmptyPolls = 3;
+            
             while (!done) {
                 ConsumerRecords<String, byte[]> records = consumer.poll(POLL_TIMEOUT);
                 if (records.isEmpty()) {
-                    done = true;
+                    emptyPolls++;
+                    if (emptyPolls >= maxEmptyPolls) {
+                        done = true;
+                    }
                 } else {
+                    emptyPolls = 0;
                     for (ConsumerRecord<String, byte[]> record : records) {
                         processRecord(record);
                         recordCount++;

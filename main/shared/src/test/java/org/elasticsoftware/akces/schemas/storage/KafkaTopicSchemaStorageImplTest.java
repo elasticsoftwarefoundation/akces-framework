@@ -110,7 +110,8 @@ class KafkaTopicSchemaStorageImplTest {
                    topic.replicationFactor() == REPLICATION_FACTOR &&
                    topic.configs().get("cleanup.policy").equals("compact");
         }));
-        verify(consumer).subscribe(Collections.singletonList(TOPIC_NAME));
+        verify(consumer).partitionsFor(TOPIC_NAME);
+        verify(consumer).assign(anyList());
     }
 
     @Test
