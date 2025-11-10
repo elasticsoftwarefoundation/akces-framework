@@ -87,6 +87,11 @@ public class AccountConfiguration {
             }
 
             @Override
+            public void process() {
+                // No-op for mock
+            }
+
+            @Override
             public void close() {
                 // No-op for mock
             }

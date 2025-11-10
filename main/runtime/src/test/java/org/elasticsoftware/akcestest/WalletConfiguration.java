@@ -87,6 +87,11 @@ public class WalletConfiguration {
             }
 
             @Override
+            public void process() {
+                //
+            }
+
+            @Override
             public void close() {
                 // No-op for mock
             }
