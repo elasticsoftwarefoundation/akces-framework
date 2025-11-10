@@ -19,7 +19,6 @@ package org.elasticsoftware.akcestest;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import jakarta.inject.Inject;
 import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.elasticsoftware.akcestest.aggregate.account.AccountState;
@@ -37,8 +36,6 @@ public class AccountTests {
     ObjectMapper objectMapper;
     @Inject
     KafkaSchemaRegistry schemaRegistry;
-    @Inject
-    SchemaRegistryClient schemaRegistryClient;
 
     @Test
     public void testAggregateStateSerializationWithChangingSchema() throws JsonProcessingException {
