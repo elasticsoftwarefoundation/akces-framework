@@ -65,13 +65,11 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
     private final Map<DomainEventType<?>, UpcastingHandlerFunction<DomainEvent, DomainEvent, DomainEventType<DomainEvent>, DomainEventType<DomainEvent>>> eventUpcastingHandlers;
     private final boolean generateGDPRKeyOnCreate;
     private final boolean shouldHandlePIIData;
-    private final KafkaSchemaRegistry schemaRegistry;
     private final ObjectMapper objectMapper;
     private final Map<Class<? extends DomainEvent>, JsonSchema> domainEventSchemas = new HashMap<>();
     private final Map<Class<? extends Command>, JsonSchema> commandSchemas = new HashMap<>();
 
-    private KafkaAggregateRuntime(KafkaSchemaRegistry schemaRegistry,
-                                  ObjectMapper objectMapper,
+    private KafkaAggregateRuntime(ObjectMapper objectMapper,
                                   AggregateStateType<?> stateType,
                                   Class<? extends Aggregate<?>> aggregateClass,
                                   CommandHandlerFunction<AggregateState, Command, DomainEvent> commandCreateHandler,
@@ -100,7 +98,6 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
         this.eventUpcastingHandlers = eventUpcastingHandlers;
         this.generateGDPRKeyOnCreate = generateGDPRKeyOnCreate;
         this.shouldHandlePIIData = shouldHandlePIIData;
-        this.schemaRegistry = schemaRegistry;
         this.objectMapper = objectMapper;
     }
 
@@ -532,7 +529,7 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
     }
 
     @Override
-    public void registerAndValidate(DomainEventType<?> domainEventType, boolean forceRegisterOnIncompatible) throws SchemaException {
+    public void registerAndValidate(DomainEventType<?> domainEventType, KafkaSchemaRegistry schemaRegistry, boolean forceRegisterOnIncompatible) throws SchemaException {
         // generate the local schema version
         JsonSchema localSchema = schemaRegistry.registerAndValidate(domainEventType, forceRegisterOnIncompatible);
         // schema is fine, add to map
@@ -540,7 +537,7 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
     }
 
     @Override
-    public void registerAndValidate(CommandType<?> commandType,  boolean forceRegisterOnIncompatible) throws SchemaException {
+    public void registerAndValidate(CommandType<?> commandType, KafkaSchemaRegistry schemaRegistry, boolean forceRegisterOnIncompatible) throws SchemaException {
         if (!commandSchemas.containsKey(commandType.typeClass())) {
             JsonSchema localSchema = schemaRegistry.registerAndValidate(commandType, forceRegisterOnIncompatible);
             commandSchemas.put(commandType.typeClass(), localSchema);
@@ -660,7 +657,6 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
     }
 
     public static class Builder {
-        private KafkaSchemaRegistry schemaRegistry;
         private ObjectMapper objectMapper;
         private AggregateStateType<?> stateType;
         private Class<? extends Aggregate<?>> aggregateClass;
@@ -676,11 +672,6 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
         private final Map<AggregateStateType<?>, UpcastingHandlerFunction<AggregateState, AggregateState, AggregateStateType<AggregateState>, AggregateStateType<AggregateState>>> stateUpcastingHandlers = new HashMap<>();
         private final Map<DomainEventType<?>, UpcastingHandlerFunction<DomainEvent, DomainEvent, DomainEventType<DomainEvent>, DomainEventType<DomainEvent>>> eventUpcastingHandlers = new HashMap<>();
         private boolean generateGDPRKeyOnCreate = false;
-
-        public Builder setSchemaRegistry(KafkaSchemaRegistry schemaRegistry) {
-            this.schemaRegistry = schemaRegistry;
-            return this;
-        }
 
         public Builder setObjectMapper(ObjectMapper objectMapper) {
             this.objectMapper = objectMapper;
@@ -881,7 +872,6 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
                             .anyMatch(GDPRAnnotationUtils::hasPIIDataAnnotation);
 
             return new KafkaAggregateRuntime(
-                    schemaRegistry,
                     objectMapper,
                     stateType,
                     aggregateClass,

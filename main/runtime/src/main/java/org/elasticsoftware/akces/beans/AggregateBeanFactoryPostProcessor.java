@@ -126,7 +126,6 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                 bdr.registerBeanDefinition(beanName + "AggregateRuntimeFactory",
                         BeanDefinitionBuilder.genericBeanDefinition(AggregateRuntimeFactory.class)
                                 .addConstructorArgReference(beanFactory.getBeanNamesForType(ObjectMapper.class)[0])
-                                .addConstructorArgReference("aggregateServiceSchemaRegistry")
                                 .addConstructorArgReference(beanName)
                                 .getBeanDefinition());
                 // and create a AkcesController bean to kickstart kafka (if kafka is configured)
@@ -144,8 +143,8 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
                                     .addConstructorArgReference("aggregateServiceAggregateStateRepositoryFactory")
                                     .addConstructorArgReference("aggregateServiceGDPRContextRepositoryFactory")
                                     .addConstructorArgReference(beanName + "AggregateRuntimeFactory")
-                                    //.addConstructorArgReference(beanFactory.getBeanNamesForType(KafkaAdminOperations.class)[0])
                                     .addConstructorArgReference("aggregateServiceKafkaAdmin")
+                                    .addConstructorArgReference("aggregateServiceSchemaRegistry")
                                     .setInitMethodName("start")
                                     .setDestroyMethodName("close")
                                     .getBeanDefinition());
