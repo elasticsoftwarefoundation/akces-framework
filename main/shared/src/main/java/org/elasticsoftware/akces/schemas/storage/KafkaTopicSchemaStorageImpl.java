@@ -20,7 +20,6 @@ package org.elasticsoftware.akces.schemas.storage;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
-import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -52,32 +51,23 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     
     private static final Logger logger = LoggerFactory.getLogger(KafkaTopicSchemaStorageImpl.class);
     private static final Duration POLL_TIMEOUT = Duration.ofMillis(100);
+    private static final String TOPIC_NAME = "Akces-Schemas";
     
-    private final String topicName;
     private final Producer<String, SchemaRecord> producer;
     private final Consumer<String, SchemaRecord> consumer;
-    private final Admin adminClient;
     private final Cache<String, SchemaRecord> cache;
     
     /**
      * Creates a new Kafka-based schema storage.
      * 
-     * @param topicName the name of the Kafka topic to use for storage
      * @param producer Kafka producer for writing schemas
      * @param consumer Kafka consumer for reading schemas
-     * @param adminClient Kafka admin client for topic management
-     * @param replicationFactor replication factor for the schema topic
      */
     public KafkaTopicSchemaStorageImpl(
-            String topicName,
             Producer<String, SchemaRecord> producer,
-            Consumer<String, SchemaRecord> consumer,
-            Admin adminClient,
-            int replicationFactor) {
-        this.topicName = topicName;
+            Consumer<String, SchemaRecord> consumer) {
         this.producer = producer;
         this.consumer = consumer;
-        this.adminClient = adminClient;
         
         // Initialize cache with no expiration
         this.cache = Caffeine.newBuilder().build();
@@ -87,12 +77,12 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     public void initialize() throws SchemaException {
         try {
             // Use manual assignment for the consumer
-            List<TopicPartition> partitions = consumer.partitionsFor(topicName).stream()
+            List<TopicPartition> partitions = consumer.partitionsFor(TOPIC_NAME).stream()
                     .map(info -> new TopicPartition(info.topic(), info.partition()))
                     .collect(Collectors.toList());
             
             if (partitions.isEmpty()) {
-                logger.warn("No partitions found for topic: {}", topicName);
+                logger.warn("No partitions found for topic: {}", TOPIC_NAME);
             } else {
                 // Assign partitions to consumer
                 consumer.assign(partitions);
@@ -101,11 +91,11 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
                 loadInitialCache();
             }
             
-            logger.info("Initialized Kafka schema storage for topic: {}", topicName);
+            logger.info("Initialized Kafka schema storage for topic: {}", TOPIC_NAME);
         } catch (Exception e) {
             throw new SchemaException(
                     "Failed to initialize schema storage",
-                    topicName,
+                    TOPIC_NAME,
                     KafkaTopicSchemaStorageImpl.class,
                     e);
         }
@@ -132,7 +122,7 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
         SchemaRecord record = new SchemaRecord(schemaName, version, schema, System.currentTimeMillis());
         
         try {
-            ProducerRecord<String, SchemaRecord> producerRecord = new ProducerRecord<>(topicName, key, record);
+            ProducerRecord<String, SchemaRecord> producerRecord = new ProducerRecord<>(TOPIC_NAME, key, record);
             
             // Send with retries
             producer.send(producerRecord).get(10, TimeUnit.SECONDS);
@@ -187,7 +177,6 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     public void close() {
         producer.close();
         consumer.close();
-        adminClient.close();
         
         logger.info("Closed Kafka schema storage");
     }
@@ -201,7 +190,7 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
             Set<TopicPartition> assignedPartitions = consumer.assignment();
             
             if (assignedPartitions.isEmpty()) {
-                logger.warn("No partitions assigned for topic: {}", topicName);
+                logger.warn("No partitions assigned for topic: {}", TOPIC_NAME);
                 return;
             }
             

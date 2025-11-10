@@ -106,27 +106,13 @@ public class AkcesDatabaseModelAutoConfiguration {
     }
 
     @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
-    @Bean(name = "akcesDatabaseModelSchemaAdminClient")
-    public AdminClient schemaAdminClient(@Value("${spring.kafka.bootstrap-servers}") String bootstrapServers) {
-        Map<String, Object> props = new HashMap<>();
-        props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        return AdminClient.create(props);
-    }
-
-    @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
     @Bean(name = "akcesDatabaseModelSchemaStorage", initMethod = "initialize", destroyMethod = "close")
     public KafkaTopicSchemaStorage schemaStorage(
-            @Value("${akces.schemas.topic}") String schemasTopic,
-            @Value("${akces.schemas.replication.factor}") int replicationFactor,
             @Qualifier("akcesDatabaseModelSchemaProducerFactory") ProducerFactory<String, SchemaRecord> producerFactory,
-            @Qualifier("akcesDatabaseModelSchemaConsumerFactory") ConsumerFactory<String, SchemaRecord> consumerFactory,
-            @Qualifier("akcesDatabaseModelSchemaAdminClient") AdminClient adminClient) {
+            @Qualifier("akcesDatabaseModelSchemaConsumerFactory") ConsumerFactory<String, SchemaRecord> consumerFactory) {
         return new KafkaTopicSchemaStorageImpl(
-                schemasTopic,
                 producerFactory.createProducer("akcesDatabaseModelSchemaProducer"),
-                consumerFactory.createConsumer("akces-database-model-schema", "schema-storage"),
-                adminClient,
-                replicationFactor
+                consumerFactory.createConsumer("akces-database-model-schema", "schema-storage")
         );
     }
 

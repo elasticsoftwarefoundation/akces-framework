@@ -50,24 +50,15 @@ class KafkaTopicSchemaStorageImplTest {
 
     private Producer<String, SchemaRecord> producer;
     private Consumer<String, SchemaRecord> consumer;
-    private Admin adminClient;
     private KafkaTopicSchemaStorageImpl storage;
     
-    private static final String TOPIC_NAME = "test-schemas";
-    private static final int REPLICATION_FACTOR = 1;
+    private static final String TOPIC_NAME = "Akces-Schemas";
 
     @SuppressWarnings("unchecked")
     @BeforeEach
     void setUp() {
         producer = mock(Producer.class);
         consumer = mock(Consumer.class);
-        adminClient = mock(Admin.class);
-        
-        // Setup admin client mock
-        CreateTopicsResult createTopicsResult = mock(CreateTopicsResult.class);
-        KafkaFuture<Void> future = KafkaFuture.completedFuture(null);
-        when(createTopicsResult.all()).thenReturn(future);
-        when(adminClient.createTopics(anyList())).thenReturn(createTopicsResult);
         
         // Setup consumer mocks
         List<PartitionInfo> partitionInfos = Collections.singletonList(
@@ -77,11 +68,8 @@ class KafkaTopicSchemaStorageImplTest {
         when(consumer.poll(any(Duration.class))).thenReturn(ConsumerRecords.empty());
         
         storage = new KafkaTopicSchemaStorageImpl(
-            TOPIC_NAME,
             producer,
-            consumer,
-            adminClient,
-            REPLICATION_FACTOR
+            consumer
         );
     }
 
@@ -231,6 +219,5 @@ class KafkaTopicSchemaStorageImplTest {
         // Then
         verify(producer).close();
         verify(consumer).close();
-        verify(adminClient).close();
     }
 }

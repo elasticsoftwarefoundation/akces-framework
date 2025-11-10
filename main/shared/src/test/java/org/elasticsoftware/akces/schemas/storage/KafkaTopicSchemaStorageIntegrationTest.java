@@ -57,8 +57,7 @@ class KafkaTopicSchemaStorageIntegrationTest {
             DockerImageName.parse("confluentinc/cp-kafka:" + CONFLUENT_PLATFORM_VERSION))
             .withKraft();
 
-    private static final String TOPIC_NAME = "test-schemas";
-    private static final int REPLICATION_FACTOR = 1;
+    private static final String TOPIC_NAME = "Akces-Schemas";
 
     private KafkaTopicSchemaStorageImpl storage;
     private Producer<String, SchemaRecord> producer;
@@ -76,7 +75,7 @@ class KafkaTopicSchemaStorageIntegrationTest {
         adminClient = AdminClient.create(adminProps);
         
         // Create the schema topic with compaction (for testing only - normally created by akces-operator)
-        NewTopic schemaTopic = new NewTopic(TOPIC_NAME, 1, (short) REPLICATION_FACTOR);
+        NewTopic schemaTopic = new NewTopic(TOPIC_NAME, 1, (short) 1);
         schemaTopic.configs(Map.of("cleanup.policy", "compact"));
         try {
             adminClient.createTopics(List.of(schemaTopic)).all().get();
@@ -103,11 +102,8 @@ class KafkaTopicSchemaStorageIntegrationTest {
 
         // Create storage
         storage = new KafkaTopicSchemaStorageImpl(
-                TOPIC_NAME,
                 producer,
-                consumer,
-                adminClient,
-                REPLICATION_FACTOR
+                consumer
         );
 
         storage.initialize();
