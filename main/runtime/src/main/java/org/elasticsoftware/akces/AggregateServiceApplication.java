@@ -18,7 +18,6 @@
 package org.elasticsoftware.akces;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -31,9 +30,6 @@ import org.elasticsoftware.akces.kafka.CustomKafkaConsumerFactory;
 import org.elasticsoftware.akces.kafka.CustomKafkaProducerFactory;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.protocol.SchemaRecord;
-import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
-import org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorage;
-import org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorageImpl;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
@@ -56,7 +52,6 @@ import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.ProducerFactory;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -124,22 +119,7 @@ public class AggregateServiceApplication {
                 serde.deserializer());
     }
 
-    @Bean(name = "aggregateServiceSchemaStorage", initMethod = "initialize", destroyMethod = "close")
-    public KafkaTopicSchemaStorage schemaStorage(
-            @Qualifier("aggregateServiceSchemaProducerFactory") ProducerFactory<String, SchemaRecord> producerFactory,
-            @Qualifier("aggregateServiceSchemaConsumerFactory") ConsumerFactory<String, SchemaRecord> consumerFactory) {
-        return new KafkaTopicSchemaStorageImpl(
-                producerFactory.createProducer("aggregateServiceSchemaProducer"),
-                consumerFactory.createConsumer("akces-aggregate-service-schema", "schema-storage")
-        );
-    }
 
-    @Bean(name = "aggregateServiceSchemaRegistry")
-    public KafkaSchemaRegistry schemaRegistry(
-            @Qualifier("aggregateServiceSchemaStorage") KafkaTopicSchemaStorage schemaStorage,
-            ObjectMapper objectMapper) {
-        return new KafkaSchemaRegistry(schemaStorage, objectMapper);
-    }
 
     @Bean(name = "aggregateServiceConsumerFactory")
     public ConsumerFactory<String, ProtocolRecord> consumerFactory(KafkaProperties properties) {

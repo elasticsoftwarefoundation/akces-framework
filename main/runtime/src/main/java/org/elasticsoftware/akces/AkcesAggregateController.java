@@ -79,9 +79,11 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
     private final ProducerFactory<String, AkcesControlRecord> controlProducerFactory;
     private final ConsumerFactory<String, AkcesControlRecord> controlRecordConsumerFactory;
+    private final ProducerFactory<String, org.elasticsoftware.akces.protocol.SchemaRecord> schemaProducerFactory;
+    private final ConsumerFactory<String, org.elasticsoftware.akces.protocol.SchemaRecord> schemaConsumerFactory;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     private final AggregateRuntime aggregateRuntime;
     private final KafkaAdminOperations kafkaAdmin;
-    private final org.elasticsoftware.akces.schemas.KafkaSchemaRegistry schemaRegistry;
     private final Map<Integer, AggregatePartition> aggregatePartitions = new HashMap<>();
     private final ExecutorService executorService;
     private final HashFunction hashFunction = Hashing.murmur3_32_fixed();
@@ -94,6 +96,8 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     private Integer partitions = null;
     private Short replicationFactor = null;
     private Consumer<String, AkcesControlRecord> controlConsumer;
+    private org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorage schemaStorage;
+    private org.elasticsoftware.akces.schemas.KafkaSchemaRegistry schemaRegistry;
     private volatile AkcesControllerState processState = INITIALIZING;
     private boolean forceRegisterOnIncompatible = false;
     private ApplicationContext applicationContext;
@@ -102,21 +106,25 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                                     ProducerFactory<String, ProtocolRecord> producerFactory,
                                     ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory,
                                     ProducerFactory<String, AkcesControlRecord> controlProducerFactory,
+                                    ProducerFactory<String, org.elasticsoftware.akces.protocol.SchemaRecord> schemaProducerFactory,
+                                    ConsumerFactory<String, org.elasticsoftware.akces.protocol.SchemaRecord> schemaConsumerFactory,
+                                    com.fasterxml.jackson.databind.ObjectMapper objectMapper,
                                     AggregateStateRepositoryFactory aggregateStateRepositoryFactory,
                                     GDPRContextRepositoryFactory gdprContextRepositoryFactory,
                                     AggregateRuntime aggregateRuntime,
-                                    KafkaAdminOperations kafkaAdmin,
-                                    org.elasticsoftware.akces.schemas.KafkaSchemaRegistry schemaRegistry) {
+                                    KafkaAdminOperations kafkaAdmin) {
         super(aggregateRuntime.getName() + "-AkcesController");
         this.consumerFactory = consumerFactory;
         this.producerFactory = producerFactory;
         this.controlProducerFactory = controlProducerFactory;
         this.controlRecordConsumerFactory = controlConsumerFactory;
+        this.schemaProducerFactory = schemaProducerFactory;
+        this.schemaConsumerFactory = schemaConsumerFactory;
+        this.objectMapper = objectMapper;
         this.aggregateStateRepositoryFactory = aggregateStateRepositoryFactory;
         this.gdprContextRepositoryFactory = gdprContextRepositoryFactory;
         this.aggregateRuntime = aggregateRuntime;
         this.kafkaAdmin = kafkaAdmin;
-        this.schemaRegistry = schemaRegistry;
         this.executorService = Executors.newCachedThreadPool(new CustomizableThreadFactory(aggregateRuntime.getName() + "AggregatePartitionThread-"));
     }
 
@@ -124,6 +132,16 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     public void run() {
         // make sure all our events and commands are registered and validated
         try {
+            // create schema storage and registry
+            schemaStorage = new org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorageImpl(
+                    schemaProducerFactory.createProducer(aggregateRuntime.getName() + "-SchemaProducer"),
+                    schemaConsumerFactory.createConsumer(
+                            aggregateRuntime.getName() + "-Akces-Schema",
+                            aggregateRuntime.getName() + "-" + HostUtils.getHostName() + "-Akces-Schema")
+            );
+            schemaStorage.initialize();
+            schemaRegistry = new org.elasticsoftware.akces.schemas.KafkaSchemaRegistry(schemaStorage, objectMapper);
+            
             // and start consuming
             controlConsumer =
                     controlRecordConsumerFactory.createConsumer(
@@ -153,6 +171,13 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
             } catch (KafkaException e) {
                 logger.error("Error closing controlConsumer", e);
             }
+            try {
+                if (schemaStorage != null) {
+                    schemaStorage.close();
+                }
+            } catch (Exception e) {
+                logger.error("Error closing schemaStorage", e);
+            }
             // raise an error for the liveness check
             applicationContext.publishEvent(new AvailabilityChangeEvent<>(this, LivenessState.BROKEN));
             // signal done
@@ -166,6 +191,8 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     private void process() {
         if (processState == RUNNING) {
             try {
+                // process schema storage updates
+                schemaStorage.process();
                 processControlRecords();
             } catch (WakeupException | InterruptException e) {
                 // ignore
