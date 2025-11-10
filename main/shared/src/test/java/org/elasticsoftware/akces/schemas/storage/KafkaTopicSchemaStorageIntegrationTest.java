@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -69,6 +70,21 @@ class KafkaTopicSchemaStorageIntegrationTest {
         ObjectMapper objectMapper = new ObjectMapper();
         SchemaRecordSerde serde = new SchemaRecordSerde(objectMapper);
         
+        // Create admin client first to create topic
+        Map<String, Object> adminProps = new HashMap<>();
+        adminProps.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
+        adminClient = AdminClient.create(adminProps);
+        
+        // Create the schema topic with compaction (for testing only - normally created by akces-operator)
+        NewTopic schemaTopic = new NewTopic(TOPIC_NAME, 1, (short) REPLICATION_FACTOR);
+        schemaTopic.configs(Map.of("cleanup.policy", "compact"));
+        try {
+            adminClient.createTopics(List.of(schemaTopic)).all().get();
+        } catch (Exception e) {
+            // Topic might already exist from previous test - this is expected and can be ignored
+            // The Kafka container reuses topics across tests
+        }
+        
         // Create Kafka producer
         Map<String, Object> producerProps = new HashMap<>();
         producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
@@ -84,11 +100,6 @@ class KafkaTopicSchemaStorageIntegrationTest {
         consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
         consumer = new KafkaConsumer<>(consumerProps, new StringDeserializer(), serde.deserializer());
-
-        // Create admin client
-        Map<String, Object> adminProps = new HashMap<>();
-        adminProps.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
-        adminClient = AdminClient.create(adminProps);
 
         // Create storage
         storage = new KafkaTopicSchemaStorageImpl(
@@ -119,8 +130,8 @@ class KafkaTopicSchemaStorageIntegrationTest {
         // When
         storage.registerSchema(schemaName, schema, version);
 
-        // Wait a bit for async processing
-        Thread.sleep(500);
+        // Call process to poll for updates (simulates controller calling process())
+        storage.process();
 
         // Then
         Optional<SchemaRecord> retrieved = storage.getSchema(schemaName, version);
@@ -141,8 +152,8 @@ class KafkaTopicSchemaStorageIntegrationTest {
         storage.registerSchema(schemaName, schema1, 1);
         storage.registerSchema(schemaName, schema2, 2);
 
-        // Wait a bit for async processing
-        Thread.sleep(500);
+        // Call process to poll for updates
+        storage.process();
 
         // Then
         List<SchemaRecord> schemas = storage.getSchemas(schemaName);
@@ -196,8 +207,8 @@ class KafkaTopicSchemaStorageIntegrationTest {
             thread.join();
         }
 
-        // Wait for async processing
-        Thread.sleep(1000);
+        // Call process to poll for updates
+        storage.process();
 
         // Then
         List<SchemaRecord> schemas = storage.getSchemas(schemaName);
@@ -235,12 +246,34 @@ class KafkaTopicSchemaStorageIntegrationTest {
 
         // When
         storage.registerSchema(schemaName, schema, version);
-        Thread.sleep(500);
+        
+        // Call process to poll for updates
+        storage.process();
 
         // Then
         Optional<SchemaRecord> retrieved = storage.getSchema(schemaName, version);
         assertTrue(retrieved.isPresent());
         assertEquals(schemaName, retrieved.get().schemaName());
         assertNotNull(retrieved.get().schema());
+    }
+    
+    @Test
+    void testProcessMethod() throws Exception {
+        // Given
+        String schemaName = "ProcessTest";
+        int version = 1;
+        JsonSchema schema = new JsonSchema("{\"type\": \"object\"}");
+
+        // When - register schema but don't call process yet
+        storage.registerSchema(schemaName, schema, version);
+        
+        // Schema might not be in cache yet (depends on when cache was updated during registration)
+        // Call process explicitly to ensure it's polled
+        storage.process();
+        
+        // Then - verify schema is available after process
+        Optional<SchemaRecord> retrieved = storage.getSchema(schemaName, version);
+        assertTrue(retrieved.isPresent());
+        assertEquals(schemaName, retrieved.get().schemaName());
     }
 }

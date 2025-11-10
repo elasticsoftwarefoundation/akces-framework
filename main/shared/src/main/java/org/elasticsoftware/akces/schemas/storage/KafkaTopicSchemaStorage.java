@@ -70,6 +70,13 @@ public interface KafkaTopicSchemaStorage {
     void initialize() throws SchemaException;
     
     /**
+     * Process method to be called by the controller thread to poll for schema updates.
+     * This method should poll the Kafka topic for new schema records and update the cache.
+     * It should be called periodically from the controller's main loop.
+     */
+    void process();
+    
+    /**
      * Closes the storage, releasing all resources.
      */
     void close();

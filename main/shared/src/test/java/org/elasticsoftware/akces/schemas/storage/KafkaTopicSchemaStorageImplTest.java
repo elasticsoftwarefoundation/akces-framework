@@ -97,16 +97,35 @@ class KafkaTopicSchemaStorageImplTest {
         // When
         storage.initialize();
         
-        // Then
-        verify(adminClient).createTopics(argThat(topics -> {
-            NewTopic topic = topics.iterator().next();
-            return topic.name().equals(TOPIC_NAME) &&
-                   topic.numPartitions() == 1 &&
-                   topic.replicationFactor() == REPLICATION_FACTOR &&
-                   topic.configs().get("cleanup.policy").equals("compact");
-        }));
+        // Then - verify that initialization sets up consumer properly
         verify(consumer).partitionsFor(TOPIC_NAME);
         verify(consumer).assign(anyList());
+    }
+    
+    @Test
+    void testProcess() {
+        // Given
+        storage.initialize();
+        
+        // Setup mock to return a schema record on poll
+        SchemaRecord record = new SchemaRecord("TestCommand", 1, new JsonSchema("{\"type\":\"object\"}"), System.currentTimeMillis());
+        ConsumerRecord<String, SchemaRecord> consumerRecord = new ConsumerRecord<>(
+            TOPIC_NAME, 0, 0, "TestCommand-v1", record
+        );
+        ConsumerRecords<String, SchemaRecord> records = new ConsumerRecords<>(
+            Map.of(new TopicPartition(TOPIC_NAME, 0), List.of(consumerRecord))
+        );
+        
+        when(consumer.poll(any(Duration.class))).thenReturn(records, ConsumerRecords.empty());
+        
+        // When - call process to poll for updates
+        storage.process();
+        
+        // Then - verify the record was added to cache
+        Optional<SchemaRecord> cachedRecord = storage.getSchema("TestCommand", 1);
+        assertTrue(cachedRecord.isPresent());
+        assertEquals("TestCommand", cachedRecord.get().schemaName());
+        assertEquals(1, cachedRecord.get().version());
     }
 
     @Test

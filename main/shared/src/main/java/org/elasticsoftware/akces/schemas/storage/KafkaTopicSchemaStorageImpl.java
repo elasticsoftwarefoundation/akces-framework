@@ -37,10 +37,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -49,7 +46,7 @@ import java.util.stream.Collectors;
  * - Kafka producer for writing schemas
  * - Kafka consumer for reading schemas
  * - Caffeine cache for performance
- * - Background polling thread to keep cache updated
+ * - Process method to be called by controller for cache updates
  */
 public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     
@@ -61,8 +58,6 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     private final Consumer<String, SchemaRecord> consumer;
     private final Admin adminClient;
     private final Cache<String, SchemaRecord> cache;
-    private final ScheduledExecutorService pollExecutor;
-    private final AtomicBoolean running = new AtomicBoolean(false);
     
     /**
      * Creates a new Kafka-based schema storage.
@@ -86,13 +81,6 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
         
         // Initialize cache with no expiration
         this.cache = Caffeine.newBuilder().build();
-        
-        // Create background polling executor
-        this.pollExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "schema-storage-poller");
-            t.setDaemon(true);
-            return t;
-        });
     }
     
     @Override
@@ -113,15 +101,6 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
                 loadInitialCache();
             }
             
-            // Start background polling
-            running.set(true);
-            pollExecutor.scheduleWithFixedDelay(
-                    this::pollForUpdates,
-                    1, // initial delay
-                    1, // period
-                    TimeUnit.SECONDS
-            );
-            
             logger.info("Initialized Kafka schema storage for topic: {}", topicName);
         } catch (Exception e) {
             throw new SchemaException(
@@ -129,6 +108,21 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
                     topicName,
                     KafkaTopicSchemaStorageImpl.class,
                     e);
+        }
+    }
+    
+    /**
+     * Process method to be called by the controller thread to poll for schema updates.
+     * This method polls the Kafka topic for new schema records and updates the cache.
+     */
+    public void process() {
+        try {
+            ConsumerRecords<String, SchemaRecord> records = consumer.poll(POLL_TIMEOUT);
+            for (ConsumerRecord<String, SchemaRecord> record : records) {
+                processRecord(record);
+            }
+        } catch (Exception e) {
+            logger.error("Error during schema storage processing", e);
         }
     }
     
@@ -191,17 +185,6 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     
     @Override
     public void close() {
-        running.set(false);
-        pollExecutor.shutdown();
-        try {
-            if (!pollExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-                pollExecutor.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            pollExecutor.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
-        
         producer.close();
         consumer.close();
         adminClient.close();
@@ -251,24 +234,6 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
         } catch (Exception e) {
             logger.error("Failed to load initial cache", e);
             throw new RuntimeException("Failed to load initial cache", e);
-        }
-    }
-    
-    /**
-     * Background polling to keep cache updated.
-     */
-    private void pollForUpdates() {
-        if (!running.get()) {
-            return;
-        }
-        
-        try {
-            ConsumerRecords<String, SchemaRecord> records = consumer.poll(POLL_TIMEOUT);
-            for (ConsumerRecord<String, SchemaRecord> record : records) {
-                processRecord(record);
-            }
-        } catch (Exception e) {
-            logger.error("Error during background polling", e);
         }
     }
     
