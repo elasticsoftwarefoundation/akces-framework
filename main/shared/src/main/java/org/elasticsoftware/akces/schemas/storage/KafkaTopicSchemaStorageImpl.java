@@ -60,7 +60,7 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     /**
      * Creates a new Kafka-based schema storage.
      * 
-     * @param producer Kafka producer for writing schemas
+     * @param producer Kafka producer for writing schemas (can be null for read-only mode)
      * @param consumer Kafka consumer for reading schemas
      */
     public KafkaTopicSchemaStorageImpl(
@@ -118,6 +118,10 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     
     @Override
     public void registerSchema(String schemaName, JsonSchema schema, int version) throws SchemaException {
+        if (producer == null) {
+            throw new UnsupportedOperationException("Schema registration is not supported in read-only mode");
+        }
+        
         String key = createKey(schemaName, version);
         SchemaRecord record = new SchemaRecord(schemaName, version, schema, System.currentTimeMillis());
         
@@ -175,7 +179,9 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     
     @Override
     public void close() {
-        producer.close();
+        if (producer != null) {
+            producer.close();
+        }
         consumer.close();
         
         logger.info("Closed Kafka schema storage");

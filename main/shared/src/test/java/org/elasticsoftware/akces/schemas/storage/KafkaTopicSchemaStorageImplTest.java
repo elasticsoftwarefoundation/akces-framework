@@ -220,4 +220,30 @@ class KafkaTopicSchemaStorageImplTest {
         verify(producer).close();
         verify(consumer).close();
     }
+
+    @Test
+    void testReadOnlyModeWithNullProducer() {
+        // Given - create storage with null producer (read-only mode)
+        KafkaTopicSchemaStorageImpl readOnlyStorage = new KafkaTopicSchemaStorageImpl(
+            null,
+            consumer
+        );
+        
+        try {
+            readOnlyStorage.initialize();
+            
+            // When/Then - attempting to register should throw UnsupportedOperationException
+            JsonSchema schema = new JsonSchema("{\"type\": \"object\"}");
+            assertThrows(UnsupportedOperationException.class,
+                () -> readOnlyStorage.registerSchema("TestCommand", schema, 1));
+            
+            // Should be able to read schemas
+            Optional<SchemaRecord> result = readOnlyStorage.getSchema("NonExistent", 1);
+            assertTrue(result.isEmpty());
+            
+            // Close should work with null producer - just verifying it doesn't throw
+        } finally {
+            readOnlyStorage.close();
+        }
+    }
 }
