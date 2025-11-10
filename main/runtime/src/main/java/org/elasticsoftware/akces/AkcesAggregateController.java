@@ -136,10 +136,9 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
             schemaStorage = new org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorageImpl(
                     schemaProducerFactory.createProducer(aggregateRuntime.getName() + "-SchemaProducer"),
                     schemaConsumerFactory.createConsumer(
-                            aggregateRuntime.getName() + "-Akces-Schema",
-                            aggregateRuntime.getName() + "-" + HostUtils.getHostName() + "-Akces-Schema")
+                            aggregateRuntime.getName() + "-Akces-SchemaConsumer",
+                            aggregateRuntime.getName() + "-" + HostUtils.getHostName() + "-Akces-SchemaConsumer")
             );
-            schemaStorage.initialize();
             schemaRegistry = new org.elasticsoftware.akces.schemas.KafkaSchemaRegistry(schemaStorage, objectMapper);
             
             // and start consuming
@@ -203,6 +202,8 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                 processState = SHUTTING_DOWN;
             }
         } else if (processState == INITIALIZING) {
+            // ensure we loaded all the available schemas first
+            schemaStorage.initialize();
             // find out about the cluster
             TopicDescription controlTopicDescription = kafkaAdmin.describeTopics("Akces-Control").get("Akces-Control");
             partitions = controlTopicDescription.partitions().size();
