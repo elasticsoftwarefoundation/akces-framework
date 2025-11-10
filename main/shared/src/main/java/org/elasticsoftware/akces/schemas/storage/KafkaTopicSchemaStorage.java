@@ -63,8 +63,7 @@ public interface KafkaTopicSchemaStorage {
     Optional<SchemaRecord> getSchema(String schemaName, int version) throws SchemaException;
     
     /**
-     * Initializes the storage, creating the Kafka topic if necessary
-     * and loading the initial cache.
+     * Initializes the storage and loading the initial cache.
      * 
      * @throws SchemaException if initialization fails
      */
