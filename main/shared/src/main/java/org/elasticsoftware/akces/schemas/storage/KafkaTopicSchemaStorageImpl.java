@@ -120,7 +120,7 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     }
     
     @Override
-    public synchronized void registerSchema(String schemaName, JsonSchema schema, int version) throws SchemaException {
+    public void registerSchema(String schemaName, JsonSchema schema, int version) throws SchemaException {
         if (producerFactory == null) {
             throw new UnsupportedOperationException("Schema registration is not supported in read-only mode");
         }
