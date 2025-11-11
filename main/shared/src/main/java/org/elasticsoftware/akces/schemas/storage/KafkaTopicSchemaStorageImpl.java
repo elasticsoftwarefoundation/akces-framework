@@ -20,6 +20,7 @@ package org.elasticsoftware.akces.schemas.storage;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import jakarta.annotation.Nullable;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -65,7 +66,7 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
      */
     public KafkaTopicSchemaStorageImpl(
             Producer<String, SchemaRecord> producer,
-            Consumer<String, SchemaRecord> consumer) {
+            @Nullable Consumer<String, SchemaRecord> consumer) {
         this.producer = producer;
         this.consumer = consumer;
         

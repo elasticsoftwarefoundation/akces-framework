@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import jakarta.annotation.Nonnull;
@@ -42,8 +43,11 @@ import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
 import org.elasticsoftware.akces.kafka.AggregatePartition;
 import org.elasticsoftware.akces.kafka.PartitionUtils;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.schemas.IncompatibleSchemaException;
+import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.elasticsoftware.akces.schemas.SchemaException;
+import org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorage;
 import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.util.HostUtils;
 import org.slf4j.Logger;
@@ -79,8 +83,8 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
     private final ProducerFactory<String, AkcesControlRecord> controlProducerFactory;
     private final ConsumerFactory<String, AkcesControlRecord> controlRecordConsumerFactory;
-    private final ProducerFactory<String, org.elasticsoftware.akces.protocol.SchemaRecord> schemaProducerFactory;
-    private final ConsumerFactory<String, org.elasticsoftware.akces.protocol.SchemaRecord> schemaConsumerFactory;
+    private final ProducerFactory<String, SchemaRecord> schemaProducerFactory;
+    private final ConsumerFactory<String, SchemaRecord> schemaConsumerFactory;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     private final AggregateRuntime aggregateRuntime;
     private final KafkaAdminOperations kafkaAdmin;
@@ -96,8 +100,8 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     private Integer partitions = null;
     private Short replicationFactor = null;
     private Consumer<String, AkcesControlRecord> controlConsumer;
-    private org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorage schemaStorage;
-    private org.elasticsoftware.akces.schemas.KafkaSchemaRegistry schemaRegistry;
+    private KafkaTopicSchemaStorage schemaStorage;
+    private KafkaSchemaRegistry schemaRegistry;
     private volatile AkcesControllerState processState = INITIALIZING;
     private boolean forceRegisterOnIncompatible = false;
     private ApplicationContext applicationContext;
@@ -106,9 +110,9 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                                     ProducerFactory<String, ProtocolRecord> producerFactory,
                                     ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory,
                                     ProducerFactory<String, AkcesControlRecord> controlProducerFactory,
-                                    ProducerFactory<String, org.elasticsoftware.akces.protocol.SchemaRecord> schemaProducerFactory,
-                                    ConsumerFactory<String, org.elasticsoftware.akces.protocol.SchemaRecord> schemaConsumerFactory,
-                                    com.fasterxml.jackson.databind.ObjectMapper objectMapper,
+                                    ProducerFactory<String, SchemaRecord> schemaProducerFactory,
+                                    ConsumerFactory<String, SchemaRecord> schemaConsumerFactory,
+                                    ObjectMapper objectMapper,
                                     AggregateStateRepositoryFactory aggregateStateRepositoryFactory,
                                     GDPRContextRepositoryFactory gdprContextRepositoryFactory,
                                     AggregateRuntime aggregateRuntime,
