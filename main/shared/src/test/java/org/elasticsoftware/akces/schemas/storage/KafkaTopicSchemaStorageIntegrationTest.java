@@ -25,14 +25,14 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.elasticsoftware.akces.kafka.CustomKafkaProducerFactory;
 import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.serialization.SchemaRecordSerde;
 import org.junit.jupiter.api.*;
+import org.springframework.kafka.core.ProducerFactory;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -60,7 +60,7 @@ class KafkaTopicSchemaStorageIntegrationTest {
     private static final String TOPIC_NAME = "Akces-Schemas";
 
     private KafkaTopicSchemaStorageImpl storage;
-    private Producer<String, SchemaRecord> producer;
+    private ProducerFactory<String, SchemaRecord> producerFactory;
     private Consumer<String, SchemaRecord> consumer;
     private AdminClient adminClient;
 
@@ -84,13 +84,19 @@ class KafkaTopicSchemaStorageIntegrationTest {
             // The Kafka container reuses topics across tests
         }
         
-        // Create Kafka producer
+        // Create Kafka producer factory
         Map<String, Object> producerProps = new HashMap<>();
         producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
         producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         producerProps.put(ProducerConfig.ACKS_CONFIG, "all");
         producerProps.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
-        producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer());
+        producerProps.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, "test-schema-tx");
+        
+        producerFactory = new CustomKafkaProducerFactory<>(
+                producerProps,
+                new StringSerializer(),
+                serde.serializer()
+        );
 
         // Create Kafka consumer
         Map<String, Object> consumerProps = new HashMap<>();
@@ -102,7 +108,8 @@ class KafkaTopicSchemaStorageIntegrationTest {
 
         // Create storage
         storage = new KafkaTopicSchemaStorageImpl(
-                producer,
+                producerFactory,
+                "test-schema",
                 consumer
         );
 

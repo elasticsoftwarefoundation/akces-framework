@@ -114,7 +114,8 @@ public class AkcesClientAutoConfiguration {
             @Qualifier("akcesClientSchemaProducerFactory") ProducerFactory<String, SchemaRecord> producerFactory,
             @Qualifier("akcesClientSchemaConsumerFactory") ConsumerFactory<String, SchemaRecord> consumerFactory) {
         return new KafkaTopicSchemaStorageImpl(
-                producerFactory.createProducer("akcesClientSchemaProducer"),
+                producerFactory,
+                "akcesClientSchemaProducer",
                 consumerFactory.createConsumer("akces-client-schema", "schema-storage")
         );
     }

@@ -37,6 +37,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.kafka.core.ProducerFactory;
 
 import java.time.Duration;
 import java.util.*;
@@ -48,6 +49,7 @@ import static org.mockito.Mockito.*;
 
 class KafkaTopicSchemaStorageImplTest {
 
+    private ProducerFactory<String, SchemaRecord> producerFactory;
     private Producer<String, SchemaRecord> producer;
     private Consumer<String, SchemaRecord> consumer;
     private KafkaTopicSchemaStorageImpl storage;
@@ -57,8 +59,12 @@ class KafkaTopicSchemaStorageImplTest {
     @SuppressWarnings("unchecked")
     @BeforeEach
     void setUp() {
+        producerFactory = mock(ProducerFactory.class);
         producer = mock(Producer.class);
         consumer = mock(Consumer.class);
+        
+        // Setup producer factory mock
+        when(producerFactory.createProducer(anyString())).thenReturn(producer);
         
         // Setup consumer mocks
         List<PartitionInfo> partitionInfos = Collections.singletonList(
@@ -66,9 +72,11 @@ class KafkaTopicSchemaStorageImplTest {
         );
         when(consumer.partitionsFor(TOPIC_NAME)).thenReturn(partitionInfos);
         when(consumer.poll(any(Duration.class))).thenReturn(ConsumerRecords.empty());
+        when(consumer.assignment()).thenReturn(Collections.emptySet());
         
         storage = new KafkaTopicSchemaStorageImpl(
-            producer,
+            producerFactory,
+            "testProducer",
             consumer
         );
     }
@@ -133,8 +141,10 @@ class KafkaTopicSchemaStorageImplTest {
         // Then
         ArgumentCaptor<ProducerRecord<String, SchemaRecord>> captor = 
             ArgumentCaptor.forClass(ProducerRecord.class);
+        verify(producer).beginTransaction();
         verify(producer).send(captor.capture());
-        verify(producer).flush();
+        verify(producer).commitTransaction();
+        verify(producer).close();
         
         ProducerRecord<String, SchemaRecord> record = captor.getValue();
         assertEquals(TOPIC_NAME, record.topic());
@@ -217,7 +227,8 @@ class KafkaTopicSchemaStorageImplTest {
         storage.close();
         
         // Then
-        verify(producer).close();
+        // Producer is created on-demand in registerSchema, not stored as field
+        // Only consumer is closed
         verify(consumer).close();
     }
 
@@ -225,6 +236,7 @@ class KafkaTopicSchemaStorageImplTest {
     void testReadOnlyModeWithNullProducer() {
         // Given - create storage with null producer (read-only mode)
         KafkaTopicSchemaStorageImpl readOnlyStorage = new KafkaTopicSchemaStorageImpl(
+            null,
             null,
             consumer
         );

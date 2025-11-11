@@ -109,7 +109,8 @@ public class AkcesQueryModelAutoConfiguration {
             @Qualifier("akcesQueryModelSchemaProducerFactory") ProducerFactory<String, SchemaRecord> producerFactory,
             @Qualifier("akcesQueryModelSchemaConsumerFactory") ConsumerFactory<String, SchemaRecord> consumerFactory) {
         return new KafkaTopicSchemaStorageImpl(
-                producerFactory.createProducer("akcesQueryModelSchemaProducer"),
+                null, // read-only mode - no producer needed
+                null,
                 consumerFactory.createConsumer("akces-query-model-schema", "schema-storage")
         );
     }

@@ -31,19 +31,17 @@ import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.schemas.SchemaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.kafka.core.ProducerFactory;
 
 import java.time.Duration;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
  * Kafka-based implementation of schema storage using a compacted topic.
  * This implementation uses:
- * - Kafka producer for writing schemas
+ * - Kafka producer factory for creating transactional producers when writing schemas
  * - Kafka consumer for reading schemas
  * - Caffeine cache for performance
  * - Process method to be called by controller for cache updates
@@ -54,20 +52,24 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     private static final Duration POLL_TIMEOUT = Duration.ofMillis(100);
     private static final String TOPIC_NAME = "Akces-Schemas";
     
-    private final Producer<String, SchemaRecord> producer;
+    private final ProducerFactory<String, SchemaRecord> producerFactory;
+    private final String txIdPrefix;
     private final Consumer<String, SchemaRecord> consumer;
     private final Cache<String, SchemaRecord> cache;
     
     /**
      * Creates a new Kafka-based schema storage.
      * 
-     * @param producer Kafka producer for writing schemas (can be null for read-only mode)
+     * @param producerFactory Kafka producer factory for writing schemas (can be null for read-only mode)
+     * @param txIdPrefix Transaction ID prefix for creating unique producer IDs
      * @param consumer Kafka consumer for reading schemas
      */
     public KafkaTopicSchemaStorageImpl(
-            Producer<String, SchemaRecord> producer,
-            @Nullable Consumer<String, SchemaRecord> consumer) {
-        this.producer = producer;
+            @Nullable ProducerFactory<String, SchemaRecord> producerFactory,
+            @Nullable String txIdPrefix,
+            Consumer<String, SchemaRecord> consumer) {
+        this.producerFactory = producerFactory;
+        this.txIdPrefix = txIdPrefix;
         this.consumer = consumer;
         
         // Initialize cache with no expiration
@@ -118,25 +120,37 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     }
     
     @Override
-    public void registerSchema(String schemaName, JsonSchema schema, int version) throws SchemaException {
-        if (producer == null) {
+    public synchronized void registerSchema(String schemaName, JsonSchema schema, int version) throws SchemaException {
+        if (producerFactory == null) {
             throw new UnsupportedOperationException("Schema registration is not supported in read-only mode");
         }
         
         String key = createKey(schemaName, version);
         SchemaRecord record = new SchemaRecord(schemaName, version, schema, System.currentTimeMillis());
         
-        try {
+        // Create producer only when needed in try-with-resources
+        try (Producer<String, SchemaRecord> producer = producerFactory.createProducer(txIdPrefix)) {
             ProducerRecord<String, SchemaRecord> producerRecord = new ProducerRecord<>(TOPIC_NAME, key, record);
             
-            // Send with retries
-            producer.send(producerRecord).get(10, TimeUnit.SECONDS);
-            producer.flush();
+            // Begin transaction
+            producer.beginTransaction();
             
-            // Update cache
-            cache.put(key, record);
-            
-            logger.debug("Registered schema {} version {}", schemaName, version);
+            try {
+                // Send within transaction
+                producer.send(producerRecord).get(10, TimeUnit.SECONDS);
+                
+                // Commit transaction
+                producer.commitTransaction();
+                
+                // Update cache
+                cache.put(key, record);
+                
+                logger.debug("Registered schema {} version {}", schemaName, version);
+            } catch (Exception e) {
+                // Abort transaction on error
+                producer.abortTransaction();
+                throw e;
+            }
         } catch (Exception e) {
             throw new SchemaException(
                     "Failed to register schema",
@@ -180,9 +194,7 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     
     @Override
     public void close() {
-        if (producer != null) {
-            producer.close();
-        }
+        // Producer is created on-demand in try-with-resources, so no need to close it here
         consumer.close();
         
         logger.info("Closed Kafka schema storage");
@@ -190,6 +202,7 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
     
     /**
      * Loads the initial cache by reading all records from the topic.
+     * Uses the same approach as INITIAL_REBALANCING in AkcesAggregateController.
      */
     private void loadInitialCache() {
         try {
@@ -201,29 +214,30 @@ public class KafkaTopicSchemaStorageImpl implements KafkaTopicSchemaStorage {
                 return;
             }
             
-            // Seek to beginning
+            // Seek to beginning to load all
             consumer.seekToBeginning(assignedPartitions);
             
-            // Read all records
-            boolean done = false;
-            int recordCount = 0;
-            int emptyPolls = 0;
-            final int maxEmptyPolls = 3;
+            // Find the end offsets so we know when to stop
+            Map<TopicPartition, Long> initializedEndOffsets = consumer.endOffsets(assignedPartitions);
             
-            while (!done) {
-                ConsumerRecords<String, SchemaRecord> records = consumer.poll(POLL_TIMEOUT);
-                if (records.isEmpty()) {
-                    emptyPolls++;
-                    if (emptyPolls >= maxEmptyPolls) {
-                        done = true;
-                    }
-                } else {
-                    emptyPolls = 0;
-                    for (ConsumerRecord<String, SchemaRecord> record : records) {
-                        processRecord(record);
-                        recordCount++;
-                    }
+            int recordCount = 0;
+            
+            // Read records until we reach the end offset for all partitions
+            ConsumerRecords<String, SchemaRecord> consumerRecords = consumer.poll(POLL_TIMEOUT);
+            while (!initializedEndOffsets.isEmpty()) {
+                for (ConsumerRecord<String, SchemaRecord> record : consumerRecords) {
+                    processRecord(record);
+                    recordCount++;
                 }
+                
+                // Test for stop condition - remove partitions that have reached their end offset
+                if (consumerRecords.isEmpty()) {
+                    initializedEndOffsets.entrySet().removeIf(entry -> 
+                        entry.getValue() <= consumer.position(entry.getKey()));
+                }
+                
+                // Poll again
+                consumerRecords = consumer.poll(POLL_TIMEOUT);
             }
             
             logger.info("Loaded {} schema records into cache", recordCount);

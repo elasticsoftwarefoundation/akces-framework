@@ -138,7 +138,8 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
         try {
             // create schema storage and registry
             schemaStorage = new org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorageImpl(
-                    schemaProducerFactory.createProducer(aggregateRuntime.getName() + "-SchemaProducer"),
+                    schemaProducerFactory,
+                    aggregateRuntime.getName() + "-SchemaProducer",
                     schemaConsumerFactory.createConsumer(
                             aggregateRuntime.getName() + "-Akces-SchemaConsumer",
                             aggregateRuntime.getName() + "-" + HostUtils.getHostName() + "-Akces-SchemaConsumer")
