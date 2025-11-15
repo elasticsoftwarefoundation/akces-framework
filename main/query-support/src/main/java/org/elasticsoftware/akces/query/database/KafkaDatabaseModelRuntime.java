@@ -30,7 +30,7 @@ import org.elasticsoftware.akces.protocol.DomainEventRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.query.DatabaseModel;
 import org.elasticsoftware.akces.query.DatabaseModelEventHandlerFunction;
-import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
+import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,7 +41,6 @@ import java.util.stream.Collectors;
 
 public class KafkaDatabaseModelRuntime implements DatabaseModelRuntime {
     private static final Logger logger = LoggerFactory.getLogger(KafkaDatabaseModelRuntime.class);
-    private final KafkaSchemaRegistry schemaRegistry;
     private final ObjectMapper objectMapper;
     private final Map<Class<?>, DomainEventType<?>> domainEvents;
     private final Map<DomainEventType<?>, DatabaseModelEventHandlerFunction<DomainEvent>> databaseModelEventHandlers;
@@ -50,15 +49,13 @@ public class KafkaDatabaseModelRuntime implements DatabaseModelRuntime {
     private final int version;
     private final boolean shouldHandlePIIData;
 
-    private KafkaDatabaseModelRuntime(KafkaSchemaRegistry schemaRegistry,
-                                      ObjectMapper objectMapper,
+    private KafkaDatabaseModelRuntime(ObjectMapper objectMapper,
                                       Map<Class<?>, DomainEventType<?>> domainEvents,
                                       Map<DomainEventType<?>, DatabaseModelEventHandlerFunction<DomainEvent>> databaseModelEventHandlers,
                                       DatabaseModel databaseModel,
                                       String name,
                                       int version,
                                       boolean shouldHandlePIIData) {
-        this.schemaRegistry = schemaRegistry;
         this.objectMapper = objectMapper;
         this.domainEvents = domainEvents;
         this.databaseModelEventHandlers = databaseModelEventHandlers;
@@ -125,7 +122,7 @@ public class KafkaDatabaseModelRuntime implements DatabaseModelRuntime {
     }
 
     @Override
-    public void validateDomainEventSchemas() {
+    public void validateDomainEventSchemas(SchemaRegistry schemaRegistry) {
         for (DomainEventType<?> domainEventType : domainEvents.values()) {
             schemaRegistry.validate(domainEventType);
         }
@@ -158,15 +155,9 @@ public class KafkaDatabaseModelRuntime implements DatabaseModelRuntime {
     public static class Builder {
         private final Map<Class<?>, DomainEventType<?>> domainEvents = new HashMap<>();
         private final Map<DomainEventType<?>, DatabaseModelEventHandlerFunction<DomainEvent>> databaseModelEventHandlers = new HashMap<>();
-        private KafkaSchemaRegistry schemaRegistry;
         private ObjectMapper objectMapper;
         private DatabaseModelInfo databaseModelInfo;
         private DatabaseModel databaseModel;
-
-        public Builder setSchemaRegistry(KafkaSchemaRegistry schemaRegistry) {
-            this.schemaRegistry = schemaRegistry;
-            return this;
-        }
 
         public Builder setObjectMapper(ObjectMapper objectMapper) {
             this.objectMapper = objectMapper;
@@ -198,7 +189,6 @@ public class KafkaDatabaseModelRuntime implements DatabaseModelRuntime {
             final boolean shouldHandlePIIData = domainEvents.values().stream().map(DomainEventType::typeClass)
                     .anyMatch(GDPRAnnotationUtils::hasPIIDataAnnotation);
             return new KafkaDatabaseModelRuntime(
-                    schemaRegistry,
                     objectMapper,
                     domainEvents,
                     databaseModelEventHandlers,

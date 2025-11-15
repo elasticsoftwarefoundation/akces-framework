@@ -22,6 +22,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.gdpr.GDPRContext;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.schemas.SchemaRegistry;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -35,7 +36,7 @@ public interface DatabaseModelRuntime {
     void apply(Map<TopicPartition, List<ConsumerRecord<String, ProtocolRecord>>> records,
                Function<String,GDPRContext> gdprContextSupplier) throws IOException;
 
-    void validateDomainEventSchemas();
+    void validateDomainEventSchemas(SchemaRegistry schemaRegistry);
 
     boolean shouldHandlePIIData();
 

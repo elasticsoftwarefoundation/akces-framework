@@ -486,8 +486,7 @@ public class CryptoTradingQueryApiTest {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
-            prepareDomainEventSchemas(
-                    "http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081),
+            prepareDomainEventSchemas(kafka.getBootstrapServers(),
                     List.of(
                             WalletCreatedEvent.class,
                             WalletCreditedEvent.class,
@@ -496,7 +495,7 @@ public class CryptoTradingQueryApiTest {
                             AccountCreatedEvent.class,
                             CryptoMarketCreatedEvent.class
                     ));
-            prepareCommandSchemas("http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081),
+            prepareCommandSchemas(kafka.getBootstrapServers(),
                     List.of(
                             CreateCryptoMarketCommand.class
                     ));

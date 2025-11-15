@@ -18,9 +18,6 @@
 package org.elasticsoftware.akces.query.models;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.json.JsonSchemaProvider;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
@@ -28,10 +25,11 @@ import org.elasticsoftware.akces.gdpr.RocksDBGDPRContextRepositoryFactory;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.kafka.CustomKafkaConsumerFactory;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.query.models.beans.QueryModelBeanFactoryPostProcessor;
-import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
+import org.elasticsoftware.akces.serialization.SchemaRecordSerde;
 import org.elasticsoftware.akces.util.EnvironmentPropertiesPrinter;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,7 +45,6 @@ import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Map;
 
 @Configuration
@@ -70,15 +67,20 @@ public class AkcesQueryModelAutoConfiguration {
     }
 
     @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
-    @Bean(name = "akcesQueryModelSchemaRegistryClient")
-    public SchemaRegistryClient createSchemaRegistryClient(@Value("${akces.schemaregistry.url:http://localhost:8081}") String url) {
-        return new CachedSchemaRegistryClient(url, 1000, List.of(new JsonSchemaProvider()), null);
+    @Bean(name = "akcesQueryModelSchemaRecordSerde")
+    public SchemaRecordSerde schemaRecordSerde(ObjectMapper objectMapper) {
+        return new SchemaRecordSerde(objectMapper);
     }
 
     @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
-    @Bean(name = "akcesQueryModelSchemaRegistry")
-    public KafkaSchemaRegistry createSchemaRegistry(@Qualifier("akcesQueryModelSchemaRegistryClient") SchemaRegistryClient schemaRegistryClient, ObjectMapper objectMapper) {
-        return new KafkaSchemaRegistry(schemaRegistryClient, objectMapper);
+    @Bean(name = "akcesQueryModelSchemaConsumerFactory")
+    public ConsumerFactory<String, SchemaRecord> schemaConsumerFactory(
+            KafkaProperties properties,
+            @Qualifier("akcesQueryModelSchemaRecordSerde") SchemaRecordSerde serde) {
+        return new CustomKafkaConsumerFactory<>(
+                properties.buildConsumerProperties(null),
+                new StringDeserializer(),
+                serde.deserializer());
     }
 
     @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
@@ -104,8 +106,10 @@ public class AkcesQueryModelAutoConfiguration {
     @Bean(name = "ackesQueryModelController", initMethod = "start", destroyMethod = "close")
     public AkcesQueryModelController queryModelRuntimes(@Qualifier("akcesQueryModelKafkaAdmin") KafkaAdmin kafkaAdmin,
                                                         @Qualifier("akcesQueryModelConsumerFactory") ConsumerFactory<String, ProtocolRecord> consumerFactory,
-                                                        @Qualifier("akcesQueryModelGDPRContextRepositoryFactory") GDPRContextRepositoryFactory gdprContextRepositoryFactory) {
-        return new AkcesQueryModelController(kafkaAdmin, consumerFactory, gdprContextRepositoryFactory);
+                                                        @Qualifier("akcesQueryModelSchemaConsumerFactory") ConsumerFactory<String, SchemaRecord> schemaConsumerFactory,
+                                                        @Qualifier("akcesQueryModelGDPRContextRepositoryFactory") GDPRContextRepositoryFactory gdprContextRepositoryFactory,
+                                                        ObjectMapper objectMapper) {
+        return new AkcesQueryModelController(kafkaAdmin, consumerFactory, schemaConsumerFactory, gdprContextRepositoryFactory, objectMapper);
     }
 
     @ConditionalOnMissingBean(EnvironmentPropertiesPrinter.class)
