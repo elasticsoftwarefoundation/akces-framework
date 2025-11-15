@@ -59,13 +59,14 @@ public class DatabaseModelBeanFactoryPostProcessor implements BeanFactoryPostPro
                 bdr.registerBeanDefinition(beanName + "DatabaseModelRuntime",
                         BeanDefinitionBuilder.genericBeanDefinition(DatabaseModelRuntimeFactory.class)
                                 .addConstructorArgReference(beanFactory.getBeanNamesForType(ObjectMapper.class)[0])
-                                .addConstructorArgReference("akcesDatabaseModelSchemaRegistry")
                                 .addConstructorArgReference(beanName)
                                 .getBeanDefinition());
                 bdr.registerBeanDefinition(beanName + "AkcesDatabaseModelController",
                         BeanDefinitionBuilder.genericBeanDefinition(AkcesDatabaseModelController.class)
                                 .addConstructorArgReference("akcesDatabaseModelConsumerFactory")
                                 .addConstructorArgReference("akcesDatabaseModelControlConsumerFactory")
+                                .addConstructorArgReference("akcesDatabaseModelSchemaConsumerFactory")
+                                .addConstructorArgReference(beanFactory.getBeanNamesForType(ObjectMapper.class)[0])
                                 .addConstructorArgReference("akcesDatabaseModelGDPRContextRepositoryFactory")
                                 .addConstructorArgReference(beanName + "DatabaseModelRuntime")
                                 .setInitMethodName("start")

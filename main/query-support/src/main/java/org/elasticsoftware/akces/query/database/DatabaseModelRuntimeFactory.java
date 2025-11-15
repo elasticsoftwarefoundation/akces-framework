@@ -22,7 +22,6 @@ import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.annotations.DatabaseModelInfo;
 import org.elasticsoftware.akces.query.DatabaseModel;
 import org.elasticsoftware.akces.query.DatabaseModelEventHandlerFunction;
-import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.FactoryBean;
 import org.springframework.context.ApplicationContext;
@@ -31,14 +30,11 @@ import org.springframework.context.ApplicationContextAware;
 public class DatabaseModelRuntimeFactory implements FactoryBean<DatabaseModelRuntime>, ApplicationContextAware {
     private ApplicationContext applicationContext;
     private final ObjectMapper objectMapper;
-    private final SchemaRegistry schemaRegistry;
     private final DatabaseModel databaseModel;
 
     public DatabaseModelRuntimeFactory(ObjectMapper objectMapper,
-                                       SchemaRegistry schemaRegistry,
                                        DatabaseModel databaseModel) {
         this.objectMapper = objectMapper;
-        this.schemaRegistry = schemaRegistry;
         this.databaseModel = databaseModel;
     }
 
@@ -68,8 +64,7 @@ public class DatabaseModelRuntimeFactory implements FactoryBean<DatabaseModelRun
         runtimeBuilder
                 .setDatabaseModelInfo(databaseModelInfo)
                 .setDatabaseModel(databaseModel)
-                .setObjectMapper(objectMapper)
-                .setDatabaseModel(databaseModel);
+                .setObjectMapper(objectMapper);
         // DatabaseModelEventHandlers
         applicationContext.getBeansOfType(DatabaseModelEventHandlerFunction.class).values().stream()
                 .filter(adapter -> adapter.getDatabaseModel().equals(databaseModel))
@@ -79,6 +74,6 @@ public class DatabaseModelRuntimeFactory implements FactoryBean<DatabaseModelRun
                     runtimeBuilder.addDomainEvent(type);
                 });
 
-        return runtimeBuilder.setSchemaRegistry(schemaRegistry).build();
+        return runtimeBuilder.build();
     }
 }

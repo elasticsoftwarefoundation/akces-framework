@@ -19,20 +19,14 @@ package org.elasticsoftware.akces.query.database;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.kafka.common.serialization.StringSerializer;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
 import org.elasticsoftware.akces.gdpr.RocksDBGDPRContextRepositoryFactory;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.kafka.CustomKafkaConsumerFactory;
-import org.elasticsoftware.akces.kafka.CustomKafkaProducerFactory;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.query.database.beans.DatabaseModelBeanFactoryPostProcessor;
-import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
-import org.elasticsoftware.akces.schemas.SchemaRegistry;
-import org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorage;
-import org.elasticsoftware.akces.schemas.storage.SchemaStorage;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
@@ -49,7 +43,6 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.kafka.core.ConsumerFactory;
-import org.springframework.kafka.core.ProducerFactory;
 
 import java.math.BigDecimal;
 
@@ -79,17 +72,6 @@ public class AkcesDatabaseModelAutoConfiguration {
     }
 
     @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
-    @Bean(name = "akcesDatabaseModelSchemaProducerFactory")
-    public ProducerFactory<String, SchemaRecord> schemaProducerFactory(
-            KafkaProperties properties,
-            @Qualifier("akcesDatabaseModelSchemaRecordSerde") SchemaRecordSerde serde) {
-        return new CustomKafkaProducerFactory<>(
-                properties.buildProducerProperties(null),
-                new StringSerializer(),
-                serde.serializer());
-    }
-
-    @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
     @Bean(name = "akcesDatabaseModelSchemaConsumerFactory")
     public ConsumerFactory<String, SchemaRecord> schemaConsumerFactory(
             KafkaProperties properties,
@@ -100,25 +82,6 @@ public class AkcesDatabaseModelAutoConfiguration {
                 serde.deserializer());
     }
 
-    @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
-    @Bean(name = "akcesDatabaseModelSchemaStorage", initMethod = "initialize", destroyMethod = "close")
-    public SchemaStorage schemaStorage(
-            @Qualifier("akcesDatabaseModelSchemaProducerFactory") ProducerFactory<String, SchemaRecord> producerFactory,
-            @Qualifier("akcesDatabaseModelSchemaConsumerFactory") ConsumerFactory<String, SchemaRecord> consumerFactory) {
-        return new KafkaTopicSchemaStorage(
-                null, // read-only mode - no producer needed
-                null,
-                consumerFactory.createConsumer("akces-database-model-schema", "schema-storage")
-        );
-    }
-
-    @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
-    @Bean(name = "akcesDatabaseModelSchemaRegistry")
-    public SchemaRegistry createSchemaRegistry(
-            @Qualifier("akcesDatabaseModelSchemaStorage") SchemaStorage schemaStorage,
-            ObjectMapper objectMapper) {
-        return new KafkaSchemaRegistry(schemaStorage, objectMapper);
-    }
 
     @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
     @Bean(name = "akcesDatabaseModelConsumerFactory")

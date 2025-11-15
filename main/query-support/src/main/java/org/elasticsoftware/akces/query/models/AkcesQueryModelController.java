@@ -1,5 +1,6 @@
 package org.elasticsoftware.akces.query.models;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.hash.HashFunction;
@@ -19,8 +20,13 @@ import org.elasticsoftware.akces.gdpr.GDPRContextRepository;
 import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.query.QueryModel;
 import org.elasticsoftware.akces.query.QueryModelState;
+import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
+import org.elasticsoftware.akces.schemas.SchemaRegistry;
+import org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorage;
+import org.elasticsoftware.akces.schemas.storage.SchemaStorage;
 import org.elasticsoftware.akces.util.HostUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +56,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
     private final Map<Class<? extends QueryModel>, QueryModelRuntime> disabledRuntimes = new ConcurrentHashMap<>();
     private final KafkaAdminOperations kafkaAdmin;
     private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
+    private final ConsumerFactory<String, SchemaRecord> schemaRecordConsumerFactory;
     private final GDPRContextRepositoryFactory gdprContextRepositoryFactory;
     private final Map<TopicPartition, GDPRContextRepository> gdprContextRepositories = new HashMap<>();
     private final BlockingQueue<HydrationRequest<?>> commandQueue = new LinkedBlockingQueue<>();
@@ -64,14 +71,20 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
     private final Cache<String, CachedQueryModelState<?>> queryModelStateCache = Caffeine.newBuilder()
             .maximumSize(1000)
             .build();
+    private final ObjectMapper objectMapper;
+    private SchemaRegistry schemaRegistry;
 
     public AkcesQueryModelController(KafkaAdminOperations kafkaAdmin,
                                      ConsumerFactory<String, ProtocolRecord> consumerFactory,
-                                     GDPRContextRepositoryFactory gdprContextRepositoryFactory) {
+                                     ConsumerFactory<String, SchemaRecord > schemaRecordConsumerFactory,
+                                     GDPRContextRepositoryFactory gdprContextRepositoryFactory,
+                                     ObjectMapper objectMapper) {
         super("AkcesQueryModelController");
         this.kafkaAdmin = kafkaAdmin;
         this.consumerFactory = consumerFactory;
+        this.schemaRecordConsumerFactory = schemaRecordConsumerFactory;
         this.gdprContextRepositoryFactory = gdprContextRepositoryFactory;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -116,10 +129,17 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         try (final Consumer<String, ProtocolRecord> indexConsumer = consumerFactory.createConsumer(
                 HostUtils.getHostName() + "-AkcesQueryModelController",
                 HostUtils.getHostName() + "-AkcesQueryModelController",
-                null)) {
-
+                null);
+             final SchemaStorage schemaStorage = new KafkaTopicSchemaStorage(
+                     schemaRecordConsumerFactory.createConsumer(
+                             HostUtils.getHostName() + "-AkcesQueryModelController-Schemas",
+                             HostUtils.getHostName() + "-AkcesQueryModelController-Schemas",
+                             null
+                     )
+             )) {
+            this.schemaRegistry = new KafkaSchemaRegistry(schemaStorage, objectMapper);
             while (processState != SHUTTING_DOWN) {
-                process(indexConsumer);
+                process(indexConsumer, schemaStorage);
             }
             logger.info("AkcesQueryModelController is shutting down");
             // handle all pending requests
@@ -149,7 +169,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         shutdownLatch.countDown();
     }
 
-    private void process(Consumer<String, ProtocolRecord> indexConsumer) {
+    private void process(Consumer<String, ProtocolRecord> indexConsumer, SchemaStorage schemaStorage) {
         if (processState == RUNNING) {
             try {
                 Map<TopicPartition, HydrationExecution<?>> newExecutions = processHydrationRequests(indexConsumer);
@@ -266,11 +286,13 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
             }
         } else if (processState == INITIALIZING) {
             try {
+                // first initialize the schema storage
+                schemaStorage.initialize();
                 Iterator<QueryModelRuntime> iterator = enabledRuntimes.values().iterator();
                 while (iterator.hasNext()) {
                     QueryModelRuntime queryModelRuntime = iterator.next();
                     try {
-                        queryModelRuntime.validateDomainEventSchemas();
+                        queryModelRuntime.validateDomainEventSchemas(schemaRegistry);
                         logger.info("Enabling {} QueryModelRuntime", queryModelRuntime.getName());
                     } catch (org.elasticsoftware.akces.schemas.SchemaException e) {
                         logger.error(
