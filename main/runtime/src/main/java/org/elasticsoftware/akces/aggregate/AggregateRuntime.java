@@ -25,6 +25,7 @@ import org.elasticsoftware.akces.protocol.CommandRecord;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.schemas.SchemaException;
+import org.elasticsoftware.akces.schemas.SchemaRegistry;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -63,16 +64,16 @@ public interface AggregateRuntime {
 
     CommandType<?> getLocalCommandType(String type, int version);
 
-    void registerAndValidate(DomainEventType<?> domainEventType, boolean forceRegisterOnIncompatible) throws SchemaException;
+    void registerAndValidate(DomainEventType<?> domainEventType, SchemaRegistry schemaRegistry, boolean forceRegisterOnIncompatible) throws SchemaException;
 
-    default void registerAndValidate(DomainEventType<?> domainEventType) throws SchemaException {
-        registerAndValidate(domainEventType, false);
+    default void registerAndValidate(DomainEventType<?> domainEventType, SchemaRegistry schemaRegistry) throws SchemaException {
+        registerAndValidate(domainEventType, schemaRegistry, false);
     }
 
-    void registerAndValidate(CommandType<?> commandType,  boolean forceRegisterOnIncompatible) throws SchemaException;
+    void registerAndValidate(CommandType<?> commandType, SchemaRegistry schemaRegistry, boolean forceRegisterOnIncompatible) throws SchemaException;
 
-    default void registerAndValidate(CommandType<?> commandType) throws SchemaException {
-        registerAndValidate(commandType, false);
+    default void registerAndValidate(CommandType<?> commandType, SchemaRegistry schemaRegistry) throws SchemaException {
+        registerAndValidate(commandType, schemaRegistry, false);
     }
 
     Command materialize(CommandType<?> commandType, CommandRecord commandRecord) throws IOException;

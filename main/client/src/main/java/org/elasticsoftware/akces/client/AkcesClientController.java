@@ -23,7 +23,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import io.confluent.kafka.schemaregistry.ParsedSchema;
-import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
@@ -51,6 +50,9 @@ import org.elasticsoftware.akces.gdpr.GDPRKeyUtils;
 import org.elasticsoftware.akces.protocol.*;
 import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.elasticsoftware.akces.schemas.SchemaException;
+import org.elasticsoftware.akces.schemas.SchemaRegistry;
+import org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorage;
+import org.elasticsoftware.akces.schemas.storage.SchemaStorage;
 import org.elasticsoftware.akces.util.HostUtils;
 import org.elasticsoftware.akces.util.KafkaSender;
 import org.everit.json.schema.ValidationException;
@@ -85,12 +87,13 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
     private final ConsumerFactory<String, AkcesControlRecord> controlRecordConsumerFactory;
     private final ConsumerFactory<String, ProtocolRecord> commandResponseConsumerFactory;
+    private final ConsumerFactory<String, SchemaRecord> schemaRecordConsumerFactory;
     private final KafkaAdminOperations kafkaAdmin;
     private final HashFunction hashFunction = Hashing.murmur3_32_fixed();
     private final Map<String, AggregateServiceRecord> aggregateServices = new ConcurrentHashMap<>();
     private final BlockingQueue<CommandRequest> commandQueue = new LinkedBlockingQueue<>();
     private final Map<String, PendingCommandResponse> pendingCommandResponseMap = new HashMap<>();
-    private final KafkaSchemaRegistry schemaRegistry;
+    private SchemaRegistry schemaRegistry;
     private final ObjectMapper objectMapper;
     private final Map<Class<? extends Command>, AggregateServiceCommandType> commandTypes = new ConcurrentHashMap<>();
     private final Map<String, TreeMap<Integer, DomainEventType<? extends DomainEvent>>> domainEventClasses = new ConcurrentHashMap<>();
@@ -108,7 +111,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                                  ConsumerFactory<String, AkcesControlRecord> controlRecordConsumerFactory,
                                  ConsumerFactory<String, ProtocolRecord> commandResponseConsumerFactory,
                                  KafkaAdminOperations kafkaAdmin,
-                                 KafkaSchemaRegistry schemaRegistry,
+                                 ConsumerFactory<String, SchemaRecord> schemaRecordConsumerFactory,
                                  ObjectMapper objectMapper,
                                  ClassPathScanningCandidateComponentProvider domainEventScanner,
                                  String basePackage) {
@@ -117,7 +120,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
         this.controlRecordConsumerFactory = controlRecordConsumerFactory;
         this.commandResponseConsumerFactory = commandResponseConsumerFactory;
         this.kafkaAdmin = kafkaAdmin;
-        this.schemaRegistry = schemaRegistry;
+        this.schemaRecordConsumerFactory = schemaRecordConsumerFactory;
         this.objectMapper = objectMapper;
         this.domainEventScanner = domainEventScanner;
         loadSupportedDomainEvents(basePackage);
@@ -136,11 +139,20 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                 HostUtils.getHostName() + "-AkcesClientController-Control",
                 HostUtils.getHostName() + "-AkcesClientController-Control",
                 null);
+             final SchemaStorage schemaStorage = new KafkaTopicSchemaStorage(
+                     schemaRecordConsumerFactory.createConsumer(
+                             HostUtils.getHostName() + "-AkcesClientController-Schemas",
+                             HostUtils.getHostName() + "-AkcesClientController-Schemas",
+                             null
+                     )
+             );
              final Consumer<String, ProtocolRecord> commandResponseConsumer = commandResponseConsumerFactory.createConsumer(
                      HostUtils.getHostName() + "-AkcesClientController-CommandResponses",
                      HostUtils.getHostName() + "-AkcesClientController-CommandResponses",
                      null);
              final Producer<String, ProtocolRecord> producer = producerFactory.createProducer(HostUtils.getHostName() + "-AkcesClientController")) {
+            // create the schema registry
+            this.schemaRegistry = new KafkaSchemaRegistry(schemaStorage, objectMapper);
             // find out about the partitions
             partitions = kafkaAdmin.describeTopics("Akces-Control").get("Akces-Control").partitions().size();
             // always assign the first partition since all control data exists on every partition
@@ -155,7 +167,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
             // we are only interested in the latest messages
             commandResponseConsumer.seekToEnd(singletonList(commandResponsePartition));
             while (processState != SHUTTING_DOWN) {
-                process(controlConsumer, commandResponseConsumer, producer);
+                process(controlConsumer, commandResponseConsumer, producer, schemaStorage);
             }
             // we need to make sure any pending CommandRequests are properly handled
             List<CommandRequest> pendingRequests = new ArrayList<>();
@@ -188,9 +200,12 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
 
     private void process(Consumer<String, AkcesControlRecord> controlConsumer,
                          Consumer<String, ProtocolRecord> commandResponseConsumer,
-                         Producer<String, ProtocolRecord> producer) {
+                         Producer<String, ProtocolRecord> producer,
+                         SchemaStorage schemaStorage) {
         if (processState == RUNNING) {
             try {
+                // load any updated schemas
+                schemaStorage.process();
                 // load any updated control data
                 processControlRecords(controlConsumer.poll(Duration.ofMillis(10)));
                 // process commands
@@ -204,13 +219,12 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                 logger.error("Unrecoverable exception in AkcesController", e);
                 // drop out of the control loop, this will shut down all resources
                 processState = SHUTTING_DOWN;
-            } catch (IOException | RestClientException e) {
-                // TODO: make failing on these errors optional (there might not be proper validation however)
-                logger.error("Exception while loading Command (JSON)Schemas from SchemaRegistry", e);
-                processState = SHUTTING_DOWN;
             }
         } else if (processState == INITIALIZING) {
             try {
+                // initialize the SchemaRegistry
+                schemaStorage.initialize();
+                // load the control records
                 Map<TopicPartition, Long> endOffsets = controlConsumer.endOffsets(singletonList(AKCES_CONTROL_PARTITION));
                 ConsumerRecords<String, AkcesControlRecord> consumerRecords = controlConsumer.poll(Duration.ofMillis(10));
                 processControlRecords(consumerRecords);
@@ -225,15 +239,11 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                 logger.error("Unrecoverable exception in AkcesController", e);
                 // drop out of the control loop, this will shut down all resources
                 processState = SHUTTING_DOWN;
-            } catch (IOException | RestClientException e) {
-                // TODO: make failing on these errors optional (there might not be proper validation however)
-                logger.error("Exception while loading Command (JSON)Schemas from SchemaRegistry", e);
-                processState = SHUTTING_DOWN;
             }
         }
     }
 
-    private void processControlRecords(ConsumerRecords<String, AkcesControlRecord> consumerRecords) throws RestClientException, IOException {
+    private void processControlRecords(ConsumerRecords<String, AkcesControlRecord> consumerRecords) {
         if (!consumerRecords.isEmpty()) {
             for (ConsumerRecord<String, AkcesControlRecord> record : consumerRecords) {
                 AkcesControlRecord controlRecord = record.value();

@@ -17,8 +17,6 @@
 
 package org.elasticsoftware.akcestest;
 
-import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import jakarta.inject.Inject;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -80,17 +78,6 @@ public class AggregateServiceApplicationTests {
                     .withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false")
                     .withNetwork(network)
                     .withNetworkAliases("kafka");
-
-    @Container
-    private static final GenericContainer<?> schemaRegistry =
-            new GenericContainer<>(DockerImageName.parse("confluentinc/cp-schema-registry:" + CONFLUENT_PLATFORM_VERSION))
-                    .withNetwork(network)
-                    .withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "kafka:9092")
-                    .withEnv("SCHEMA_REGISTRY_HOST_NAME", "localhost")
-                    .withEnv("SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL","none")
-                    .withExposedPorts(8081)
-                    .withNetworkAliases("schema-registry")
-                    .dependsOn(kafka);
     @Inject
     ApplicationContext applicationContext;
     @Inject
@@ -157,8 +144,8 @@ public class AggregateServiceApplicationTests {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
-            SchemaRegistryClient src = new CachedSchemaRegistryClient("http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081), 100);
-            prepareExternalSchemas(src, List.of(AccountCreatedEvent.class));
+            // Prepare schemas by writing to Akces-Schemas topic
+            prepareExternalSchemas(kafka.getBootstrapServers(), List.of(AccountCreatedEvent.class));
             try {
                 prepareAggregateServiceRecords(kafka.getBootstrapServers());
             } catch (IOException e) {
@@ -169,8 +156,7 @@ public class AggregateServiceApplicationTests {
                     applicationContext,
                     "akces.rocksdb.baseDir=/tmp/akces",
                     "spring.kafka.enabled=true",
-                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
-                    "akces.schemaregistry.url=http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081)
+                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers()
             );
         }
     }
