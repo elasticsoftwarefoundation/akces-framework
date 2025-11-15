@@ -36,6 +36,7 @@ import org.elasticsoftware.akces.gdpr.GDPRContextRepository;
 import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
 import org.elasticsoftware.akces.gdpr.GDPRKeyUtils;
 import org.elasticsoftware.akces.protocol.*;
+import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import org.elasticsoftware.akces.state.AggregateStateRepository;
 import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.util.HostUtils;
@@ -65,6 +66,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
     private final AggregateRuntime runtime;
+    private final SchemaRegistry schemaRegistry;
     private final AggregateStateRepository stateRepository;
     private final GDPRContextRepository gdprContextRepository;
     private final Integer id;
@@ -87,6 +89,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     public AggregatePartition(ConsumerFactory<String, ProtocolRecord> consumerFactory,
                               ProducerFactory<String, ProtocolRecord> producerFactory,
                               AggregateRuntime runtime,
+                              SchemaRegistry schemaRegistry,
                               AggregateStateRepositoryFactory stateRepositoryFactory,
                               GDPRContextRepositoryFactory gdprContextRepositoryFactory,
                               Integer id,
@@ -102,6 +105,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         this.consumerFactory = consumerFactory;
         this.producerFactory = producerFactory;
         this.runtime = runtime;
+        this.schemaRegistry = schemaRegistry;
         this.indexTopicCreator = indexTopicCreator;
         this.stateRepository = stateRepositoryFactory.create(runtime, id);
         this.id = id;
@@ -197,7 +201,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         CommandType<?> commandType = ackesRegistry.resolveType(command.getClass());
         // ensure we have the command registered and validated, this is an idempotent call
         try {
-            runtime.registerAndValidate(commandType);
+            runtime.registerAndValidate(commandType, schemaRegistry);
         } catch (Exception e) {
             logger.error("Problem registering command {}", commandType.typeName(), e);
             // TODO: throw a more specific exception

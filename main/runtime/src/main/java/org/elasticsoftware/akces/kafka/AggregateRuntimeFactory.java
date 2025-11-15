@@ -32,14 +32,11 @@ import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnot
 public class AggregateRuntimeFactory<S extends AggregateState> implements FactoryBean<AggregateRuntime>, ApplicationContextAware {
     private ApplicationContext applicationContext;
     private final ObjectMapper objectMapper;
-    private final KafkaSchemaRegistry schemaRegistry;
     private final Aggregate<S> aggregate;
 
     public AggregateRuntimeFactory(ObjectMapper objectMapper,
-                                   KafkaSchemaRegistry schemaRegistry,
                                    Aggregate<S> aggregate) {
         this.objectMapper = objectMapper;
-        this.schemaRegistry = schemaRegistry;
         this.aggregate = aggregate;
     }
 
@@ -165,6 +162,6 @@ public class AggregateRuntimeFactory<S extends AggregateState> implements Factor
                     }
                 });
 
-        return runtimeBuilder.setSchemaRegistry(schemaRegistry).validateAndBuild();
+        return runtimeBuilder.validateAndBuild();
     }
 }

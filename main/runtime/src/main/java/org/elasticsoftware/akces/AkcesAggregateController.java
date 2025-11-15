@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import jakarta.annotation.Nonnull;
@@ -42,8 +43,13 @@ import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
 import org.elasticsoftware.akces.kafka.AggregatePartition;
 import org.elasticsoftware.akces.kafka.PartitionUtils;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.schemas.IncompatibleSchemaException;
+import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.elasticsoftware.akces.schemas.SchemaException;
+import org.elasticsoftware.akces.schemas.SchemaRegistry;
+import org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorage;
+import org.elasticsoftware.akces.schemas.storage.SchemaStorage;
 import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.util.HostUtils;
 import org.slf4j.Logger;
@@ -79,6 +85,9 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
     private final ProducerFactory<String, AkcesControlRecord> controlProducerFactory;
     private final ConsumerFactory<String, AkcesControlRecord> controlRecordConsumerFactory;
+    private final ProducerFactory<String, SchemaRecord> schemaProducerFactory;
+    private final ConsumerFactory<String, SchemaRecord> schemaConsumerFactory;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     private final AggregateRuntime aggregateRuntime;
     private final KafkaAdminOperations kafkaAdmin;
     private final Map<Integer, AggregatePartition> aggregatePartitions = new HashMap<>();
@@ -93,6 +102,8 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     private Integer partitions = null;
     private Short replicationFactor = null;
     private Consumer<String, AkcesControlRecord> controlConsumer;
+    private SchemaStorage schemaStorage;
+    private SchemaRegistry schemaRegistry;
     private volatile AkcesControllerState processState = INITIALIZING;
     private boolean forceRegisterOnIncompatible = false;
     private ApplicationContext applicationContext;
@@ -101,6 +112,9 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                                     ProducerFactory<String, ProtocolRecord> producerFactory,
                                     ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory,
                                     ProducerFactory<String, AkcesControlRecord> controlProducerFactory,
+                                    ProducerFactory<String, SchemaRecord> schemaProducerFactory,
+                                    ConsumerFactory<String, SchemaRecord> schemaConsumerFactory,
+                                    ObjectMapper objectMapper,
                                     AggregateStateRepositoryFactory aggregateStateRepositoryFactory,
                                     GDPRContextRepositoryFactory gdprContextRepositoryFactory,
                                     AggregateRuntime aggregateRuntime,
@@ -110,6 +124,9 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
         this.producerFactory = producerFactory;
         this.controlProducerFactory = controlProducerFactory;
         this.controlRecordConsumerFactory = controlConsumerFactory;
+        this.schemaProducerFactory = schemaProducerFactory;
+        this.schemaConsumerFactory = schemaConsumerFactory;
+        this.objectMapper = objectMapper;
         this.aggregateStateRepositoryFactory = aggregateStateRepositoryFactory;
         this.gdprContextRepositoryFactory = gdprContextRepositoryFactory;
         this.aggregateRuntime = aggregateRuntime;
@@ -121,6 +138,16 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     public void run() {
         // make sure all our events and commands are registered and validated
         try {
+            // create schema storage and registry
+            schemaStorage = new KafkaTopicSchemaStorage(
+                    schemaProducerFactory,
+                    aggregateRuntime.getName() + "-SchemaProducer",
+                    schemaConsumerFactory.createConsumer(
+                            aggregateRuntime.getName() + "-Akces-SchemaConsumer",
+                            aggregateRuntime.getName() + "-" + HostUtils.getHostName() + "-Akces-SchemaConsumer")
+            );
+            schemaRegistry = new KafkaSchemaRegistry(schemaStorage, objectMapper);
+            
             // and start consuming
             controlConsumer =
                     controlRecordConsumerFactory.createConsumer(
@@ -150,6 +177,13 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
             } catch (KafkaException e) {
                 logger.error("Error closing controlConsumer", e);
             }
+            try {
+                if (schemaStorage != null) {
+                    schemaStorage.close();
+                }
+            } catch (Exception e) {
+                logger.error("Error closing schemaStorage", e);
+            }
             // raise an error for the liveness check
             applicationContext.publishEvent(new AvailabilityChangeEvent<>(this, LivenessState.BROKEN));
             // signal done
@@ -163,6 +197,9 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     private void process() {
         if (processState == RUNNING) {
             try {
+                // process schema storage updates
+                schemaStorage.process();
+                // process control records
                 processControlRecords();
             } catch (WakeupException | InterruptException e) {
                 // ignore
@@ -173,6 +210,8 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                 processState = SHUTTING_DOWN;
             }
         } else if (processState == INITIALIZING) {
+            // ensure we loaded all the available schemas first
+            schemaStorage.initialize();
             // find out about the cluster
             TopicDescription controlTopicDescription = kafkaAdmin.describeTopics("Akces-Control").get("Akces-Control");
             partitions = controlTopicDescription.partitions().size();
@@ -180,13 +219,13 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
             // first register and validate all local (= owned) domain events
             for (DomainEventType<?> domainEventType : aggregateRuntime.getProducedDomainEventTypes()) {
                 try {
-                    aggregateRuntime.registerAndValidate(domainEventType);
+                    aggregateRuntime.registerAndValidate(domainEventType, schemaRegistry);
                 } catch (IncompatibleSchemaException e) {
                     // our schema is not compatible with the existing schema
                     // if no DomainEvents of the type/version have been produced yet, we can just update the schema
                     if (forceRegisterOnIncompatible) {
                         if (protocolRecordTypeNotYetProduced(domainEventType, PartitionUtils::toDomainEventTopicPartition)) {
-                            aggregateRuntime.registerAndValidate(domainEventType, true);
+                            aggregateRuntime.registerAndValidate(domainEventType, schemaRegistry, true);
                         } else {
                             logger.warn("Cannot update schema for DomainEvent {} v{} because it has already been produced",
                                     domainEventType.typeName(), domainEventType.version());
@@ -200,13 +239,13 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
             // register and validate all local commands
             for (CommandType<?> commandType : aggregateRuntime.getLocalCommandTypes()) {
                 try {
-                    aggregateRuntime.registerAndValidate(commandType);
+                    aggregateRuntime.registerAndValidate(commandType, schemaRegistry);
                 } catch (IncompatibleSchemaException e) {
                     // our schema is not compatible with the existing schema
                     // if no Commands of the type/version have been produced yet, we can just update the schema
                     if (forceRegisterOnIncompatible) {
                         if (protocolRecordTypeNotYetProduced(commandType, PartitionUtils::toCommandTopicPartition)) {
-                            aggregateRuntime.registerAndValidate(commandType, true);
+                            aggregateRuntime.registerAndValidate(commandType, schemaRegistry, true);
                         } else {
                             logger.warn("Cannot update schema for Command {} v{} because it has already been produced",
                                     commandType.typeName(), commandType.version());
@@ -265,7 +304,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                 // register external domain event types
                 for (DomainEventType<?> domainEventType : aggregateRuntime.getExternalDomainEventTypes()) {
                     try {
-                        aggregateRuntime.registerAndValidate(domainEventType);
+                        aggregateRuntime.registerAndValidate(domainEventType, schemaRegistry);
                     } catch (SchemaException e) {
                         logger.error("Error registering external domain event type: {}:{}", domainEventType.typeName(), domainEventType.version(), e);
                         processState = SHUTTING_DOWN;
@@ -274,7 +313,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                 // register external command types
                 for (CommandType<?> commandType : aggregateRuntime.getExternalCommandTypes()) {
                     try {
-                        aggregateRuntime.registerAndValidate(commandType);
+                        aggregateRuntime.registerAndValidate(commandType, schemaRegistry);
                     } catch (SchemaException e) {
                         logger.error("Error registering external command type: {}:{}", commandType.typeName(), commandType.version(), e);
                         processState = SHUTTING_DOWN;
@@ -303,6 +342,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                         consumerFactory,
                         producerFactory,
                         aggregateRuntime,
+                        schemaRegistry,
                         aggregateStateRepositoryFactory,
                         gdprContextRepositoryFactory,
                         topicPartition.partition(),
