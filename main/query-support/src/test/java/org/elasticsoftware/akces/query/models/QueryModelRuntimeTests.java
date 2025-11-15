@@ -42,15 +42,16 @@ import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.query.QueryModelEventHandlerFunction;
 import org.elasticsoftware.akces.query.models.account.AccountQueryModel;
 import org.elasticsoftware.akces.query.models.account.AccountQueryModelState;
 import org.elasticsoftware.akces.query.models.wallet.WalletQueryModel;
 import org.elasticsoftware.akces.query.models.wallet.WalletQueryModelState;
+import org.elasticsoftware.akces.schemas.storage.SchemaStorage;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.SchemaRecordSerde;
-import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
 import org.elasticsoftware.akcestest.aggregate.account.CreateAccountCommand;
 import org.elasticsoftware.akcestest.aggregate.wallet.*;
@@ -67,7 +68,6 @@ import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.support.TestPropertySourceUtils;
-import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.junit.jupiter.Container;
@@ -119,7 +119,7 @@ public class QueryModelRuntimeTests {
 
     @Inject
     @Qualifier("akcesQueryModelSchemaStorage")
-    org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorage schemaStorage;
+    SchemaStorage schemaStorage;
 
     @Inject
     @Qualifier("akcesQueryModelConsumerFactory")
@@ -168,7 +168,7 @@ public class QueryModelRuntimeTests {
     }
 
     // Schema registration is now handled automatically by the framework
-    // through KafkaTopicSchemaStorage when schemas are first used
+    // through SchemaStorage when schemas are first used
 
     private static NewTopic createTopic(String name, int numPartitions) {
         return createTopic(name, numPartitions, -1L);

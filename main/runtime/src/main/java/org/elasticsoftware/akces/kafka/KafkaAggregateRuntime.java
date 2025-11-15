@@ -32,8 +32,8 @@ import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.events.ErrorEvent;
 import org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils;
 import org.elasticsoftware.akces.protocol.*;
-import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.elasticsoftware.akces.schemas.SchemaException;
+import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import org.everit.json.schema.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -529,7 +529,7 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
     }
 
     @Override
-    public void registerAndValidate(DomainEventType<?> domainEventType, KafkaSchemaRegistry schemaRegistry, boolean forceRegisterOnIncompatible) throws SchemaException {
+    public void registerAndValidate(DomainEventType<?> domainEventType, SchemaRegistry schemaRegistry, boolean forceRegisterOnIncompatible) throws SchemaException {
         // generate the local schema version
         JsonSchema localSchema = schemaRegistry.registerAndValidate(domainEventType, forceRegisterOnIncompatible);
         // schema is fine, add to map
@@ -537,7 +537,7 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
     }
 
     @Override
-    public void registerAndValidate(CommandType<?> commandType, KafkaSchemaRegistry schemaRegistry, boolean forceRegisterOnIncompatible) throws SchemaException {
+    public void registerAndValidate(CommandType<?> commandType, SchemaRegistry schemaRegistry, boolean forceRegisterOnIncompatible) throws SchemaException {
         if (!commandSchemas.containsKey(commandType.typeClass())) {
             JsonSchema localSchema = schemaRegistry.registerAndValidate(commandType, forceRegisterOnIncompatible);
             commandSchemas.put(commandType.typeClass(), localSchema);

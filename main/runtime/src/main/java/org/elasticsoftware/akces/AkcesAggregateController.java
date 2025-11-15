@@ -47,7 +47,9 @@ import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.schemas.IncompatibleSchemaException;
 import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.elasticsoftware.akces.schemas.SchemaException;
+import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorage;
+import org.elasticsoftware.akces.schemas.storage.SchemaStorage;
 import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.util.HostUtils;
 import org.slf4j.Logger;
@@ -100,8 +102,8 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     private Integer partitions = null;
     private Short replicationFactor = null;
     private Consumer<String, AkcesControlRecord> controlConsumer;
-    private KafkaTopicSchemaStorage schemaStorage;
-    private KafkaSchemaRegistry schemaRegistry;
+    private SchemaStorage schemaStorage;
+    private SchemaRegistry schemaRegistry;
     private volatile AkcesControllerState processState = INITIALIZING;
     private boolean forceRegisterOnIncompatible = false;
     private ApplicationContext applicationContext;
@@ -137,14 +139,14 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
         // make sure all our events and commands are registered and validated
         try {
             // create schema storage and registry
-            schemaStorage = new org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorageImpl(
+            schemaStorage = new KafkaTopicSchemaStorage(
                     schemaProducerFactory,
                     aggregateRuntime.getName() + "-SchemaProducer",
                     schemaConsumerFactory.createConsumer(
                             aggregateRuntime.getName() + "-Akces-SchemaConsumer",
                             aggregateRuntime.getName() + "-" + HostUtils.getHostName() + "-Akces-SchemaConsumer")
             );
-            schemaRegistry = new org.elasticsoftware.akces.schemas.KafkaSchemaRegistry(schemaStorage, objectMapper);
+            schemaRegistry = new KafkaSchemaRegistry(schemaStorage, objectMapper);
             
             // and start consuming
             controlConsumer =
@@ -197,6 +199,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
             try {
                 // process schema storage updates
                 schemaStorage.process();
+                // process control records
                 processControlRecords();
             } catch (WakeupException | InterruptException e) {
                 // ignore

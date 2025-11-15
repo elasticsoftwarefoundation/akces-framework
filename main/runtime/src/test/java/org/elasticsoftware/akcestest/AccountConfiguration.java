@@ -23,7 +23,8 @@ import org.elasticsoftware.akces.beans.AggregateBeanFactoryPostProcessor;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
-import org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorage;
+import org.elasticsoftware.akces.schemas.SchemaRegistry;
+import org.elasticsoftware.akces.schemas.storage.SchemaStorage;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -56,13 +57,13 @@ public class AccountConfiguration {
     }
 
     @Bean(name = "aggregateServiceSchemaStorage")
-    public KafkaTopicSchemaStorage createSchemaStorage() {
+    public SchemaStorage createSchemaStorage() {
         // Mock implementation for tests
-        return new KafkaTopicSchemaStorage() {
+        return new SchemaStorage() {
             private final Map<String, SchemaRecord> schemas = new ConcurrentHashMap<>();
             
             @Override
-            public void registerSchema(String schemaName, JsonSchema schema, int version) {
+            public void saveSchema(String schemaName, JsonSchema schema, int version) {
                 String key = schemaName + "-v" + version;
                 schemas.put(key, new SchemaRecord(schemaName, version, schema, System.currentTimeMillis()));
             }
@@ -99,8 +100,8 @@ public class AccountConfiguration {
     }
 
     @Bean(name = "aggregateServiceSchemaRegistry")
-    public KafkaSchemaRegistry createSchemaRegistry(@Qualifier("aggregateServiceSchemaStorage") KafkaTopicSchemaStorage storage,
-                                                    ObjectMapper objectMapper) {
+    public SchemaRegistry createSchemaRegistry(@Qualifier("aggregateServiceSchemaStorage") SchemaStorage storage,
+                                               ObjectMapper objectMapper) {
         return new KafkaSchemaRegistry(storage, objectMapper);
     }
 }

@@ -18,10 +18,12 @@
 package org.elasticsoftware.akcestest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import jakarta.inject.Inject;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.protocol.*;
 import org.elasticsoftware.akces.schemas.*;
+import org.elasticsoftware.akces.schemas.storage.SchemaStorage;
 import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
 import org.elasticsoftware.akcestest.aggregate.wallet.*;
 import org.elasticsoftware.akcestest.schemas.AccountCreatedEventV2;
@@ -40,13 +42,15 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(classes = WalletConfiguration.class, properties = "spring.autoconfigure.exclude=org.elasticsoftware.akces.client.AkcesClientAutoConfiguration")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-public class WalletTests {
+class WalletTests {
     @Inject
     ApplicationContext applicationContext;
     @Inject
     ObjectMapper objectMapper;
     @Inject
-    KafkaSchemaRegistry schemaRegistry;
+    SchemaRegistry schemaRegistry;
+    @Inject
+    SchemaStorage schemaStorage;
 
     @Test
     public void testFindBeans() {
@@ -73,15 +77,27 @@ public class WalletTests {
             for (DomainEventType<?> domainEventType : walletAggregate.getAllDomainEventTypes()) {
                 walletAggregate.registerAndValidate(domainEventType, schemaRegistry);
             }
-        });    }
+        });
+    }
+
+    @Test
+    @Order(2)
+    public void setUpSchemaRegistry() throws Exception {
+        // prepare external schemas
+        // need to register the external domainevent
+        DomainEventType<?> externalDomainEventType = new DomainEventType<>("AccountCreated", 1, AccountCreatedEvent.class, true, true, false, false);
+        JsonSchema externalSchema = schemaRegistry.generateJsonSchema(externalDomainEventType);
+        schemaStorage.saveSchema(externalDomainEventType.getSchemaName(), externalSchema, externalDomainEventType.version());
+    }
 
     @Test
     public void testValidateDomainEvents() throws Exception {
         AggregateRuntime walletAggregate = applicationContext.getBean("WalletAggregateRuntimeFactory", AggregateRuntime.class);
-        // need to register the external domainevent - schemas registered via TestUtils.prepareExternalSchemas()
         for (DomainEventType<?> domainEventType : walletAggregate.getAllDomainEventTypes()) {
             walletAggregate.registerAndValidate(domainEventType, schemaRegistry);
-        }    }
+        }
+
+    }
 
     @Test
     public void testValidateDomainEventsWithExistingSchemas() throws Exception {

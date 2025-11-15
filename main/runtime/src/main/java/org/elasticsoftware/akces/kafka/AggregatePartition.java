@@ -36,6 +36,7 @@ import org.elasticsoftware.akces.gdpr.GDPRContextRepository;
 import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
 import org.elasticsoftware.akces.gdpr.GDPRKeyUtils;
 import org.elasticsoftware.akces.protocol.*;
+import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import org.elasticsoftware.akces.state.AggregateStateRepository;
 import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.util.HostUtils;
@@ -65,7 +66,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
     private final AggregateRuntime runtime;
-    private final org.elasticsoftware.akces.schemas.KafkaSchemaRegistry schemaRegistry;
+    private final SchemaRegistry schemaRegistry;
     private final AggregateStateRepository stateRepository;
     private final GDPRContextRepository gdprContextRepository;
     private final Integer id;
@@ -88,7 +89,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
     public AggregatePartition(ConsumerFactory<String, ProtocolRecord> consumerFactory,
                               ProducerFactory<String, ProtocolRecord> producerFactory,
                               AggregateRuntime runtime,
-                              org.elasticsoftware.akces.schemas.KafkaSchemaRegistry schemaRegistry,
+                              SchemaRegistry schemaRegistry,
                               AggregateStateRepositoryFactory stateRepositoryFactory,
                               GDPRContextRepositoryFactory gdprContextRepositoryFactory,
                               Integer id,

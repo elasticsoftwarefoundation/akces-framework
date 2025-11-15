@@ -17,18 +17,14 @@
 
 package org.elasticsoftware.akces.schemas.storage;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
-import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.clients.admin.CreateTopicsResult;
-import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
-import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.elasticsoftware.akces.protocol.SchemaRecord;
@@ -40,19 +36,22 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.kafka.core.ProducerFactory;
 
 import java.time.Duration;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-class KafkaTopicSchemaStorageImplTest {
+class KafkaTopicSchemaStorageTest {
 
     private ProducerFactory<String, SchemaRecord> producerFactory;
     private Producer<String, SchemaRecord> producer;
     private Consumer<String, SchemaRecord> consumer;
-    private KafkaTopicSchemaStorageImpl storage;
+    private KafkaTopicSchemaStorage storage;
     
     private static final String TOPIC_NAME = "Akces-Schemas";
 
@@ -74,7 +73,7 @@ class KafkaTopicSchemaStorageImplTest {
         when(consumer.poll(any(Duration.class))).thenReturn(ConsumerRecords.empty());
         when(consumer.assignment()).thenReturn(Collections.emptySet());
         
-        storage = new KafkaTopicSchemaStorageImpl(
+        storage = new KafkaTopicSchemaStorage(
             producerFactory,
             "testProducer",
             consumer
@@ -125,7 +124,7 @@ class KafkaTopicSchemaStorageImplTest {
     }
 
     @Test
-    void testRegisterSchema() throws Exception {
+    void testSaveSchema() throws Exception {
         // Given
         storage.initialize();
         String schemaName = "TestCommand";
@@ -133,16 +132,17 @@ class KafkaTopicSchemaStorageImplTest {
         JsonSchema schema = new JsonSchema("{\"type\": \"object\"}");
         
         CompletableFuture<RecordMetadata> future = CompletableFuture.completedFuture(null);
-        when(producer.send(any(ProducerRecord.class))).thenReturn(future);
+        when(producer.send(any(ProducerRecord.class), any(Callback.class))).thenReturn(future);
         
         // When
-        storage.registerSchema(schemaName, schema, version);
+        storage.saveSchema(schemaName, schema, version);
         
         // Then
         ArgumentCaptor<ProducerRecord<String, SchemaRecord>> captor = 
             ArgumentCaptor.forClass(ProducerRecord.class);
+        ArgumentCaptor<Callback> callbackCaptor = ArgumentCaptor.forClass(Callback.class);
         verify(producer).beginTransaction();
-        verify(producer).send(captor.capture());
+        verify(producer).send(captor.capture(), callbackCaptor.capture());
         verify(producer).commitTransaction();
         verify(producer).close();
         
@@ -153,7 +153,7 @@ class KafkaTopicSchemaStorageImplTest {
     }
 
     @Test
-    void testRegisterSchemaFailure() {
+    void testSaveSchemaFailure() {
         // Given
         storage.initialize();
         String schemaName = "TestCommand";
@@ -166,7 +166,7 @@ class KafkaTopicSchemaStorageImplTest {
         
         // When/Then
         assertThrows(SchemaException.class, 
-            () -> storage.registerSchema(schemaName, schema, version));
+            () -> storage.saveSchema(schemaName, schema, version));
     }
 
     @Test
@@ -192,10 +192,13 @@ class KafkaTopicSchemaStorageImplTest {
         JsonSchema schema2 = new JsonSchema("{\"type\": \"object\", \"version\": 2}");
         
         CompletableFuture<RecordMetadata> future = CompletableFuture.completedFuture(null);
-        when(producer.send(any(ProducerRecord.class))).thenReturn(future);
+        ArgumentCaptor<Callback> callbackCaptor = ArgumentCaptor.forClass(Callback.class);
+        when(producer.send(any(ProducerRecord.class), callbackCaptor.capture())).thenReturn(future);
         
-        storage.registerSchema(schemaName, schema1, 1);
-        storage.registerSchema(schemaName, schema2, 2);
+        storage.saveSchema(schemaName, schema1, 1);
+        storage.saveSchema(schemaName, schema2, 2);
+
+        callbackCaptor.getAllValues().forEach(callback -> callback.onCompletion(null, null));
         
         // When
         List<SchemaRecord> schemas = storage.getSchemas(schemaName);
@@ -235,7 +238,7 @@ class KafkaTopicSchemaStorageImplTest {
     @Test
     void testReadOnlyModeWithNullProducer() {
         // Given - create storage with null producer (read-only mode)
-        KafkaTopicSchemaStorageImpl readOnlyStorage = new KafkaTopicSchemaStorageImpl(
+        KafkaTopicSchemaStorage readOnlyStorage = new KafkaTopicSchemaStorage(
             null,
             null,
             consumer
@@ -247,7 +250,7 @@ class KafkaTopicSchemaStorageImplTest {
             // When/Then - attempting to register should throw UnsupportedOperationException
             JsonSchema schema = new JsonSchema("{\"type\": \"object\"}");
             assertThrows(UnsupportedOperationException.class,
-                () -> readOnlyStorage.registerSchema("TestCommand", schema, 1));
+                () -> readOnlyStorage.saveSchema("TestCommand", schema, 1));
             
             // Should be able to read schemas
             Optional<SchemaRecord> result = readOnlyStorage.getSchema("NonExistent", 1);

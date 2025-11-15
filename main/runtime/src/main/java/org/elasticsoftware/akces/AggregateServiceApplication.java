@@ -58,7 +58,6 @@ import java.util.Set;
 @SpringBootApplication(exclude = KafkaAutoConfiguration.class)
 @EnableConfigurationProperties(KafkaProperties.class)
 @PropertySource("classpath:akces-aggregateservice.properties")
-@PropertySource("classpath:akces-schemas.properties")
 public class AggregateServiceApplication {
     private final ProtocolRecordSerde serde = new ProtocolRecordSerde();
 

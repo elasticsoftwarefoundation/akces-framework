@@ -18,8 +18,6 @@
 package org.elasticsoftware.akces.query.database;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
@@ -32,8 +30,9 @@ import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.query.database.beans.DatabaseModelBeanFactoryPostProcessor;
 import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
+import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorage;
-import org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorageImpl;
+import org.elasticsoftware.akces.schemas.storage.SchemaStorage;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
@@ -51,15 +50,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.ProducerFactory;
-import org.springframework.kafka.core.KafkaAdmin;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
-import java.util.Map;
 
 @Configuration
 @PropertySource("classpath:akces-databasemodel.properties")
-@PropertySource("classpath:akces-schemas.properties")
 public class AkcesDatabaseModelAutoConfiguration {
     private final ProtocolRecordSerde serde = new ProtocolRecordSerde();
 
@@ -107,10 +102,10 @@ public class AkcesDatabaseModelAutoConfiguration {
 
     @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
     @Bean(name = "akcesDatabaseModelSchemaStorage", initMethod = "initialize", destroyMethod = "close")
-    public KafkaTopicSchemaStorage schemaStorage(
+    public SchemaStorage schemaStorage(
             @Qualifier("akcesDatabaseModelSchemaProducerFactory") ProducerFactory<String, SchemaRecord> producerFactory,
             @Qualifier("akcesDatabaseModelSchemaConsumerFactory") ConsumerFactory<String, SchemaRecord> consumerFactory) {
-        return new KafkaTopicSchemaStorageImpl(
+        return new KafkaTopicSchemaStorage(
                 null, // read-only mode - no producer needed
                 null,
                 consumerFactory.createConsumer("akces-database-model-schema", "schema-storage")
@@ -119,8 +114,8 @@ public class AkcesDatabaseModelAutoConfiguration {
 
     @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
     @Bean(name = "akcesDatabaseModelSchemaRegistry")
-    public KafkaSchemaRegistry createSchemaRegistry(
-            @Qualifier("akcesDatabaseModelSchemaStorage") KafkaTopicSchemaStorage schemaStorage,
+    public SchemaRegistry createSchemaRegistry(
+            @Qualifier("akcesDatabaseModelSchemaStorage") SchemaStorage schemaStorage,
             ObjectMapper objectMapper) {
         return new KafkaSchemaRegistry(schemaStorage, objectMapper);
     }

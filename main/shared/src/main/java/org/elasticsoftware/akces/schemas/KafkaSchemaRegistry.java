@@ -17,13 +17,8 @@
 
 package org.elasticsoftware.akces.schemas;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.github.victools.jsonschema.generator.*;
-import com.github.victools.jsonschema.module.jackson.JacksonModule;
-import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
-import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
+import com.github.victools.jsonschema.generator.SchemaGenerator;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import io.confluent.kafka.schemaregistry.json.diff.Difference;
 import io.confluent.kafka.schemaregistry.json.diff.SchemaDiff;
@@ -31,33 +26,33 @@ import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.aggregate.SchemaType;
 import org.elasticsoftware.akces.protocol.SchemaRecord;
-import org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorage;
+import org.elasticsoftware.akces.schemas.storage.SchemaStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
-public class KafkaSchemaRegistry {
+public class KafkaSchemaRegistry implements SchemaRegistry {
     private static final Logger logger = LoggerFactory.getLogger(KafkaSchemaRegistry.class);
-    private final KafkaTopicSchemaStorage schemaStorage;
+    private final SchemaStorage schemaStorage;
     // schema generator is not thread safe
     private final ThreadLocal<SchemaGenerator> schemaGeneratorTheadLocal;
 
     /**
      * Creates a KafkaSchemaRegistry using Kafka topic-based schema storage.
      */
-    public KafkaSchemaRegistry(KafkaTopicSchemaStorage schemaStorage, ObjectMapper objectMapper) {
+    public KafkaSchemaRegistry(SchemaStorage schemaStorage, ObjectMapper objectMapper) {
         this.schemaStorage = schemaStorage;
-        this.schemaGeneratorTheadLocal = ThreadLocal.withInitial(() -> createJsonSchemaGenerator(objectMapper));
+        this.schemaGeneratorTheadLocal = ThreadLocal.withInitial(() -> SchemaRegistry.createJsonSchemaGenerator(objectMapper));
     }
 
+    @Override
     public JsonSchema validate(CommandType<?> commandType) throws SchemaException {
         return validate(commandType, true);
     }
 
+    @Override
     public JsonSchema validate(DomainEventType<?> domainEventType) throws SchemaException {
         return validate(domainEventType, false);
     }
@@ -118,6 +113,7 @@ public class KafkaSchemaRegistry {
         }
     }
 
+    @Override
     public JsonSchema registerAndValidate(SchemaType<?> schemaType, boolean forceRegisterOnIncompatibleSchema) throws SchemaException {
         // generate the local schema version
         JsonSchema localSchema = generateJsonSchema(schemaType);
@@ -130,7 +126,7 @@ public class KafkaSchemaRegistry {
             if (!schemaType.external()) {
                 if (schemaType.version() == 1) {
                     // Register first version
-                    schemaStorage.registerSchema(schemaName, localSchema, schemaType.version());
+                    schemaStorage.saveSchema(schemaName, localSchema, schemaType.version());
                 } else {
                     throw new PreviousSchemaVersionMissingException(
                             schemaName,
@@ -163,7 +159,7 @@ public class KafkaSchemaRegistry {
                         schemaType.typeClass());
             } else {
                 // New version of an existing schema
-                registeredSchemas.sort(Comparator.comparingInt(SchemaRecord::version));
+                // registeredSchemas.sort(Comparator.comparingInt(SchemaRecord::version));
                 SchemaRecord lastSchema = registeredSchemas.getLast();
                 
                 if (schemaType.version() != lastSchema.version() + 1) {
@@ -178,7 +174,7 @@ public class KafkaSchemaRegistry {
                 validateBackwardCompatibility(schemaName, schemaType, localSchema, lastSchema.schema());
                 
                 // Register new version
-                schemaStorage.registerSchema(schemaName, localSchema, schemaType.version());
+                schemaStorage.saveSchema(schemaName, localSchema, schemaType.version());
             }
         }
         
@@ -213,7 +209,7 @@ public class KafkaSchemaRegistry {
                     logger.warn("Found an incompatible schema for {} v{} but forceRegisterOnIncompatibleSchema=true. Overwriting existing entry", 
                             schemaName, schemaType.version());
                     try {
-                        schemaStorage.registerSchema(schemaName, localSchema, schemaType.version());
+                        schemaStorage.saveSchema(schemaName, localSchema, schemaType.version());
                     } catch (SchemaException e) {
                         logger.error("Exception during overwrite of Schema {} with version {}", 
                                 schemaName, schemaType.version(), e);
@@ -247,31 +243,9 @@ public class KafkaSchemaRegistry {
         }
     }
 
+    @Override
     public JsonSchema generateJsonSchema(SchemaType<?> schemaType) {
-        return new JsonSchema(schemaGeneratorTheadLocal.get().generateSchema(schemaType.typeClass()), List.of(), Map.of(), schemaType.version());
-    }
-
-    private SchemaGenerator createJsonSchemaGenerator(ObjectMapper objectMapper) {
-        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(objectMapper,
-                SchemaVersion.DRAFT_7,
-                OptionPreset.PLAIN_JSON);
-        configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
-                JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
-        configBuilder.with(new JacksonModule());
-        configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
-        configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
-        configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
-        // we need to override the default behavior of the generator to write BigDecimal as type = number
-        configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
-            if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
-                JsonNode typeNode = collectedTypeAttributes.get("type");
-                if (typeNode.isArray()) {
-                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
-                } else
-                    collectedTypeAttributes.put("type", "string");
-            }
-        });
-        return new SchemaGenerator(configBuilder.build());
+        return SchemaRegistry.generateJsonSchema(schemaType, schemaGeneratorTheadLocal.get());
     }
 
 }

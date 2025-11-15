@@ -30,7 +30,7 @@ import org.elasticsoftware.akces.protocol.DomainEventRecord;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.query.DatabaseModel;
 import org.elasticsoftware.akces.query.DatabaseModelEventHandlerFunction;
-import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
+import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
 
 public class KafkaDatabaseModelRuntime implements DatabaseModelRuntime {
     private static final Logger logger = LoggerFactory.getLogger(KafkaDatabaseModelRuntime.class);
-    private final KafkaSchemaRegistry schemaRegistry;
+    private final SchemaRegistry schemaRegistry;
     private final ObjectMapper objectMapper;
     private final Map<Class<?>, DomainEventType<?>> domainEvents;
     private final Map<DomainEventType<?>, DatabaseModelEventHandlerFunction<DomainEvent>> databaseModelEventHandlers;
@@ -50,7 +50,7 @@ public class KafkaDatabaseModelRuntime implements DatabaseModelRuntime {
     private final int version;
     private final boolean shouldHandlePIIData;
 
-    private KafkaDatabaseModelRuntime(KafkaSchemaRegistry schemaRegistry,
+    private KafkaDatabaseModelRuntime(SchemaRegistry schemaRegistry,
                                       ObjectMapper objectMapper,
                                       Map<Class<?>, DomainEventType<?>> domainEvents,
                                       Map<DomainEventType<?>, DatabaseModelEventHandlerFunction<DomainEvent>> databaseModelEventHandlers,
@@ -158,12 +158,12 @@ public class KafkaDatabaseModelRuntime implements DatabaseModelRuntime {
     public static class Builder {
         private final Map<Class<?>, DomainEventType<?>> domainEvents = new HashMap<>();
         private final Map<DomainEventType<?>, DatabaseModelEventHandlerFunction<DomainEvent>> databaseModelEventHandlers = new HashMap<>();
-        private KafkaSchemaRegistry schemaRegistry;
+        private SchemaRegistry schemaRegistry;
         private ObjectMapper objectMapper;
         private DatabaseModelInfo databaseModelInfo;
         private DatabaseModel databaseModel;
 
-        public Builder setSchemaRegistry(KafkaSchemaRegistry schemaRegistry) {
+        public Builder setSchemaRegistry(SchemaRegistry schemaRegistry) {
             this.schemaRegistry = schemaRegistry;
             return this;
         }

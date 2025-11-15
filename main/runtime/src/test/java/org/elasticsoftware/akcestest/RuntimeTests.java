@@ -60,10 +60,7 @@ import org.elasticsoftware.akcestest.aggregate.account.CreateAccountCommand;
 import org.elasticsoftware.akcestest.aggregate.orders.BuyOrderCreatedEvent;
 import org.elasticsoftware.akcestest.aggregate.orders.FxMarket;
 import org.elasticsoftware.akcestest.aggregate.orders.PlaceBuyOrderCommand;
-import org.elasticsoftware.akcestest.aggregate.wallet.BalanceCreatedEvent;
-import org.elasticsoftware.akcestest.aggregate.wallet.CreateWalletCommand;
-import org.elasticsoftware.akcestest.aggregate.wallet.CreditWalletCommand;
-import org.elasticsoftware.akcestest.aggregate.wallet.WalletCreatedEvent;
+import org.elasticsoftware.akcestest.aggregate.wallet.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -78,7 +75,6 @@ import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.support.TestPropertySourceUtils;
-import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.junit.jupiter.Container;
@@ -906,7 +902,10 @@ public class RuntimeTests {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
             // Prepare schemas by writing to Akces-Schemas topic
-            prepareExternalSchemas(kafka.getBootstrapServers(), List.of(AccountCreatedEvent.class));
+            prepareExternalSchemas(kafka.getBootstrapServers(), List.of(AccountCreatedEvent.class,
+                                                                        AmountReservedEvent.class,
+                                                                        InsufficientFundsErrorEvent.class,
+                                                                        InvalidCurrencyErrorEvent.class));
             prepareOldCommandSchemas(kafka.getBootstrapServers());
             prepareOldDomainEventSchemas(kafka.getBootstrapServers());
             try {
