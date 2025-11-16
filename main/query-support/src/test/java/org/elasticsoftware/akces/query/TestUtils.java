@@ -15,7 +15,7 @@
  *
  */
 
-package org.elasticsoftware.akcestest;
+package org.elasticsoftware.akces.query;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.victools.jsonschema.generator.SchemaGenerator;
@@ -91,7 +91,7 @@ public class TestUtils {
                 "compression.type", "lz4"));
     }
 
-    public static void prepareExternalSchemas(String bootstrapServers, List<Class<? extends DomainEvent>> externalDomainEvents) {
+    public static void prepareDomainEventSchemas(String bootstrapServers, List<Class<? extends DomainEvent>> externalDomainEvents) {
         Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
         objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
         objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());

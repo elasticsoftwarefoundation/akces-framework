@@ -18,9 +18,6 @@
 package org.elasticsoftware.akces.query.database;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.json.JsonSchemaProvider;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
@@ -28,11 +25,12 @@ import org.elasticsoftware.akces.gdpr.RocksDBGDPRContextRepositoryFactory;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.kafka.CustomKafkaConsumerFactory;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.query.database.beans.DatabaseModelBeanFactoryPostProcessor;
-import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
+import org.elasticsoftware.akces.serialization.SchemaRecordSerde;
 import org.elasticsoftware.akces.util.EnvironmentPropertiesPrinter;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,7 +45,6 @@ import org.springframework.context.annotation.PropertySource;
 import org.springframework.kafka.core.ConsumerFactory;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 @Configuration
 @PropertySource("classpath:akces-databasemodel.properties")
@@ -69,21 +66,34 @@ public class AkcesDatabaseModelAutoConfiguration {
     }
 
     @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
-    @Bean(name = "akcesDatabaseModelSchemaRegistryClient")
-    public SchemaRegistryClient createSchemaRegistryClient(@Value("${akces.schemaregistry.url:http://localhost:8081}") String url) {
-        return new CachedSchemaRegistryClient(url, 1000, List.of(new JsonSchemaProvider()), null);
+    @Bean(name = "akcesDatabaseModelSchemaRecordSerde")
+    public SchemaRecordSerde schemaRecordSerde(ObjectMapper objectMapper) {
+        return new SchemaRecordSerde(objectMapper);
     }
 
     @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
-    @Bean(name = "akcesDatabaseModelSchemaRegistry")
-    public KafkaSchemaRegistry createSchemaRegistry(@Qualifier("akcesDatabaseModelSchemaRegistryClient") SchemaRegistryClient schemaRegistryClient, ObjectMapper objectMapper) {
-        return new KafkaSchemaRegistry(schemaRegistryClient, objectMapper);
+    @Bean(name = "akcesDatabaseModelSchemaConsumerFactory")
+    public ConsumerFactory<String, SchemaRecord> schemaConsumerFactory(
+            KafkaProperties properties,
+            @Qualifier("akcesDatabaseModelSchemaRecordSerde") SchemaRecordSerde serde) {
+        return new CustomKafkaConsumerFactory<>(
+                properties.buildConsumerProperties(null),
+                new StringDeserializer(),
+                serde.deserializer());
     }
+
 
     @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
     @Bean(name = "akcesDatabaseModelConsumerFactory")
     public ConsumerFactory<String, ProtocolRecord> consumerFactory(KafkaProperties properties) {
         return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), serde.deserializer());
+    }
+
+    @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
+    @Bean(name = "akcesDatabaseModelGDPRContextRepositoryFactory")
+    public GDPRContextRepositoryFactory gdprContextRepositoryFactory(@Value("${akces.rocksdb.baseDir:/tmp/akces}") String baseDir) {
+        return new RocksDBGDPRContextRepositoryFactory(serde, baseDir);
+        //return new InMemoryGDPRContextRepositoryFactory();
     }
 
     @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
@@ -97,12 +107,6 @@ public class AkcesDatabaseModelAutoConfiguration {
     public ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory(KafkaProperties properties,
                                                                               @Qualifier("akcesDatabaseModelControlRecordSerde") AkcesControlRecordSerde controlSerde) {
         return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), controlSerde.deserializer());
-    }
-
-    @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
-    @Bean(name = "akcesDatabaseModelGDPRContextRepositoryFactory")
-    public GDPRContextRepositoryFactory gdprContextRepositoryFactory(@Value("${akces.rocksdb.baseDir:/tmp/akces}") String baseDir) {
-        return new RocksDBGDPRContextRepositoryFactory(serde, baseDir);
     }
 
     @ConditionalOnMissingBean(EnvironmentPropertiesPrinter.class)
