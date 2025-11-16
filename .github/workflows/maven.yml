@@ -59,6 +59,7 @@ jobs:
           compile
           test-compile
           -U
+      # Install artifacts. Tests are skipped if commit message contains [skip-tests]
       - name: Install with Maven
         run: >
           mvn
