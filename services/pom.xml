@@ -135,7 +135,7 @@
                                 </env>
                                 <buildpacks>
                                     <buildpack>paketo-buildpacks/ca-certificates</buildpack>
-                                    <buildpack>gcr.io/paketo-buildpacks/adoptium:latest</buildpack>
+                                    <buildpack>paketo-buildpacks/adoptium</buildpack>
                                     <buildpack>paketo-buildpacks/syft</buildpack>
                                     <buildpack>paketo-buildpacks/executable-jar</buildpack>
                                     <buildpack>paketo-buildpacks/spring-boot</buildpack>
@@ -172,7 +172,7 @@
                                 </env>
                                 <buildpacks>
                                     <buildpack>paketo-buildpacks/ca-certificates</buildpack>
-                                    <buildpack>gcr.io/paketo-buildpacks/adoptium:latest</buildpack>
+                                    <buildpack>paketo-buildpacks/adoptium</buildpack>
                                     <buildpack>paketo-buildpacks/syft</buildpack>
                                     <buildpack>paketo-buildpacks/executable-jar</buildpack>
                                     <buildpack>paketo-buildpacks/spring-boot</buildpack>
