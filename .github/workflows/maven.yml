@@ -69,7 +69,7 @@ jobs:
           --file pom.xml
           --settings $GITHUB_WORKSPACE/settings.xml
           install
-          -DskipTests
+          ${{ contains(github.event.head_commit.message, '[skip-tests]') && '-DskipTests' || '' }}
           -U
 
   docker-snapshot:
