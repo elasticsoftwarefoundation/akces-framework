@@ -201,8 +201,8 @@
                                 </publishRegistry>
                             </docker>
                             <image>
-                                <builder>paketobuildpacks/ubuntu-noble-build</builder>
-                                <runImage>paketobuildpacks/ubuntu-noble-run</runImage>
+                                <builder>paketobuildpacks/builder-noble-java-tiny</builder>
+                                <runImage>paketobuildpacks/run-noble-base</runImage>
                                 <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}:${docker.image.version}</name>
                                 <publish>true</publish>
                                 <env>
