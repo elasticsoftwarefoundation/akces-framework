@@ -48,7 +48,6 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.support.TestPropertySourceUtils;
 import org.springframework.test.web.reactive.server.WebTestClient;
-import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -100,16 +99,6 @@ public class CryptoTradingQueryApiTest {
                     .withNetwork(network)
                     .withNetworkAliases("kafka");
 
-    @Container
-    private static final GenericContainer<?> schemaRegistry =
-            new GenericContainer<>(DockerImageName.parse("confluentinc/cp-schema-registry:" + CONFLUENT_PLATFORM_VERSION))
-                    .withNetwork(network)
-                    .withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "kafka:9092")
-                    .withEnv("SCHEMA_REGISTRY_HOST_NAME", "localhost")
-                    .withEnv("SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL","none")
-                    .withExposedPorts(8081)
-                    .withNetworkAliases("schema-registry")
-                    .dependsOn(kafka);
     @Container
     private static final PostgreSQLContainer<?> postgresql = new PostgreSQLContainer<>("postgres:17.4")
             .withDatabaseName("cryptotrading")
@@ -509,7 +498,6 @@ public class CryptoTradingQueryApiTest {
                     "akces.rocksdb.baseDir=/tmp/akces",
                     "spring.kafka.enabled=true",
                     "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
-                    "akces.schemaregistry.url=http://" + schemaRegistry.getHost() + ":" + schemaRegistry.getMappedPort(8081),
                     "spring.datasource.url=" + postgresql.getJdbcUrl(),
                     "spring.datasource.username=akces",
                     "spring.datasource.password=akces"
