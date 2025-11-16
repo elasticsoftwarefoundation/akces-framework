@@ -137,6 +137,8 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                              null
                      )
              )) {
+            // first initialize the schema storage
+            schemaStorage.initialize();
             this.schemaRegistry = new KafkaSchemaRegistry(schemaStorage, objectMapper);
             while (processState != SHUTTING_DOWN) {
                 process(indexConsumer, schemaStorage);
@@ -286,8 +288,6 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
             }
         } else if (processState == INITIALIZING) {
             try {
-                // first initialize the schema storage
-                schemaStorage.initialize();
                 Iterator<QueryModelRuntime> iterator = enabledRuntimes.values().iterator();
                 while (iterator.hasNext()) {
                     QueryModelRuntime queryModelRuntime = iterator.next();
