@@ -88,7 +88,7 @@ public class CryptoTradingE2ETests {
 
         // Create an ETH wallet
         e2eTestClient.post()
-                .uri("/v1/wallets/{userId}/balances", userId)
+                .uri("/v1/accounts/{userId}/wallet/balances", userId)
                 .bodyValue(new CreateBalanceInput("ETH"))
                 .exchange()
                 .expectStatus().is2xxSuccessful()
@@ -101,7 +101,7 @@ public class CryptoTradingE2ETests {
 
         // credit the EUR wallet with a balance of 1000
         e2eTestClient.post()
-                .uri("/v1/wallets/{userId}/balances/EUR/credit", userId)
+                .uri("/v1/accounts/{userId}/wallet/balances/EUR/credit", userId)
                 .bodyValue(new CreditWalletInput(new BigDecimal("1000.00")))
                 .exchange()
                 .expectStatus().is2xxSuccessful()
@@ -139,7 +139,7 @@ public class CryptoTradingE2ETests {
 
         // test the wallet balances
         e2eTestClient.get()
-                        .uri("/v1/wallets/{userId}", userId)
+                        .uri("/v1/accounts/{userId}/wallet", userId)
                         .exchange()
                         .expectStatus().is2xxSuccessful()
                         .expectBody(WalletQueryModelState.class)
