@@ -388,6 +388,19 @@
                 <!-- This property will be set by the CI workflow to include git SHA in the version -->
                 <docker.image.version>${project.version}</docker.image.version>
             </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-source</id>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
         <profile>
             <id>ci</id>
