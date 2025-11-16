@@ -50,4 +50,23 @@ public class OrdersQueryController {
                 }
             });
     }
+
+    @GetMapping("/{accountId}/orders/{orderId}")
+    Mono<ResponseEntity<OrdersQueryModelState.BuyOrder>> getOrderById(
+            @PathVariable("accountId") String accountId,
+            @PathVariable("orderId") String orderId) {
+        return Mono.fromCompletionStage(queryModels.getHydratedState(OrdersQueryModel.class, accountId))
+            .map(state -> state.openBuyOrders().stream()
+                .filter(order -> order.orderId().equals(orderId))
+                .findFirst()
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build()))
+            .onErrorResume(throwable -> {
+                if (throwable instanceof QueryModelNotFoundException || throwable instanceof QueryModelIdNotFoundException) {
+                    return Mono.just(ResponseEntity.notFound().build());
+                } else {
+                    return Mono.just(ResponseEntity.internalServerError().build());
+                }
+            });
+    }
 }

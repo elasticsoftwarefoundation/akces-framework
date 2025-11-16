@@ -554,6 +554,78 @@ public class CryptoTradingQueryApiTest {
                 .jsonPath("$.openBuyOrders[1].state").exists();
     }
 
+    @Test
+    void testGetOrderById() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        // Create account and credit EUR balance
+        AccountInput accountInput = new AccountInput("NL", "Jane", "Smith", "jane.smith@example.com");
+        AccountOutput accountOutput = webTestClient.post()
+                .uri("/v1/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(accountOutput).isNotNull();
+        String userId = accountOutput.userId();
+
+        // Credit EUR balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances/EUR/credit")
+                .bodyValue(new CreditWalletInput(new BigDecimal("5000.0")))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Add BTC balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances")
+                .bodyValue(new CreateBalanceInput("BTC"))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Place buy order
+        BuyOrderInput buyOrderInput = new BuyOrderInput("BTC-EUR", new BigDecimal("750"), "test-ref-123");
+        OrderOutput orderOutput = webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/orders/buy")
+                .bodyValue(buyOrderInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(OrderOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(orderOutput).isNotNull();
+        assertThat(orderOutput.orderId()).isNotNull();
+        String orderId = orderOutput.orderId();
+
+        // Get order by ID
+        webTestClient.get()
+                .uri("/v1/accounts/" + userId + "/orders/" + orderId)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody()
+                .jsonPath("$.orderId").isEqualTo(orderId)
+                .jsonPath("$.market.id").isEqualTo("BTC-EUR")
+                .jsonPath("$.amount").isEqualTo(750)
+                .jsonPath("$.clientReference").isEqualTo("test-ref-123")
+                .jsonPath("$.state").exists();
+
+        // Test getting non-existent order
+        webTestClient.get()
+                .uri("/v1/accounts/" + userId + "/orders/non-existent-order-id")
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
 
     public static class Initializer
             implements ApplicationContextInitializer<ConfigurableApplicationContext> {
