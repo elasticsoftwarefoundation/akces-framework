@@ -37,6 +37,8 @@ import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.ReserveAmoun
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.AmountReservedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.InsufficientFundsErrorEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.InvalidCryptoCurrencyErrorEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -49,6 +51,8 @@ import java.util.stream.Stream;
         indexed = true,
         indexName = "Users")
 public class OrderProcessManager implements Aggregate<OrderProcessManagerState> {
+    private static final Logger log = LoggerFactory.getLogger(OrderProcessManager.class);
+
     @Override
     public String getName() {
         return "OrderProcessManager";
@@ -61,6 +65,7 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
 
     @EventHandler(create = true, produces = UserOrderProcessesCreatedEvent.class, errors = {})
     public Stream<UserOrderProcessesCreatedEvent> create(AccountCreatedEvent event, OrderProcessManagerState isNull) {
+        log.info("EventHandler: Creating user order processes from AccountCreatedEvent for userId={}", event.userId());
         return Stream.of(new UserOrderProcessesCreatedEvent(event.userId()));
     }
 
@@ -112,8 +117,11 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
      */
     @CommandHandler(produces = BuyOrderCreatedEvent.class, errors = {})
     public Stream<BuyOrderCreatedEvent> placeBuyOrder(PlaceBuyOrderCommand command, OrderProcessManagerState state) {
+        log.info("CommandHandler: Placing buy order for userId={}, market={}, amount={}", 
+            state.userId(), command.market().id(), command.amount());
         // we need to reserve the quote currency amount on wallet of the user
         String orderId = UUID.randomUUID().toString();
+        log.info("CommandHandler: Generated orderId={} for buy order", orderId);
         // send command to reserve the amount of the quote currency
         getCommandBus().send(new ReserveAmountCommand(
                 state.userId(),
@@ -131,15 +139,19 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
 
     @CommandHandler(produces = BuyOrderRejectedEvent.class, errors = {})
     public Stream<BuyOrderRejectedEvent> rejectOrder(RejectOrderCommand command, OrderProcessManagerState state) {
+        log.info("CommandHandler: Rejecting order for userId={}, orderId={}", state.userId(), command.orderId());
         if (state.hasAkcesProcess(command.orderId())) {
             return Stream.of(state.getAkcesProcess(command.orderId()).handle(command));
         } else {
+            log.info("CommandHandler: No active process found for orderId={}", command.orderId());
             return Stream.empty();
         }
     }
 
     @CommandHandler(produces = BuyOrderFilledEvent.class, errors = {})
     public Stream<BuyOrderFilledEvent> fillOrder(FillBuyOrderCommand command, OrderProcessManagerState state) {
+        log.info("CommandHandler: Filling buy order for userId={}, orderId={}, baseCurrency={}, quoteCurrency={}, quantity={}, price={}", 
+            command.userId(), command.orderId(), command.baseCurrency(), command.quoteCurrency(), command.quantity(), command.price());
         if (state.hasAkcesProcess(command.orderId())) {
             // cancel the reservation of the quote currency
             getCommandBus().send(new CancelReservationCommand(
@@ -148,11 +160,13 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
                     command.orderId()));
             // debit the quote currency
             BigDecimal quoteAmount = command.price().multiply(command.quantity());
+            log.info("CommandHandler: Debiting {} {} from user wallet", quoteAmount, command.quoteCurrency());
             getCommandBus().send(new DebitWalletCommand(
                     command.userId(),
                     command.quoteCurrency(),
                     quoteAmount));
             // credit the base currency
+            log.info("CommandHandler: Crediting {} {} to user wallet", command.quantity(), command.baseCurrency());
             getCommandBus().send(new CreditWalletCommand(
                     command.userId(),
                     command.baseCurrency(),
@@ -168,14 +182,19 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
                     command.quoteCurrency()
             ));
         }
+        log.info("CommandHandler: No active process found for orderId={}", command.orderId());
         return Stream.empty();
     }
 
     @EventHandler(produces = BuyOrderPlacedEvent.class, errors = {})
     public Stream<DomainEvent> handle(AmountReservedEvent event, OrderProcessManagerState state) {
+        log.info("EventHandler: Amount reserved for userId={}, currency={}, amount={}, referenceId={}", 
+            event.userId(), event.currency(), event.amount(), event.referenceId());
         // happy path, need to send a command to the market to place the order
         OrderProcess orderProcess = state.getAkcesProcess(event.referenceId());
         if (orderProcess != null) {
+            log.info("EventHandler: Placing market order for orderId={}, marketId={}", 
+                orderProcess.orderId(), orderProcess.market().id());
             getCommandBus().send(new PlaceMarketOrderCommand(
                     orderProcess.market().id(),
                     orderProcess.orderId(),
@@ -185,6 +204,7 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
                     null));
             return Stream.of(new BuyOrderPlacedEvent(state.userId(), orderProcess.orderId(), orderProcess.market(), orderProcess.amount(), null));
         } else {
+            log.info("EventHandler: No order process found for referenceId={}", event.referenceId());
             // TODO: this cannot happen
             return Stream.empty();
         }
@@ -192,30 +212,40 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
 
     @EventHandler(produces = BuyOrderRejectedEvent.class, errors = {})
     public Stream<DomainEvent> handle(InsufficientFundsErrorEvent errorEvent, OrderProcessManagerState state) {
+        log.info("EventHandler: Insufficient funds error for userId={}, currency={}, available={}, requested={}, referenceId={}", 
+            state.userId(), errorEvent.currency(), errorEvent.availableAmount(), errorEvent.requestedAmount(), errorEvent.referenceId());
         if (state.hasAkcesProcess(errorEvent.referenceId())) {
             return Stream.of(state.getAkcesProcess(errorEvent.referenceId()).handle(errorEvent));
         } else {
+            log.info("EventHandler: No active process found for referenceId={}", errorEvent.referenceId());
             return Stream.empty();
         }
     }
 
     @EventHandler(produces = BuyOrderRejectedEvent.class, errors = {})
     public Stream<DomainEvent> handle(InvalidCryptoCurrencyErrorEvent errorEvent, OrderProcessManagerState state) {
+        log.info("EventHandler: Invalid crypto currency error for userId={}, cryptoCurrency={}, referenceId={}", 
+            state.userId(), errorEvent.cryptoCurrency(), errorEvent.referenceId());
         if (state.hasAkcesProcess(errorEvent.referenceId())) {
             return Stream.of(state.getAkcesProcess(errorEvent.referenceId()).handle(errorEvent));
         } else {
+            log.info("EventHandler: No active process found for referenceId={}", errorEvent.referenceId());
             return Stream.empty();
         }
     }
 
     @EventBridgeHandler
     public void handle(MarketOrderRejectedErrorEvent errorEvent, CommandBus commandBus) {
+        log.info("EventBridgeHandler: Market order rejected for marketId={}, orderId={}, ownerId={}, reason={}", 
+            errorEvent.marketId(), errorEvent.orderId(), errorEvent.ownerId(), errorEvent.rejectionReason());
         // the aggregateId is different in this case (it's the CryptoMarketId) so we need to send a command to self
         commandBus.send(new RejectOrderCommand(errorEvent.ownerId(), errorEvent.orderId()));
     }
 
     @EventBridgeHandler
     public void handle(MarketOrderFilledEvent event, CommandBus commandBus) {
+        log.info("EventBridgeHandler: Market order filled for marketId={}, orderId={}, ownerId={}, side={}, price={}, quantity={}", 
+            event.marketId(), event.orderId(), event.ownerId(), event.side(), event.price(), event.quantity());
         switch (event.side()) {
             case BUY:
                 commandBus.send(new FillBuyOrderCommand(

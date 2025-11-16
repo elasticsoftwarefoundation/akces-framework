@@ -24,6 +24,8 @@ import org.elasticsoftware.akces.annotations.CommandHandler;
 import org.elasticsoftware.akces.annotations.EventSourcingHandler;
 import org.elasticsoftware.cryptotrading.aggregates.account.commands.CreateAccountCommand;
 import org.elasticsoftware.cryptotrading.aggregates.account.events.AccountCreatedEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.stream.Stream;
 
@@ -35,6 +37,8 @@ import java.util.stream.Stream;
         indexName = "Users")
 @SuppressWarnings("unused")
 public final class Account implements Aggregate<AccountState> {
+    private static final Logger log = LoggerFactory.getLogger(Account.class);
+
     @Override
     public String getName() {
         return "Account";
@@ -47,6 +51,7 @@ public final class Account implements Aggregate<AccountState> {
 
     @CommandHandler(create = true, produces = AccountCreatedEvent.class, errors = {})
     public Stream<AccountCreatedEvent> create(CreateAccountCommand cmd, AccountState isNull) {
+        log.info("CommandHandler: Creating account for userId={}, country={}", cmd.userId(), cmd.country());
         return Stream.of(new AccountCreatedEvent(cmd.userId(), cmd.country(), cmd.firstName(), cmd.lastName(), cmd.email()));
     }
 
