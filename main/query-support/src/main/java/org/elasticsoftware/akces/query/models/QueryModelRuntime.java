@@ -20,6 +20,7 @@ package org.elasticsoftware.akces.query.models;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
 import org.elasticsoftware.akces.query.QueryModel;
 import org.elasticsoftware.akces.query.QueryModelState;
+import org.elasticsoftware.akces.schemas.SchemaRegistry;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,7 +34,7 @@ public interface QueryModelRuntime<S extends QueryModelState> {
 
     S apply(List<DomainEventRecord> eventRecords, S currentState) throws IOException;
 
-    void validateDomainEventSchemas();
+    void validateDomainEventSchemas(SchemaRegistry schemaRegistry);
 
     boolean shouldHandlePIIData();
 }

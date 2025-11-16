@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces.query.database;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Nonnull;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
@@ -34,6 +35,11 @@ import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.control.AkcesRegistry;
 import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
+import org.elasticsoftware.akces.protocol.SchemaRecord;
+import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
+import org.elasticsoftware.akces.schemas.SchemaRegistry;
+import org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorage;
+import org.elasticsoftware.akces.schemas.storage.SchemaStorage;
 import org.elasticsoftware.akces.util.HostUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,6 +61,7 @@ public class AkcesDatabaseModelController extends Thread implements AutoCloseabl
     private static final Logger logger = LoggerFactory.getLogger(AkcesDatabaseModelController.class);
     private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
     private final ConsumerFactory<String, AkcesControlRecord> controlRecordConsumerFactory;
+    private final ConsumerFactory<String, SchemaRecord> schemaRecordConsumerFactory;
     private final DatabaseModelRuntime databaseModelRuntime;
     private final Map<Integer, DatabaseModelPartition> databaseModelPartitions = new HashMap<>();
     private final ExecutorService executorService;
@@ -66,14 +73,21 @@ public class AkcesDatabaseModelController extends Thread implements AutoCloseabl
     private Consumer<String, AkcesControlRecord> controlConsumer;
     private volatile AkcesDatabaseModelControllerState processState = INITIALIZING;
     private ApplicationContext applicationContext;
+    private final ObjectMapper objectMapper;
+    private SchemaStorage schemaStorage;
+    private SchemaRegistry schemaRegistry;
 
     public AkcesDatabaseModelController(ConsumerFactory<String, ProtocolRecord> consumerFactory,
                                         ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory,
+                                        ConsumerFactory<String, SchemaRecord> schemaRecordConsumerFactory,
+                                        ObjectMapper objectMapper,
                                         GDPRContextRepositoryFactory gdprContextRepositoryFactory,
                                         DatabaseModelRuntime databaseModelRuntime) {
         super(databaseModelRuntime.getName() + "-AkcesDatabaseModelController");
         this.consumerFactory = consumerFactory;
         this.controlRecordConsumerFactory = controlConsumerFactory;
+        this.schemaRecordConsumerFactory = schemaRecordConsumerFactory;
+        this.objectMapper = objectMapper;
         this.gdprContextRepositoryFactory = gdprContextRepositoryFactory;
         this.databaseModelRuntime = databaseModelRuntime;
         this.executorService = Executors.newCachedThreadPool(new CustomizableThreadFactory(databaseModelRuntime.getName() + "DatabaseModelPartitionThread-"));
@@ -90,6 +104,14 @@ public class AkcesDatabaseModelController extends Thread implements AutoCloseabl
                             databaseModelRuntime.getName() + "-" + HostUtils.getHostName() + "DatabaseModel-Akces-Control",
                             null);
             controlConsumer.subscribe(List.of("Akces-Control"), this);
+            this.schemaStorage = new KafkaTopicSchemaStorage(
+                    schemaRecordConsumerFactory.createConsumer(
+                            HostUtils.getHostName() + "-AkcesDatabaseModelController-Schemas",
+                            HostUtils.getHostName() + "-AkcesDatabaseModelController-Schemas",
+                            null
+                    )
+            );
+            this.schemaRegistry = new KafkaSchemaRegistry(schemaStorage, objectMapper);
             while (processState != SHUTTING_DOWN) {
                 process();
             }
@@ -134,8 +156,10 @@ public class AkcesDatabaseModelController extends Thread implements AutoCloseabl
                 processState = SHUTTING_DOWN;
             }
         } else if (processState == INITIALIZING) {
+            // load the schemas
+            schemaStorage.initialize();
             // make sure the runtime has valid events
-            databaseModelRuntime.validateDomainEventSchemas();
+            databaseModelRuntime.validateDomainEventSchemas(schemaRegistry);
             processControlRecords();
             // we don't switch to the running state because we wait for the INITIAL_REBALANCING state
             // which should be triggered by the processControlRecords() method

@@ -1,0 +1,9 @@
+// org.elasticsoftware.akces.protocol.SchemaRecord
+
+// Message for org.elasticsoftware.akces.protocol.SchemaRecord
+message SchemaRecord {
+  optional string schemaName = 1;
+  optional int32 version = 2;
+  optional string schema = 3;        // JSON Schema as string
+  optional int64 registeredAt = 4;   // Unix timestamp in milliseconds
+}

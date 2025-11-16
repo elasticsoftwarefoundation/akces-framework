@@ -17,16 +17,8 @@
 
 package org.elasticsoftware.cryptotrading;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.github.victools.jsonschema.generator.*;
-import com.github.victools.jsonschema.module.jackson.JacksonModule;
-import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
-import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
-import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
+import com.github.victools.jsonschema.generator.SchemaGenerator;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -35,6 +27,8 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.elasticsoftware.akces.aggregate.CommandType;
+import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.commands.Command;
@@ -42,8 +36,11 @@ import org.elasticsoftware.akces.control.AggregateServiceRecord;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
+import org.elasticsoftware.akces.protocol.SchemaRecord;
+import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
+import org.elasticsoftware.akces.serialization.SchemaRecordSerde;
 import org.springframework.context.ApplicationContextException;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.kafka.core.KafkaAdmin;
@@ -60,6 +57,7 @@ public class TestUtils {
                 createCompactedTopic("Akces-Control", 3),
                 createTopic("Akces-CommandResponses", 3, 604800000L),
                 createCompactedTopic("Akces-GDPRKeys", 3),
+                createCompactedTopic("Akces-Schemas", 1),
                 createTopic("Wallet-Commands", 3),
                 createTopic("Wallet-DomainEvents", 3),
                 createTopic("Account-Commands", 3),
@@ -132,80 +130,64 @@ public class TestUtils {
         }
     }
 
-    public static void prepareDomainEventSchemas(String url, List<Class<? extends DomainEvent>> domainEventClasses) {
-        SchemaRegistryClient src = new CachedSchemaRegistryClient(url, 100);
+    public static void prepareDomainEventSchemas(String bootstrapServers, List<Class<? extends DomainEvent>> externalDomainEvents) {
         Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
         objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
         objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
-        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(objectMapperBuilder.build(),
-                SchemaVersion.DRAFT_7,
-                OptionPreset.PLAIN_JSON);
-        configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
-                JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
-        configBuilder.with(new JacksonModule());
-        configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
-        configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
-        configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
-        // we need to override the default behavior of the generator to write BigDecimal as type = number
-        configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
-            if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
-                JsonNode typeNode = collectedTypeAttributes.get("type");
-                if (typeNode.isArray()) {
-                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
-                } else
-                    collectedTypeAttributes.put("type", "string");
+
+        // Write schemas to Akces-Schemas topic
+        ObjectMapper mapper = objectMapperBuilder.build();
+        SchemaRecordSerde serde = new SchemaRecordSerde(mapper);
+        Map<String, Object> producerProps = Map.of(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
+                ProducerConfig.ACKS_CONFIG, "all",
+                ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+
+        SchemaGenerator jsonSchemaGenerator = SchemaRegistry.createJsonSchemaGenerator(mapper);
+
+        try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
+            for (Class<? extends DomainEvent> eventClass : externalDomainEvents) {
+                DomainEventInfo info = eventClass.getAnnotation(DomainEventInfo.class);
+                DomainEventType<?> eventType = new DomainEventType<>(info.type(), info.version(), eventClass, false, true, false, false);
+                JsonSchema schema = SchemaRegistry.generateJsonSchema(eventType, jsonSchemaGenerator);
+                SchemaRecord record = new SchemaRecord(eventType.getSchemaName(), eventType.version(), schema, System.currentTimeMillis());
+                String key = eventType.getSchemaName() + "-v" + info.version();
+                ProducerRecord<String, SchemaRecord> producerRecord = new ProducerRecord<>("Akces-Schemas", key, record);
+                producer.send(producerRecord).get();
             }
-        });
-        SchemaGeneratorConfig config = configBuilder.build();
-        SchemaGenerator jsonSchemaGenerator = new SchemaGenerator(config);
-        try {
-            for (Class<?> domainEventClass : domainEventClasses) {
-                DomainEventInfo info = domainEventClass.getAnnotation(DomainEventInfo.class);
-                src.register("domainevents." + info.type(),
-                        new JsonSchema(jsonSchemaGenerator.generateSchema(domainEventClass), List.of(), Map.of(), info.version()),
-                        info.version(),
-                        -1);
-            }
-        } catch (IOException | RestClientException e) {
+            producer.flush();
+        } catch (Exception e) {
             throw new ApplicationContextException("Problem populating SchemaRegistry", e);
         }
     }
 
-    public static <C extends Command> void prepareCommandSchemas(String url, List<Class<C>> commandClasses) {
-        SchemaRegistryClient src = new CachedSchemaRegistryClient(url, 100);
+    public static void prepareCommandSchemas(String bootstrapServers, List<Class<? extends Command>> externalCommands) {
         Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
         objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
         objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
-        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(objectMapperBuilder.build(),
-                SchemaVersion.DRAFT_7,
-                OptionPreset.PLAIN_JSON);
-        configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
-                JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
-        configBuilder.with(new JacksonModule());
-        configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
-        configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
-        configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
-        // we need to override the default behavior of the generator to write BigDecimal as type = number
-        configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
-            if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
-                JsonNode typeNode = collectedTypeAttributes.get("type");
-                if (typeNode.isArray()) {
-                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
-                } else
-                    collectedTypeAttributes.put("type", "string");
-            }
-        });
-        SchemaGeneratorConfig config = configBuilder.build();
-        SchemaGenerator jsonSchemaGenerator = new SchemaGenerator(config);
-        try {
-            for (Class<C> commandClass : commandClasses) {
+
+        // Write schemas to Akces-Schemas topic
+        ObjectMapper mapper = objectMapperBuilder.build();
+        SchemaRecordSerde serde = new SchemaRecordSerde(mapper);
+        Map<String, Object> producerProps = Map.of(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
+                ProducerConfig.ACKS_CONFIG, "all",
+                ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+
+        SchemaGenerator jsonSchemaGenerator = SchemaRegistry.createJsonSchemaGenerator(mapper);
+
+        try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
+            for (Class<? extends Command> commandClass : externalCommands) {
                 CommandInfo info = commandClass.getAnnotation(CommandInfo.class);
-                src.register("commands." + info.type(),
-                        new JsonSchema(jsonSchemaGenerator.generateSchema(commandClass), List.of(), Map.of(), info.version()),
-                        info.version(),
-                        -1);
+                CommandType<?> eventType = new CommandType<>(info.type(), info.version(), commandClass, false, true, false);
+                JsonSchema schema = SchemaRegistry.generateJsonSchema(eventType, jsonSchemaGenerator);
+                SchemaRecord record = new SchemaRecord(eventType.getSchemaName(), eventType.version(), schema, System.currentTimeMillis());
+                String key = eventType.getSchemaName() + "-v" + info.version();
+                ProducerRecord<String, SchemaRecord> producerRecord = new ProducerRecord<>("Akces-Schemas", key, record);
+                producer.send(producerRecord).get();
             }
-        } catch (IOException | RestClientException e) {
+            producer.flush();
+        } catch (Exception e) {
             throw new ApplicationContextException("Problem populating SchemaRegistry", e);
         }
     }
