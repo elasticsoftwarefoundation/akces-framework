@@ -24,7 +24,6 @@ import org.elasticsoftware.akces.query.QueryModel;
 import org.elasticsoftware.akces.query.QueryModelEventHandlerFunction;
 import org.elasticsoftware.akces.query.QueryModelState;
 import org.elasticsoftware.akces.query.QueryModelStateType;
-import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.FactoryBean;
 import org.springframework.context.ApplicationContext;
@@ -33,14 +32,11 @@ import org.springframework.context.ApplicationContextAware;
 public class QueryModelRuntimeFactory<S extends QueryModelState> implements FactoryBean<QueryModelRuntime<S>>, ApplicationContextAware {
     private ApplicationContext applicationContext;
     private final ObjectMapper objectMapper;
-    private final KafkaSchemaRegistry schemaRegistry;
     private final QueryModel<S> queryModel;
 
     public QueryModelRuntimeFactory(ObjectMapper objectMapper,
-                                    KafkaSchemaRegistry schemaRegistry,
                                     QueryModel<S> queryModel) {
         this.objectMapper = objectMapper;
-        this.schemaRegistry = schemaRegistry;
         this.queryModel = queryModel;
     }
 
@@ -90,6 +86,6 @@ public class QueryModelRuntimeFactory<S extends QueryModelState> implements Fact
                     }
                 });
 
-        return runtimeBuilder.setSchemaRegistry(schemaRegistry).build();
+        return runtimeBuilder.build();
     }
 }

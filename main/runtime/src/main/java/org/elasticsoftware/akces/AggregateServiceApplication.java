@@ -18,9 +18,6 @@
 package org.elasticsoftware.akces;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.json.JsonSchemaProvider;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -32,10 +29,11 @@ import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.kafka.CustomKafkaConsumerFactory;
 import org.elasticsoftware.akces.kafka.CustomKafkaProducerFactory;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
-import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
+import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.ProtocolRecordSerde;
+import org.elasticsoftware.akces.serialization.SchemaRecordSerde;
 import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.state.RocksDBAggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.util.EnvironmentPropertiesPrinter;
@@ -54,7 +52,6 @@ import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.ProducerFactory;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -96,16 +93,32 @@ public class AggregateServiceApplication {
         return new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
     }
 
-    @Bean(name = "aggregateServiceSchemaRegistryClient")
-    public SchemaRegistryClient schemaRegistryClient(@Value("${akces.schemaregistry.url:http://localhost:8081}") String url) {
-        return new CachedSchemaRegistryClient(url, 1000, List.of(new JsonSchemaProvider()), null);
+    @Bean(name = "aggregateServiceSchemaRecordSerde")
+    public SchemaRecordSerde schemaRecordSerde(ObjectMapper objectMapper) {
+        return new SchemaRecordSerde(objectMapper);
     }
 
-    @Bean(name = "aggregateServiceSchemaRegistry")
-    public KafkaSchemaRegistry schemaRegistry(@Qualifier("aggregateServiceSchemaRegistryClient") SchemaRegistryClient schemaRegistryClient,
-                                              ObjectMapper objectMapper) {
-        return new KafkaSchemaRegistry(schemaRegistryClient, objectMapper);
+    @Bean(name = "aggregateServiceSchemaProducerFactory")
+    public ProducerFactory<String, SchemaRecord> schemaProducerFactory(
+            KafkaProperties properties,
+            @Qualifier("aggregateServiceSchemaRecordSerde") SchemaRecordSerde serde) {
+        return new CustomKafkaProducerFactory<>(
+                properties.buildProducerProperties(null),
+                new StringSerializer(),
+                serde.serializer());
     }
+
+    @Bean(name = "aggregateServiceSchemaConsumerFactory")
+    public ConsumerFactory<String, SchemaRecord> schemaConsumerFactory(
+            KafkaProperties properties,
+            @Qualifier("aggregateServiceSchemaRecordSerde") SchemaRecordSerde serde) {
+        return new CustomKafkaConsumerFactory<>(
+                properties.buildConsumerProperties(null),
+                new StringDeserializer(),
+                serde.deserializer());
+    }
+
+
 
     @Bean(name = "aggregateServiceConsumerFactory")
     public ConsumerFactory<String, ProtocolRecord> consumerFactory(KafkaProperties properties) {
