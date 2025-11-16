@@ -17,20 +17,9 @@
 
 package org.elasticsoftware.cryptotrading.query;
 
-import org.elasticsoftware.akces.annotations.QueryModelStateInfo;
-import org.elasticsoftware.akces.query.QueryModelState;
-import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
-
-import java.math.BigDecimal;
-import java.util.List;
-
-@QueryModelStateInfo(type = "Orders")
-public record OrdersQueryModelState(String userId, List<BuyOrder> openBuyOrders) implements QueryModelState {
-    @Override
-    public String getIndexKey() {
-        return userId();
-    }
-
-    public record BuyOrder(String orderId, CryptoMarket market, BigDecimal amount, String clientReference, OrderState state) {
-    }
+public enum OrderState {
+    CREATED,
+    PLACED,
+    REJECTED,
+    FILLED
 }

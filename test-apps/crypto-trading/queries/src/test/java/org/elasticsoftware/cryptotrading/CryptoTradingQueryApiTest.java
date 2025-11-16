@@ -467,6 +467,93 @@ public class CryptoTradingQueryApiTest {
                 });
     }
 
+    @Test
+    void testGetOpenBuyOrders() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        // Create account and credit EUR balance
+        AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
+        AccountOutput accountOutput = webTestClient.post()
+                .uri("/v1/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(accountOutput).isNotNull();
+        String userId = accountOutput.userId();
+
+        // Credit EUR balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances/EUR/credit")
+                .bodyValue(new CreditWalletInput(new BigDecimal("10000.0")))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Add BTC balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances")
+                .bodyValue(new CreateBalanceInput("BTC"))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Place first buy order
+        BuyOrderInput buyOrderInput1 = new BuyOrderInput("BTC-EUR", new BigDecimal("1000"), "client-ref-1");
+        OrderOutput orderOutput1 = webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/orders/buy")
+                .bodyValue(buyOrderInput1)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(OrderOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(orderOutput1).isNotNull();
+        assertThat(orderOutput1.orderId()).isNotNull();
+
+        // Place second buy order
+        BuyOrderInput buyOrderInput2 = new BuyOrderInput("BTC-EUR", new BigDecimal("500"), "client-ref-2");
+        OrderOutput orderOutput2 = webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/orders/buy")
+                .bodyValue(buyOrderInput2)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(OrderOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(orderOutput2).isNotNull();
+        assertThat(orderOutput2.orderId()).isNotNull();
+
+        // Get open orders
+        webTestClient.get()
+                .uri("/v1/accounts/" + userId + "/orders")
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody()
+                .jsonPath("$.userId").isEqualTo(userId)
+                .jsonPath("$.openBuyOrders").isArray()
+                .jsonPath("$.openBuyOrders.length()").isEqualTo(2)
+                .jsonPath("$.openBuyOrders[0].orderId").exists()
+                .jsonPath("$.openBuyOrders[0].market.id").isEqualTo("BTC-EUR")
+                .jsonPath("$.openBuyOrders[0].amount").isEqualTo(1000)
+                .jsonPath("$.openBuyOrders[0].clientReference").isEqualTo("client-ref-1")
+                .jsonPath("$.openBuyOrders[0].state").exists()
+                .jsonPath("$.openBuyOrders[1].orderId").exists()
+                .jsonPath("$.openBuyOrders[1].market.id").isEqualTo("BTC-EUR")
+                .jsonPath("$.openBuyOrders[1].amount").isEqualTo(500)
+                .jsonPath("$.openBuyOrders[1].clientReference").isEqualTo("client-ref-2")
+                .jsonPath("$.openBuyOrders[1].state").exists();
+    }
+
 
     public static class Initializer
             implements ApplicationContextInitializer<ConfigurableApplicationContext> {

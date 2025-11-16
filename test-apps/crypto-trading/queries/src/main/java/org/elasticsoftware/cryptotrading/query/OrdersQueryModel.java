@@ -57,7 +57,8 @@ public class OrdersQueryModel implements QueryModel<OrdersQueryModelState> {
                 event.orderId(),
                 event.market(),
                 event.amount(),
-                event.clientReference()
+                event.clientReference(),
+                OrderState.CREATED
         );
         List<OrdersQueryModelState.BuyOrder> orders = new ArrayList<>(currentState.openBuyOrders());
         orders.add(buyOrder);
@@ -66,24 +67,33 @@ public class OrdersQueryModel implements QueryModel<OrdersQueryModelState> {
 
     @QueryModelEventHandler(create = false)
     public OrdersQueryModelState orderPlaced(BuyOrderPlacedEvent event, OrdersQueryModelState currentState) {
-        // Order is still open, state remains the same
-        return currentState;
+        // Update order state to PLACED
+        List<OrdersQueryModelState.BuyOrder> orders = currentState.openBuyOrders().stream()
+                .map(order -> order.orderId().equals(event.orderId())
+                        ? new OrdersQueryModelState.BuyOrder(order.orderId(), order.market(), order.amount(), order.clientReference(), OrderState.PLACED)
+                        : order)
+                .toList();
+        return new OrdersQueryModelState(currentState.userId(), orders);
     }
 
     @QueryModelEventHandler(create = false)
     public OrdersQueryModelState orderFilled(BuyOrderFilledEvent event, OrdersQueryModelState currentState) {
-        // Remove the filled order from open orders
+        // Update order state to FILLED
         List<OrdersQueryModelState.BuyOrder> orders = currentState.openBuyOrders().stream()
-                .filter(order -> !order.orderId().equals(event.orderId()))
+                .map(order -> order.orderId().equals(event.orderId())
+                        ? new OrdersQueryModelState.BuyOrder(order.orderId(), order.market(), order.amount(), order.clientReference(), OrderState.FILLED)
+                        : order)
                 .toList();
         return new OrdersQueryModelState(currentState.userId(), orders);
     }
 
     @QueryModelEventHandler(create = false)
     public OrdersQueryModelState orderRejected(BuyOrderRejectedEvent event, OrdersQueryModelState currentState) {
-        // Remove the rejected order from open orders
+        // Update order state to REJECTED
         List<OrdersQueryModelState.BuyOrder> orders = currentState.openBuyOrders().stream()
-                .filter(order -> !order.orderId().equals(event.orderId()))
+                .map(order -> order.orderId().equals(event.orderId())
+                        ? new OrdersQueryModelState.BuyOrder(order.orderId(), order.market(), order.amount(), order.clientReference(), OrderState.REJECTED)
+                        : order)
                 .toList();
         return new OrdersQueryModelState(currentState.userId(), orders);
     }
