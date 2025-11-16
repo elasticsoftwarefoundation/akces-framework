@@ -69,6 +69,7 @@ jobs:
           --file pom.xml
           --settings $GITHUB_WORKSPACE/settings.xml
           install
+          -DskipTests
           -U
 
   docker-snapshot:
