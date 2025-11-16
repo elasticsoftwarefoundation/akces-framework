@@ -59,7 +59,7 @@ jobs:
           compile
           test-compile
           -U
-      # Install artifacts. Tests are skipped if commit message contains [skip-tests]
+      # Install artifacts. Tests are skipped by default, run only if commit message contains [run-tests]
       - name: Install with Maven
         run: >
           mvn
@@ -70,7 +70,7 @@ jobs:
           --file pom.xml
           --settings $GITHUB_WORKSPACE/settings.xml
           install
-          ${{ contains(github.event.head_commit.message, '[skip-tests]') && '-DskipTests' || '' }}
+          ${{ contains(github.event.head_commit.message, '[run-tests]') && '' || '-DskipTests' }}
           -U
 
   docker-snapshot:
