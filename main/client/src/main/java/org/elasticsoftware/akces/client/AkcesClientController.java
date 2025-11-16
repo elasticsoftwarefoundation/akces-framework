@@ -151,6 +151,8 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                      HostUtils.getHostName() + "-AkcesClientController-CommandResponses",
                      null);
              final Producer<String, ProtocolRecord> producer = producerFactory.createProducer(HostUtils.getHostName() + "-AkcesClientController")) {
+            // initialize the SchemaStorage
+            schemaStorage.initialize();
             // create the schema registry
             this.schemaRegistry = new KafkaSchemaRegistry(schemaStorage, objectMapper);
             // find out about the partitions
@@ -222,8 +224,6 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
             }
         } else if (processState == INITIALIZING) {
             try {
-                // initialize the SchemaRegistry
-                schemaStorage.initialize();
                 // load the control records
                 Map<TopicPartition, Long> endOffsets = controlConsumer.endOffsets(singletonList(AKCES_CONTROL_PARTITION));
                 ConsumerRecords<String, AkcesControlRecord> consumerRecords = controlConsumer.poll(Duration.ofMillis(10));
