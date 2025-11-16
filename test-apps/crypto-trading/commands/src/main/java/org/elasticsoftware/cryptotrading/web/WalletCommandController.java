@@ -32,7 +32,7 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 
 @RestController
-@RequestMapping("/v{version:1}/wallets")
+@RequestMapping("/v{version:1}/accounts")
 public class WalletCommandController {
     private final AkcesClient akcesClient;
 
@@ -40,11 +40,11 @@ public class WalletCommandController {
         this.akcesClient = akcesClient;
     }
 
-    @PostMapping("/{walletId}/balances/{currency}/credit")
-    public Mono<ResponseEntity<BalanceOutput>> creditBalance(@PathVariable("walletId") String walletId,
+    @PostMapping("/{accountId}/wallet/balances/{currency}/credit")
+    public Mono<ResponseEntity<BalanceOutput>> creditBalance(@PathVariable("accountId") String accountId,
                                                              @PathVariable("currency") String currency,
                                                              @RequestBody CreditWalletInput input) {
-        return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(walletId, currency)))
+        return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(accountId, currency)))
                 .map(List::getFirst)
                 .handle((domainEvent, sink) -> {
                     if (domainEvent instanceof WalletCreditedEvent) {
@@ -55,9 +55,9 @@ public class WalletCommandController {
                 });
     }
 
-    @PostMapping("/{walletId}/balances")
-    public Mono<ResponseEntity<BalanceOutput>> createBalance(@PathVariable("walletId") String walletId, @RequestBody CreateBalanceInput input) {
-        return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(walletId)))
+    @PostMapping("/{accountId}/wallet/balances")
+    public Mono<ResponseEntity<BalanceOutput>> createBalance(@PathVariable("accountId") String accountId, @RequestBody CreateBalanceInput input) {
+        return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(accountId)))
                 .map(List::getFirst)
                 .handle((domainEvent, sink) -> {
                     if (domainEvent instanceof BalanceCreatedEvent balanceCreatedEvent) {

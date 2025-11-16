@@ -240,7 +240,7 @@ public class CryptoTradingQueryApiTest {
                     // credit the wallet for this user id with 1 BTC
                     CreditWalletInput creditInput = new CreditWalletInput(new BigDecimal("1.0"));
                     webTestClient.post()
-                            .uri("/v1/wallets/" + accountOutput.userId() + "/balances/EUR/credit")
+                            .uri("/v1/accounts/" + accountOutput.userId() + "/wallet/balances/EUR/credit")
                             .bodyValue(creditInput)
                             .exchange()
                             .expectStatus().is2xxSuccessful()
@@ -276,7 +276,7 @@ public class CryptoTradingQueryApiTest {
                     // credit the wallet for this user id with 1 ETH
                     CreditWalletInput creditInput = new CreditWalletInput(new BigDecimal("1.0"));
                     webTestClient.post()
-                            .uri("/v1/wallets/" + accountOutput.userId() + "/balances/ETH/credit")
+                            .uri("/v1/accounts/" + accountOutput.userId() + "/wallet/balances/ETH/credit")
                             .bodyValue(creditInput)
                             .exchange()
                             .expectStatus().is4xxClientError()
@@ -311,7 +311,7 @@ public class CryptoTradingQueryApiTest {
                     // add a BTC balance to the wallet for this user id
                     CreateBalanceInput createBalanceInput = new CreateBalanceInput("BTC");
                     webTestClient.post()
-                            .uri("/v1/wallets/" + accountOutput.userId() + "/balances")
+                            .uri("/v1/accounts/" + accountOutput.userId() + "/wallet/balances")
                             .bodyValue(createBalanceInput)
                             .exchange()
                             .expectStatus().is2xxSuccessful();
@@ -440,14 +440,14 @@ public class CryptoTradingQueryApiTest {
 
         // Credit EUR balance
         webTestClient.post()
-                .uri("/v1/wallets/" + userId + "/balances/EUR/credit")
+                .uri("/v1/accounts/" + userId + "/wallet/balances/EUR/credit")
                 .bodyValue(new CreditWalletInput(new BigDecimal("10000.0")))
                 .exchange()
                 .expectStatus().is2xxSuccessful();
 
         // Add BTC balance
         webTestClient.post()
-                .uri("/v1/wallets/" + userId + "/balances")
+                .uri("/v1/accounts/" + userId + "/wallet/balances")
                 .bodyValue(new CreateBalanceInput("BTC"))
                 .exchange()
                 .expectStatus().is2xxSuccessful();
