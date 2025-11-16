@@ -114,10 +114,10 @@ jobs:
           --activate-profiles docker-snapshot
           --file pom.xml
           --settings $GITHUB_WORKSPACE/settings.xml
-          -Ddocker.image.version=${{ steps.version.outputs.prerelease_version }}
           clean
           install
           spring-boot:build-image
+          -Ddocker.image.version=${{ steps.version.outputs.prerelease_version }}
           -DskipTests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -132,10 +132,10 @@ jobs:
           --activate-profiles docker-snapshot
           --file pom.xml
           --settings $GITHUB_WORKSPACE/settings.xml
-          -Ddocker.image.version=${{ steps.version.outputs.prerelease_version }}
           clean
           install
           spring-boot:build-image
+          -Ddocker.image.version=${{ steps.version.outputs.prerelease_version }}
           -DskipTests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
