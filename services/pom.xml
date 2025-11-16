@@ -134,11 +134,11 @@
                                     <BP_JVM_JLINK_ENABLED>false</BP_JVM_JLINK_ENABLED>
                                 </env>
                                 <buildpacks>
-                                    <buildpack>gcr.io/paketo-buildpacks/ca-certificates</buildpack>
+                                    <buildpack>paketo-buildpacks/ca-certificates</buildpack>
                                     <buildpack>gcr.io/paketo-buildpacks/adoptium:latest</buildpack>
-                                    <buildpack>gcr.io/paketo-buildpacks/syft</buildpack>
-                                    <buildpack>gcr.io/paketo-buildpacks/executable-jar</buildpack>
-                                    <buildpack>gcr.io/paketo-buildpacks/spring-boot</buildpack>
+                                    <buildpack>paketo-buildpacks/syft</buildpack>
+                                    <buildpack>paketo-buildpacks/executable-jar</buildpack>
+                                    <buildpack>paketo-buildpacks/spring-boot</buildpack>
                                 </buildpacks>
                             </image>
                         </configuration>
@@ -171,11 +171,11 @@
                                     <BP_JVM_JLINK_ENABLED>false</BP_JVM_JLINK_ENABLED>
                                 </env>
                                 <buildpacks>
-                                    <buildpack>gcr.io/paketo-buildpacks/ca-certificates</buildpack>
+                                    <buildpack>paketo-buildpacks/ca-certificates</buildpack>
                                     <buildpack>gcr.io/paketo-buildpacks/adoptium:latest</buildpack>
-                                    <buildpack>gcr.io/paketo-buildpacks/syft</buildpack>
-                                    <buildpack>gcr.io/paketo-buildpacks/executable-jar</buildpack>
-                                    <buildpack>gcr.io/paketo-buildpacks/spring-boot</buildpack>
+                                    <buildpack>paketo-buildpacks/syft</buildpack>
+                                    <buildpack>paketo-buildpacks/executable-jar</buildpack>
+                                    <buildpack>paketo-buildpacks/spring-boot</buildpack>
                                 </buildpacks>
                             </image>
                         </configuration>
