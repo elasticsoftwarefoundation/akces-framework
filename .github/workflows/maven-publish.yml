@@ -111,7 +111,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ secrets.GITHUB_ACTOR }}
+      - name: Create an automatic release
+        uses: release-drafter/release-drafter@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          prerelease: false
+          publish: true
+          latest: true
+          version: ${{ github.ref_name }}
       - name: Delete old dev packages
+        continue-on-error: true
         run: |
           # Extract release version from tag (remove 'v' prefix)
           RELEASE_VERSION="${GITHUB_REF_NAME#v}"
@@ -161,12 +171,3 @@ jobs:
               fi
             done
           done
-      - name: Create an automatic release
-        uses: release-drafter/release-drafter@v6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          prerelease: false
-          publish: true
-          latest: true
-          version: ${{ github.ref_name }}
