@@ -23,6 +23,7 @@ import org.elasticsoftware.akces.query.QueryModel;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.BalanceCreatedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletCreatedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletCreditedEvent;
+import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletDebitedEvent;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -66,7 +67,7 @@ public class WalletQueryModel implements QueryModel<WalletQueryModelState> {
                     if (balance.currency().equals(event.currency())) {
                         return new WalletQueryModelState.Balance(
                                 balance.currency(),
-                                balance.amount().add(event.amount()),
+                                event.balance(),
                                 balance.reservedAmount()
                         );
                     } else {
@@ -74,4 +75,23 @@ public class WalletQueryModel implements QueryModel<WalletQueryModelState> {
                     }
                 }).toList());
     }
+
+    @QueryModelEventHandler(create = false)
+    public WalletQueryModelState debitWallet(WalletDebitedEvent event, WalletQueryModelState currentState) {
+        return new WalletQueryModelState(
+                currentState.walletId(),
+                currentState.balances().stream().map(balance -> {
+                    if (balance.currency().equals(event.currency())) {
+                        return new WalletQueryModelState.Balance(
+                                balance.currency(),
+                                event.newBalance(),
+                                balance.reservedAmount()
+                        );
+                    } else {
+                        return balance;
+                    }
+                }).toList());
+    }
+
+
 }

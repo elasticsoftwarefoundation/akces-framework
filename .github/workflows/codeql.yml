@@ -100,6 +100,7 @@ jobs:
         --file pom.xml
         --settings $GITHUB_WORKSPACE/settings.xml
         install
+        -DskipTests
         -U
 
     - name: Perform CodeQL Analysis
