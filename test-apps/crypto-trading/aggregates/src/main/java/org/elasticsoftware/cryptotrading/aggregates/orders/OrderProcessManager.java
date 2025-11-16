@@ -153,18 +153,18 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
         log.info("CommandHandler: Filling buy order for userId={}, orderId={}, baseCurrency={}, quoteCurrency={}, quantity={}, price={}", 
             command.userId(), command.orderId(), command.baseCurrency(), command.quoteCurrency(), command.quantity(), command.price());
         if (state.hasAkcesProcess(command.orderId())) {
+            OrderProcess buyOrderProcess = state.getAkcesProcess(command.orderId());
             // cancel the reservation of the quote currency
             getCommandBus().send(new CancelReservationCommand(
                     state.userId(),
                     command.quoteCurrency(),
                     command.orderId()));
-            // debit the quote currency
-            BigDecimal quoteAmount = command.price().multiply(command.quantity());
-            log.info("CommandHandler: Debiting {} {} from user wallet", quoteAmount, command.quoteCurrency());
+            // TODO: the amount should be in the BuyOrderFilledEvent
+            log.info("CommandHandler: Debiting {} {} from user wallet", buyOrderProcess.amount(), command.quoteCurrency());
             getCommandBus().send(new DebitWalletCommand(
                     command.userId(),
                     command.quoteCurrency(),
-                    quoteAmount));
+                    buyOrderProcess.amount()));
             // credit the base currency
             log.info("CommandHandler: Crediting {} {} to user wallet", command.quantity(), command.baseCurrency());
             getCommandBus().send(new CreditWalletCommand(
