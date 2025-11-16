@@ -125,8 +125,8 @@
                                 </publishRegistry>
                             </docker>
                             <image>
-                                <builder>paketobuildpacks/builder-noble-java-tiny:latest</builder>
-                                <runImage>paketobuildpacks/run-noble-base:latest</runImage>
+                                <builder>paketobuildpacks/builder-noble-java-tiny</builder>
+                                <runImage>paketobuildpacks/ubuntu-noble-run-tiny</runImage>
                                 <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}:${project.version}</name>
                                 <publish>true</publish>
                                 <env>
@@ -135,7 +135,7 @@
                                 </env>
                                 <buildpacks>
                                     <buildpack>paketo-buildpacks/ca-certificates</buildpack>
-                                    <buildpack>paketo-buildpacks/adoptium</buildpack>
+                                    <buildpack>paketobuildpacks/adoptium</buildpack>
                                     <buildpack>paketo-buildpacks/syft</buildpack>
                                     <buildpack>paketo-buildpacks/executable-jar</buildpack>
                                     <buildpack>paketo-buildpacks/spring-boot</buildpack>
@@ -219,8 +219,8 @@
                                     </publishRegistry>
                                 </docker>
                                 <image>
-                                    <builder>docker.io/paketobuildpacks/builder-noble-java-tiny:latest</builder>
-                                    <runImage>docker.io/paketobuildpacks/run-noble-tiny:latest</runImage>
+                                    <builder>paketobuildpacks/builder-noble-java-tiny</builder>
+                                    <runImage>paketobuildpacks/ubuntu-noble-run-tiny</runImage>
                                     <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}:${project.version}
                                     </name>
                                     <publish>true</publish>

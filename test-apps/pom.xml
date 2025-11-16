@@ -151,8 +151,8 @@
                                 </publishRegistry>
                             </docker>
                             <image>
-                                <builder>paketobuildpacks/builder-jammy-buildpackless-base:latest</builder>
-                                <runImage>paketobuildpacks/run-jammy-base:latest</runImage>
+                                <builder>paketobuildpacks/builder-noble-java-tiny</builder>
+                                <runImage>paketobuildpacks/ubuntu-noble-run</runImage>
                                 <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}:${project.version}</name>
                                 <publish>true</publish>
                                 <env>
@@ -163,11 +163,11 @@
                                     <JAVA_TOOL_OPTIONS>-XX:+UseZGC -XX:+ZGenerational</JAVA_TOOL_OPTIONS>
                                 </env>
                                 <buildpacks>
-                                    <buildpack>gcr.io/paketo-buildpacks/ca-certificates</buildpack>
-                                    <buildpack>gcr.io/paketo-buildpacks/adoptium:latest</buildpack>
-                                    <buildpack>gcr.io/paketo-buildpacks/syft</buildpack>
-                                    <buildpack>gcr.io/paketo-buildpacks/executable-jar</buildpack>
-                                    <buildpack>gcr.io/paketo-buildpacks/spring-boot</buildpack>
+                                    <buildpack>paketo-buildpacks/ca-certificates</buildpack>
+                                    <buildpack>paketobuildpacks/adoptium</buildpack>
+                                    <buildpack>paketo-buildpacks/syft</buildpack>
+                                    <buildpack>paketo-buildpacks/executable-jar</buildpack>
+                                    <buildpack>paketo-buildpacks/spring-boot</buildpack>
                                 </buildpacks>
                             </image>
                         </configuration>
