@@ -111,6 +111,56 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ secrets.GITHUB_ACTOR }}
+      - name: Delete old dev packages
+        run: |
+          # Extract release version from tag (remove 'v' prefix)
+          RELEASE_VERSION="${GITHUB_REF_NAME#v}"
+          echo "Release version: $RELEASE_VERSION"
+          
+          # List of packages to clean up
+          PACKAGES=(
+            "akces-operator"
+            "akces-crypto-trading-aggregates"
+            "akces-crypto-trading-commands"
+            "akces-crypto-trading-queries"
+          )
+          
+          for PACKAGE in "${PACKAGES[@]}"; do
+            echo "Cleaning up old dev versions for package: $PACKAGE"
+            
+            # Get all package versions using GitHub API
+            VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/orgs/elasticsoftwarefoundation/packages/container/$PACKAGE/versions" \
+              | jq -r '.[] | select(.metadata.container.tags[] | contains("-dev.")) | .id')
+            
+            # Delete each old dev version that doesn't match the current release
+            for VERSION_ID in $VERSIONS; do
+              # Get the tags for this version
+              TAGS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/orgs/elasticsoftwarefoundation/packages/container/$PACKAGE/versions/$VERSION_ID" \
+                | jq -r '.metadata.container.tags[]')
+              
+              # Check if any tag starts with the release version
+              KEEP_VERSION=false
+              for TAG in $TAGS; do
+                if [[ "$TAG" == "$RELEASE_VERSION-dev."* ]]; then
+                  KEEP_VERSION=true
+                  echo "  Keeping dev version: $TAG"
+                  break
+                fi
+              done
+              
+              # Delete if not matching current release version
+              if [ "$KEEP_VERSION" = false ]; then
+                echo "  Deleting version ID: $VERSION_ID (tags: $TAGS)"
+                curl -X DELETE -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                  -H "Accept: application/vnd.github+json" \
+                  "https://api.github.com/orgs/elasticsoftwarefoundation/packages/container/$PACKAGE/versions/$VERSION_ID"
+              fi
+            done
+          done
       - name: Create an automatic release
         uses: release-drafter/release-drafter@v6
         env:
