@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
 @RestController
-@RequestMapping("/v{version:1}/wallets")
+@RequestMapping("/v{version:1}/accounts")
 public class WalletQueryController {
     private final QueryModels queryModels;
 
@@ -38,9 +38,9 @@ public class WalletQueryController {
         this.queryModels = queryModels;
     }
 
-    @GetMapping("/{walletId}")
-    Mono<ResponseEntity<WalletQueryModelState>> getWallet(@PathVariable("walletId") String walletId) {
-        return Mono.fromCompletionStage(queryModels.getHydratedState(WalletQueryModel.class, walletId))
+    @GetMapping("/{accountId}/wallet")
+    Mono<ResponseEntity<WalletQueryModelState>> getWallet(@PathVariable("accountId") String accountId) {
+        return Mono.fromCompletionStage(queryModels.getHydratedState(WalletQueryModel.class, accountId))
             .map(ResponseEntity::ok)
             .onErrorResume(throwable -> {
                 if (throwable instanceof QueryModelNotFoundException || throwable instanceof QueryModelIdNotFoundException) {
