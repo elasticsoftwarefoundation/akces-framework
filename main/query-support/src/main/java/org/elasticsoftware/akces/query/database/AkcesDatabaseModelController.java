@@ -111,7 +111,11 @@ public class AkcesDatabaseModelController extends Thread implements AutoCloseabl
                             null
                     )
             );
+            // load the schemas
+            schemaStorage.initialize();
             this.schemaRegistry = new KafkaSchemaRegistry(schemaStorage, objectMapper);
+            // make sure the runtime has valid events
+            databaseModelRuntime.validateDomainEventSchemas(schemaRegistry);
             while (processState != SHUTTING_DOWN) {
                 process();
             }
@@ -156,10 +160,6 @@ public class AkcesDatabaseModelController extends Thread implements AutoCloseabl
                 processState = SHUTTING_DOWN;
             }
         } else if (processState == INITIALIZING) {
-            // load the schemas
-            schemaStorage.initialize();
-            // make sure the runtime has valid events
-            databaseModelRuntime.validateDomainEventSchemas(schemaRegistry);
             processControlRecords();
             // we don't switch to the running state because we wait for the INITIAL_REBALANCING state
             // which should be triggered by the processControlRecords() method
@@ -261,7 +261,7 @@ public class AkcesDatabaseModelController extends Thread implements AutoCloseabl
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         logger.info("Shutting down AkcesDatabaseModelController");
         this.processState = SHUTTING_DOWN;
         // wait maximum of 10 seconds for the shutdown to complete
