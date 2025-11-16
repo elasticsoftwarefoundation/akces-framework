@@ -147,6 +147,43 @@
             </build>
         </profile>
         <profile>
+            <id>docker-snapshot</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-maven-plugin</artifactId>
+                        <configuration>
+                            <docker>
+                                <publishRegistry>
+                                    <username>${env.GITHUB_ACTOR}</username>
+                                    <password>${env.GITHUB_TOKEN}</password>
+                                    <url>docker://ghcr.io</url>
+                                </publishRegistry>
+                            </docker>
+                            <image>
+                                <builder>docker.io/paketobuildpacks/builder-noble-java-tiny:latest</builder>
+                                <runImage>docker.io/paketobuildpacks/run-noble-tiny:latest</runImage>
+                                <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}:${docker.image.version}</name>
+                                <publish>true</publish>
+                                <env>
+                                    <BP_JVM_VERSION>${java.version}</BP_JVM_VERSION>
+                                    <BP_JVM_JLINK_ENABLED>false</BP_JVM_JLINK_ENABLED>
+                                </env>
+                                <buildpacks>
+                                    <buildpack>paketo-buildpacks/ca-certificates</buildpack>
+                                    <buildpack>gcr.io/paketo-buildpacks/adoptium:latest</buildpack>
+                                    <buildpack>paketo-buildpacks/syft</buildpack>
+                                    <buildpack>paketo-buildpacks/executable-jar</buildpack>
+                                    <buildpack>paketo-buildpacks/spring-boot</buildpack>
+                                </buildpacks>
+                            </image>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
             <id>native</id>
             <build>
                 <pluginManagement>

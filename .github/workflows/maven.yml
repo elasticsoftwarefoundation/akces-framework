@@ -70,3 +70,73 @@ jobs:
           --settings $GITHUB_WORKSPACE/settings.xml
           install
           -U
+
+  docker-snapshot:
+    if: "github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[maven-release-plugin]')"
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+          check-latest: true
+          settings-path: ${{ github.workspace }}
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2-
+      - name: Calculate pre-release version
+        id: version
+        run: |
+          # Extract base version from pom.xml (remove -SNAPSHOT)
+          BASE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout | sed 's/-SNAPSHOT//')
+          # Create timestamp-based pre-release version
+          TIMESTAMP=$(date -u +%Y%m%d%H%M%S)
+          PRERELEASE_VERSION="${BASE_VERSION}-dev.${TIMESTAMP}"
+          echo "prerelease_version=${PRERELEASE_VERSION}" >> $GITHUB_OUTPUT
+          echo "Building Docker images with version: ${PRERELEASE_VERSION}"
+      - name: Build Services Docker Images
+        working-directory: ${{ github.workspace }}/services
+        run: >
+          mvn
+          --show-version
+          --batch-mode
+          --no-transfer-progress
+          --activate-profiles docker-snapshot
+          --file pom.xml
+          --settings $GITHUB_WORKSPACE/settings.xml
+          clean
+          install
+          spring-boot:build-image
+          -Ddocker.image.version=${{ steps.version.outputs.prerelease_version }}
+          -DskipTests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+      - name: Build Test Apps Docker Images
+        working-directory: ${{ github.workspace }}/test-apps
+        run: >
+          mvn
+          --show-version
+          --batch-mode
+          --no-transfer-progress
+          --activate-profiles docker-snapshot
+          --file pom.xml
+          --settings $GITHUB_WORKSPACE/settings.xml
+          clean
+          install
+          spring-boot:build-image
+          -Ddocker.image.version=${{ steps.version.outputs.prerelease_version }}
+          -DskipTests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
