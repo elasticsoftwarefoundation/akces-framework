@@ -202,7 +202,7 @@
                             </docker>
                             <image>
                                 <builder>paketobuildpacks/builder-noble-java-tiny</builder>
-                                <runImage>paketobuildpacks/run-noble-base</runImage>
+                                <runImage>paketobuildpacks/ubuntu-noble-run</runImage>
                                 <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}:${docker.image.version}</name>
                                 <publish>true</publish>
                                 <env>
