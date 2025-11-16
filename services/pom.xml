@@ -125,8 +125,8 @@
                                 </publishRegistry>
                             </docker>
                             <image>
-                                <builder>docker.io/paketobuildpacks/builder-noble-java-tiny:latest</builder>
-                                <runImage>docker.io/paketobuildpacks/run-noble-tiny:latest</runImage>
+                                <builder>paketobuildpacks/builder-noble-java-tiny:latest</builder>
+                                <runImage>paketobuildpacks/run-noble-tiny:latest</runImage>
                                 <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}:${project.version}</name>
                                 <publish>true</publish>
                                 <env>
@@ -134,11 +134,11 @@
                                     <BP_JVM_JLINK_ENABLED>false</BP_JVM_JLINK_ENABLED>
                                 </env>
                                 <buildpacks>
-                                    <buildpack>paketo-buildpacks/ca-certificates</buildpack>
+                                    <buildpack>gcr.io/paketo-buildpacks/ca-certificates</buildpack>
                                     <buildpack>gcr.io/paketo-buildpacks/adoptium:latest</buildpack>
-                                    <buildpack>paketo-buildpacks/syft</buildpack>
-                                    <buildpack>paketo-buildpacks/executable-jar</buildpack>
-                                    <buildpack>paketo-buildpacks/spring-boot</buildpack>
+                                    <buildpack>gcr.io/paketo-buildpacks/syft</buildpack>
+                                    <buildpack>gcr.io/paketo-buildpacks/executable-jar</buildpack>
+                                    <buildpack>gcr.io/paketo-buildpacks/spring-boot</buildpack>
                                 </buildpacks>
                             </image>
                         </configuration>
@@ -162,8 +162,8 @@
                                 </publishRegistry>
                             </docker>
                             <image>
-                                <builder>docker.io/paketobuildpacks/builder-noble-java-tiny:latest</builder>
-                                <runImage>docker.io/paketobuildpacks/run-noble-tiny:latest</runImage>
+                                <builder>paketobuildpacks/builder-noble-java-tiny:latest</builder>
+                                <runImage>paketobuildpacks/run-noble-tiny:latest</runImage>
                                 <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}:${docker.image.version}</name>
                                 <publish>true</publish>
                                 <env>
@@ -171,11 +171,11 @@
                                     <BP_JVM_JLINK_ENABLED>false</BP_JVM_JLINK_ENABLED>
                                 </env>
                                 <buildpacks>
-                                    <buildpack>paketo-buildpacks/ca-certificates</buildpack>
+                                    <buildpack>gcr.io/paketo-buildpacks/ca-certificates</buildpack>
                                     <buildpack>gcr.io/paketo-buildpacks/adoptium:latest</buildpack>
-                                    <buildpack>paketo-buildpacks/syft</buildpack>
-                                    <buildpack>paketo-buildpacks/executable-jar</buildpack>
-                                    <buildpack>paketo-buildpacks/spring-boot</buildpack>
+                                    <buildpack>gcr.io/paketo-buildpacks/syft</buildpack>
+                                    <buildpack>gcr.io/paketo-buildpacks/executable-jar</buildpack>
+                                    <buildpack>gcr.io/paketo-buildpacks/spring-boot</buildpack>
                                 </buildpacks>
                             </image>
                         </configuration>

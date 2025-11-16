@@ -152,7 +152,7 @@
                             </docker>
                             <image>
                                 <builder>paketobuildpacks/builder-jammy-buildpackless-base:latest</builder>
-                                <runImage>docker.io/paketobuildpacks/run-jammy-base:latest</runImage>
+                                <runImage>paketobuildpacks/run-jammy-base:latest</runImage>
                                 <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}:${project.version}</name>
                                 <publish>true</publish>
                                 <env>
@@ -202,7 +202,7 @@
                             </docker>
                             <image>
                                 <builder>paketobuildpacks/builder-jammy-buildpackless-base:latest</builder>
-                                <runImage>docker.io/paketobuildpacks/run-jammy-base:latest</runImage>
+                                <runImage>paketobuildpacks/run-jammy-base:latest</runImage>
                                 <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}:${docker.image.version}</name>
                                 <publish>true</publish>
                                 <env>
