@@ -32,6 +32,8 @@ import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOr
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderRejectedErrorEvent;
 import org.elasticsoftware.cryptotrading.services.coinbase.CoinbaseService;
 import org.elasticsoftware.cryptotrading.services.coinbase.Ticker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -39,6 +41,7 @@ import java.util.stream.Stream;
 
 @AggregateInfo(value = "CryptoMarket", stateClass = CryptoMarketState.class)
 public class CryptoMarket implements Aggregate<CryptoMarketState> {
+    private static final Logger log = LoggerFactory.getLogger(CryptoMarket.class);
     private final CoinbaseService coinbaseService;
     private final MathContext mathContext = new MathContext(8);
 
@@ -58,6 +61,8 @@ public class CryptoMarket implements Aggregate<CryptoMarketState> {
 
     @CommandHandler(create = true, produces = CryptoMarketCreatedEvent.class, errors = {})
     public @NotNull Stream<DomainEvent> handle(@NotNull CreateCryptoMarketCommand command, CryptoMarketState isNull) {
+        log.info("CommandHandler: Creating crypto market for id={}, baseCurrency={}, quoteCurrency={}", 
+            command.id(), command.baseCurrency(), command.quoteCurrency());
         return Stream.of(new CryptoMarketCreatedEvent(command.id(),
                 command.baseCurrency(),
                 command.quoteCurrency(),
@@ -68,12 +73,18 @@ public class CryptoMarket implements Aggregate<CryptoMarketState> {
 
     @CommandHandler(produces = {MarketOrderPlacedEvent.class, MarketOrderFilledEvent.class}, errors = {MarketOrderRejectedErrorEvent.class})
     public @NotNull Stream<DomainEvent> handle(@NotNull PlaceMarketOrderCommand command, CryptoMarketState currentState) {
+        log.info("CommandHandler: Placing market order for marketId={}, orderId={}, ownerId={}, side={}, funds={}, size={}", 
+            command.marketId(), command.orderId(), command.ownerId(), command.side(), command.funds(), command.size());
         if (command.side().equals(Side.BUY) && command.funds() == null) {
+            log.info("CommandHandler: Market order rejected - funds required for BUY order. marketId={}, orderId={}", 
+                command.marketId(), command.orderId());
             return Stream.of(new MarketOrderRejectedErrorEvent(command.marketId(),
                     command.orderId(),
                     command.ownerId(),
                     "Funds are required for a BUY order"));
         } else if (command.side().equals(Side.SELL) && command.size() == null) {
+            log.info("CommandHandler: Market order rejected - size required for SELL order. marketId={}, orderId={}", 
+                command.marketId(), command.orderId());
             return Stream.of(new MarketOrderRejectedErrorEvent(command.marketId(),
                     command.orderId(),
                     command.ownerId(),
@@ -85,6 +96,8 @@ public class CryptoMarket implements Aggregate<CryptoMarketState> {
             BigDecimal price = command.side().equals(Side.BUY) ? new BigDecimal(currentTicker.ask()) : new BigDecimal(currentTicker.bid());
             // calculate the quantity based on the funds or size
             BigDecimal quantity = command.side().equals(Side.BUY) ? command.funds().divide(price, mathContext) : command.size();
+            log.info("CommandHandler: Market order filled for marketId={}, orderId={}, price={}, quantity={}", 
+                command.marketId(), command.orderId(), price, quantity);
             MarketOrderFilledEvent marketOrderFilledEvent = new MarketOrderFilledEvent(command.marketId(),
                     command.orderId(),
                     command.ownerId(),
