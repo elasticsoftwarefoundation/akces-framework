@@ -92,12 +92,10 @@ public class TestUtils {
     }
 
     public static void prepareDomainEventSchemas(String bootstrapServers, List<Class<? extends DomainEvent>> externalDomainEvents) {
-        Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
-        objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
-        objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
-        
-        // Write schemas to Akces-Schemas topic
-        ObjectMapper mapper = objectMapperBuilder.build();
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new AkcesGDPRModule());
+        mapper.registerModule(new com.fasterxml.jackson.databind.module.SimpleModule()
+            .addSerializer(BigDecimal.class, new BigDecimalSerializer()));
         SchemaRecordSerde serde = new SchemaRecordSerde(mapper);
         Map<String, Object> producerProps = Map.of(
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
@@ -123,10 +121,10 @@ public class TestUtils {
     }
 
     public static void prepareAggregateServiceRecords(String bootstrapServers) throws IOException {
-        Jackson2ObjectMapperBuilder builder = new Jackson2ObjectMapperBuilder();
-        builder.modulesToInstall(new AkcesGDPRModule());
-        builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
-        ObjectMapper objectMapper = builder.build();
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new AkcesGDPRModule());
+        objectMapper.registerModule(new com.fasterxml.jackson.databind.module.SimpleModule()
+            .addSerializer(BigDecimal.class, new BigDecimalSerializer()));
         AkcesControlRecordSerde controlSerde = new AkcesControlRecordSerde(objectMapper);
         Map<String, Object> controlProducerProps = Map.of(
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,

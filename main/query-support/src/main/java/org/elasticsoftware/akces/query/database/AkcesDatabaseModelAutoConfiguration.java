@@ -36,8 +36,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
-import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
+import org.springframework.boot.jackson.autoconfigure.JsonMapperBuilderCustomizer;
+import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
@@ -58,11 +58,13 @@ public class AkcesDatabaseModelAutoConfiguration {
     }
 
     @Bean(name = "akcesDatabaseModelJsonCustomizer")
-    public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
-        return builder -> {
-            builder.modulesToInstall(new AkcesGDPRModule());
-            builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
-        };
+    @ConditionalOnMissingBean(name = "queryModelObjectMapper")
+    public ObjectMapper queryModelObjectMapper() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new AkcesGDPRModule());
+        objectMapper.registerModule(new com.fasterxml.jackson.databind.module.SimpleModule()
+            .addSerializer(BigDecimal.class, new BigDecimalSerializer()));
+        return objectMapper;
     }
 
     @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
@@ -77,7 +79,7 @@ public class AkcesDatabaseModelAutoConfiguration {
             KafkaProperties properties,
             @Qualifier("akcesDatabaseModelSchemaRecordSerde") SchemaRecordSerde serde) {
         return new CustomKafkaConsumerFactory<>(
-                properties.buildConsumerProperties(null),
+                properties.buildConsumerProperties(),
                 new StringDeserializer(),
                 serde.deserializer());
     }
@@ -86,7 +88,7 @@ public class AkcesDatabaseModelAutoConfiguration {
     @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
     @Bean(name = "akcesDatabaseModelConsumerFactory")
     public ConsumerFactory<String, ProtocolRecord> consumerFactory(KafkaProperties properties) {
-        return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), serde.deserializer());
+        return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(), new StringDeserializer(), serde.deserializer());
     }
 
     @ConditionalOnBean(DatabaseModelBeanFactoryPostProcessor.class)
@@ -106,7 +108,7 @@ public class AkcesDatabaseModelAutoConfiguration {
     @Bean(name = "akcesDatabaseModelControlConsumerFactory")
     public ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory(KafkaProperties properties,
                                                                               @Qualifier("akcesDatabaseModelControlRecordSerde") AkcesControlRecordSerde controlSerde) {
-        return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), controlSerde.deserializer());
+        return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(), new StringDeserializer(), controlSerde.deserializer());
     }
 
     @ConditionalOnMissingBean(EnvironmentPropertiesPrinter.class)
