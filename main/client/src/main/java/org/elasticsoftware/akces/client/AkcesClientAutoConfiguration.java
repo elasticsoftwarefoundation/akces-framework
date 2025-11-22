@@ -36,8 +36,8 @@ import org.elasticsoftware.akces.util.EnvironmentPropertiesPrinter;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
-import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
+import org.springframework.boot.jackson.autoconfigure.JsonMapperBuilderCustomizer;
+import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.context.annotation.Configuration;
@@ -66,11 +66,13 @@ public class AkcesClientAutoConfiguration {
     }
 
     @Bean(name = "akcesClientJsonCustomizer")
-    public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
-        return builder -> {
-            builder.modulesToInstall(new AkcesGDPRModule());
-            builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
-        };
+    @ConditionalOnMissingBean(name = "akcesClientJsonCustomizer")
+    public ObjectMapper akcesClientObjectMapper() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new AkcesGDPRModule());
+        objectMapper.registerModule(new com.fasterxml.jackson.databind.module.SimpleModule()
+            .addSerializer(BigDecimal.class, new BigDecimalSerializer()));
+        return objectMapper;
     }
 
     @Bean(name = "akcesClientKafkaAdmin")
@@ -88,25 +90,25 @@ public class AkcesClientAutoConfiguration {
             KafkaProperties properties,
             @Qualifier("akcesClientSchemaRecordSerde") SchemaRecordSerde serde) {
         return new CustomKafkaConsumerFactory<>(
-                properties.buildConsumerProperties(null),
+                properties.buildConsumerProperties(),
                 new StringDeserializer(),
                 serde.deserializer());
     }
 
     @Bean(name = "akcesClientProducerFactory")
     public ProducerFactory<String, ProtocolRecord> producerFactory(KafkaProperties properties) {
-        return new CustomKafkaProducerFactory<>(properties.buildProducerProperties(null), new StringSerializer(), serde.serializer());
+        return new CustomKafkaProducerFactory<>(properties.buildProducerProperties(), new StringSerializer(), serde.serializer());
     }
 
     @Bean(name = "akcesClientControlConsumerFactory")
     public ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory(KafkaProperties properties,
                                                                               @Qualifier("akcesClientControlSerde") AkcesControlRecordSerde controlSerde) {
-        return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), controlSerde.deserializer());
+        return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(), new StringDeserializer(), controlSerde.deserializer());
     }
 
     @Bean(name = "akcesClientCommandResponseConsumerFactory")
     public ConsumerFactory<String, ProtocolRecord> commandResponseConsumerFactory(KafkaProperties properties) {
-        return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), serde.deserializer());
+        return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(), new StringDeserializer(), serde.deserializer());
     }
 
     @Bean(name = "domainEventScanner")
