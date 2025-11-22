@@ -36,8 +36,8 @@ import org.elasticsoftware.akces.operator.query.QueryServiceSpec;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.web.client.RestClient;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.kafka.core.KafkaAdmin;
@@ -82,7 +82,8 @@ class AkcesOperatorApplicationTests {
     @LocalServerPort
     private int port;
 
-    private RestClient restClient;
+    @Autowired
+    private TestRestTemplate restTemplate;
 
     @Autowired
     private AggregateReconciler aggregateReconciler;
@@ -98,29 +99,20 @@ class AkcesOperatorApplicationTests {
 
     @Test
     void contextLoads() {
-        restClient = RestClient.builder().baseUrl("http://localhost:" + port).build();
-        assertThat(restClient).isNotNull();
+        assertThat(restTemplate).isNotNull();
         assertThat(aggregateReconciler).isNotNull();
     }
 
     @Test
     void healthReadinessEndpointShouldBeEnabled() throws Exception {
-        restClient = RestClient.builder().baseUrl("http://localhost:" + port).build();
-        String response = restClient.get()
-                .uri("/actuator/health/readiness")
-                .retrieve()
-                .body(String.class);
-        assertThat(response).contains("{\"status\":\"UP\"}");
+        assertThat(this.restTemplate.getForObject("http://localhost:" + port + "/actuator/health/readiness",
+                String.class)).contains("{\"status\":\"UP\"}");
     }
 
     @Test
     void healthLivenessEndpointShouldBeEnabled() throws Exception {
-        restClient = RestClient.builder().baseUrl("http://localhost:" + port).build();
-        String response = restClient.get()
-                .uri("/actuator/health/liveness")
-                .retrieve()
-                .body(String.class);
-        assertThat(response).contains("{\"status\":\"UP\"}");
+        assertThat(this.restTemplate.getForObject("http://localhost:" + port + "/actuator/health/liveness",
+                String.class)).contains("{\"status\":\"UP\"}");
     }
 
     @Test
