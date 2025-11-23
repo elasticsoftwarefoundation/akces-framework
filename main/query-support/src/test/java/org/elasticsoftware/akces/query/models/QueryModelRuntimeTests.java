@@ -71,7 +71,7 @@ import static org.junit.jupiter.api.Assertions.*;
         classes = AggregateServiceApplication.class,  // we need to use AggregateServiceApplication in order to load the Aggregate beeans for the test
         args = "org.elasticsoftware.akces.query.models.QueryModelTestConfiguration",
         useMainMethod = SpringBootTest.UseMainMethod.ALWAYS,
-        properties = "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration,org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.elasticsoftware.akces.query.database.AkcesDatabaseModelAutoConfiguration")
+        properties = "spring.autoconfigure.exclude=org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration,org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.elasticsoftware.akces.query.database.AkcesDatabaseModelAutoConfiguration")
 @ContextConfiguration(initializers = QueryModelRuntimeTests.ContextInitializer.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @DirtiesContext

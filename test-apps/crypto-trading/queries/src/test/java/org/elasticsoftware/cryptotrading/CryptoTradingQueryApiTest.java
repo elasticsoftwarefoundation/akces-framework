@@ -41,6 +41,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.PropertySource;
@@ -78,10 +79,11 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
                 "akces.client.domainEventsPackage=org.elasticsoftware.cryptotrading.aggregates",
-                "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration",
+                "spring.autoconfigure.exclude=org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration",
                 "spring.main.allow-bean-definition-overriding=true"
         }
 )
+@AutoConfigureWebTestClient
 @PropertySource("classpath:akces-aggregateservice.properties")
 @ContextConfiguration(initializers = CryptoTradingQueryApiTest.Initializer.class)
 @Testcontainers

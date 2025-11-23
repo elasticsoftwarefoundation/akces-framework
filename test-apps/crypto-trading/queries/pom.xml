@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+ <?xml version="1.0" encoding="UTF-8"?>
 <!--
   ~ Copyright 2022 - 2025 The Original Authors
   ~
@@ -100,17 +100,14 @@
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.liquibase</groupId>
-            <artifactId>liquibase-core</artifactId>
+            <scope>runtime</scope>
         </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-autoconfigure</artifactId>
+            <artifactId>spring-boot-liquibase</artifactId>
         </dependency>
+
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
@@ -130,12 +127,12 @@
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
-            <artifactId>postgresql</artifactId>
+            <artifactId>testcontainers-postgresql</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
-            <artifactId>kafka</artifactId>
+            <artifactId>testcontainers-kafka</artifactId>
             <scope>test</scope>
         </dependency>
 
@@ -151,14 +148,17 @@
                 </configuration>
                 <executions>
                     <execution>
+                        <id>aot</id>
+                        <phase>prepare-package</phase>
                         <goals>
                             <goal>process-aot</goal>
                         </goals>
                         <configuration>
                             <mainClass>org.elasticsoftware.akces.query.QueryServiceApplication</mainClass>
-                            <arguments>
-                                <argument>org.elasticsoftware.cryptotrading.ClientConfig</argument>
-                            </arguments>
+                            <!-- TODO looks like this approach is broken in Spring Boot 4+ -->
+<!--                            <arguments>-->
+<!--                                <argument>org.elasticsoftware.cryptotrading.ClientConfig</argument>-->
+<!--                            </arguments>-->
                         </configuration>
                     </execution>
                 </executions>

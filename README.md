@@ -785,3 +785,13 @@ Run `mvn release:prepare release:perform && git push` to select the version to b
 GitHub Actions will start [the build process](https://github.com/elasticsoftwarefoundation/akces-framework/actions/workflows/maven-publish.yml).
 
 If successful, the build will be automatically published to [Github Packages](https://maven.pkg.github.com/elasticsoftwarefoundation/akces-framework/).
+
+## Running Tests locally on MacOS
+
+### When using Colima
+
+```bash
+echo "api.version=1.43" > ${HOME}/.docker-java.properties
+```
+
+also see info here: https://java.testcontainers.org/supported_docker_environment/

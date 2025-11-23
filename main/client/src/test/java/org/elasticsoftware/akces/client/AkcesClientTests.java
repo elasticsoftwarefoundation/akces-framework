@@ -93,7 +93,7 @@ import java.util.concurrent.TimeUnit;
 
 @SpringBootTest(
         classes = CommandServiceApplication.class,
-        properties = "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration",
+        properties = "spring.autoconfigure.exclude=org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration",
         useMainMethod = SpringBootTest.UseMainMethod.ALWAYS)
 @ContextConfiguration(initializers = AkcesClientTests.ContextInitializer.class)
 @Testcontainers

@@ -35,8 +35,9 @@ import org.elasticsoftware.akces.operator.query.QueryServiceReconciler;
 import org.elasticsoftware.akces.operator.query.QueryServiceSpec;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -62,6 +63,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.boot.test.context.SpringBootTest.UseMainMethod.WHEN_AVAILABLE;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, useMainMethod = WHEN_AVAILABLE)
+@AutoConfigureTestRestTemplate
 @ContextConfiguration(initializers = AkcesOperatorApplicationTests.KafkaInitializer.class)
 @EnableMockOperator(crdPaths = {"classpath:META-INF/fabric8/aggregates.akces.elasticsoftwarefoundation.org-v1.yml"})
 @Testcontainers
