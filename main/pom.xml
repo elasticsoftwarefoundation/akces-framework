@@ -39,7 +39,8 @@
         <lz4.version>1.8.0</lz4.version>
         <kafka.version>4.1.0</kafka.version>
         <java-uuid-generator.version>5.1.1</java-uuid-generator.version>
-        <rocksdb.version>10.4.2</rocksdb.version>
+        <!-- higher versions have removed the native libraries, stay on 10.2.1 for now -->
+        <rocksdb.version>10.2.1</rocksdb.version>
         <semver4j.version>6.0.0</semver4j.version>
         <auto-service.version>1.1.1</auto-service.version>
         <!-- testing -->
