@@ -41,9 +41,9 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
-import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration;
-import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
+import org.springframework.boot.jackson2.autoconfigure.Jackson2ObjectMapperBuilderCustomizer;
+import org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration;
+import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.PropertySource;
@@ -103,7 +103,7 @@ public class AggregateServiceApplication {
             KafkaProperties properties,
             @Qualifier("aggregateServiceSchemaRecordSerde") SchemaRecordSerde serde) {
         return new CustomKafkaProducerFactory<>(
-                properties.buildProducerProperties(null),
+                properties.buildProducerProperties(),
                 new StringSerializer(),
                 serde.serializer());
     }
@@ -113,7 +113,7 @@ public class AggregateServiceApplication {
             KafkaProperties properties,
             @Qualifier("aggregateServiceSchemaRecordSerde") SchemaRecordSerde serde) {
         return new CustomKafkaConsumerFactory<>(
-                properties.buildConsumerProperties(null),
+                properties.buildConsumerProperties(),
                 new StringDeserializer(),
                 serde.deserializer());
     }
@@ -122,24 +122,24 @@ public class AggregateServiceApplication {
 
     @Bean(name = "aggregateServiceConsumerFactory")
     public ConsumerFactory<String, ProtocolRecord> consumerFactory(KafkaProperties properties) {
-        return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), serde.deserializer());
+        return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(), new StringDeserializer(), serde.deserializer());
     }
 
     @Bean(name = "aggregateServiceProducerFactory")
     public ProducerFactory<String, ProtocolRecord> producerFactory(KafkaProperties properties) {
-        return new CustomKafkaProducerFactory<>(properties.buildProducerProperties(null), new StringSerializer(), serde.serializer());
+        return new CustomKafkaProducerFactory<>(properties.buildProducerProperties(), new StringSerializer(), serde.serializer());
     }
 
     @Bean(name = "aggregateServiceControlConsumerFactory")
     public ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory(KafkaProperties properties,
                                                                               @Qualifier("aggregateServiceControlRecordSerde") AkcesControlRecordSerde controlSerde) {
-        return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(null), new StringDeserializer(), controlSerde.deserializer());
+        return new CustomKafkaConsumerFactory<>(properties.buildConsumerProperties(), new StringDeserializer(), controlSerde.deserializer());
     }
 
     @Bean(name = "aggregateServiceControlProducerFactory")
     public ProducerFactory<String, AkcesControlRecord> controlProducerFactory(KafkaProperties properties,
                                                                               @Qualifier("aggregateServiceControlRecordSerde") AkcesControlRecordSerde controlSerde) {
-        return new CustomKafkaProducerFactory<>(properties.buildProducerProperties(null), new StringSerializer(), controlSerde.serializer());
+        return new CustomKafkaProducerFactory<>(properties.buildProducerProperties(), new StringSerializer(), controlSerde.serializer());
     }
 
     @Bean(name = "aggregateServiceAggregateStateRepositoryFactory")

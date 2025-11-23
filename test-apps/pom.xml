@@ -50,33 +50,10 @@
         <dependencies>
             <dependency>
                 <groupId>org.elasticsoftwarefoundation.akces</groupId>
-                <artifactId>akces-api</artifactId>
+                <artifactId>akces-framework-bom</artifactId>
                 <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.elasticsoftwarefoundation.akces</groupId>
-                <artifactId>akces-shared</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.elasticsoftwarefoundation.akces</groupId>
-                <artifactId>akces-runtime</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.elasticsoftwarefoundation.akces</groupId>
-                <artifactId>akces-client</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.elasticsoftwarefoundation.akces</groupId>
-                <artifactId>akces-query-support</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.elasticsoftwarefoundation.akces</groupId>
-                <artifactId>akces-eventcatalog</artifactId>
-                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
             <dependency>
                 <groupId>org.checkerframework</groupId>

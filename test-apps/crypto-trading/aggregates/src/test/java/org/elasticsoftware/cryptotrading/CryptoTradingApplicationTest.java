@@ -42,6 +42,7 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.kafka.core.ConsumerFactory;
@@ -75,6 +76,7 @@ import static org.elasticsoftware.cryptotrading.TestUtils.prepareKafka;
         args = "org.elasticsoftware.cryptotrading.AggregateConfig",
         useMainMethod = SpringBootTest.UseMainMethod.ALWAYS,
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 @ContextConfiguration(initializers = CryptoTradingApplicationTest.Initializer.class)
 @Testcontainers
 @DirtiesContext

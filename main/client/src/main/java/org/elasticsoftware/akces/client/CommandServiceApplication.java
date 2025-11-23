@@ -19,8 +19,8 @@ package org.elasticsoftware.akces.client;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration;
-import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
+import org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration;
+import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 import java.util.Set;

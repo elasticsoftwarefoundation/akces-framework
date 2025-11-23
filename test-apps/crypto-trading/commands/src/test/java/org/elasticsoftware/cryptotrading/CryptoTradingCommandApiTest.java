@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.PropertySource;
@@ -67,6 +68,7 @@ import static org.elasticsoftware.cryptotrading.TestUtils.prepareKafka;
         },
         useMainMethod = SpringBootTest.UseMainMethod.ALWAYS,
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 @PropertySource("classpath:akces-aggregateservice.properties")
 @ContextConfiguration(initializers = CryptoTradingCommandApiTest.Initializer.class)
 @Testcontainers
