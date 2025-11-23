@@ -57,6 +57,11 @@
                 <artifactId>akces-query-support</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.elasticsoftwarefoundation.akces</groupId>
+                <artifactId>akces-eventcatalog</artifactId>
+                <version>${project.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 </project>
