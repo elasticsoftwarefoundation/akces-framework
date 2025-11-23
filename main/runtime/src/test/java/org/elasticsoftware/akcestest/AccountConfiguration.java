@@ -28,7 +28,7 @@ import org.elasticsoftware.akces.schemas.storage.SchemaStorage;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.jackson.autoconfigure.JsonMapperBuilderCustomizer;
+import org.springframework.boot.jackson2.autoconfigure.Jackson2ObjectMapperBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 
@@ -49,13 +49,11 @@ public class AccountConfiguration {
     }
 
     @Bean(name = "aggregateServiceJsonCustomizer")
-    @ConditionalOnMissingBean(name = "aggregateServiceJsonCustomizer")
-    public ObjectMapper aggregateServiceObjectMapper() {
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new AkcesGDPRModule());
-        objectMapper.registerModule(new com.fasterxml.jackson.databind.module.SimpleModule()
-            .addSerializer(BigDecimal.class, new BigDecimalSerializer()));
-        return objectMapper;
+    public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
+        return builder -> {
+            builder.modulesToInstall(new AkcesGDPRModule());
+            builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+        };
     }
 
     @Bean(name = "aggregateServiceSchemaStorage")

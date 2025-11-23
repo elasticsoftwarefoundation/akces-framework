@@ -41,8 +41,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.jackson.autoconfigure.JsonMapperBuilderCustomizer;
+import org.springframework.boot.jackson2.autoconfigure.Jackson2ObjectMapperBuilderCustomizer;
 import org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -77,13 +76,11 @@ public class AggregateServiceApplication {
     }
 
     @Bean(name = "aggregateServiceJsonCustomizer")
-    @ConditionalOnMissingBean(name = "aggregateServiceJsonCustomizer")
-    public ObjectMapper aggregateServiceObjectMapper() {
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new AkcesGDPRModule());
-        objectMapper.registerModule(new com.fasterxml.jackson.databind.module.SimpleModule()
-            .addSerializer(BigDecimal.class, new BigDecimalSerializer()));
-        return objectMapper;
+    public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
+        return builder -> {
+            builder.modulesToInstall(new AkcesGDPRModule());
+            builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+        };
     }
 
     @Bean(name = "aggregateServiceControlRecordSerde")

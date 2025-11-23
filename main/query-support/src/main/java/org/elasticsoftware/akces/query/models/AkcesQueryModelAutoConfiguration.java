@@ -35,7 +35,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.jackson.autoconfigure.JsonMapperBuilderCustomizer;
+import org.springframework.boot.jackson2.autoconfigure.Jackson2ObjectMapperBuilderCustomizer;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
@@ -59,13 +59,11 @@ public class AkcesQueryModelAutoConfiguration {
     }
 
     @Bean(name = "akcesQueryModelJsonCustomizer")
-    @ConditionalOnMissingBean(name = "queryModelObjectMapper")
-    public ObjectMapper queryModelObjectMapper() {
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new AkcesGDPRModule());
-        objectMapper.registerModule(new com.fasterxml.jackson.databind.module.SimpleModule()
-            .addSerializer(BigDecimal.class, new BigDecimalSerializer()));
-        return objectMapper;
+    public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
+        return builder -> {
+            builder.modulesToInstall(new AkcesGDPRModule());
+            builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+        };
     }
 
     @ConditionalOnBean(QueryModelBeanFactoryPostProcessor.class)
