@@ -78,7 +78,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
                 "akces.client.domainEventsPackage=org.elasticsoftware.cryptotrading.aggregates",
-                "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration",
+                "spring.autoconfigure.exclude=org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration",
                 "spring.main.allow-bean-definition-overriding=true"
         }
 )
