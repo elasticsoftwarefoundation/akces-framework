@@ -145,6 +145,9 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
                     <mainClass>org.elasticsoftware.akces.query.QueryServiceApplication</mainClass>
+                    <arguments>
+                        <argument>org.elasticsoftware.cryptotrading.ClientConfig</argument>
+                    </arguments>
                 </configuration>
                 <executions>
                     <execution>
@@ -155,10 +158,9 @@
                         </goals>
                         <configuration>
                             <mainClass>org.elasticsoftware.akces.query.QueryServiceApplication</mainClass>
-                            <!-- TODO looks like this approach is broken in Spring Boot 4+ -->
-<!--                            <arguments>-->
-<!--                                <argument>org.elasticsoftware.cryptotrading.ClientConfig</argument>-->
-<!--                            </arguments>-->
+                            <arguments>
+                                <argument>org.elasticsoftware.cryptotrading.ClientConfig</argument>
+                            </arguments>
                         </configuration>
                     </execution>
                 </executions>
