@@ -36,25 +36,19 @@ public class CryptoMarketsService {
     private final CoinbaseService coinbaseService;
     private final AkcesClient akcesClient;
     private final String counterPartyId;
-    private final boolean initMarkets;
 
     public CryptoMarketsService(CryptoMarketRepository cryptoMarketRepository,
                                 CoinbaseService coinbaseService,
                                 AkcesClient akcesClient,
-                                @Value("${akces.cryptotrading.counterPartyId}") String counterPartyId,
-                                @Value("${akces.cryptotrading.init-markets:true}") boolean initMarkets) {
+                                @Value("${akces.cryptotrading.counterPartyId}") String counterPartyId) {
         this.cryptoMarketRepository = cryptoMarketRepository;
         this.coinbaseService = coinbaseService;
         this.akcesClient = akcesClient;
         this.counterPartyId = counterPartyId;
-        this.initMarkets = initMarkets;
     }
 
     @PostConstruct
     public void init() {
-        if (!initMarkets) {
-            return;
-        }
         coinbaseService.getProducts().stream()
                 .filter(product -> !cryptoMarketRepository.existsById(product.id()))
                 .forEach(product -> akcesClient.sendAndForget(new CreateCryptoMarketCommand(

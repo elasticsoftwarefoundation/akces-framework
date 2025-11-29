@@ -80,8 +80,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
         properties = {
                 "akces.client.domainEventsPackage=org.elasticsoftware.cryptotrading.aggregates",
                 "spring.autoconfigure.exclude=org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration",
-                "spring.main.allow-bean-definition-overriding=true",
-                "akces.cryptotrading.init-markets=false"
+                "spring.main.allow-bean-definition-overriding=true"
         }
 )
 @AutoConfigureWebTestClient
