@@ -20,14 +20,15 @@ package org.elasticsoftware.cryptotrading;
 import jakarta.inject.Inject;
 import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
+import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.client.AkcesClientController;
+import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.cryptotrading.aggregates.account.events.AccountCreatedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.CreateCryptoMarketCommand;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.CryptoMarketCreatedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.events.BalanceCreatedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletCreatedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletCreditedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletDebitedEvent;
+import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderFilledEvent;
+import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderRejectedErrorEvent;
+import org.elasticsoftware.cryptotrading.aggregates.wallet.events.*;
 import org.elasticsoftware.cryptotrading.query.jdbc.CryptoMarketRepository;
 import org.elasticsoftware.cryptotrading.web.AccountCommandController;
 import org.elasticsoftware.cryptotrading.web.AccountQueryController;
@@ -44,7 +45,9 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.context.annotation.PropertySource;
+import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.support.TestPropertySourceUtils;
@@ -636,6 +639,8 @@ public class CryptoTradingQueryApiTest {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
+            ClassPathScanningCandidateComponentProvider provider = new ClassPathScanningCandidateComponentProvider(false);
+            provider.addIncludeFilter(new AnnotationTypeFilter(DomainEventInfo.class));
             prepareDomainEventSchemas(kafka.getBootstrapServers(),
                     List.of(
                             WalletCreatedEvent.class,
@@ -648,7 +653,12 @@ public class CryptoTradingQueryApiTest {
                             org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderPlacedEvent.class,
                             org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderFilledEvent.class,
                             org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderRejectedEvent.class,
-                            org.elasticsoftware.cryptotrading.aggregates.orders.events.UserOrderProcessesCreatedEvent.class
+                            org.elasticsoftware.cryptotrading.aggregates.orders.events.UserOrderProcessesCreatedEvent.class,
+                            InsufficientFundsErrorEvent.class,
+                            MarketOrderRejectedErrorEvent.class,
+                            MarketOrderFilledEvent.class,
+                            AmountReservedEvent.class,
+                            InvalidCryptoCurrencyErrorEvent.class
                     ));
             prepareCommandSchemas(kafka.getBootstrapServers(),
                     List.of(
