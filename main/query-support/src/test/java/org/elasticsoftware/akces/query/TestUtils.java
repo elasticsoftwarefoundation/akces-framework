@@ -38,7 +38,10 @@ import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.SchemaRecordSerde;
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.ApplicationContextException;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
+import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.kafka.core.KafkaAdmin;
 
@@ -91,7 +94,7 @@ public class TestUtils {
                 "compression.type", "lz4"));
     }
 
-    public static void prepareDomainEventSchemas(String bootstrapServers, List<Class<? extends DomainEvent>> externalDomainEvents) {
+    public static void prepareDomainEventSchemas(String bootstrapServers, String basePackage) {
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new AkcesGDPRModule());
         mapper.registerModule(new com.fasterxml.jackson.databind.module.SimpleModule()
@@ -103,9 +106,16 @@ public class TestUtils {
                 ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
 
        SchemaGenerator jsonSchemaGenerator = SchemaRegistry.createJsonSchemaGenerator(mapper);
+
+        // Scan for classes annotated with @DomainEventInfo
+        ClassPathScanningCandidateComponentProvider scanner =
+                new ClassPathScanningCandidateComponentProvider(false);
+        scanner.addIncludeFilter(new AnnotationTypeFilter(DomainEventInfo.class));
         
         try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
-            for (Class<? extends DomainEvent> eventClass : externalDomainEvents) {
+            for (BeanDefinition beanDefinition : scanner.findCandidateComponents(basePackage)) {
+                @SuppressWarnings("unchecked")
+                Class<? extends DomainEvent> eventClass = (Class<? extends DomainEvent>) Class.forName(beanDefinition.getBeanClassName());
                 DomainEventInfo info = eventClass.getAnnotation(DomainEventInfo.class);
                 DomainEventType<?> eventType = new DomainEventType<>(info.type(), info.version(), eventClass, false, true, false, false);
                 JsonSchema schema = SchemaRegistry.generateJsonSchema(eventType, jsonSchemaGenerator);

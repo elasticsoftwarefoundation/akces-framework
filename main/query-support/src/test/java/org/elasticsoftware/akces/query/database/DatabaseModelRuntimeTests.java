@@ -23,9 +23,7 @@ import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.client.AkcesClientController;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
-import org.elasticsoftware.akcestest.aggregate.account.AccountCreatedEvent;
 import org.elasticsoftware.akcestest.aggregate.account.CreateAccountCommand;
-import org.elasticsoftware.akcestest.aggregate.wallet.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -131,15 +129,7 @@ public class DatabaseModelRuntimeTests {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
             // Prepare schemas by writing to Akces-Schemas topic
-            prepareDomainEventSchemas(kafka.getBootstrapServers(), List.of(
-                    WalletCreatedEvent.class,
-                    WalletCreditedEvent.class,
-                    BalanceCreatedEvent.class,
-                    AccountCreatedEvent.class,
-                    InsufficientFundsErrorEvent.class,
-                    AmountReservedEvent.class,
-                    InvalidCurrencyErrorEvent.class
-            ));
+            prepareDomainEventSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.akcestest.aggregate");
             try {
                 prepareAggregateServiceRecords(kafka.getBootstrapServers());
             } catch (IOException e) {

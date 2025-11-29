@@ -453,15 +453,7 @@ public class QueryModelRuntimeTests {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
             // Prepare schemas by writing to Akces-Schemas topic
-            prepareDomainEventSchemas(kafka.getBootstrapServers(), List.of(
-                    WalletCreatedEvent.class,
-                    WalletCreditedEvent.class,
-                    BalanceCreatedEvent.class,
-                    AccountCreatedEvent.class,
-                    InsufficientFundsErrorEvent.class,
-                    AmountReservedEvent.class,
-                    InvalidCurrencyErrorEvent.class
-            ));
+            prepareDomainEventSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.akcestest.aggregate");
             try {
                 prepareAggregateServiceRecords(kafka.getBootstrapServers());
             } catch (IOException e) {
