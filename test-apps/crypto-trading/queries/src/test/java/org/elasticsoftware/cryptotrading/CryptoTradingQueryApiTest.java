@@ -20,14 +20,15 @@ package org.elasticsoftware.cryptotrading;
 import jakarta.inject.Inject;
 import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
+import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.client.AkcesClientController;
+import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.cryptotrading.aggregates.account.events.AccountCreatedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.CreateCryptoMarketCommand;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.CryptoMarketCreatedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.events.BalanceCreatedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletCreatedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletCreditedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletDebitedEvent;
+import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderFilledEvent;
+import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderRejectedErrorEvent;
+import org.elasticsoftware.cryptotrading.aggregates.wallet.events.*;
 import org.elasticsoftware.cryptotrading.query.jdbc.CryptoMarketRepository;
 import org.elasticsoftware.cryptotrading.web.AccountCommandController;
 import org.elasticsoftware.cryptotrading.web.AccountQueryController;
@@ -44,7 +45,9 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.context.annotation.PropertySource;
+import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.support.TestPropertySourceUtils;
@@ -469,6 +472,165 @@ public class CryptoTradingQueryApiTest {
                 });
     }
 
+    @Test
+    void testGetOpenBuyOrders() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        // Create account and credit EUR balance
+        AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
+        AccountOutput accountOutput = webTestClient.post()
+                .uri("/v1/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(accountOutput).isNotNull();
+        String userId = accountOutput.userId();
+
+        // Credit EUR balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances/EUR/credit")
+                .bodyValue(new CreditWalletInput(new BigDecimal("10000.0")))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Add BTC balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances")
+                .bodyValue(new CreateBalanceInput("BTC"))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Place first buy order
+        BuyOrderInput buyOrderInput1 = new BuyOrderInput("BTC-EUR", new BigDecimal("1000"), "client-ref-1");
+        OrderOutput orderOutput1 = webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/orders/buy")
+                .bodyValue(buyOrderInput1)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(OrderOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(orderOutput1).isNotNull();
+        assertThat(orderOutput1.orderId()).isNotNull();
+
+        // Place second buy order
+        BuyOrderInput buyOrderInput2 = new BuyOrderInput("BTC-EUR", new BigDecimal("500"), "client-ref-2");
+        OrderOutput orderOutput2 = webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/orders/buy")
+                .bodyValue(buyOrderInput2)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(OrderOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(orderOutput2).isNotNull();
+        assertThat(orderOutput2.orderId()).isNotNull();
+
+        // Get open orders
+        webTestClient.get()
+                .uri("/v1/accounts/" + userId + "/orders")
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody()
+                .jsonPath("$.userId").isEqualTo(userId)
+                .jsonPath("$.openBuyOrders").isArray()
+                .jsonPath("$.openBuyOrders.length()").isEqualTo(2)
+                .jsonPath("$.openBuyOrders[0].orderId").exists()
+                .jsonPath("$.openBuyOrders[0].market.id").isEqualTo("BTC-EUR")
+                .jsonPath("$.openBuyOrders[0].amount").isEqualTo(1000)
+                .jsonPath("$.openBuyOrders[0].clientReference").isEqualTo("client-ref-1")
+                .jsonPath("$.openBuyOrders[0].state").exists()
+                .jsonPath("$.openBuyOrders[1].orderId").exists()
+                .jsonPath("$.openBuyOrders[1].market.id").isEqualTo("BTC-EUR")
+                .jsonPath("$.openBuyOrders[1].amount").isEqualTo(500)
+                .jsonPath("$.openBuyOrders[1].clientReference").isEqualTo("client-ref-2")
+                .jsonPath("$.openBuyOrders[1].state").exists();
+    }
+
+    @Test
+    void testGetOrderById() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        // Create account and credit EUR balance
+        AccountInput accountInput = new AccountInput("NL", "Jane", "Smith", "jane.smith@example.com");
+        AccountOutput accountOutput = webTestClient.post()
+                .uri("/v1/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(accountOutput).isNotNull();
+        String userId = accountOutput.userId();
+
+        // Credit EUR balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances/EUR/credit")
+                .bodyValue(new CreditWalletInput(new BigDecimal("5000.0")))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Add BTC balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances")
+                .bodyValue(new CreateBalanceInput("BTC"))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Place buy order
+        BuyOrderInput buyOrderInput = new BuyOrderInput("BTC-EUR", new BigDecimal("750"), "test-ref-123");
+        OrderOutput orderOutput = webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/orders/buy")
+                .bodyValue(buyOrderInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(OrderOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(orderOutput).isNotNull();
+        assertThat(orderOutput.orderId()).isNotNull();
+        String orderId = orderOutput.orderId();
+
+        // Get order by ID
+        webTestClient.get()
+                .uri("/v1/accounts/" + userId + "/orders/" + orderId)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody()
+                .jsonPath("$.orderId").isEqualTo(orderId)
+                .jsonPath("$.market.id").isEqualTo("BTC-EUR")
+                .jsonPath("$.amount").isEqualTo(750)
+                .jsonPath("$.clientReference").isEqualTo("test-ref-123")
+                .jsonPath("$.state").exists();
+
+        // Test getting non-existent order
+        webTestClient.get()
+                .uri("/v1/accounts/" + userId + "/orders/non-existent-order-id")
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
 
     public static class Initializer
             implements ApplicationContextInitializer<ConfigurableApplicationContext> {
@@ -477,6 +639,8 @@ public class CryptoTradingQueryApiTest {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
+            ClassPathScanningCandidateComponentProvider provider = new ClassPathScanningCandidateComponentProvider(false);
+            provider.addIncludeFilter(new AnnotationTypeFilter(DomainEventInfo.class));
             prepareDomainEventSchemas(kafka.getBootstrapServers(),
                     List.of(
                             WalletCreatedEvent.class,
@@ -484,7 +648,17 @@ public class CryptoTradingQueryApiTest {
                             WalletDebitedEvent.class,
                             BalanceCreatedEvent.class,
                             AccountCreatedEvent.class,
-                            CryptoMarketCreatedEvent.class
+                            CryptoMarketCreatedEvent.class,
+                            org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderCreatedEvent.class,
+                            org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderPlacedEvent.class,
+                            org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderFilledEvent.class,
+                            org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderRejectedEvent.class,
+                            org.elasticsoftware.cryptotrading.aggregates.orders.events.UserOrderProcessesCreatedEvent.class,
+                            InsufficientFundsErrorEvent.class,
+                            MarketOrderRejectedErrorEvent.class,
+                            MarketOrderFilledEvent.class,
+                            AmountReservedEvent.class,
+                            InvalidCryptoCurrencyErrorEvent.class
                     ));
             prepareCommandSchemas(kafka.getBootstrapServers(),
                     List.of(
