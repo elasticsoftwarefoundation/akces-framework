@@ -38,7 +38,10 @@ import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.SchemaRecordSerde;
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.ApplicationContextException;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
+import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.kafka.core.KafkaAdmin;
 
@@ -91,6 +94,48 @@ public class TestUtils {
                 "compression.type", "lz4"));
     }
 
+    public static void prepareDomainEventSchemas(String bootstrapServers, String basePackage) {
+        Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
+        objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
+        objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+        
+        // Write schemas to Akces-Schemas topic
+        ObjectMapper mapper = objectMapperBuilder.build();
+        SchemaRecordSerde serde = new SchemaRecordSerde(mapper);
+        Map<String, Object> producerProps = Map.of(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
+                ProducerConfig.ACKS_CONFIG, "all",
+                ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+
+       SchemaGenerator jsonSchemaGenerator = SchemaRegistry.createJsonSchemaGenerator(mapper);
+
+        // Scan for classes annotated with @DomainEventInfo
+        ClassPathScanningCandidateComponentProvider scanner =
+                new ClassPathScanningCandidateComponentProvider(false);
+        scanner.addIncludeFilter(new AnnotationTypeFilter(DomainEventInfo.class));
+        
+        try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
+            for (BeanDefinition beanDefinition : scanner.findCandidateComponents(basePackage)) {
+                @SuppressWarnings("unchecked")
+                Class<? extends DomainEvent> eventClass = (Class<? extends DomainEvent>) Class.forName(beanDefinition.getBeanClassName());
+                DomainEventInfo info = eventClass.getAnnotation(DomainEventInfo.class);
+                DomainEventType<?> eventType = new DomainEventType<>(info.type(), info.version(), eventClass, false, true, false, false);
+                JsonSchema schema = SchemaRegistry.generateJsonSchema(eventType, jsonSchemaGenerator);
+                SchemaRecord record = new SchemaRecord(eventType.getSchemaName(), eventType.version(), schema, System.currentTimeMillis());
+                String key = "domainevents." + info.type() + "-v" + info.version();
+                ProducerRecord<String, SchemaRecord> producerRecord = new ProducerRecord<>("Akces-Schemas", key, record);
+                producer.send(producerRecord).get();
+            }
+            producer.flush();
+        } catch (Exception e) {
+            throw new ApplicationContextException("Problem populating SchemaRegistry", e);
+        }
+    }
+
+    /**
+     * @deprecated Use {@link #prepareDomainEventSchemas(String, String)} instead
+     */
+    @Deprecated
     public static void prepareExternalSchemas(String bootstrapServers, List<Class<? extends DomainEvent>> externalDomainEvents) {
         Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
         objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
