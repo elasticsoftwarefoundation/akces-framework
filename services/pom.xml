@@ -126,7 +126,7 @@
                             </docker>
                             <image>
                                 <builder>paketobuildpacks/builder-noble-java-tiny</builder>
-                                <runImage>paketobuildpacks/ubuntu-noble-run-tiny</runImage>
+                                <runImage>paketobuildpacks/ubuntu-noble-run</runImage>
                                 <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}:${project.version}</name>
                                 <publish>true</publish>
                                 <env>
@@ -163,7 +163,7 @@
                             </docker>
                             <image>
                                 <builder>paketobuildpacks/builder-noble-java-tiny</builder>
-                                <runImage>paketobuildpacks/ubuntu-noble-run-tiny</runImage>
+                                <runImage>paketobuildpacks/ubuntu-noble-run</runImage>
                                 <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}:${docker.image.version}</name>
                                 <publish>true</publish>
                                 <env>
@@ -220,7 +220,7 @@
                                 </docker>
                                 <image>
                                     <builder>paketobuildpacks/builder-noble-java-tiny</builder>
-                                    <runImage>paketobuildpacks/ubuntu-noble-run-tiny</runImage>
+                                    <runImage>paketobuildpacks/ubuntu-noble-run</runImage>
                                     <name>ghcr.io/elasticsoftwarefoundation/${project.artifactId}:${project.version}
                                     </name>
                                     <publish>true</publish>
