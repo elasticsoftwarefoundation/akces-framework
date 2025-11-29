@@ -80,7 +80,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
         properties = {
                 "akces.client.domainEventsPackage=org.elasticsoftware.cryptotrading.aggregates",
                 "spring.autoconfigure.exclude=org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration",
-                "spring.main.allow-bean-definition-overriding=true"
+                "spring.main.allow-bean-definition-overriding=true",
+                "akces.cryptotrading.init-markets=false"
         }
 )
 @AutoConfigureWebTestClient
@@ -643,7 +644,12 @@ public class CryptoTradingQueryApiTest {
                             WalletDebitedEvent.class,
                             BalanceCreatedEvent.class,
                             AccountCreatedEvent.class,
-                            CryptoMarketCreatedEvent.class
+                            CryptoMarketCreatedEvent.class,
+                            org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderCreatedEvent.class,
+                            org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderPlacedEvent.class,
+                            org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderFilledEvent.class,
+                            org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderRejectedEvent.class,
+                            org.elasticsoftware.cryptotrading.aggregates.orders.events.UserOrderProcessesCreatedEvent.class
                     ));
             prepareCommandSchemas(kafka.getBootstrapServers(),
                     List.of(
