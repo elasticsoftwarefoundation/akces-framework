@@ -145,6 +145,7 @@ public class AggregateServiceApplicationTests {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
             // Prepare schemas by writing to Akces-Schemas topic
+            // prepareDomainEventSchemas(kafka.getBootstrapServers(), "");
             prepareExternalSchemas(kafka.getBootstrapServers(), List.of(AccountCreatedEvent.class));
             try {
                 prepareAggregateServiceRecords(kafka.getBootstrapServers());
