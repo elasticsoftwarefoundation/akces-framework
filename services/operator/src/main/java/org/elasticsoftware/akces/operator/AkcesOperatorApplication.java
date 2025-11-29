@@ -20,10 +20,14 @@ package org.elasticsoftware.akces.operator;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration;
+import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 
 import java.security.Security;
 
-@SpringBootApplication
+@SpringBootApplication(exclude = KafkaAutoConfiguration.class)
+@EnableConfigurationProperties(KafkaProperties.class)
 public class AkcesOperatorApplication {
 
     public static void main(String[] args) {
