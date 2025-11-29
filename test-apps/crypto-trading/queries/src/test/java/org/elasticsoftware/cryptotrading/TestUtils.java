@@ -130,7 +130,7 @@ public class TestUtils {
         }
     }
 
-    public static void prepareDomainEventSchemas(String bootstrapServers, List<Class<? extends DomainEvent>> externalDomainEvents) {
+    public static void prepareDomainEventSchemas(String bootstrapServers, String basePackage) {
         Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
         objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
         objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
@@ -145,8 +145,15 @@ public class TestUtils {
 
         SchemaGenerator jsonSchemaGenerator = SchemaRegistry.createJsonSchemaGenerator(mapper);
 
+        // Scan for classes annotated with @DomainEventInfo
+        org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider scanner =
+                new org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider(false);
+        scanner.addIncludeFilter(new org.springframework.core.type.filter.AnnotationTypeFilter(DomainEventInfo.class));
+
         try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
-            for (Class<? extends DomainEvent> eventClass : externalDomainEvents) {
+            for (org.springframework.beans.factory.config.BeanDefinition beanDefinition : scanner.findCandidateComponents(basePackage)) {
+                @SuppressWarnings("unchecked")
+                Class<? extends DomainEvent> eventClass = (Class<? extends DomainEvent>) Class.forName(beanDefinition.getBeanClassName());
                 DomainEventInfo info = eventClass.getAnnotation(DomainEventInfo.class);
                 DomainEventType<?> eventType = new DomainEventType<>(info.type(), info.version(), eventClass, false, true, false, false);
                 JsonSchema schema = SchemaRegistry.generateJsonSchema(eventType, jsonSchemaGenerator);
@@ -161,7 +168,7 @@ public class TestUtils {
         }
     }
 
-    public static void prepareCommandSchemas(String bootstrapServers, List<Class<? extends Command>> externalCommands) {
+    public static void prepareCommandSchemas(String bootstrapServers, String basePackage) {
         Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
         objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
         objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
@@ -176,8 +183,15 @@ public class TestUtils {
 
         SchemaGenerator jsonSchemaGenerator = SchemaRegistry.createJsonSchemaGenerator(mapper);
 
+        // Scan for classes annotated with @CommandInfo
+        org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider scanner =
+                new org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider(false);
+        scanner.addIncludeFilter(new org.springframework.core.type.filter.AnnotationTypeFilter(CommandInfo.class));
+
         try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
-            for (Class<? extends Command> commandClass : externalCommands) {
+            for (org.springframework.beans.factory.config.BeanDefinition beanDefinition : scanner.findCandidateComponents(basePackage)) {
+                @SuppressWarnings("unchecked")
+                Class<? extends Command> commandClass = (Class<? extends Command>) Class.forName(beanDefinition.getBeanClassName());
                 CommandInfo info = commandClass.getAnnotation(CommandInfo.class);
                 CommandType<?> eventType = new CommandType<>(info.type(), info.version(), commandClass, false, true, false);
                 JsonSchema schema = SchemaRegistry.generateJsonSchema(eventType, jsonSchemaGenerator);
