@@ -17,6 +17,8 @@
 
 package org.elasticsoftware.cryptotrading;
 
+import org.elasticsoftware.cryptotrading.query.OrderState;
+import org.elasticsoftware.cryptotrading.query.OrdersQueryModelState;
 import org.elasticsoftware.cryptotrading.query.WalletQueryModelState;
 import org.elasticsoftware.cryptotrading.web.dto.*;
 import org.junit.jupiter.api.Test;
@@ -24,13 +26,52 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 public class CryptoTradingE2ETests {
     private final WebTestClient e2eTestClient = WebTestClient.bindToServer()
             .baseUrl(System.getenv("AKCES_CRYPTO_TRADING_BASE_URL"))
             .build();
+
+    /**
+     * Waits for an order to reach a terminal state (FILLED or REJECTED) by polling the orders API.
+     *
+     * @param userId the account ID
+     * @param orderId the order ID
+     * @param timeout maximum time to wait
+     */
+    private void waitForOrderTerminalState(String userId, String orderId, Duration timeout) {
+        long startTime = System.currentTimeMillis();
+        long timeoutMillis = timeout.toMillis();
+        long pollIntervalMillis = 500; // Poll every 500ms
+
+        while (System.currentTimeMillis() - startTime < timeoutMillis) {
+            OrdersQueryModelState.BuyOrder order = e2eTestClient.get()
+                    .uri("/v1/accounts/{userId}/orders/{orderId}", userId, orderId)
+                    .exchange()
+                    .expectStatus().is2xxSuccessful()
+                    .expectBody(OrdersQueryModelState.BuyOrder.class)
+                    .returnResult()
+                    .getResponseBody();
+
+            if (order != null && (order.state() == OrderState.FILLED || order.state() == OrderState.REJECTED)) {
+                System.out.println("Order " + orderId + " reached terminal state: " + order.state());
+                return;
+            }
+
+            try {
+                Thread.sleep(pollIntervalMillis);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                fail("Interrupted while waiting for order to reach terminal state");
+            }
+        }
+
+        fail("Order " + orderId + " did not reach a terminal state within " + timeout.getSeconds() + " seconds");
+    }
 
     @Test
     @EnabledIfEnvironmentVariable(named = "AKCES_CRYPTO_TRADING_BASE_URL", matches = ".*")
@@ -114,7 +155,7 @@ public class CryptoTradingE2ETests {
                 });
 
         // buy for 1000 EUR worth of ETH
-        e2eTestClient.post()
+        String orderId = e2eTestClient.post()
                 .uri("/v1/accounts/{userId}/orders/buy", userId)
                 .bodyValue(new BuyOrderInput("ETH-EUR", new BigDecimal("1000.00"), "buy-eth-eur"))
                 .exchange()
@@ -127,15 +168,10 @@ public class CryptoTradingE2ETests {
                     assertThat(orderOutput.market().id()).isEqualTo("ETH-EUR");
                     assertThat(orderOutput.amount()).isEqualTo(new BigDecimal("1000.00"));
                     assertThat(orderOutput.clientReference()).isEqualTo("buy-eth-eur");
-                });
+                }).returnResult().getResponseBody().orderId();
 
-        // We need to wait for the order to be filled
-        // TODO: we need to check the order API for the status of the order
-        try {
-            Thread.sleep(10000);
-        } catch (InterruptedException e) {
-            // ignore
-        }
+        // Wait for the order to reach a terminal state (FILLED or REJECTED)
+        waitForOrderTerminalState(userId, orderId, Duration.ofSeconds(30));
 
         // test the wallet balances
         e2eTestClient.get()

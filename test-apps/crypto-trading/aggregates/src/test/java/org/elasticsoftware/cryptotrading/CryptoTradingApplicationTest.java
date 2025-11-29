@@ -69,6 +69,8 @@ import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.elasticsoftware.cryptotrading.TestUtils.prepareAggregateServiceRecords;
+import static org.elasticsoftware.cryptotrading.TestUtils.prepareCommandSchemas;
+import static org.elasticsoftware.cryptotrading.TestUtils.prepareDomainEventSchemas;
 import static org.elasticsoftware.cryptotrading.TestUtils.prepareKafka;
 
 @SpringBootTest(
@@ -309,6 +311,8 @@ public class CryptoTradingApplicationTest {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             // initialize kafka topics
             prepareKafka(kafka.getBootstrapServers());
+            prepareDomainEventSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
+            prepareCommandSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
             try {
                 prepareAggregateServiceRecords(kafka.getBootstrapServers());
             } catch (IOException e) {
