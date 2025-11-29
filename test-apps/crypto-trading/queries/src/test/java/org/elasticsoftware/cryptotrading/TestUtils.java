@@ -41,7 +41,10 @@ import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.SchemaRecordSerde;
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.ApplicationContextException;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
+import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.kafka.core.KafkaAdmin;
 
@@ -146,12 +149,12 @@ public class TestUtils {
         SchemaGenerator jsonSchemaGenerator = SchemaRegistry.createJsonSchemaGenerator(mapper);
 
         // Scan for classes annotated with @DomainEventInfo
-        org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider scanner =
-                new org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider(false);
-        scanner.addIncludeFilter(new org.springframework.core.type.filter.AnnotationTypeFilter(DomainEventInfo.class));
+        ClassPathScanningCandidateComponentProvider scanner =
+                new ClassPathScanningCandidateComponentProvider(false);
+        scanner.addIncludeFilter(new AnnotationTypeFilter(DomainEventInfo.class));
 
         try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
-            for (org.springframework.beans.factory.config.BeanDefinition beanDefinition : scanner.findCandidateComponents(basePackage)) {
+            for (BeanDefinition beanDefinition : scanner.findCandidateComponents(basePackage)) {
                 @SuppressWarnings("unchecked")
                 Class<? extends DomainEvent> eventClass = (Class<? extends DomainEvent>) Class.forName(beanDefinition.getBeanClassName());
                 DomainEventInfo info = eventClass.getAnnotation(DomainEventInfo.class);
@@ -184,12 +187,12 @@ public class TestUtils {
         SchemaGenerator jsonSchemaGenerator = SchemaRegistry.createJsonSchemaGenerator(mapper);
 
         // Scan for classes annotated with @CommandInfo
-        org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider scanner =
-                new org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider(false);
-        scanner.addIncludeFilter(new org.springframework.core.type.filter.AnnotationTypeFilter(CommandInfo.class));
+        ClassPathScanningCandidateComponentProvider scanner =
+                new ClassPathScanningCandidateComponentProvider(false);
+        scanner.addIncludeFilter(new AnnotationTypeFilter(CommandInfo.class));
 
         try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
-            for (org.springframework.beans.factory.config.BeanDefinition beanDefinition : scanner.findCandidateComponents(basePackage)) {
+            for (BeanDefinition beanDefinition : scanner.findCandidateComponents(basePackage)) {
                 @SuppressWarnings("unchecked")
                 Class<? extends Command> commandClass = (Class<? extends Command>) Class.forName(beanDefinition.getBeanClassName());
                 CommandInfo info = commandClass.getAnnotation(CommandInfo.class);
