@@ -215,7 +215,8 @@ auth/
 │   │   │   ├── OAuth2UserService.java           # Load/create user from OAuth
 │   │   │   └── UserAccountService.java          # Bridge to Akces commands (uses AkcesClient)
 │   │   ├── query/
-│   │   │   └── AccountQueryModel.java           # Local query model to check account existence
+│   │   │   ├── AccountDatabaseModel.java        # JdbcDatabaseModel for account persistence
+│   │   │   └── AccountQueryService.java         # JDBC queries for account lookup
 │   │   └── model/
 │   │       ├── OAuth2UserInfo.java              # OAuth user info interface
 │   │       └── GoogleOAuth2UserInfo.java        # Google-specific impl
@@ -1038,14 +1039,15 @@ public class AkcesApiClientSync {
 Custom `OAuth2UserService` implementation (resides in Auth service):
 1. Receives OAuth2 user info from provider
 2. Extracts user details (email, name, provider ID)
-3. Checks if account exists using local `AccountQueryModel` (by email or provider ID)
-4. If new user: sends `CreateAccountCommandV2` with OAuth details using `AkcesClient` to Commands service
+3. Checks if account exists using `AccountQueryService` with database queries (by OAuth provider + ID and by email for uniqueness)
+4. If new user: validates email uniqueness, then sends `CreateAccountCommandV2` with OAuth details using `AkcesClient` to Commands service
 5. If existing user: updates last login timestamp (optional)
 6. Returns Spring Security OAuth2User object with JWT tokens
 
 **Key Components:**
 - **AkcesClient**: Injected bean to send commands to Commands service (Akces framework client library)
-- **AccountQueryModel**: Local query model in Auth service that subscribes to Account events to maintain a cache of existing accounts for efficient lookup during OAuth login
+- **AccountDatabaseModel**: JdbcDatabaseModel in Auth service that subscribes to Account events to maintain database table for account queries
+- **AccountQueryService**: JDBC-based query service for efficient account lookups by OAuth provider/ID or email during OAuth login
 
 **Example Implementation:**
 
@@ -1054,7 +1056,7 @@ Custom `OAuth2UserService` implementation (resides in Auth service):
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     
     private final AkcesClient akcesClient;  // Injected - sends commands to Commands service
-    private final AccountQueryService accountQueryService;  // Uses AccountQueryModel
+    private final AccountQueryService accountQueryService;  // Uses JdbcDatabaseModel for queries
     
     @Autowired
     public CustomOAuth2UserService(AkcesClient akcesClient, 
@@ -1071,11 +1073,24 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         String registrationId = userRequest.getClientRegistration().getRegistrationId();
         OAuth2UserInfo userInfo = OAuth2UserInfoFactory.getOAuth2UserInfo(registrationId, oauth2User.getAttributes());
         
-        // Check if account exists using local query model
+        // Check if account exists using database query
         Optional<AccountQueryModelState> existingAccount = 
             accountQueryService.findByOAuthProvider(userInfo.getProvider(), userInfo.getId());
         
         if (existingAccount.isEmpty()) {
+            // Check if email already exists with different provider (email uniqueness enforcement)
+            Optional<AccountQueryModelState> accountWithSameEmail = 
+                accountQueryService.findByEmail(userInfo.getEmail());
+            
+            if (accountWithSameEmail.isPresent() && 
+                !accountWithSameEmail.get().getOauthProvider().equals(userInfo.getProvider())) {
+                // Email exists with different provider - reject login
+                throw new OAuth2AuthenticationException(new OAuth2Error("email_already_exists"),
+                    "An account with email " + userInfo.getEmail() + 
+                    " already exists using provider " + accountWithSameEmail.get().getOauthProvider() + 
+                    ". Please sign in with your original provider.");
+            }
+            
             // New user - create account via Commands service using AkcesClient
             String userId = UUID.randomUUID().toString();
             CreateAccountCommandV2 command = new CreateAccountCommandV2(
@@ -1130,55 +1145,104 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 @Service
 public class AccountQueryService {
     
-    private final AccountQueryModel accountQueryModel;
+    private final JdbcTemplate jdbcTemplate;
     
     @Autowired
-    public AccountQueryService(AccountQueryModel accountQueryModel) {
-        this.accountQueryModel = accountQueryModel;
+    public AccountQueryService(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
     }
     
     public Optional<AccountQueryModelState> findByOAuthProvider(String provider, String providerId) {
-        // Query local cache maintained by AccountQueryModel
-        return accountQueryModel.findByOAuthProvider(provider, providerId);
+        // Query database maintained by AccountDatabaseModel
+        String sql = "SELECT user_id, email, first_name, oauth_provider, oauth_provider_id " +
+                     "FROM accounts WHERE oauth_provider = ? AND oauth_provider_id = ?";
+        
+        try {
+            AccountQueryModelState result = jdbcTemplate.queryForObject(
+                sql,
+                (rs, rowNum) -> new AccountQueryModelState(
+                    rs.getString("user_id"),
+                    rs.getString("email"),
+                    rs.getString("first_name"),
+                    rs.getString("oauth_provider"),
+                    rs.getString("oauth_provider_id")
+                ),
+                provider,
+                providerId
+            );
+            return Optional.ofNullable(result);
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
+    }
+    
+    public Optional<AccountQueryModelState> findByEmail(String email) {
+        // Query to check if email exists with different provider
+        String sql = "SELECT user_id, email, first_name, oauth_provider, oauth_provider_id " +
+                     "FROM accounts WHERE email = ?";
+        
+        try {
+            AccountQueryModelState result = jdbcTemplate.queryForObject(
+                sql,
+                (rs, rowNum) -> new AccountQueryModelState(
+                    rs.getString("user_id"),
+                    rs.getString("email"),
+                    rs.getString("first_name"),
+                    rs.getString("oauth_provider"),
+                    rs.getString("oauth_provider_id")
+                ),
+                email
+            );
+            return Optional.ofNullable(result);
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
     }
 }
 ```
 
-**AccountQueryModel (in Auth service - similar to Queries module pattern):**
+**AccountDatabaseModel (in Auth service - uses JdbcDatabaseModel for database persistence):**
 
 ```java
-@QueryModelInfo(value = "AuthAccountQuery", version = 1, indexName = "AuthAccounts")
-public class AccountQueryModel implements QueryModel<AccountQueryModelState> {
+@DatabaseModelInfo(value = "AuthAccountDB", version = 1)
+public class AccountDatabaseModel extends JdbcDatabaseModel {
     
-    private final Map<String, AccountQueryModelState> accountsByOAuthId = new ConcurrentHashMap<>();
-    
-    @Override
-    public Class<AccountQueryModelState> getStateClass() {
-        return AccountQueryModelState.class;
+    @Autowired
+    public AccountDatabaseModel(JdbcTemplate jdbcTemplate, PlatformTransactionManager transactionManager) {
+        super(jdbcTemplate, transactionManager);
     }
     
-    @QueryModelEventHandler(create = true)
-    public AccountQueryModelState create(AccountCreatedEventV2 event, AccountQueryModelState isNull) {
-        AccountQueryModelState state = new AccountQueryModelState(
+    @DatabaseModelEventHandler
+    public void handle(AccountCreatedEventV2 event) {
+        String sql = "INSERT INTO accounts (user_id, email, first_name, oauth_provider, oauth_provider_id, created_at) " +
+                     "VALUES (?, ?, ?, ?, ?, NOW()) " +
+                     "ON CONFLICT (user_id) DO NOTHING";
+        
+        jdbcTemplate.update(
+            sql,
             event.userId(),
             event.email(),
             event.firstName(),
             event.oauthProvider(),
             event.oauthProviderId()
         );
-        
-        // Index by OAuth provider + ID for fast lookup
-        String oauthKey = event.oauthProvider() + ":" + event.oauthProviderId();
-        accountsByOAuthId.put(oauthKey, state);
-        
-        return state;
-    }
-    
-    public Optional<AccountQueryModelState> findByOAuthProvider(String provider, String providerId) {
-        String key = provider + ":" + providerId;
-        return Optional.ofNullable(accountsByOAuthId.get(key));
     }
 }
+```
+
+**Database Schema (create in Auth service resources):**
+
+```sql
+CREATE TABLE IF NOT EXISTS accounts (
+    user_id VARCHAR(255) PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    first_name VARCHAR(255),
+    oauth_provider VARCHAR(50) NOT NULL,
+    oauth_provider_id VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (oauth_provider, oauth_provider_id),
+    INDEX idx_email (email)
+);
 ```
 
 #### 7. API Endpoints
@@ -1376,13 +1440,20 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
     - Add oauthProvider and oauthProviderId fields
     - Create upcasting handler from v1 to v2
 
-13. **Create UserAccountService**:
-    - Bridge service between OAuth and Akces
-    - Handle command submission and response processing
-    - Implement user lookup by email/provider ID in query models
+13. **Create AccountDatabaseModel in Auth Module**:
+    - Implement `JdbcDatabaseModel` to maintain database table for account queries
+    - Add event handler for `AccountCreatedEventV2` to insert records
+    - Create database schema with accounts table (user_id, email, oauth_provider, oauth_provider_id)
+    - Add indexes on email and (oauth_provider, oauth_provider_id) for efficient lookups
+    
+14. **Create AccountQueryService in Auth Module**:
+    - Implement JDBC-based queries using JdbcTemplate
+    - Add `findByOAuthProvider(provider, providerId)` method
+    - Add `findByEmail(email)` method for email uniqueness checks
+    - Use database queries (not Kafka-based QueryModel cache)
 
 ### Phase 4: REST API Layer
-14. **Create Auth Module (Separate from Commands/Queries)**:
+15. **Create Auth Module (Separate from Commands/Queries)**:
     - Create new `auth` Maven module in test-apps/crypto-trading
     - Add Spring Boot application class:
       ```java
@@ -1400,9 +1471,9 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
       - google-cloud-secretmanager
       - akces-client (to send commands to Commands service)
     - Configure `AkcesClient` bean to connect to Commands service
-    - Implement `AccountQueryModel` to maintain local cache of accounts
+    - Configure database connection for AccountDatabaseModel
 
-15. **Create AuthController in Auth Module**:
+16. **Create AuthController in Auth Module**:
     - Version all auth endpoints with `/v1/auth/`
     - OAuth login endpoint (`GET /v1/auth/login`)
     - OAuth callback endpoint (`GET /v1/auth/callback`) - returns JWT tokens
@@ -1410,31 +1481,33 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
     - User profile endpoint (`GET /v1/auth/user`) - JWT protected
     - Logout endpoint (`POST /v1/auth/logout`) - optional token revocation
 
-16. **Configure JWT Validation in Commands Service**:
+17. **Configure JWT Validation in Commands Service**:
     - Remove OAuth login configuration (now in Auth service)
     - Configure OAuth2 Resource Server with JWKS URI
     - Add SecurityConfig for JWT validation only
     - Remove AuthController and related OAuth handlers
 
-17. **Configure JWT Validation in Queries Service**:
+18. **Configure JWT Validation in Queries Service**:
     - Configure OAuth2 Resource Server with JWKS URI
     - Add SecurityConfig for JWT validation only
     - Update existing query controllers to require JWT
 
-18. **Create Response DTOs (in Auth module)**:
+19. **Create Response DTOs (in Auth module)**:
     - `TokenResponse` for JWT tokens
     - `RefreshTokenRequest` for token refresh
     - `UserProfile` for authenticated user information
 
 ### Phase 5: Configuration and Testing
-18. **Create Application Configuration**:
+20. **Create Application Configuration**:
     - Document required environment variables (Google credentials, JWT secret)
     - Create example application-local.yml for development
     - Add OAuth2 client credentials setup instructions (GCP Console steps)
 
-19. **Testing**:
+21. **Testing**:
     - Unit tests for JwtTokenProvider
     - Unit tests for OAuth2UserService
+    - Unit tests for AccountDatabaseModel event handlers
+    - Unit tests for AccountQueryService database queries
     - Unit tests for success/failure handlers with JWT generation
     - Integration tests with mock OAuth provider (WireMock)
     - Integration tests for JWT authentication filter
