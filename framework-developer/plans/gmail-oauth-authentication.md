@@ -1297,30 +1297,14 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
 
 ## Terraform Infrastructure as Code
 
-### Overview
+This section provides Terraform configuration for provisioning the GCP Service Account and storing its key in Secret Manager.
 
-Terraform fully supports provisioning GCP resources required for OAuth and JWT authentication. This section provides complete Terraform configurations for managing Service Accounts, IAM bindings, and keys.
+**Important Note:**
+- OAuth 2.0 client IDs/secrets must be created manually via GCP Console (see "Google Cloud Platform Setup" section)
+- Service Account key is stored in Secret Manager for secure access by the Auth service
 
-**Important Note on OAuth Client Credentials:**
-- OAuth 2.0 client IDs and secrets **cannot be directly managed via Terraform** as Google does not provide a Terraform resource for OAuth consent screen or OAuth client creation
-- OAuth clients must be created manually via GCP Console (see "Google Cloud Platform Setup" section above)
-- Once created, OAuth credentials can be stored as Terraform variables or in secret managers
+### Service Account and Key
 
-### Terraform Configuration Structure
-
-```
-terraform/
-├── main.tf                    # Main Terraform configuration
-├── variables.tf               # Input variables
-├── outputs.tf                 # Output values
-├── service_account.tf         # Service account resources
-├── iam.tf                     # IAM bindings
-└── secrets.tf                 # Secret manager (optional)
-```
-
-### 1. Service Account for JWT Signing
-
-**service_account.tf:**
 ```hcl
 # Create service account for JWT signing
 resource "google_service_account" "akces_jwt_signer" {
@@ -1330,92 +1314,20 @@ resource "google_service_account" "akces_jwt_signer" {
   project      = var.project_id
 }
 
-# Create and download service account key
+# Create service account key
 resource "google_service_account_key" "akces_jwt_signer_key" {
   service_account_id = google_service_account.akces_jwt_signer.name
-  public_key_type    = "TYPE_X509_PEM_FILE"
-  private_key_type   = "TYPE_GOOGLE_CREDENTIALS_FILE"
 }
 
-# Output the private key (store securely - not in state files in production!)
-output "jwt_signer_private_key" {
-  value     = google_service_account_key.akces_jwt_signer_key.private_key
-  sensitive = true
-  description = "Base64-encoded service account private key for JWT signing"
-}
-
-# Output the service account email for JWKS URL
-output "jwt_signer_email" {
-  value = google_service_account.akces_jwt_signer.email
-  description = "Service account email - used to construct JWKS endpoint URL"
-}
-
-# Construct JWKS URL
+# Output JWKS URI for validation
 output "jwks_uri" {
   value = "https://www.googleapis.com/service_accounts/v1/jwk/${google_service_account.akces_jwt_signer.email}"
   description = "JWKS endpoint URL for JWT signature validation"
 }
 ```
 
-### 2. IAM Permissions
+### Store Service Account Key in Secret Manager
 
-**iam.tf:**
-```hcl
-# Grant Service Account Token Creator role (if using impersonation)
-# This is optional - only needed if another service needs to impersonate this SA
-resource "google_project_iam_member" "jwt_signer_token_creator" {
-  project = var.project_id
-  role    = "roles/iam.serviceAccountTokenCreator"
-  member  = "serviceAccount:${google_service_account.akces_jwt_signer.email}"
-}
-
-# If Auth service needs to create accounts via Akces commands API
-# Grant necessary permissions (example: Pub/Sub publisher for Kafka)
-resource "google_project_iam_member" "jwt_signer_pubsub" {
-  project = var.project_id
-  role    = "roles/pubsub.publisher"
-  member  = "serviceAccount:${google_service_account.akces_jwt_signer.email}"
-}
-```
-
-### 3. Variables
-
-**variables.tf:**
-```hcl
-variable "project_id" {
-  description = "GCP Project ID"
-  type        = string
-}
-
-variable "region" {
-  description = "GCP region for resources"
-  type        = string
-  default     = "us-central1"
-}
-
-variable "environment" {
-  description = "Environment name (dev, staging, prod)"
-  type        = string
-  default     = "dev"
-}
-
-# OAuth credentials (must be created manually via GCP Console)
-variable "google_oauth_client_id" {
-  description = "Google OAuth 2.0 Client ID (from GCP Console)"
-  type        = string
-  sensitive   = true
-}
-
-variable "google_oauth_client_secret" {
-  description = "Google OAuth 2.0 Client Secret (from GCP Console)"
-  type        = string
-  sensitive   = true
-}
-```
-
-### 4. Secret Manager Integration (Optional but Recommended)
-
-**secrets.tf:**
 ```hcl
 # Enable Secret Manager API
 resource "google_project_service" "secretmanager" {
@@ -1424,41 +1336,7 @@ resource "google_project_service" "secretmanager" {
   disable_on_destroy = false
 }
 
-# Store OAuth Client ID in Secret Manager
-resource "google_secret_manager_secret" "oauth_client_id" {
-  secret_id = "akces-oauth-client-id"
-  project   = var.project_id
-  
-  replication {
-    auto {}
-  }
-  
-  depends_on = [google_project_service.secretmanager]
-}
-
-resource "google_secret_manager_secret_version" "oauth_client_id" {
-  secret      = google_secret_manager_secret.oauth_client_id.id
-  secret_data = var.google_oauth_client_id
-}
-
-# Store OAuth Client Secret in Secret Manager
-resource "google_secret_manager_secret" "oauth_client_secret" {
-  secret_id = "akces-oauth-client-secret"
-  project   = var.project_id
-  
-  replication {
-    auto {}
-  }
-  
-  depends_on = [google_project_service.secretmanager]
-}
-
-resource "google_secret_manager_secret_version" "oauth_client_secret" {
-  secret      = google_secret_manager_secret.oauth_client_secret.id
-  secret_data = var.google_oauth_client_secret
-}
-
-# Store Service Account Key in Secret Manager
+# Create secret for service account key
 resource "google_secret_manager_secret" "jwt_signer_key" {
   secret_id = "akces-jwt-signer-key"
   project   = var.project_id
@@ -1470,235 +1348,167 @@ resource "google_secret_manager_secret" "jwt_signer_key" {
   depends_on = [google_project_service.secretmanager]
 }
 
+# Store the service account key as JSON
 resource "google_secret_manager_secret_version" "jwt_signer_key" {
   secret      = google_secret_manager_secret.jwt_signer_key.id
   secret_data = base64decode(google_service_account_key.akces_jwt_signer_key.private_key)
 }
 
-# Grant Auth service access to secrets
+# Grant Auth service account access to the secret
 resource "google_secret_manager_secret_iam_member" "auth_service_access" {
-  for_each = toset([
-    google_secret_manager_secret.oauth_client_id.id,
-    google_secret_manager_secret.oauth_client_secret.id,
-    google_secret_manager_secret.jwt_signer_key.id
-  ])
-  
-  secret_id = each.value
+  secret_id = google_secret_manager_secret.jwt_signer_key.id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.akces_jwt_signer.email}"
 }
 ```
 
-### 5. Main Configuration
+### Retrieve Secret in Auth Service (Java)
 
-**main.tf:**
-```hcl
-terraform {
-  required_version = ">= 1.5"
-  
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 6.0"
+Add dependency to `auth/pom.xml`:
+
+```xml
+<dependency>
+    <groupId>com.google.cloud</groupId>
+    <artifactId>google-cloud-secretmanager</artifactId>
+    <version>2.40.0</version>
+</dependency>
+```
+
+Java code to retrieve service account key from Secret Manager:
+
+```java
+import com.google.cloud.secretmanager.v1.SecretManagerServiceClient;
+import com.google.cloud.secretmanager.v1.SecretVersionName;
+import com.google.cloud.secretmanager.v1.AccessSecretVersionResponse;
+import com.google.auth.oauth2.ServiceAccountCredentials;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+
+@Configuration
+public class JwtConfig {
+    
+    @Value("${gcp.project-id}")
+    private String projectId;
+    
+    @Value("${gcp.secret-id:akces-jwt-signer-key}")
+    private String secretId;
+    
+    @Bean
+    public ServiceAccountCredentials serviceAccountCredentials() throws IOException {
+        // Retrieve secret from Secret Manager
+        SecretVersionName secretVersionName = SecretVersionName.of(
+            projectId, 
+            secretId, 
+            "latest"
+        );
+        
+        try (SecretManagerServiceClient client = SecretManagerServiceClient.create()) {
+            AccessSecretVersionResponse response = client.accessSecretVersion(secretVersionName);
+            String secretData = response.getPayload().getData().toStringUtf8();
+            
+            // Parse JSON key and create ServiceAccountCredentials
+            return ServiceAccountCredentials.fromStream(
+                new ByteArrayInputStream(secretData.getBytes())
+            );
+        }
     }
-  }
-  
-  # Configure backend for state storage
-  backend "gcs" {
-    bucket = "akces-terraform-state"
-    prefix = "auth-infrastructure"
-  }
-}
-
-provider "google" {
-  project = var.project_id
-  region  = var.region
-}
-
-# Enable required APIs
-resource "google_project_service" "required_apis" {
-  for_each = toset([
-    "iam.googleapis.com",
-    "cloudresourcemanager.googleapis.com",
-    "serviceusage.googleapis.com"
-  ])
-  
-  project = var.project_id
-  service = each.value
-  disable_on_destroy = false
+    
+    @Bean
+    public JwtTokenProvider jwtTokenProvider(
+            ServiceAccountCredentials credentials,
+            @Value("${app.jwt.access-token-expiration:900000}") long accessTokenExpiration,
+            @Value("${app.jwt.refresh-token-expiration:604800000}") long refreshTokenExpiration,
+            @Value("${app.jwt.issuer:akces-crypto-trading}") String issuer) {
+        return new JwtTokenProvider(
+            credentials,
+            accessTokenExpiration,
+            refreshTokenExpiration,
+            issuer
+        );
+    }
 }
 ```
 
-### 6. Using Terraform Modules (Alternative)
+### GKE Workload Identity Federation
 
-For more complex setups, use the official Terraform module:
+Workload Identity eliminates the need for service account key files by allowing GKE pods to authenticate as Google service accounts using Kubernetes service account tokens.
+
+#### Terraform Configuration
 
 ```hcl
-module "service_accounts" {
-  source     = "terraform-google-modules/service-accounts/google"
-  version    = "~> 4.0"
-  project_id = var.project_id
-  prefix     = "akces"
-  names      = ["jwt-signer"]
-  project_roles = [
-    "${var.project_id}=>roles/iam.serviceAccountTokenCreator"
-  ]
-  generate_keys = true
-  keys_algorithm = "KEY_ALG_RSA_2048"
+# Bind Kubernetes service account to Google service account
+resource "google_service_account_iam_member" "workload_identity" {
+  service_account_id = google_service_account.akces_jwt_signer.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[${var.k8s_namespace}/${var.k8s_service_account}]"
 }
 
-output "jwt_signer_email" {
-  value = module.service_accounts.emails["jwt-signer"]
+variable "k8s_namespace" {
+  description = "Kubernetes namespace for Auth service"
+  default     = "crypto-trading"
 }
 
-output "jwt_signer_key" {
-  value     = module.service_accounts.keys["jwt-signer"]
-  sensitive = true
+variable "k8s_service_account" {
+  description = "Kubernetes service account name"
+  default     = "auth-service"
 }
 ```
 
-### 7. Deployment Workflow
+#### Kubernetes Service Account
 
-**Step 1: Initialize Terraform**
-```bash
-cd terraform/
-terraform init
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: auth-service
+  namespace: crypto-trading
+  annotations:
+    iam.gke.io/gcp-service-account: akces-jwt-signer@PROJECT_ID.iam.gserviceaccount.com
 ```
 
-**Step 2: Create OAuth Credentials Manually**
-1. Follow "Google Cloud Platform Setup" section
-2. Save Client ID and Client Secret
+#### Auth Service Deployment
 
-**Step 3: Set Variables**
-```bash
-# Using terraform.tfvars
-cat > terraform.tfvars <<EOF
-project_id                  = "akces-prod"
-region                      = "us-central1"
-environment                 = "prod"
-google_oauth_client_id      = "123456-abc.apps.googleusercontent.com"
-google_oauth_client_secret  = "GOCSPX-xxx"
-EOF
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: crypto-trading
+spec:
+  template:
+    spec:
+      serviceAccountName: auth-service  # Use Workload Identity
+      containers:
+      - name: auth
+        image: gcr.io/PROJECT_ID/auth-service:latest
+        env:
+        - name: GCP_PROJECT_ID
+          value: "PROJECT_ID"
+        - name: GCP_SECRET_ID
+          value: "akces-jwt-signer-key"
 ```
 
-Or use environment variables:
-```bash
-export TF_VAR_project_id="akces-prod"
-export TF_VAR_google_oauth_client_id="..."
-export TF_VAR_google_oauth_client_secret="..."
-```
+**Benefits of Workload Identity:**
+- No service account key files to manage
+- Automatic credential rotation
+- Fine-grained IAM permissions per pod
+- Reduced security risk (no long-lived credentials)
+- Seamless integration with GCP APIs
 
-**Step 4: Plan and Apply**
-```bash
-terraform plan
-terraform apply
-```
-
-**Step 5: Extract Outputs for Application Configuration**
-```bash
-# Get JWKS URI
-terraform output -raw jwks_uri
-
-# Get service account private key (base64 encoded)
-terraform output -raw jwt_signer_private_key | base64 -d > service-account-key.json
-
-# Or use Secret Manager in production
-gcloud secrets versions access latest --secret="akces-jwt-signer-key" > service-account-key.json
-```
-
-### 8. Kubernetes Integration with Terraform
-
-```hcl
-# Create Kubernetes secrets from Terraform outputs
-resource "kubernetes_secret" "oauth_credentials" {
-  metadata {
-    name      = "oauth-credentials"
-    namespace = "crypto-trading"
-  }
-  
-  data = {
-    google-client-id     = var.google_oauth_client_id
-    google-client-secret = var.google_oauth_client_secret
-  }
-  
-  type = "Opaque"
-}
-
-resource "kubernetes_secret" "jwt_signer_key" {
-  metadata {
-    name      = "jwt-signer-key"
-    namespace = "crypto-trading"
-  }
-  
-  data = {
-    service-account-key = base64decode(google_service_account_key.akces_jwt_signer_key.private_key)
-  }
-  
-  type = "Opaque"
-}
-```
-
-### 9. Security Best Practices
-
-1. **Never commit sensitive outputs to version control**
-   ```hcl
-   # Mark all sensitive outputs
-   output "jwt_signer_private_key" {
-     value     = google_service_account_key.akces_jwt_signer_key.private_key
-     sensitive = true  # Prevents accidental exposure
-   }
-   ```
-
-2. **Use remote state with encryption**
-   ```hcl
-   backend "gcs" {
-     bucket                      = "akces-terraform-state"
-     prefix                      = "auth-infrastructure"
-     encryption_key              = "..."  # Customer-supplied encryption key
-   }
-   ```
-
-3. **Rotate service account keys regularly**
-   ```bash
-   # Terraform makes key rotation easy
-   terraform taint google_service_account_key.akces_jwt_signer_key
-   terraform apply
-   ```
-
-4. **Use Workload Identity in GKE (eliminates need for key files)**
-   ```hcl
-   resource "google_service_account_iam_binding" "workload_identity" {
-     service_account_id = google_service_account.akces_jwt_signer.name
-     role               = "roles/iam.workloadIdentityUser"
-     members = [
-       "serviceAccount:${var.project_id}.svc.id.goog[crypto-trading/auth-service]"
-     ]
-   }
-   ```
-
-### Terraform Limitations and Workarounds
-
-**OAuth Client Creation:**
-- **Limitation**: Terraform does not support creating OAuth consent screens or OAuth 2.0 client IDs
-- **Workaround**: Create OAuth clients manually via GCP Console, then import credentials as Terraform variables
-- **Future**: Use `google_iap_client` for limited OAuth client management (primarily for Identity-Aware Proxy)
-
-**OAuth Consent Screen:**
-- **Limitation**: Cannot configure consent screen via Terraform
-- **Workaround**: Configure manually once via GCP Console (see setup instructions above)
-
-**Terraform State Security:**
-- **Best Practice**: Use GCS backend with encryption and access controls
-- **Alternative**: Use Terraform Cloud with encrypted state storage
+**How it works:**
+1. GKE pod uses Kubernetes service account token
+2. GKE metadata server exchanges K8s token for Google OAuth token
+3. Auth service uses Google OAuth token to access Secret Manager
+4. Service Account Credentials automatically obtained without key file
 
 ### References
 
-- [Terraform Google Provider Documentation](https://registry.terraform.io/providers/hashicorp/google/latest/docs)
-- [google_service_account Resource](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account)
-- [google_service_account_key Resource](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account_key)
-- [terraform-google-modules/service-accounts](https://registry.terraform.io/modules/terraform-google-modules/service-accounts/google/latest)
+- [Terraform google_service_account](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account)
+- [Terraform google_service_account_key](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account_key)
 - [GCP Secret Manager Terraform](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/secret_manager_secret)
-- [Workload Identity in GKE](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity)
+- [Google Cloud Secret Manager Java API](https://docs.cloud.google.com/secret-manager/docs/samples/secretmanager-get-secret)
+- [GKE Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity)
+- [Workload Identity Terraform Module](https://registry.terraform.io/modules/terraform-google-modules/kubernetes-engine/google/latest/submodules/workload-identity)
 
 ## Dependencies and Version Compatibility
 
