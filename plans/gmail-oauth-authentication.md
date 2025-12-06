@@ -183,6 +183,15 @@ The solution will implement the OAuth 2.0 Authorization Code flow with Spring Se
 User Browser → Frontend → Spring Security OAuth2 Client → Google OAuth → Account Creation
 ```
 
+**⚠️ Important: WebFlux Compatibility**
+All services use Spring WebFlux (reactive) instead of Spring MVC (servlet-based):
+- Use `@EnableWebFluxSecurity` instead of `@EnableWebSecurity`
+- Use `SecurityWebFilterChain` instead of `SecurityFilterChain`
+- Use `ServerHttpSecurity` instead of `HttpSecurity`
+- Use `WebFilter` instead of `OncePerRequestFilter`
+- Use `ReactiveJwtAuthenticationConverter` instead of `JwtAuthenticationConverter`
+- Use `Mono`/`Flux` reactive types throughout
+
 ### Key Components
 
 #### 1. Authentication Module Structure
@@ -563,21 +572,19 @@ public class JwtTokenProvider {
 }
 ```
 
-*JWT Validation (Commands and Queries Services - Spring Security auto-configures NimbusJwtDecoder):*
+*JWT Validation (Commands and Queries Services - Spring Security auto-configures NimbusJwtDecoder for WebFlux):*
 ```java
 @Configuration
-@EnableWebSecurity
+@EnableWebFluxSecurity
 public class SecurityConfig {
     
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
         http
             .csrf(csrf -> csrf.disable())
-            .sessionManagement(session -> 
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/health").permitAll()
-                .anyRequest().authenticated()
+            .authorizeExchange(exchanges -> exchanges
+                .pathMatchers("/actuator/health").permitAll()
+                .anyExchange().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt
@@ -590,8 +597,8 @@ public class SecurityConfig {
     }
     
     @Bean
-    public JwtAuthenticationConverter jwtAuthenticationConverter() {
-        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+    public ReactiveJwtAuthenticationConverter jwtAuthenticationConverter() {
+        ReactiveJwtAuthenticationConverter converter = new ReactiveJwtAuthenticationConverter();
         // Map JWT claims to granted authorities if needed
         return converter;
     }
@@ -606,54 +613,64 @@ public class SecurityConfig {
 - **Scalability**: Queries service validates locally using cached public keys from JWKS
 - **Zero Downtime Key Rotation**: JWKS supports multiple active keys simultaneously
 
-*JwtAuthenticationFilter.java:*
+*JwtAuthenticationWebFilter.java (WebFlux-compatible):*
 ```java
 @Component
-public class JwtAuthenticationFilter extends OncePerRequestFilter {
+public class JwtAuthenticationWebFilter implements WebFilter {
     private final JwtTokenProvider jwtTokenProvider;
     
+    @Autowired
+    public JwtAuthenticationWebFilter(JwtTokenProvider jwtTokenProvider) {
+        this.jwtTokenProvider = jwtTokenProvider;
+    }
+    
     @Override
-    protected void doFilterInternal(HttpServletRequest request, 
-                                    HttpServletResponse response, 
-                                    FilterChain filterChain) {
-        String token = extractTokenFromHeader(request);
+    public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+        String token = extractTokenFromHeader(exchange.getRequest());
+        
         if (token != null && jwtTokenProvider.validateToken(token)) {
             Authentication auth = getAuthentication(token);
-            SecurityContextHolder.getContext().setAuthentication(auth);
+            return chain.filter(exchange)
+                .contextWrite(ReactiveSecurityContextHolder.withAuthentication(auth));
         }
-        filterChain.doFilter(request, response);
+        
+        return chain.filter(exchange);
     }
 }
 ```
 
 **API Endpoint Security Configuration:**
 
-*SecurityConfig.java (HTTP Security):*
+*SecurityConfig.java (WebFlux Security):*
 ```java
 @Bean
-public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
     http
         .csrf(csrf -> csrf.disable())  // Disable for stateless JWT
-        .sessionManagement(session -> 
-            session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-        .authorizeHttpRequests(auth -> auth
+        .authorizeExchange(exchanges -> exchanges
             // Public endpoints
-            .requestMatchers("/auth/login", "/auth/callback", "/auth/refresh").permitAll()
-            .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+            .pathMatchers("/v1/auth/login", "/v1/auth/callback", "/v1/auth/refresh").permitAll()
+            .pathMatchers("/actuator/health", "/actuator/info").permitAll()
             
             // Protected endpoints - require authentication
-            .requestMatchers("/v1/accounts/**").authenticated()
-            .requestMatchers("/v1/wallets/**").authenticated()
-            .requestMatchers("/v1/orders/**").authenticated()
+            .pathMatchers("/v1/accounts/**").authenticated()
+            .pathMatchers("/v1/wallets/**").authenticated()
+            .pathMatchers("/v1/orders/**").authenticated()
             
             // All other requests require authentication
-            .anyRequest().authenticated()
+            .anyExchange().authenticated()
         )
         .oauth2Login(oauth2 -> oauth2
-            .successHandler(oAuth2LoginSuccessHandler)
-            .failureHandler(oAuth2LoginFailureHandler)
-        )
-        .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            .authenticationSuccessHandler(new OAuth2LoginServerAuthenticationSuccessHandler())
+            .authenticationFailureHandler(new ServerAuthenticationFailureHandler() {
+                @Override
+                public Mono<Void> onAuthenticationFailure(WebFilterExchange webFilterExchange, 
+                                                          AuthenticationException exception) {
+                    // Handle OAuth2 failure
+                    return Mono.error(exception);
+                }
+            })
+        );
     
     return http.build();
 }
@@ -1310,37 +1327,39 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
    - Refresh token generation with minimal claims
    - Use `ServiceAccountCredentials` from google-auth-library
 
-7. **Configure JWT Validation (Commands & Queries Services)**:
+7. **Configure JWT Validation (Commands & Queries Services - WebFlux)**:
    - Configure Spring Security OAuth2 Resource Server with JWKS URI
+   - Use `@EnableWebFluxSecurity` instead of `@EnableWebSecurity`
    - Spring Security automatically uses NimbusJwtDecoder to validate tokens
-   - Configure JWT authentication converter for claims mapping
+   - Configure `ReactiveJwtAuthenticationConverter` for claims mapping
    - No custom validation code needed - handled by Nimbus
 
 7. **Implement OAuth2UserInfo Interface**:
    - Create base interface for provider-agnostic user info
    - Implement GoogleOAuth2UserInfo with Google attribute mapping
 
-8. **Implement SecurityConfig (Commands Service)**:
-   - Configure OAuth2 login
-   - Define URL patterns (public vs. protected)
-   - Configure stateless session management
+8. **Implement SecurityConfig (Auth Service - WebFlux)**:
+   - Use `SecurityWebFilterChain` instead of `SecurityFilterChain`
+   - Use `ServerHttpSecurity` instead of `HttpSecurity`
+   - Configure OAuth2 login with reactive handlers
+   - Define URL patterns with `pathMatchers()` instead of `requestMatchers()`
    - Set up CORS for development
 
-9. **Implement SecurityConfig (Queries Service)**:
+9. **Implement SecurityConfig (Commands & Queries Services - WebFlux)**:
+   - Use `SecurityWebFilterChain` with `ServerHttpSecurity`
    - Configure OAuth2 Resource Server with JWKS URI
-   - Define URL patterns (public vs. protected)
-   - Stateless session management
+   - Define URL patterns with `authorizeExchange()` instead of `authorizeHttpRequests()`
    - Nimbus automatically validates JWT signatures
 
 10. **Implement OAuth2UserService**:
-    - Custom user details service
-    - Integration with Akces command bus
-    - User lookup and creation logic
+    - Custom reactive user details service
+    - Integration with Akces command bus (reactive)
+    - User lookup and creation logic using Mono/Flux
 
-11. **Implement Success/Failure Handlers**:
-    - OAuth2LoginSuccessHandler generates JWT tokens using GCP Service Account
-    - Return tokens in response body (JSON format)
-    - OAuth2LoginFailureHandler for error handling and logging
+11. **Implement Success/Failure Handlers (WebFlux-compatible)**:
+    - `ServerAuthenticationSuccessHandler` generates JWT tokens using GCP Service Account
+    - Return tokens in response body (JSON format) using reactive types
+    - `ServerAuthenticationFailureHandler` for error handling and logging
 
 ### Phase 3: Domain Model Updates
 10. **Update Account Aggregate**:
