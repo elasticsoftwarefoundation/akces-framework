@@ -81,9 +81,6 @@ public class SecurityConfig {
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
         http
-            // CSRF disabled for stateless JWT-based API
-            .csrf(csrf -> csrf.disable())
-            
             // CORS configuration for frontend integration
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             
