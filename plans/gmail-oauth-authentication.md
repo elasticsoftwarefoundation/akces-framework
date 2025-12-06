@@ -1287,11 +1287,11 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
    - `spring-security-oauth2-jose` (includes Nimbus JOSE+JWT library)
    - `google-auth-library-oauth2-http` (for GCP Service Account JWT signing)
 
-2. **Create GCP Service Account**:
-   - Create service account in GCP Console for JWT signing
-   - Download service account JSON key
-   - Note the JWKS endpoint URL for public key distribution
-   - Store service account key in Kubernetes secret
+2. **Ensure GCP Service Account is Created**:
+   - Verify that GCP Service Account exists (should be provisioned via Terraform in separate infrastructure repository)
+   - Verify service account key is stored in Secret Manager
+   - Note the JWKS endpoint URL for public key distribution: `https://www.googleapis.com/service_accounts/v1/jwk/{service-account-email}`
+   - Verify Auth service has IAM permissions to access Secret Manager secret
 
 3. **Create Auth Module**:
    - Create new Maven module: `test-apps/crypto-trading/auth`
@@ -1471,9 +1471,13 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
 
 ## Terraform Infrastructure as Code
 
-This section provides Terraform configuration for provisioning the GCP Service Account and storing its key in Secret Manager.
+**Important Note: This section is for reference only and not part of this implementation plan.**
 
-**Important Note:**
+The Terraform code shown below is managed in a separate infrastructure repository and is provided here for reference to understand the required GCP resources. This implementation assumes that the GCP Service Account and Secret Manager resources have already been provisioned via Terraform in your infrastructure repository.
+
+This section provides Terraform configuration examples for provisioning the GCP Service Account and storing its key in Secret Manager.
+
+**Additional Notes:**
 - OAuth 2.0 client IDs/secrets must be created manually via GCP Console (see "Google Cloud Platform Setup" section)
 - Service Account key is stored in Secret Manager for secure access by the Auth service
 
