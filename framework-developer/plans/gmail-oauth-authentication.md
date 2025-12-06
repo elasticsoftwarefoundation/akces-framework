@@ -410,43 +410,184 @@ After successful OAuth authentication, the system will issue JWT tokens to secur
 }
 ```
 
-**JWT Configuration:**
+**GCP Service Account JWT Signing with JWKS:**
+
+Instead of using a shared secret (HS256), we'll use **GCP Service Account with RS256** for JWT signing:
+
+1. **Create GCP Service Account:**
+   ```bash
+   gcloud iam service-accounts create akces-jwt-signer \
+     --display-name="Akces JWT Signing Service Account"
+   ```
+
+2. **Generate and Download Service Account Key:**
+   ```bash
+   gcloud iam service-accounts keys create service-account-key.json \
+     --iam-account=akces-jwt-signer@PROJECT_ID.iam.gserviceaccount.com
+   ```
+
+3. **Service Account JWKS Endpoint:**
+   - Google automatically exposes public keys for service accounts at:
+   ```
+   https://www.googleapis.com/service_accounts/v1/jwk/akces-jwt-signer@PROJECT_ID.iam.gserviceaccount.com
+   ```
+   - This JWKS endpoint is used by clients to validate JWT signatures
+   - No need to manually manage public key distribution
+   - Key rotation is handled automatically by Google
+
+4. **Configuration (Commands Service - JWT Generation):**
 ```yaml
 app:
   jwt:
-    secret: ${JWT_SECRET}  # 256-bit secret key (from environment/K8s secret)
+    gcp-service-account-key: ${GCP_SERVICE_ACCOUNT_KEY}  # Service account JSON key
     access-token-expiration: 900000      # 15 minutes in milliseconds
     refresh-token-expiration: 604800000  # 7 days in milliseconds
     issuer: akces-crypto-trading
+    service-account-email: akces-jwt-signer@PROJECT_ID.iam.gserviceaccount.com
+```
+
+5. **Configuration (Queries Service - JWT Validation):**
+```yaml
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Nimbus automatically validates using JWKS
+          jwk-set-uri: https://www.googleapis.com/service_accounts/v1/jwk/akces-jwt-signer@PROJECT_ID.iam.gserviceaccount.com
+          issuer-uri: akces-crypto-trading
 ```
 
 **Key Classes for JWT Implementation:**
 
-*JwtTokenProvider.java:*
+*JwtTokenProvider.java (Commands Service - uses GCP Service Account for signing):*
 ```java
 @Component
 public class JwtTokenProvider {
-    private final SecretKey signingKey;
+    private final ServiceAccountCredentials credentials;
     private final long accessTokenExpiration;
     private final long refreshTokenExpiration;
+    private final String issuer;
+    private final String serviceAccountEmail;
+    
+    public JwtTokenProvider(@Value("${app.jwt.gcp-service-account-key}") String keyJson,
+                           @Value("${app.jwt.access-token-expiration}") long accessTokenExpiration,
+                           @Value("${app.jwt.refresh-token-expiration}") long refreshTokenExpiration,
+                           @Value("${app.jwt.issuer}") String issuer,
+                           @Value("${app.jwt.service-account-email}") String serviceAccountEmail) throws IOException {
+        this.credentials = ServiceAccountCredentials
+            .fromStream(new ByteArrayInputStream(keyJson.getBytes(StandardCharsets.UTF_8)));
+        this.accessTokenExpiration = accessTokenExpiration;
+        this.refreshTokenExpiration = refreshTokenExpiration;
+        this.issuer = issuer;
+        this.serviceAccountEmail = serviceAccountEmail;
+    }
     
     public String generateAccessToken(OAuth2User oauth2User, String userId) {
-        // Generate JWT with user claims
+        Instant now = Instant.now();
+        Instant expiry = now.plusMillis(accessTokenExpiration);
+        
+        JWTClaimsSet claimsSet = new JWTClaimsSet.Builder()
+            .subject(userId)
+            .issuer(issuer)
+            .audience(List.of("akces-api"))
+            .expirationTime(Date.from(expiry))
+            .issueTime(Date.from(now))
+            .claim("email", oauth2User.getAttribute("email"))
+            .claim("name", oauth2User.getAttribute("name"))
+            .claim("oauth_provider", oauth2User.getAttribute("oauth_provider"))
+            .claim("oauth_provider_id", oauth2User.getAttribute("oauth_provider_id"))
+            .claim("type", "access")
+            .build();
+        
+        try {
+            // Sign with GCP Service Account private key (RS256)
+            JWSSigner signer = new RSASSASigner(credentials.getPrivateKey());
+            SignedJWT signedJWT = new SignedJWT(
+                new JWSHeader.Builder(JWSAlgorithm.RS256)
+                    .keyID(credentials.getPrivateKeyId())
+                    .build(),
+                claimsSet
+            );
+            signedJWT.sign(signer);
+            return signedJWT.serialize();
+        } catch (JOSEException e) {
+            throw new RuntimeException("Failed to sign JWT", e);
+        }
     }
     
     public String generateRefreshToken(String userId) {
-        // Generate refresh token with minimal claims
-    }
-    
-    public boolean validateToken(String token) {
-        // Validate JWT signature and expiration
-    }
-    
-    public Claims extractClaims(String token) {
-        // Parse and return token claims
+        Instant now = Instant.now();
+        Instant expiry = now.plusMillis(refreshTokenExpiration);
+        
+        JWTClaimsSet claimsSet = new JWTClaimsSet.Builder()
+            .subject(userId)
+            .issuer(issuer)
+            .audience(List.of("akces-api"))
+            .expirationTime(Date.from(expiry))
+            .issueTime(Date.from(now))
+            .claim("type", "refresh")
+            .build();
+        
+        try {
+            JWSSigner signer = new RSASSASigner(credentials.getPrivateKey());
+            SignedJWT signedJWT = new SignedJWT(
+                new JWSHeader.Builder(JWSAlgorithm.RS256)
+                    .keyID(credentials.getPrivateKeyId())
+                    .build(),
+                claimsSet
+            );
+            signedJWT.sign(signer);
+            return signedJWT.serialize();
+        } catch (JOSEException e) {
+            throw new RuntimeException("Failed to sign refresh token", e);
+        }
     }
 }
 ```
+
+*JWT Validation (Queries Service - Spring Security auto-configures NimbusJwtDecoder):*
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+    
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session -> 
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/actuator/health").permitAll()
+                .anyRequest().authenticated()
+            )
+            .oauth2ResourceServer(oauth2 -> oauth2
+                .jwt(jwt -> jwt
+                    // Spring Security + Nimbus automatically validates using JWKS URI
+                    .jwtAuthenticationConverter(jwtAuthenticationConverter())
+                )
+            );
+        
+        return http.build();
+    }
+    
+    @Bean
+    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        // Map JWT claims to granted authorities if needed
+        return converter;
+    }
+}
+```
+
+**Benefits of GCP Service Account with JWKS:**
+- **No Shared Secret Management**: Private key never leaves Commands service
+- **Automatic Key Rotation**: Google manages key lifecycle
+- **Public Key Distribution**: JWKS endpoint provides public keys automatically
+- **Industry Standard**: RS256 is more secure than HS256 for distributed systems
+- **Scalability**: Queries service validates locally using cached public keys from JWKS
+- **Zero Downtime Key Rotation**: JWKS supports multiple active keys simultaneously
 
 *JwtAuthenticationFilter.java:*
 ```java
@@ -622,56 +763,241 @@ public record TokenResponse(
 public record RefreshTokenRequest(String refreshToken) {}
 ```
 
-**Client Usage Example:**
+**Client Usage Example (Java with Spring WebClient):**
 
-```javascript
-// After OAuth login, store tokens
-const response = await fetch('/auth/callback?code=...');
-const { accessToken, refreshToken } = await response.json();
-localStorage.setItem('accessToken', accessToken);
-localStorage.setItem('refreshToken', refreshToken);
+```java
+@Service
+public class AkcesApiClient {
+    private final WebClient webClient;
+    private String accessToken;
+    private String refreshToken;
+    
+    public AkcesApiClient(WebClient.Builder webClientBuilder) {
+        this.webClient = webClientBuilder
+            .baseUrl("http://localhost:8080")
+            .build();
+    }
+    
+    /**
+     * Authenticate using OAuth callback and store tokens
+     */
+    public void authenticate(String authCode) {
+        TokenResponse response = webClient.get()
+            .uri(uriBuilder -> uriBuilder
+                .path("/auth/callback")
+                .queryParam("code", authCode)
+                .build())
+            .retrieve()
+            .bodyToMono(TokenResponse.class)
+            .block();
+        
+        this.accessToken = response.accessToken();
+        this.refreshToken = response.refreshToken();
+    }
+    
+    /**
+     * Make authenticated API call with automatic token refresh
+     */
+    public Mono<AccountQueryModelState> getAccount(String userId) {
+        return webClient.get()
+            .uri("/v1/accounts/{userId}", userId)
+            .headers(headers -> headers.setBearerAuth(accessToken))
+            .retrieve()
+            .onStatus(HttpStatusCode::is4xxClientError, clientResponse -> {
+                if (clientResponse.statusCode() == HttpStatus.UNAUTHORIZED) {
+                    // Token expired, refresh and retry
+                    return Mono.error(new TokenExpiredException("Access token expired"));
+                }
+                return Mono.error(new RuntimeException("API call failed"));
+            })
+            .bodyToMono(AccountQueryModelState.class)
+            .onErrorResume(TokenExpiredException.class, ex -> {
+                // Refresh token and retry
+                return refreshAccessToken()
+                    .flatMap(newToken -> {
+                        this.accessToken = newToken;
+                        return getAccount(userId); // Retry with new token
+                    });
+            });
+    }
+    
+    /**
+     * Refresh access token using refresh token
+     */
+    private Mono<String> refreshAccessToken() {
+        return webClient.post()
+            .uri("/auth/refresh")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(new RefreshTokenRequest(refreshToken))
+            .retrieve()
+            .bodyToMono(TokenResponse.class)
+            .map(TokenResponse::accessToken);
+    }
+    
+    /**
+     * Create account (authenticated endpoint)
+     */
+    public Mono<AccountOutput> createAccount(AccountInput input) {
+        return webClient.post()
+            .uri("/v1/accounts")
+            .headers(headers -> headers.setBearerAuth(accessToken))
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(input)
+            .retrieve()
+            .bodyToMono(AccountOutput.class)
+            .onErrorResume(TokenExpiredException.class, ex -> 
+                refreshAccessToken()
+                    .flatMap(newToken -> {
+                        this.accessToken = newToken;
+                        return createAccount(input);
+                    })
+            );
+    }
+    
+    // Custom exception for token expiration
+    private static class TokenExpiredException extends RuntimeException {
+        public TokenExpiredException(String message) {
+            super(message);
+        }
+    }
+}
+```
 
-// Use access token for API calls
-const apiResponse = await fetch('/v1/accounts/123', {
-  headers: {
-    'Authorization': `Bearer ${accessToken}`
-  }
-});
+**Usage in Application:**
 
-// Refresh token when access token expires
-if (apiResponse.status === 401) {
-  const refreshResponse = await fetch('/auth/refresh', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken })
-  });
-  const { accessToken: newAccessToken } = await refreshResponse.json();
-  localStorage.setItem('accessToken', newAccessToken);
-  // Retry original request with new token
+```java
+@SpringBootApplication
+public class CryptoTradingClientApp {
+    
+    public static void main(String[] args) {
+        SpringApplication.run(CryptoTradingClientApp.class, args);
+    }
+    
+    @Bean
+    public CommandLineRunner demo(AkcesApiClient apiClient) {
+        return args -> {
+            // Simulate OAuth callback with authorization code
+            String authCode = "4/0AY0e-g7..."; // From OAuth redirect
+            apiClient.authenticate(authCode);
+            
+            // Make authenticated API calls
+            AccountQueryModelState account = apiClient
+                .getAccount("user-123")
+                .block();
+            
+            System.out.println("Account: " + account);
+            
+            // Create new account
+            AccountInput input = new AccountInput("US", "John", "Doe", "john@example.com");
+            AccountOutput output = apiClient
+                .createAccount(input)
+                .block();
+            
+            System.out.println("Created account: " + output);
+        };
+    }
+}
+```
+
+**Alternative: Using RestTemplate (Synchronous):**
+
+```java
+@Service
+public class AkcesApiClientSync {
+    private final RestTemplate restTemplate;
+    private String accessToken;
+    private String refreshToken;
+    
+    public AkcesApiClientSync(RestTemplateBuilder restTemplateBuilder) {
+        this.restTemplate = restTemplateBuilder
+            .rootUri("http://localhost:8080")
+            .build();
+    }
+    
+    public void authenticate(String authCode) {
+        ResponseEntity<TokenResponse> response = restTemplate.getForEntity(
+            "/auth/callback?code={code}",
+            TokenResponse.class,
+            authCode
+        );
+        
+        TokenResponse tokens = response.getBody();
+        this.accessToken = tokens.accessToken();
+        this.refreshToken = tokens.refreshToken();
+    }
+    
+    public AccountQueryModelState getAccount(String userId) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+        
+        try {
+            ResponseEntity<AccountQueryModelState> response = restTemplate.exchange(
+                "/v1/accounts/{userId}",
+                HttpMethod.GET,
+                entity,
+                AccountQueryModelState.class,
+                userId
+            );
+            return response.getBody();
+        } catch (HttpClientErrorException.Unauthorized ex) {
+            // Refresh token and retry
+            refreshAccessToken();
+            return getAccount(userId);
+        }
+    }
+    
+    private void refreshAccessToken() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<RefreshTokenRequest> entity = new HttpEntity<>(
+            new RefreshTokenRequest(refreshToken),
+            headers
+        );
+        
+        ResponseEntity<TokenResponse> response = restTemplate.postForEntity(
+            "/auth/refresh",
+            entity,
+            TokenResponse.class
+        );
+        
+        this.accessToken = response.getBody().accessToken();
+    }
 }
 ```
 
 **Security Considerations for JWT:**
 
-1. **Secret Key Management:**
-   - Use 256-bit random key for HS256 algorithm
-   - Store in Kubernetes secret, never in code
-   - Rotate keys periodically (implement key versioning)
+1. **GCP Service Account Key Management:**
+   - Store service account JSON key in Kubernetes secret, never in code or repository
+   - Restrict service account permissions (only needs JWT signing capability)
+   - Monitor service account usage via GCP Cloud Audit Logs
+   - Rotate service account keys periodically (Google recommends every 90 days)
+   - Use Workload Identity in GKE for key-less authentication (advanced)
 
-2. **Token Storage:**
+2. **JWKS Endpoint Security:**
+   - JWKS endpoint is public (only contains public keys, safe to expose)
+   - Queries service caches JWKS keys to minimize network calls
+   - Spring Security automatically refreshes keys when new `kid` (Key ID) is encountered
+   - Google handles key rotation automatically, supports multiple active keys
+
+3. **Token Storage:**
    - Client should store tokens in memory or secure storage
-   - Avoid localStorage for sensitive apps (XSS risk)
-   - Consider HttpOnly cookies for browser-based clients
+   - Avoid localStorage for browser apps (XSS risk)
+   - For server-to-server communication, store in environment or secret manager
+   - Tokens are self-contained, no server-side session required
 
-3. **Token Validation:**
-   - Validate signature on every request
-   - Check expiration time
-   - Verify issuer and audience claims
-   - Implement token revocation list for logout (optional)
+4. **Token Validation:**
+   - Validate RS256 signature using JWKS public keys on every request
+   - Check expiration time (`exp` claim)
+   - Verify issuer (`iss` claim) matches expected value
+   - Verify audience (`aud` claim) matches your API identifier
+   - Implement token revocation list for logout (optional, requires Redis or database)
 
-4. **HTTPS Only:**
-   - All token transmission must use HTTPS
-   - Set secure flag on cookies in production
+5. **HTTPS Only:**
+   - All token transmission must use HTTPS in production
+   - GCP Service Account keys must never be transmitted over HTTP
+   - OAuth redirect URIs must use HTTPS (except localhost for development)
 
 #### 6. OAuth2 User Service
 
@@ -753,53 +1079,65 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
 1. **Add Maven Dependencies** to `commands/pom.xml` and `queries/pom.xml`:
    - `spring-boot-starter-security`
    - `spring-boot-starter-oauth2-client`
-   - `spring-security-oauth2-resource-server` (for JWT validation)
-   - `spring-security-oauth2-jose` (for JWT handling)
-   - `jjwt-api`, `jjwt-impl`, `jjwt-jackson` (JWT library)
+   - `spring-security-oauth2-resource-server` (for JWT validation via Nimbus)
+   - `spring-security-oauth2-jose` (includes Nimbus JOSE+JWT library)
+   - `google-auth-library-oauth2-http` (for GCP Service Account JWT signing)
 
-2. **Create Security Package Structure**:
+2. **Create GCP Service Account**:
+   - Create service account in GCP Console for JWT signing
+   - Download service account JSON key
+   - Note the JWKS endpoint URL for public key distribution
+   - Store service account key in Kubernetes secret
+
+3. **Create Security Package Structure**:
    - Create all directories listed in component structure
    - Add placeholder classes with proper package declarations
-   - Add JWT-related classes: `JwtTokenProvider`, `JwtAuthenticationFilter`
+   - Add JWT-related classes: `JwtTokenProvider` (Commands), `SecurityConfig` (both services)
 
-3. **Update application.properties**:
-   - Add OAuth2 configuration with Google credentials
-   - Add JWT configuration (secret, expiration times)
+4. **Update application.properties**:
+   - Commands service: Add GCP service account key path, expiration times
+   - Queries service: Add JWKS URI for JWT validation
+   - Both: Add OAuth2 configuration with Google credentials
    - Configure stateless session management
 
 ### Phase 2: Core Security Implementation
-4. **Implement JWT Token Provider**:
-   - `JwtTokenProvider` for token generation and validation
-   - Access token generation with user claims
+5. **Implement JWT Token Provider (Commands Service)**:
+   - `JwtTokenProvider` using GCP Service Account for RS256 signing
+   - Access token generation with user claims using Nimbus JWT
    - Refresh token generation with minimal claims
-   - Token validation and claims extraction
+   - Use `ServiceAccountCredentials` from google-auth-library
 
-5. **Implement OAuth2UserInfo Interface**:
+6. **Configure JWT Validation (Queries Service)**:
+   - Configure Spring Security OAuth2 Resource Server with JWKS URI
+   - Spring Security automatically uses NimbusJwtDecoder to validate tokens
+   - Configure JWT authentication converter for claims mapping
+   - No custom validation code needed - handled by Nimbus
+
+7. **Implement OAuth2UserInfo Interface**:
    - Create base interface for provider-agnostic user info
    - Implement GoogleOAuth2UserInfo with Google attribute mapping
 
-6. **Implement SecurityConfig**:
+8. **Implement SecurityConfig (Commands Service)**:
    - Configure OAuth2 login
    - Define URL patterns (public vs. protected)
    - Configure stateless session management
-   - Add JWT authentication filter to filter chain
    - Set up CORS for development
 
-7. **Implement JWT Authentication Filter**:
-   - `JwtAuthenticationFilter` extends `OncePerRequestFilter`
-   - Extract JWT from Authorization header
-   - Validate token and set authentication context
-   - Handle token validation errors
+9. **Implement SecurityConfig (Queries Service)**:
+   - Configure OAuth2 Resource Server with JWKS URI
+   - Define URL patterns (public vs. protected)
+   - Stateless session management
+   - Nimbus automatically validates JWT signatures
 
-8. **Implement OAuth2UserService**:
-   - Custom user details service
-   - Integration with Akces command bus
-   - User lookup and creation logic
+10. **Implement OAuth2UserService**:
+    - Custom user details service
+    - Integration with Akces command bus
+    - User lookup and creation logic
 
-9. **Implement Success/Failure Handlers**:
-   - OAuth2LoginSuccessHandler generates JWT tokens after successful OAuth
-   - Return tokens in response body (JSON format)
-   - OAuth2LoginFailureHandler for error handling and logging
+11. **Implement Success/Failure Handlers**:
+    - OAuth2LoginSuccessHandler generates JWT tokens using GCP Service Account
+    - Return tokens in response body (JSON format)
+    - OAuth2LoginFailureHandler for error handling and logging
 
 ### Phase 3: Domain Model Updates
 10. **Update Account Aggregate**:
@@ -895,7 +1233,7 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
     <artifactId>spring-boot-starter-oauth2-client</artifactId>
 </dependency>
 
-<!-- JWT Token Support -->
+<!-- JWT Token Support with Nimbus (included via spring-security-oauth2-jose) -->
 <dependency>
     <groupId>org.springframework.security</groupId>
     <artifactId>spring-security-oauth2-resource-server</artifactId>
@@ -903,31 +1241,32 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
 <dependency>
     <groupId>org.springframework.security</groupId>
     <artifactId>spring-security-oauth2-jose</artifactId>
+    <!-- This dependency includes Nimbus JOSE+JWT library for JWT handling -->
 </dependency>
+
+<!-- GCP Service Account for JWT Signing (Commands Service only) -->
 <dependency>
-    <groupId>io.jsonwebtoken</groupId>
-    <artifactId>jjwt-api</artifactId>
-    <version>0.12.6</version>
-</dependency>
-<dependency>
-    <groupId>io.jsonwebtoken</groupId>
-    <artifactId>jjwt-impl</artifactId>
-    <version>0.12.6</version>
-    <scope>runtime</scope>
-</dependency>
-<dependency>
-    <groupId>io.jsonwebtoken</groupId>
-    <artifactId>jjwt-jackson</artifactId>
-    <version>0.12.6</version>
-    <scope>runtime</scope>
+    <groupId>com.google.auth</groupId>
+    <artifactId>google-auth-library-oauth2-http</artifactId>
+    <version>1.23.0</version>
 </dependency>
 ```
 
+**Note on JWT Library Choice:**
+- Spring Security uses **Nimbus JOSE+JWT** library internally via `spring-security-oauth2-jose`
+- No need for separate JJWT dependencies - Nimbus is the recommended and integrated solution
+- `NimbusJwtDecoder` validates JWTs using JWKS URI (Queries Service)
+- Nimbus `JWSSigner` and `JWTClaimsSet` for token generation (Commands Service)
+- GCP Service Account provides private key for RS256 signing
+- Nimbus supports RS256, ES256, HS256, and other signing algorithms out of the box
+
 ### Compatibility Notes
 - Spring Boot 4.0.0 includes Spring Security 7.0+
+- **Nimbus JOSE+JWT library** is included automatically via `spring-security-oauth2-jose`
 - OAuth2 client is fully compatible with WebFlux (reactive stack)
 - Java 25 language features can be used throughout
 - No conflicts with existing Akces framework dependencies
+- Nimbus supports JWKS URI-based validation for GCP Service Account tokens
 
 ## Security Considerations
 
@@ -1059,24 +1398,42 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
 - [Manage OAuth Clients - GCP Console Help](https://support.google.com/cloud/answer/15549257) - Managing OAuth clients
 - [Google OAuth 2.0 Policies](https://support.google.com/cloud/answer/9110914) - Publishing and verification
 
+### Google Cloud Platform (GCP) Documentation
+- [Service Accounts Overview](https://cloud.google.com/iam/docs/service-account-overview) - Understanding service accounts
+- [Creating and Managing Service Account Keys](https://cloud.google.com/iam/docs/keys-create-delete) - Key management
+- [Authenticating as a Service Account](https://cloud.google.com/docs/authentication/production) - Service account authentication
+- [Service Account JWKS Endpoint](https://cloud.google.com/api-gateway/docs/authenticating-users-jwt) - JWT validation with JWKS
+- [Google Auth Library for Java](https://github.com/googleapis/google-auth-library-java) - Service account credentials library
+- [Workload Identity for GKE](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity) - Key-less authentication
+
 ### Spring Security Documentation
 - [Spring Security OAuth2 Client Documentation](https://docs.spring.io/spring-security/reference/servlet/oauth2/client/index.html) - OAuth2 client integration
-- [Spring Security JWT Support](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html) - JWT resource server
+- [Spring Security OAuth2 Resource Server - JWT](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html) - JWT resource server with Nimbus
+- [OAuth 2.0 Resource Server With Spring Security - Baeldung](https://www.baeldung.com/spring-security-oauth-resource-server) - Practical guide
+- [JWS + JWK in Spring Security OAuth2 - Baeldung](https://www.baeldung.com/spring-security-oauth2-jws-jwk) - JWKS integration
 - [Spring Boot 4.0 Migration Guide](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide) - Upgrade guide
 
 ### OAuth 2.0 & OpenID Connect Standards
 - [RFC 6749 - OAuth 2.0 Authorization Framework](https://tools.ietf.org/html/rfc6749) - OAuth 2.0 specification
 - [RFC 6750 - OAuth 2.0 Bearer Token Usage](https://tools.ietf.org/html/rfc6750) - Bearer token standard
+- [RFC 7517 - JSON Web Key (JWK)](https://tools.ietf.org/html/rfc7517) - JWK specification
+- [RFC 7519 - JSON Web Token (JWT)](https://tools.ietf.org/html/rfc7519) - JWT specification
 - [OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0.html) - OIDC specification
 - [OpenID Connect Scopes - Auth0 Docs](https://auth0.com/docs/get-started/apis/scopes/openid-connect-scopes) - Scope reference
 
 ### JWT Libraries and Tools
-- [JJWT - Java JWT Library](https://github.com/jwtk/jjwt) - JWT creation and parsing
+- [Nimbus JOSE+JWT Library](https://connect2id.com/products/nimbus-jose-jwt) - Official Nimbus documentation
+- [Nimbus JOSE+JWT on GitHub](https://github.com/connect2id/nimbus-jose-jwt) - Source code and examples
 - [JWT.io](https://jwt.io/) - JWT debugger and documentation
 
 ---
 
-**Document Version**: 1.0  
+**Document Version**: 2.0  
 **Created**: 2025-12-06  
+**Last Updated**: 2025-12-06  
 **Author**: Framework Developer  
-**Status**: Pending Architect Review
+**Status**: Updated with Architect Feedback
+
+**Changelog:**
+- v2.0: Updated to use Nimbus JWT library (via Spring Security), GCP Service Account with JWKS for JWT signing/validation, converted client examples to Java
+- v1.0: Initial plan with Google OAuth setup, JWT architecture, and implementation phases
