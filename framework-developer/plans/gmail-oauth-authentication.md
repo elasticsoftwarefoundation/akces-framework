@@ -191,6 +191,7 @@ User Browser → Frontend → Spring Security OAuth2 Client → Google OAuth →
 ```
 auth/
 ├── src/main/java/org/elasticsoftware/cryptotrading/
+│   ├── AuthServiceApplication.java              # Spring Boot Application class
 │   ├── security/
 │   │   ├── config/
 │   │   │   ├── SecurityConfig.java              # Main security configuration
@@ -203,7 +204,9 @@ auth/
 │   │   │   └── OAuth2LoginFailureHandler.java   # Error handler
 │   │   ├── service/
 │   │   │   ├── OAuth2UserService.java           # Load/create user from OAuth
-│   │   │   └── UserAccountService.java          # Bridge to Akces commands
+│   │   │   └── UserAccountService.java          # Bridge to Akces commands (uses AkcesClient)
+│   │   ├── query/
+│   │   │   └── AccountQueryModel.java           # Local query model to check account existence
 │   │   └── model/
 │   │       ├── OAuth2UserInfo.java              # OAuth user info interface
 │   │       └── GoogleOAuth2UserInfo.java        # Google-specific impl
@@ -475,7 +478,7 @@ spring:
 
 **Key Classes for JWT Implementation:**
 
-*JwtTokenProvider.java (Commands Service - uses GCP Service Account for signing):*
+*JwtTokenProvider.java (Auth Service - uses GCP Service Account for signing):*
 ```java
 @Component
 public class JwtTokenProvider {
@@ -561,7 +564,7 @@ public class JwtTokenProvider {
 }
 ```
 
-*JWT Validation (Queries Service - Spring Security auto-configures NimbusJwtDecoder):*
+*JWT Validation (Commands and Queries Services - Spring Security auto-configures NimbusJwtDecoder):*
 ```java
 @Configuration
 @EnableWebSecurity
@@ -1016,13 +1019,151 @@ public class AkcesApiClientSync {
 
 #### 6. OAuth2 User Service
 
-Custom `OAuth2UserService` implementation:
+Custom `OAuth2UserService` implementation (resides in Auth service):
 1. Receives OAuth2 user info from provider
 2. Extracts user details (email, name, provider ID)
-3. Checks if account exists (by email or provider ID)
-4. If new user: sends `CreateAccountCommandV2` with OAuth details
-5. If existing user: updates last login timestamp
+3. Checks if account exists using local `AccountQueryModel` (by email or provider ID)
+4. If new user: sends `CreateAccountCommandV2` with OAuth details using `AkcesClient` to Commands service
+5. If existing user: updates last login timestamp (optional)
 6. Returns Spring Security OAuth2User object with JWT tokens
+
+**Key Components:**
+- **AkcesClient**: Injected bean to send commands to Commands service (Akces framework client library)
+- **AccountQueryModel**: Local query model in Auth service that subscribes to Account events to maintain a cache of existing accounts for efficient lookup during OAuth login
+
+**Example Implementation:**
+
+```java
+@Service
+public class CustomOAuth2UserService extends DefaultOAuth2UserService {
+    
+    private final AkcesClient akcesClient;  // Injected - sends commands to Commands service
+    private final AccountQueryService accountQueryService;  // Uses AccountQueryModel
+    
+    @Autowired
+    public CustomOAuth2UserService(AkcesClient akcesClient, 
+                                   AccountQueryService accountQueryService) {
+        this.akcesClient = akcesClient;
+        this.accountQueryService = accountQueryService;
+    }
+    
+    @Override
+    public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
+        OAuth2User oauth2User = super.loadUser(userRequest);
+        
+        // Extract user info from provider
+        String registrationId = userRequest.getClientRegistration().getRegistrationId();
+        OAuth2UserInfo userInfo = OAuth2UserInfoFactory.getOAuth2UserInfo(registrationId, oauth2User.getAttributes());
+        
+        // Check if account exists using local query model
+        Optional<AccountQueryModelState> existingAccount = 
+            accountQueryService.findByOAuthProvider(userInfo.getProvider(), userInfo.getId());
+        
+        if (existingAccount.isEmpty()) {
+            // New user - create account via Commands service using AkcesClient
+            String userId = UUID.randomUUID().toString();
+            CreateAccountCommandV2 command = new CreateAccountCommandV2(
+                userId,
+                "Unknown",  // Country - can be enhanced later
+                userInfo.getName(),
+                "",  // Last name - extract if available
+                userInfo.getEmail(),
+                userInfo.getProvider(),  // e.g., "google"
+                userInfo.getId()         // Provider-specific user ID
+            );
+            
+            // Send command to Commands service
+            akcesClient.send("DEFAULT_TENANT", command)
+                .toCompletableFuture()
+                .join();  // Wait for account creation
+            
+            // Return OAuth2User with userId for JWT generation
+            return new DefaultOAuth2User(
+                oauth2User.getAuthorities(),
+                Map.of(
+                    "sub", userId,
+                    "email", userInfo.getEmail(),
+                    "name", userInfo.getName(),
+                    "oauth_provider", userInfo.getProvider(),
+                    "oauth_provider_id", userInfo.getId()
+                ),
+                "sub"
+            );
+        } else {
+            // Existing user - return with existing userId
+            AccountQueryModelState account = existingAccount.get();
+            return new DefaultOAuth2User(
+                oauth2User.getAuthorities(),
+                Map.of(
+                    "sub", account.getUserId(),
+                    "email", account.getEmail(),
+                    "name", account.getFirstName(),
+                    "oauth_provider", account.getOauthProvider(),
+                    "oauth_provider_id", account.getOauthProviderId()
+                ),
+                "sub"
+            );
+        }
+    }
+}
+```
+
+**AccountQueryService (in Auth service):**
+
+```java
+@Service
+public class AccountQueryService {
+    
+    private final AccountQueryModel accountQueryModel;
+    
+    @Autowired
+    public AccountQueryService(AccountQueryModel accountQueryModel) {
+        this.accountQueryModel = accountQueryModel;
+    }
+    
+    public Optional<AccountQueryModelState> findByOAuthProvider(String provider, String providerId) {
+        // Query local cache maintained by AccountQueryModel
+        return accountQueryModel.findByOAuthProvider(provider, providerId);
+    }
+}
+```
+
+**AccountQueryModel (in Auth service - similar to Queries module pattern):**
+
+```java
+@QueryModelInfo(value = "AuthAccountQuery", version = 1, indexName = "AuthAccounts")
+public class AccountQueryModel implements QueryModel<AccountQueryModelState> {
+    
+    private final Map<String, AccountQueryModelState> accountsByOAuthId = new ConcurrentHashMap<>();
+    
+    @Override
+    public Class<AccountQueryModelState> getStateClass() {
+        return AccountQueryModelState.class;
+    }
+    
+    @QueryModelEventHandler(create = true)
+    public AccountQueryModelState create(AccountCreatedEventV2 event, AccountQueryModelState isNull) {
+        AccountQueryModelState state = new AccountQueryModelState(
+            event.userId(),
+            event.email(),
+            event.firstName(),
+            event.oauthProvider(),
+            event.oauthProviderId()
+        );
+        
+        // Index by OAuth provider + ID for fast lookup
+        String oauthKey = event.oauthProvider() + ":" + event.oauthProviderId();
+        accountsByOAuthId.put(oauthKey, state);
+        
+        return state;
+    }
+    
+    public Optional<AccountQueryModelState> findByOAuthProvider(String provider, String providerId) {
+        String key = provider + ":" + providerId;
+        return Optional.ofNullable(accountsByOAuthId.get(key));
+    }
+}
+```
 
 #### 7. API Endpoints
 
@@ -1225,8 +1366,23 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
 ### Phase 4: REST API Layer
 14. **Create Auth Module (Separate from Commands/Queries)**:
     - Create new `auth` Maven module in test-apps/crypto-trading
-    - Add Spring Boot application class for Auth Service
-    - Add dependencies: spring-boot-starter-webflux, spring-security-oauth2-client, google-auth-library
+    - Add Spring Boot application class:
+      ```java
+      @SpringBootApplication
+      public class AuthServiceApplication {
+          public static void main(String[] args) {
+              SpringApplication.run(AuthServiceApplication.class, args);
+          }
+      }
+      ```
+    - Add dependencies: 
+      - spring-boot-starter-webflux
+      - spring-security-oauth2-client
+      - google-auth-library-oauth2-http
+      - google-cloud-secretmanager
+      - akces-client (to send commands to Commands service)
+    - Configure `AkcesClient` bean to connect to Commands service
+    - Implement `AccountQueryModel` to maintain local cache of accounts
 
 15. **Create AuthController in Auth Module**:
     - Version all auth endpoints with `/v1/auth/`
@@ -1719,13 +1875,14 @@ spec:
 
 ---
 
-**Document Version**: 3.0  
+**Document Version**: 4.0  
 **Created**: 2025-12-06  
 **Last Updated**: 2025-12-06  
 **Author**: Framework Developer  
-**Status**: Updated with Architect Feedback
+**Status**: Updated with Code Review Feedback
 
 **Changelog:**
+- v4.0: Added Spring Boot Application class, clarified Auth service components, added AkcesClient and AccountQueryModel integration examples, simplified Terraform section with Secret Manager and Workload Identity
 - v3.0: Separated Auth service into dedicated module, versioned auth APIs (/v1/auth/), added comprehensive Terraform IaC examples
 - v2.0: Updated to use Nimbus JWT library (via Spring Security), GCP Service Account with JWKS for JWT signing/validation, converted client examples to Java
 - v1.0: Initial plan with Google OAuth setup, JWT architecture, and implementation phases
