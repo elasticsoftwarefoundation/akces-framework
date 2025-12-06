@@ -44,7 +44,9 @@ import java.util.List;
  *   <li>CORS configuration for frontend integration</li>
  *   <li>Public actuator endpoints for health checks</li>
  * </ul>
- *
+ * 
+ * <p><strong>CSRF Protection:</strong> Disabled because this service generates JWT tokens
+ * for stateless authentication. CSRF protection is not needed for stateless APIs.
  */
 @Configuration
 @EnableWebFluxSecurity
