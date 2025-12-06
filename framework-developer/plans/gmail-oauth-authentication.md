@@ -187,9 +187,9 @@ User Browser → Frontend → Spring Security OAuth2 Client → Google OAuth →
 
 #### 1. Authentication Module Structure
 
-**Commands Service** (OAuth + JWT generation):
+**Auth Service** (Separate module for OAuth + JWT generation):
 ```
-commands/
+auth/
 ├── src/main/java/org/elasticsoftware/cryptotrading/
 │   ├── security/
 │   │   ├── config/
@@ -197,8 +197,7 @@ commands/
 │   │   │   ├── OAuth2ClientConfig.java          # OAuth2 client configuration
 │   │   │   └── JwtConfig.java                   # JWT configuration properties
 │   │   ├── jwt/
-│   │   │   ├── JwtTokenProvider.java            # JWT generation and validation
-│   │   │   └── JwtAuthenticationFilter.java     # JWT filter for requests
+│   │   │   └── JwtTokenProvider.java            # JWT generation with GCP Service Account
 │   │   ├── handler/
 │   │   │   ├── OAuth2LoginSuccessHandler.java   # Post-login (generates JWT)
 │   │   │   └── OAuth2LoginFailureHandler.java   # Error handler
@@ -209,11 +208,23 @@ commands/
 │   │       ├── OAuth2UserInfo.java              # OAuth user info interface
 │   │       └── GoogleOAuth2UserInfo.java        # Google-specific impl
 │   └── web/
-│       ├── AuthController.java                   # Auth endpoints (login, refresh)
+│       ├── v1/                                   # Versioned API (v1)
+│       │   └── AuthController.java              # Auth endpoints (/v1/auth/...)
 │       └── dto/
 │           ├── TokenResponse.java                # JWT token response
 │           ├── RefreshTokenRequest.java          # Token refresh request
 │           └── UserProfile.java                  # User profile DTO
+```
+
+**Commands Service** (JWT validation only):
+```
+commands/
+├── src/main/java/org/elasticsoftware/cryptotrading/
+│   ├── security/
+│   │   └── config/
+│   │       └── SecurityConfig.java              # JWT validation configuration
+│   └── web/
+│       └── (existing controllers - AccountCommandController, etc.)
 ```
 
 **Queries Service** (JWT validation only):
@@ -221,13 +232,17 @@ commands/
 queries/
 ├── src/main/java/org/elasticsoftware/cryptotrading/
 │   ├── security/
-│   │   ├── config/
-│   │   │   ├── SecurityConfig.java              # Security configuration
-│   │   │   └── JwtConfig.java                   # JWT configuration properties
-│   │   └── jwt/
-│   │       ├── JwtTokenProvider.java            # JWT validation (shared code)
-│   │       └── JwtAuthenticationFilter.java     # JWT filter for requests
+│   │   └── config/
+│   │       └── SecurityConfig.java              # JWT validation configuration
+│   └── web/
+│       └── (existing controllers - AccountQueryController, etc.)
 ```
+
+**Key Architectural Changes:**
+- **Auth Service**: Dedicated module handling OAuth login and JWT generation - deployed separately for security isolation
+- **Commands/Queries Services**: Only validate JWTs via Spring Security OAuth2 Resource Server - no authentication endpoints
+- **Versioned Auth API**: All auth endpoints under `/v1/auth/` for future extensibility
+- **Separation of Concerns**: Authentication logic isolated from business logic modules
 
 #### 2. Modified Account Aggregate
 
@@ -1011,37 +1026,69 @@ Custom `OAuth2UserService` implementation:
 
 #### 7. API Endpoints
 
-**New Authentication Endpoints:**
-- `GET /auth/login` - Initiates OAuth flow (redirect to Google)
-- `GET /auth/callback` - OAuth callback endpoint (returns JWT tokens)
-- `POST /auth/refresh` - Refresh access token using refresh token
-- `GET /auth/user` - Get current authenticated user profile (requires JWT)
-- `POST /auth/logout` - Logout endpoint (optional token revocation)
+**Authentication Service Endpoints (Deployed Separately):**
+- `GET /v1/auth/login` - Initiates OAuth flow (redirect to Google)
+- `GET /v1/auth/callback` - OAuth callback endpoint (returns JWT tokens)
+- `POST /v1/auth/refresh` - Refresh access token using refresh token
+- `GET /v1/auth/user` - Get current authenticated user profile (requires JWT)
+- `POST /v1/auth/logout` - Logout endpoint (optional token revocation)
 
-**Protected Account Endpoints (require JWT):**
+**Commands Service Endpoints (JWT Validation Only):**
 - `POST /v1/accounts` - Create account (authenticated only, uses JWT subject as userId)
-- `GET /v1/accounts/{userId}` - Get account details (owner only)
-
-**Protected Wallet Endpoints (require JWT):**
 - `POST /v1/wallets` - Create wallet (authenticated users)
 - `POST /v1/wallets/{walletId}/credit` - Credit wallet (owner only)
-- `GET /v1/wallets/{walletId}` - Get wallet details (owner only)
-
-**Protected Order Endpoints (require JWT):**
 - `POST /v1/orders` - Place order (authenticated users)
+
+**Queries Service Endpoints (JWT Validation Only):**
+- `GET /v1/accounts/{userId}` - Get account details (owner only)
+- `GET /v1/wallets/{walletId}` - Get wallet details (owner only)
 - `GET /v1/orders/{orderId}` - Get order details (owner only)
 - `GET /v1/orders` - List user's orders (authenticated users)
+
+**Service Deployment Architecture:**
+```
+┌─────────────────┐
+│  Auth Service   │ (Port 8080) - Handles OAuth + JWT generation
+│  /v1/auth/*     │
+└─────────────────┘
+         │
+         │ Issues JWT
+         ▼
+┌─────────────────┐
+│ Commands Service│ (Port 8081) - Validates JWT, processes commands
+│  /v1/accounts   │
+│  /v1/wallets    │
+│  /v1/orders     │
+└─────────────────┘
+         │
+         │ Emits events
+         ▼
+┌─────────────────┐
+│ Queries Service │ (Port 8082) - Validates JWT, serves queries
+│  /v1/accounts   │
+│  /v1/wallets    │
+│  /v1/orders     │
+└─────────────────┘
+```
 
 #### 8. Frontend Integration
 
 The frontend will:
-1. Redirect users to `/auth/login` to start OAuth flow
-2. Receive JWT tokens from `/auth/callback` after successful authentication
+1. Redirect users to `AUTH_SERVICE_URL/v1/auth/login` to start OAuth flow
+2. Receive JWT tokens from `/v1/auth/callback` after successful authentication
 3. Store access token and refresh token securely (memory or secure storage)
-4. Include access token in `Authorization: Bearer <token>` header for all API requests
-5. Implement token refresh logic when access token expires (401 response)
-6. Call `/auth/user` with JWT to get user profile
+4. Include access token in `Authorization: Bearer <token>` header for all API requests to Commands/Queries services
+5. Implement token refresh logic when access token expires (401 response) by calling `AUTH_SERVICE_URL/v1/auth/refresh`
+6. Call `/v1/auth/user` with JWT to get user profile
 7. Handle authentication errors and redirect to login when refresh token expires
+
+**Environment Configuration:**
+```properties
+# Frontend Configuration
+AUTH_SERVICE_URL=http://localhost:8080
+COMMANDS_SERVICE_URL=http://localhost:8081
+QUERIES_SERVICE_URL=http://localhost:8082
+```
 
 ### Extensibility for Other Providers
 
@@ -1089,25 +1136,41 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
    - Note the JWKS endpoint URL for public key distribution
    - Store service account key in Kubernetes secret
 
-3. **Create Security Package Structure**:
-   - Create all directories listed in component structure
-   - Add placeholder classes with proper package declarations
-   - Add JWT-related classes: `JwtTokenProvider` (Commands), `SecurityConfig` (both services)
+3. **Create Auth Module**:
+   - Create new Maven module: `test-apps/crypto-trading/auth`
+   - Add to parent `test-apps/crypto-trading/pom.xml` modules section:
+     ```xml
+     <modules>
+         <module>aggregates</module>
+         <module>commands</module>
+         <module>queries</module>
+         <module>auth</module>  <!-- NEW -->
+     </modules>
+     ```
+   - Create Spring Boot application class for standalone deployment
+   - Create security package structure for OAuth and JWT generation
+   - Configure separate port (e.g., 8080 for Auth, 8081 for Commands, 8082 for Queries)
 
-4. **Update application.properties**:
-   - Commands service: Add GCP service account key path, expiration times
-   - Queries service: Add JWKS URI for JWT validation
-   - Both: Add OAuth2 configuration with Google credentials
-   - Configure stateless session management
+4. **Create Security Package Structure**:
+   - Auth module: OAuth handlers, JWT generation, versioned controllers
+   - Commands module: JWT validation configuration only
+   - Queries module: JWT validation configuration only
+   - Remove OAuth-related code from Commands/Queries if it exists
+
+5. **Update application.properties**:
+   - Auth service: OAuth2 client config, GCP service account key, JWT expiration times
+   - Commands service: JWKS URI for JWT validation only
+   - Queries service: JWKS URI for JWT validation only
+   - All services: Configure stateless session management
 
 ### Phase 2: Core Security Implementation
-5. **Implement JWT Token Provider (Commands Service)**:
+6. **Implement JWT Token Provider (Auth Service)**:
    - `JwtTokenProvider` using GCP Service Account for RS256 signing
    - Access token generation with user claims using Nimbus JWT
    - Refresh token generation with minimal claims
    - Use `ServiceAccountCredentials` from google-auth-library
 
-6. **Configure JWT Validation (Queries Service)**:
+7. **Configure JWT Validation (Commands & Queries Services)**:
    - Configure Spring Security OAuth2 Resource Server with JWKS URI
    - Spring Security automatically uses NimbusJwtDecoder to validate tokens
    - Configure JWT authentication converter for claims mapping
@@ -1160,24 +1223,31 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
     - Implement user lookup by email/provider ID in query models
 
 ### Phase 4: REST API Layer
-14. **Create AuthController**:
-    - OAuth callback endpoint (returns JWT tokens)
-    - Token refresh endpoint
-    - User profile endpoint (JWT protected)
-    - Logout endpoint (optional token revocation)
+14. **Create Auth Module (Separate from Commands/Queries)**:
+    - Create new `auth` Maven module in test-apps/crypto-trading
+    - Add Spring Boot application class for Auth Service
+    - Add dependencies: spring-boot-starter-webflux, spring-security-oauth2-client, google-auth-library
 
-15. **Update AccountCommandController**:
-    - Add JWT authentication requirement with `@PreAuthorize`
-    - Extract userId from JWT claims
-    - Implement authorization checks (user can only access own resources)
+15. **Create AuthController in Auth Module**:
+    - Version all auth endpoints with `/v1/auth/`
+    - OAuth login endpoint (`GET /v1/auth/login`)
+    - OAuth callback endpoint (`GET /v1/auth/callback`) - returns JWT tokens
+    - Token refresh endpoint (`POST /v1/auth/refresh`)
+    - User profile endpoint (`GET /v1/auth/user`) - JWT protected
+    - Logout endpoint (`POST /v1/auth/logout`) - optional token revocation
 
-16. **Update Query Controllers**:
-    - Add JWT authentication to AccountQueryController
-    - Add JWT authentication to WalletQueryController
-    - Add JWT authentication to OrdersQueryController
-    - Implement resource-level authorization
+16. **Configure JWT Validation in Commands Service**:
+    - Remove OAuth login configuration (now in Auth service)
+    - Configure OAuth2 Resource Server with JWKS URI
+    - Add SecurityConfig for JWT validation only
+    - Remove AuthController and related OAuth handlers
 
-17. **Create Response DTOs**:
+17. **Configure JWT Validation in Queries Service**:
+    - Configure OAuth2 Resource Server with JWKS URI
+    - Add SecurityConfig for JWT validation only
+    - Update existing query controllers to require JWT
+
+18. **Create Response DTOs (in Auth module)**:
     - `TokenResponse` for JWT tokens
     - `RefreshTokenRequest` for token refresh
     - `UserProfile` for authenticated user information
@@ -1209,15 +1279,426 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
     - Add OAuth client credentials and JWT secret as Kubernetes secrets
     - Update deployment manifests with environment variables
     - Configure ingress for OAuth callbacks
-    - Ensure both Commands and Queries services have JWT configuration
+    - Deploy Auth service separately from Commands and Queries services
+    - Ensure both Commands and Queries services have JWT validation configuration
 
-22. **Security Considerations**:
+22. **Terraform Infrastructure as Code (IaC)**:
+    - Use Terraform to provision GCP resources for consistency and reproducibility
+    - See dedicated Terraform section below for complete examples
+    - Terraform supports all required GCP resources (Service Accounts, OAuth clients via UI, IAM bindings)
+
+23. **Security Considerations**:
     - HTTPS requirement for OAuth and JWT transmission (document)
     - JWT secret key management and rotation
     - Token expiration and refresh strategy
     - CSRF protection not needed for JWT (stateless)
     - Rate limiting for auth and refresh endpoints (future enhancement)
     - Token revocation list for logout (optional, future enhancement)
+
+## Terraform Infrastructure as Code
+
+### Overview
+
+Terraform fully supports provisioning GCP resources required for OAuth and JWT authentication. This section provides complete Terraform configurations for managing Service Accounts, IAM bindings, and keys.
+
+**Important Note on OAuth Client Credentials:**
+- OAuth 2.0 client IDs and secrets **cannot be directly managed via Terraform** as Google does not provide a Terraform resource for OAuth consent screen or OAuth client creation
+- OAuth clients must be created manually via GCP Console (see "Google Cloud Platform Setup" section above)
+- Once created, OAuth credentials can be stored as Terraform variables or in secret managers
+
+### Terraform Configuration Structure
+
+```
+terraform/
+├── main.tf                    # Main Terraform configuration
+├── variables.tf               # Input variables
+├── outputs.tf                 # Output values
+├── service_account.tf         # Service account resources
+├── iam.tf                     # IAM bindings
+└── secrets.tf                 # Secret manager (optional)
+```
+
+### 1. Service Account for JWT Signing
+
+**service_account.tf:**
+```hcl
+# Create service account for JWT signing
+resource "google_service_account" "akces_jwt_signer" {
+  account_id   = "akces-jwt-signer"
+  display_name = "Akces JWT Signing Service Account"
+  description  = "Service account used by Auth service to sign JWTs with RS256"
+  project      = var.project_id
+}
+
+# Create and download service account key
+resource "google_service_account_key" "akces_jwt_signer_key" {
+  service_account_id = google_service_account.akces_jwt_signer.name
+  public_key_type    = "TYPE_X509_PEM_FILE"
+  private_key_type   = "TYPE_GOOGLE_CREDENTIALS_FILE"
+}
+
+# Output the private key (store securely - not in state files in production!)
+output "jwt_signer_private_key" {
+  value     = google_service_account_key.akces_jwt_signer_key.private_key
+  sensitive = true
+  description = "Base64-encoded service account private key for JWT signing"
+}
+
+# Output the service account email for JWKS URL
+output "jwt_signer_email" {
+  value = google_service_account.akces_jwt_signer.email
+  description = "Service account email - used to construct JWKS endpoint URL"
+}
+
+# Construct JWKS URL
+output "jwks_uri" {
+  value = "https://www.googleapis.com/service_accounts/v1/jwk/${google_service_account.akces_jwt_signer.email}"
+  description = "JWKS endpoint URL for JWT signature validation"
+}
+```
+
+### 2. IAM Permissions
+
+**iam.tf:**
+```hcl
+# Grant Service Account Token Creator role (if using impersonation)
+# This is optional - only needed if another service needs to impersonate this SA
+resource "google_project_iam_member" "jwt_signer_token_creator" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountTokenCreator"
+  member  = "serviceAccount:${google_service_account.akces_jwt_signer.email}"
+}
+
+# If Auth service needs to create accounts via Akces commands API
+# Grant necessary permissions (example: Pub/Sub publisher for Kafka)
+resource "google_project_iam_member" "jwt_signer_pubsub" {
+  project = var.project_id
+  role    = "roles/pubsub.publisher"
+  member  = "serviceAccount:${google_service_account.akces_jwt_signer.email}"
+}
+```
+
+### 3. Variables
+
+**variables.tf:**
+```hcl
+variable "project_id" {
+  description = "GCP Project ID"
+  type        = string
+}
+
+variable "region" {
+  description = "GCP region for resources"
+  type        = string
+  default     = "us-central1"
+}
+
+variable "environment" {
+  description = "Environment name (dev, staging, prod)"
+  type        = string
+  default     = "dev"
+}
+
+# OAuth credentials (must be created manually via GCP Console)
+variable "google_oauth_client_id" {
+  description = "Google OAuth 2.0 Client ID (from GCP Console)"
+  type        = string
+  sensitive   = true
+}
+
+variable "google_oauth_client_secret" {
+  description = "Google OAuth 2.0 Client Secret (from GCP Console)"
+  type        = string
+  sensitive   = true
+}
+```
+
+### 4. Secret Manager Integration (Optional but Recommended)
+
+**secrets.tf:**
+```hcl
+# Enable Secret Manager API
+resource "google_project_service" "secretmanager" {
+  project = var.project_id
+  service = "secretmanager.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Store OAuth Client ID in Secret Manager
+resource "google_secret_manager_secret" "oauth_client_id" {
+  secret_id = "akces-oauth-client-id"
+  project   = var.project_id
+  
+  replication {
+    auto {}
+  }
+  
+  depends_on = [google_project_service.secretmanager]
+}
+
+resource "google_secret_manager_secret_version" "oauth_client_id" {
+  secret      = google_secret_manager_secret.oauth_client_id.id
+  secret_data = var.google_oauth_client_id
+}
+
+# Store OAuth Client Secret in Secret Manager
+resource "google_secret_manager_secret" "oauth_client_secret" {
+  secret_id = "akces-oauth-client-secret"
+  project   = var.project_id
+  
+  replication {
+    auto {}
+  }
+  
+  depends_on = [google_project_service.secretmanager]
+}
+
+resource "google_secret_manager_secret_version" "oauth_client_secret" {
+  secret      = google_secret_manager_secret.oauth_client_secret.id
+  secret_data = var.google_oauth_client_secret
+}
+
+# Store Service Account Key in Secret Manager
+resource "google_secret_manager_secret" "jwt_signer_key" {
+  secret_id = "akces-jwt-signer-key"
+  project   = var.project_id
+  
+  replication {
+    auto {}
+  }
+  
+  depends_on = [google_project_service.secretmanager]
+}
+
+resource "google_secret_manager_secret_version" "jwt_signer_key" {
+  secret      = google_secret_manager_secret.jwt_signer_key.id
+  secret_data = base64decode(google_service_account_key.akces_jwt_signer_key.private_key)
+}
+
+# Grant Auth service access to secrets
+resource "google_secret_manager_secret_iam_member" "auth_service_access" {
+  for_each = toset([
+    google_secret_manager_secret.oauth_client_id.id,
+    google_secret_manager_secret.oauth_client_secret.id,
+    google_secret_manager_secret.jwt_signer_key.id
+  ])
+  
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.akces_jwt_signer.email}"
+}
+```
+
+### 5. Main Configuration
+
+**main.tf:**
+```hcl
+terraform {
+  required_version = ">= 1.5"
+  
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 6.0"
+    }
+  }
+  
+  # Configure backend for state storage
+  backend "gcs" {
+    bucket = "akces-terraform-state"
+    prefix = "auth-infrastructure"
+  }
+}
+
+provider "google" {
+  project = var.project_id
+  region  = var.region
+}
+
+# Enable required APIs
+resource "google_project_service" "required_apis" {
+  for_each = toset([
+    "iam.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
+    "serviceusage.googleapis.com"
+  ])
+  
+  project = var.project_id
+  service = each.value
+  disable_on_destroy = false
+}
+```
+
+### 6. Using Terraform Modules (Alternative)
+
+For more complex setups, use the official Terraform module:
+
+```hcl
+module "service_accounts" {
+  source     = "terraform-google-modules/service-accounts/google"
+  version    = "~> 4.0"
+  project_id = var.project_id
+  prefix     = "akces"
+  names      = ["jwt-signer"]
+  project_roles = [
+    "${var.project_id}=>roles/iam.serviceAccountTokenCreator"
+  ]
+  generate_keys = true
+  keys_algorithm = "KEY_ALG_RSA_2048"
+}
+
+output "jwt_signer_email" {
+  value = module.service_accounts.emails["jwt-signer"]
+}
+
+output "jwt_signer_key" {
+  value     = module.service_accounts.keys["jwt-signer"]
+  sensitive = true
+}
+```
+
+### 7. Deployment Workflow
+
+**Step 1: Initialize Terraform**
+```bash
+cd terraform/
+terraform init
+```
+
+**Step 2: Create OAuth Credentials Manually**
+1. Follow "Google Cloud Platform Setup" section
+2. Save Client ID and Client Secret
+
+**Step 3: Set Variables**
+```bash
+# Using terraform.tfvars
+cat > terraform.tfvars <<EOF
+project_id                  = "akces-prod"
+region                      = "us-central1"
+environment                 = "prod"
+google_oauth_client_id      = "123456-abc.apps.googleusercontent.com"
+google_oauth_client_secret  = "GOCSPX-xxx"
+EOF
+```
+
+Or use environment variables:
+```bash
+export TF_VAR_project_id="akces-prod"
+export TF_VAR_google_oauth_client_id="..."
+export TF_VAR_google_oauth_client_secret="..."
+```
+
+**Step 4: Plan and Apply**
+```bash
+terraform plan
+terraform apply
+```
+
+**Step 5: Extract Outputs for Application Configuration**
+```bash
+# Get JWKS URI
+terraform output -raw jwks_uri
+
+# Get service account private key (base64 encoded)
+terraform output -raw jwt_signer_private_key | base64 -d > service-account-key.json
+
+# Or use Secret Manager in production
+gcloud secrets versions access latest --secret="akces-jwt-signer-key" > service-account-key.json
+```
+
+### 8. Kubernetes Integration with Terraform
+
+```hcl
+# Create Kubernetes secrets from Terraform outputs
+resource "kubernetes_secret" "oauth_credentials" {
+  metadata {
+    name      = "oauth-credentials"
+    namespace = "crypto-trading"
+  }
+  
+  data = {
+    google-client-id     = var.google_oauth_client_id
+    google-client-secret = var.google_oauth_client_secret
+  }
+  
+  type = "Opaque"
+}
+
+resource "kubernetes_secret" "jwt_signer_key" {
+  metadata {
+    name      = "jwt-signer-key"
+    namespace = "crypto-trading"
+  }
+  
+  data = {
+    service-account-key = base64decode(google_service_account_key.akces_jwt_signer_key.private_key)
+  }
+  
+  type = "Opaque"
+}
+```
+
+### 9. Security Best Practices
+
+1. **Never commit sensitive outputs to version control**
+   ```hcl
+   # Mark all sensitive outputs
+   output "jwt_signer_private_key" {
+     value     = google_service_account_key.akces_jwt_signer_key.private_key
+     sensitive = true  # Prevents accidental exposure
+   }
+   ```
+
+2. **Use remote state with encryption**
+   ```hcl
+   backend "gcs" {
+     bucket                      = "akces-terraform-state"
+     prefix                      = "auth-infrastructure"
+     encryption_key              = "..."  # Customer-supplied encryption key
+   }
+   ```
+
+3. **Rotate service account keys regularly**
+   ```bash
+   # Terraform makes key rotation easy
+   terraform taint google_service_account_key.akces_jwt_signer_key
+   terraform apply
+   ```
+
+4. **Use Workload Identity in GKE (eliminates need for key files)**
+   ```hcl
+   resource "google_service_account_iam_binding" "workload_identity" {
+     service_account_id = google_service_account.akces_jwt_signer.name
+     role               = "roles/iam.workloadIdentityUser"
+     members = [
+       "serviceAccount:${var.project_id}.svc.id.goog[crypto-trading/auth-service]"
+     ]
+   }
+   ```
+
+### Terraform Limitations and Workarounds
+
+**OAuth Client Creation:**
+- **Limitation**: Terraform does not support creating OAuth consent screens or OAuth 2.0 client IDs
+- **Workaround**: Create OAuth clients manually via GCP Console, then import credentials as Terraform variables
+- **Future**: Use `google_iap_client` for limited OAuth client management (primarily for Identity-Aware Proxy)
+
+**OAuth Consent Screen:**
+- **Limitation**: Cannot configure consent screen via Terraform
+- **Workaround**: Configure manually once via GCP Console (see setup instructions above)
+
+**Terraform State Security:**
+- **Best Practice**: Use GCS backend with encryption and access controls
+- **Alternative**: Use Terraform Cloud with encrypted state storage
+
+### References
+
+- [Terraform Google Provider Documentation](https://registry.terraform.io/providers/hashicorp/google/latest/docs)
+- [google_service_account Resource](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account)
+- [google_service_account_key Resource](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account_key)
+- [terraform-google-modules/service-accounts](https://registry.terraform.io/modules/terraform-google-modules/service-accounts/google/latest)
+- [GCP Secret Manager Terraform](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/secret_manager_secret)
+- [Workload Identity in GKE](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity)
 
 ## Dependencies and Version Compatibility
 
@@ -1428,12 +1909,13 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
 
 ---
 
-**Document Version**: 2.0  
+**Document Version**: 3.0  
 **Created**: 2025-12-06  
 **Last Updated**: 2025-12-06  
 **Author**: Framework Developer  
 **Status**: Updated with Architect Feedback
 
 **Changelog:**
+- v3.0: Separated Auth service into dedicated module, versioned auth APIs (/v1/auth/), added comprehensive Terraform IaC examples
 - v2.0: Updated to use Nimbus JWT library (via Spring Security), GCP Service Account with JWKS for JWT signing/validation, converted client examples to Java
 - v1.0: Initial plan with Google OAuth setup, JWT architecture, and implementation phases
