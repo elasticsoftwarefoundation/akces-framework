@@ -388,6 +388,18 @@ spring:
             token-uri: https://oauth2.googleapis.com/token
             user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
             user-name-attribute: sub
+  
+  # Database configuration for AccountDatabaseModel
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  
+  # Liquibase for database schema management
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+    enabled: true
 ```
 
 **SecurityConfig.java** (key aspects):
@@ -1230,19 +1242,52 @@ public class AccountDatabaseModel extends JdbcDatabaseModel {
 }
 ```
 
-**Database Schema (create in Auth service resources):**
+**Database Schema (Liquibase changelog in Auth service resources):**
 
-```sql
-CREATE TABLE IF NOT EXISTS accounts (
-    user_id VARCHAR(255) PRIMARY KEY,
-    email VARCHAR(255) NOT NULL,
-    first_name VARCHAR(255),
-    oauth_provider VARCHAR(50) NOT NULL,
-    oauth_provider_id VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE (oauth_provider, oauth_provider_id),
-    INDEX idx_email (email)
-);
+Create `src/main/resources/db/changelog/db.changelog-master.xml`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="create-accounts-table" author="akces">
+        <createTable tableName="accounts">
+            <column name="user_id" type="varchar(255)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="email" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="first_name" type="varchar(255)"/>
+            <column name="oauth_provider" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="oauth_provider_id" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamp" defaultValueComputed="NOW()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint
+                tableName="accounts"
+                columnNames="oauth_provider, oauth_provider_id"
+                constraintName="uk_oauth_provider"/>
+        <createIndex indexName="idx_email" tableName="accounts">
+            <column name="email"/>
+        </createIndex>
+        <rollback>
+            <dropIndex indexName="idx_email" tableName="accounts"/>
+            <dropUniqueConstraint tableName="accounts" constraintName="uk_oauth_provider"/>
+            <dropTable tableName="accounts"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
 ```
 
 #### 7. API Endpoints
@@ -1443,8 +1488,9 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
 13. **Create AccountDatabaseModel in Auth Module**:
     - Implement `JdbcDatabaseModel` to maintain database table for account queries
     - Add event handler for `AccountCreatedEventV2` to insert records
-    - Create database schema with accounts table (user_id, email, oauth_provider, oauth_provider_id)
+    - Create Liquibase changelog (`db.changelog-master.xml`) with accounts table schema
     - Add indexes on email and (oauth_provider, oauth_provider_id) for efficient lookups
+    - Configure Liquibase in Auth service `application.yml`
     
 14. **Create AccountQueryService in Auth Module**:
     - Implement JDBC-based queries using JdbcTemplate
@@ -1470,8 +1516,11 @@ public class GitHubOAuth2UserInfo implements OAuth2UserInfo {
       - google-auth-library-oauth2-http
       - google-cloud-secretmanager
       - akces-client (to send commands to Commands service)
+      - spring-boot-starter-jdbc (for database access)
+      - liquibase-core (for database schema management)
+      - database driver (e.g., postgresql)
     - Configure `AkcesClient` bean to connect to Commands service
-    - Configure database connection for AccountDatabaseModel
+    - Configure database connection and Liquibase for AccountDatabaseModel
 
 16. **Create AuthController in Auth Module**:
     - Version all auth endpoints with `/v1/auth/`
