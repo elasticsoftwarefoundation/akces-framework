@@ -42,7 +42,6 @@ public class TestSecurityConfig {
     @Primary
     public SecurityWebFilterChain testSecurityWebFilterChain(ServerHttpSecurity http) {
         http
-            .csrf(csrf -> csrf.disable())
             .authorizeExchange(exchanges -> exchanges
                 .anyExchange().permitAll()
             );

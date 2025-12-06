@@ -35,10 +35,7 @@ import reactor.core.publisher.Mono;
  * 
  * <p>This configuration validates JWT tokens from the Authorization header
  * and requires authentication for all endpoints except actuator health checks.
- * 
- * <p><strong>CSRF Protection:</strong> Disabled because this API uses JWT tokens
- * for stateless authentication. CSRF protection is not needed for stateless APIs
- * where authentication is via bearer tokens rather than cookies.
+ *
  * 
  * @see <a href="https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html">Spring Security CSRF</a>
  */
@@ -70,9 +67,6 @@ public class SecurityConfig {
         jwtFilter.setServerAuthenticationConverter(jwtAuthenticationConverter());
         
         http
-            // CSRF disabled for stateless JWT-based API (no session cookies)
-            .csrf(csrf -> csrf.disable())
-            
             // Add JWT authentication filter
             .addFilterAt(jwtFilter, SecurityWebFiltersOrder.AUTHENTICATION)
             

@@ -594,7 +594,6 @@ public class SecurityConfig {
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
         http
-            .csrf(csrf -> csrf.disable())
             .authorizeExchange(exchanges -> exchanges
                 .pathMatchers("/actuator/health").permitAll()
                 .anyExchange().authenticated()
@@ -659,7 +658,6 @@ public class JwtAuthenticationWebFilter implements WebFilter {
 @Bean
 public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
     http
-        .csrf(csrf -> csrf.disable())  // Disable for stateless JWT
         .authorizeExchange(exchanges -> exchanges
             // Public endpoints
             .pathMatchers("/v1/auth/login", "/v1/auth/callback", "/v1/auth/refresh").permitAll()
