@@ -23,7 +23,8 @@ import org.springframework.context.annotation.PropertySource;
 
 @Configuration
 @ComponentScan(basePackages = {
-        "org.elasticsoftware.cryptotrading.web"
+        "org.elasticsoftware.cryptotrading.web",
+        "org.elasticsoftware.cryptotrading.security"
 })
 @PropertySource("classpath:akces-framework.properties")
 public class ClientConfig {

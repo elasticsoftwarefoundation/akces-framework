@@ -1,0 +1,92 @@
+#
+# Copyright 2022 - 2025 The Original Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#           http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+#
+
+server:
+  port: 8080
+
+spring:
+  application:
+    name: akces-crypto-trading-auth
+  
+  # OAuth2 Client Configuration (to be configured with Google credentials)
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:changeme}
+            client-secret: ${GOOGLE_CLIENT_SECRET:changeme}
+            scope:
+              - openid
+              - profile
+              - email
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          google:
+            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+            token-uri: https://oauth2.googleapis.com/token
+            user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
+            user-name-attribute: sub
+  
+  # Database configuration for AccountDatabaseModel
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/akces_auth}
+    username: ${DATABASE_USERNAME:akces}
+    password: ${DATABASE_PASSWORD:akces}
+    driver-class-name: org.postgresql.Driver
+  
+  # Liquibase for database schema management
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+    enabled: ${LIQUIBASE_ENABLED:false}
+
+  # Kafka configuration
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      enable-auto-commit: false
+      isolation-level: read_committed
+      max-poll-records: 500
+    producer:
+      acks: all
+      retries: 2147483647
+      properties:
+        enable.idempotence: true
+
+# Akces configuration
+akces:
+  schemaregistry:
+    url: ${SCHEMA_REGISTRY_URL:http://localhost:8081}
+  rocksdb:
+    baseDir: ${ROCKSDB_BASE_DIR:/tmp/akces-auth}
+  aggregate:
+    schemas:
+      forceRegister: false
+
+# JWT Configuration
+app:
+  jwt:
+    gcp-service-account-key: ${GCP_SERVICE_ACCOUNT_KEY:}
+    access-token-expiration: 900000      # 15 minutes in milliseconds
+    refresh-token-expiration: 604800000  # 7 days in milliseconds
+    issuer: akces-crypto-trading
+    service-account-email: ${GCP_SERVICE_ACCOUNT_EMAIL:}
+
+# Logging
+logging:
+  level:
+    org.elasticsoftware.cryptotrading: DEBUG
+    org.springframework.security: DEBUG
