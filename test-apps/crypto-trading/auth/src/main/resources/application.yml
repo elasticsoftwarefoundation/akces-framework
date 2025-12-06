@@ -76,13 +76,14 @@ akces:
     schemas:
       forceRegister: false
 
-# JWT Configuration
+# JWT Configuration (RS256 with RSA key pair)
 app:
   jwt:
-    secret: ${JWT_SECRET:default-secret-change-in-production}
     access-token-expiration: 900000      # 15 minutes in milliseconds
     refresh-token-expiration: 604800000  # 7 days in milliseconds
     issuer: akces-crypto-trading
+    # In production, configure GCP Service Account for signing:
+    # gcp-service-account-key: ${GCP_SERVICE_ACCOUNT_KEY:}
 
 # Logging
 logging:

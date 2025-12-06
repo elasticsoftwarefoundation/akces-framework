@@ -17,6 +17,13 @@
 
 package org.elasticsoftware.cryptotrading.auth.security.jwt;
 
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.JWSSigner;
+import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,56 +31,53 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Component;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Base64;
-import java.util.Map;
+import java.util.Date;
 
 /**
- * JWT Token Provider for generating and signing JWT tokens.
+ * JWT Token Provider for generating and signing JWT tokens using RS256.
  * 
- * <p>This implementation uses HS256 (HMAC with SHA-256) for token signing with a configurable secret.
- * In production environments, this should be replaced with RS256 using GCP Service Account keys
- * for enhanced security.
+ * <p>This implementation uses Nimbus JOSE+JWT library with RS256 (RSA Signature with SHA-256)
+ * for asymmetric token signing. The private key is used for signing, and the public key
+ * is distributed via JWKS endpoint for validation by resource servers.
  * 
- * <p><strong>Security Note:</strong> This implementation is simplified for development and testing.
- * Production deployments should use asymmetric signing (RS256) with proper key management through
- * GCP Secret Manager or similar services.
+ * <p>In production, the private key should come from GCP Service Account credentials.
+ * For development/testing, a generated RSA key pair is used.
  */
 @Component
 public class JwtTokenProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(JwtTokenProvider.class);
     
-    private static final String HMAC_SHA256 = "HmacSHA256";
-    
-    private final String jwtSecret;
+    private final RsaKeyProvider rsaKeyProvider;
     private final long accessTokenExpiration;
     private final long refreshTokenExpiration;
     private final String issuer;
+    private final JWSSigner signer;
     
     /**
      * Constructs a JWT Token Provider with configuration from application properties.
      *
-     * @param jwtSecret the secret key for signing tokens
+     * @param rsaKeyProvider the RSA key provider for signing
      * @param accessTokenExpiration access token expiration time in milliseconds
      * @param refreshTokenExpiration refresh token expiration time in milliseconds
      * @param issuer the issuer claim for JWT tokens
      */
     public JwtTokenProvider(
-            @Value("${app.jwt.secret:default-secret-change-in-production}") String jwtSecret,
+            RsaKeyProvider rsaKeyProvider,
             @Value("${app.jwt.access-token-expiration:900000}") long accessTokenExpiration,
             @Value("${app.jwt.refresh-token-expiration:604800000}") long refreshTokenExpiration,
             @Value("${app.jwt.issuer:akces-crypto-trading}") String issuer) {
-        this.jwtSecret = jwtSecret;
+        this.rsaKeyProvider = rsaKeyProvider;
         this.accessTokenExpiration = accessTokenExpiration;
         this.refreshTokenExpiration = refreshTokenExpiration;
         this.issuer = issuer;
         
-        if ("default-secret-change-in-production".equals(jwtSecret)) {
-            logger.warn("Using default JWT secret. Please configure app.jwt.secret for production use.");
+        try {
+            this.signer = new RSASSASigner(rsaKeyProvider.getRsaKey());
+            logger.info("JWT Token Provider initialized with RS256 signing");
+        } catch (JOSEException e) {
+            throw new IllegalStateException("Failed to initialize JWT signer", e);
         }
     }
     
@@ -86,14 +90,14 @@ public class JwtTokenProvider {
     public String generateAccessToken(Authentication authentication) {
         OAuth2User oauth2User = (OAuth2User) authentication.getPrincipal();
         
-        long nowMillis = System.currentTimeMillis();
-        long expMillis = nowMillis + accessTokenExpiration;
-        
         String email = oauth2User.getAttribute("email");
         String name = oauth2User.getAttribute("name");
         String userId = oauth2User.getAttribute("sub");
         
-        return generateToken(userId, email, name, nowMillis, expMillis, "access");
+        Instant now = Instant.now();
+        Instant expiration = now.plusMillis(accessTokenExpiration);
+        
+        return generateToken(userId, email, name, now, expiration, "access");
     }
     
     /**
@@ -105,117 +109,60 @@ public class JwtTokenProvider {
     public String generateRefreshToken(Authentication authentication) {
         OAuth2User oauth2User = (OAuth2User) authentication.getPrincipal();
         
-        long nowMillis = System.currentTimeMillis();
-        long expMillis = nowMillis + refreshTokenExpiration;
-        
         String userId = oauth2User.getAttribute("sub");
         
-        return generateToken(userId, null, null, nowMillis, expMillis, "refresh");
+        Instant now = Instant.now();
+        Instant expiration = now.plusMillis(refreshTokenExpiration);
+        
+        return generateToken(userId, null, null, now, expiration, "refresh");
     }
     
     /**
-     * Generates a JWT token with the specified claims.
+     * Generates a JWT token with the specified claims using Nimbus JOSE+JWT.
      * 
      * @param userId the user identifier
      * @param email the user email (nullable for refresh tokens)
      * @param name the user name (nullable for refresh tokens)
-     * @param issuedAtMillis the token issuance time in milliseconds
-     * @param expirationMillis the token expiration time in milliseconds
+     * @param issuedAt the token issuance time
+     * @param expiration the token expiration time
      * @param tokenType the token type ("access" or "refresh")
      * @return the generated JWT token
      */
     private String generateToken(String userId, String email, String name, 
-                                 long issuedAtMillis, long expirationMillis,
+                                 Instant issuedAt, Instant expiration,
                                  String tokenType) {
         try {
-            // Create JWT header
-            String header = createBase64UrlEncodedJson(Map.of(
-                "alg", "HS256",
-                "typ", "JWT"
-            ));
-            
-            // Create JWT payload
-            var claimsBuilder = new java.util.HashMap<String, Object>();
-            claimsBuilder.put("sub", userId);
-            claimsBuilder.put("iss", issuer);
-            claimsBuilder.put("iat", issuedAtMillis / 1000);
-            claimsBuilder.put("exp", expirationMillis / 1000);
-            claimsBuilder.put("token_type", tokenType);
+            // Create JWT claims
+            JWTClaimsSet.Builder claimsBuilder = new JWTClaimsSet.Builder()
+                .subject(userId)
+                .issuer(issuer)
+                .issueTime(Date.from(issuedAt))
+                .expirationTime(Date.from(expiration))
+                .claim("token_type", tokenType);
             
             if (email != null) {
-                claimsBuilder.put("email", email);
+                claimsBuilder.claim("email", email);
             }
             if (name != null) {
-                claimsBuilder.put("name", name);
+                claimsBuilder.claim("name", name);
             }
             
-            String payload = createBase64UrlEncodedJson(claimsBuilder);
+            JWTClaimsSet claims = claimsBuilder.build();
             
-            // Create signature
-            String headerAndPayload = header + "." + payload;
-            String signature = signHmacSha256(headerAndPayload);
+            // Create JWT header with key ID
+            JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.RS256)
+                .keyID(rsaKeyProvider.getRsaKey().getKeyID())
+                .build();
             
-            return headerAndPayload + "." + signature;
+            // Create signed JWT
+            SignedJWT signedJWT = new SignedJWT(header, claims);
+            signedJWT.sign(signer);
             
-        } catch (Exception e) {
+            return signedJWT.serialize();
+            
+        } catch (JOSEException e) {
             logger.error("Error generating JWT token", e);
             throw new RuntimeException("Failed to generate JWT token", e);
         }
-    }
-    
-    /**
-     * Creates a Base64 URL-encoded JSON string from a map.
-     * 
-     * @param data the data to encode
-     * @return the Base64 URL-encoded JSON string
-     */
-    private String createBase64UrlEncodedJson(Map<String, Object> data) {
-        StringBuilder json = new StringBuilder("{");
-        boolean first = true;
-        for (Map.Entry<String, Object> entry : data.entrySet()) {
-            if (!first) {
-                json.append(",");
-            }
-            first = false;
-            json.append("\"").append(entry.getKey()).append("\":");
-            Object value = entry.getValue();
-            if (value instanceof String) {
-                json.append("\"").append(value).append("\"");
-            } else {
-                json.append(value);
-            }
-        }
-        json.append("}");
-        
-        return base64UrlEncode(json.toString().getBytes(StandardCharsets.UTF_8));
-    }
-    
-    /**
-     * Signs data using HMAC-SHA256.
-     * 
-     * @param data the data to sign
-     * @return the Base64 URL-encoded signature
-     */
-    private String signHmacSha256(String data) throws Exception {
-        Mac mac = Mac.getInstance(HMAC_SHA256);
-        SecretKeySpec secretKeySpec = new SecretKeySpec(
-            jwtSecret.getBytes(StandardCharsets.UTF_8), 
-            HMAC_SHA256
-        );
-        mac.init(secretKeySpec);
-        byte[] signature = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
-        return base64UrlEncode(signature);
-    }
-    
-    /**
-     * Base64 URL-encodes the given bytes.
-     * 
-     * @param bytes the bytes to encode
-     * @return the Base64 URL-encoded string
-     */
-    private String base64UrlEncode(byte[] bytes) {
-        return Base64.getUrlEncoder()
-            .withoutPadding()
-            .encodeToString(bytes);
     }
 }

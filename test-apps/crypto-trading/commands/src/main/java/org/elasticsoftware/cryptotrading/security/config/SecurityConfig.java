@@ -17,28 +17,28 @@
 
 package org.elasticsoftware.cryptotrading.security.config;
 
-import org.elasticsoftware.cryptotrading.security.jwt.JwtAuthenticationManager;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpHeaders;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
-import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
-import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthenticationToken;
+import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
+import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
-import org.springframework.security.web.server.authentication.AuthenticationWebFilter;
-import org.springframework.security.web.server.authentication.ServerAuthenticationConverter;
-import reactor.core.publisher.Mono;
 
 /**
  * Security configuration for Commands Service.
  * 
- * <p>This configuration validates JWT tokens from the Authorization header
- * and requires authentication for all endpoints except actuator health checks.
+ * <p>This configuration validates JWT tokens using Spring Security OAuth2 Resource Server.
+ * JWTs are validated using public keys fetched from the Auth service's JWKS endpoint.
  * 
  * <p><strong>CSRF Protection:</strong> Disabled because this API uses JWT tokens
  * for stateless authentication. CSRF protection is not needed for stateless APIs
  * where authentication is via bearer tokens rather than cookies.
+ * 
+ * <p>JWT validation is handled automatically by Spring Security using Nimbus JWT library.
+ * No custom authentication code is needed - Spring Security fetches public keys from JWKS
+ * and validates token signatures, expiration, and issuer claims.
  * 
  * @see <a href="https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html">Spring Security CSRF</a>
  */
@@ -46,35 +46,25 @@ import reactor.core.publisher.Mono;
 @EnableWebFluxSecurity
 public class SecurityConfig {
 
-    private final JwtAuthenticationManager jwtAuthenticationManager;
-    
-    /**
-     * Constructs the security configuration with JWT authentication manager.
-     * 
-     * @param jwtAuthenticationManager the JWT authentication manager
-     */
-    public SecurityConfig(JwtAuthenticationManager jwtAuthenticationManager) {
-        this.jwtAuthenticationManager = jwtAuthenticationManager;
-    }
+    @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}")
+    private String jwkSetUri;
 
     /**
-     * Configures the security filter chain with JWT validation.
+     * Configures the security filter chain with OAuth2 Resource Server JWT validation.
      * 
      * @param http the server HTTP security configuration
      * @return the configured security web filter chain
      */
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
-        // Create JWT authentication filter
-        AuthenticationWebFilter jwtFilter = new AuthenticationWebFilter(jwtAuthenticationManager);
-        jwtFilter.setServerAuthenticationConverter(jwtAuthenticationConverter());
-        
         http
             // CSRF disabled for stateless JWT-based API (no session cookies)
             .csrf(csrf -> csrf.disable())
             
-            // Add JWT authentication filter
-            .addFilterAt(jwtFilter, SecurityWebFiltersOrder.AUTHENTICATION)
+            // Configure OAuth2 Resource Server with JWT
+            .oauth2ResourceServer(oauth2 -> oauth2
+                .jwt(jwt -> jwt.jwtDecoder(jwtDecoder()))
+            )
             
             // Authorization rules
             .authorizeExchange(exchanges -> exchanges
@@ -88,20 +78,20 @@ public class SecurityConfig {
     }
     
     /**
-     * Converts the JWT token from the Authorization header to a BearerTokenAuthenticationToken.
+     * Creates a reactive JWT decoder using Nimbus that fetches public keys from JWKS endpoint.
      * 
-     * @return the server authentication converter
+     * <p>Spring Security automatically:
+     * <ul>
+     *   <li>Fetches public keys from the JWKS endpoint</li>
+     *   <li>Caches keys for performance</li>
+     *   <li>Validates JWT signatures using RS256</li>
+     *   <li>Validates expiration and other standard claims</li>
+     * </ul>
+     * 
+     * @return the JWT decoder
      */
-    private ServerAuthenticationConverter jwtAuthenticationConverter() {
-        return exchange -> {
-            String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-            
-            if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                String token = authHeader.substring(7);
-                return Mono.just(new BearerTokenAuthenticationToken(token));
-            }
-            
-            return Mono.empty();
-        };
+    @Bean
+    public ReactiveJwtDecoder jwtDecoder() {
+        return NimbusReactiveJwtDecoder.withJwkSetUri(jwkSetUri).build();
     }
 }

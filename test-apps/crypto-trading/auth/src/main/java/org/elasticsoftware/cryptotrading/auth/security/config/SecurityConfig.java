@@ -90,6 +90,7 @@ public class SecurityConfig {
                 .pathMatchers(
                     "/actuator/health",
                     "/actuator/info",
+                    "/.well-known/jwks.json",  // JWKS endpoint for JWT validation
                     "/login/oauth2/**",
                     "/oauth2/**"
                 ).permitAll()
