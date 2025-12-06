@@ -488,13 +488,12 @@ public class JwtTokenProvider {
     private final String issuer;
     private final String serviceAccountEmail;
     
-    public JwtTokenProvider(@Value("${app.jwt.gcp-service-account-key}") String keyJson,
+    public JwtTokenProvider(ServiceAccountCredentials credentials,
                            @Value("${app.jwt.access-token-expiration}") long accessTokenExpiration,
                            @Value("${app.jwt.refresh-token-expiration}") long refreshTokenExpiration,
                            @Value("${app.jwt.issuer}") String issuer,
-                           @Value("${app.jwt.service-account-email}") String serviceAccountEmail) throws IOException {
-        this.credentials = ServiceAccountCredentials
-            .fromStream(new ByteArrayInputStream(keyJson.getBytes(StandardCharsets.UTF_8)));
+                           @Value("${app.jwt.service-account-email}") String serviceAccountEmail) {
+        this.credentials = credentials;
         this.accessTokenExpiration = accessTokenExpiration;
         this.refreshTokenExpiration = refreshTokenExpiration;
         this.issuer = issuer;
@@ -1189,14 +1188,14 @@ public class AccountQueryModel implements QueryModel<AccountQueryModelState> {
 **Service Deployment Architecture:**
 ```
 ┌─────────────────┐
-│  Auth Service   │ (Port 8080) - Handles OAuth + JWT generation
+│  Auth Service   │ - Handles OAuth + JWT generation
 │  /v1/auth/*     │
 └─────────────────┘
          │
          │ Issues JWT
          ▼
 ┌─────────────────┐
-│ Commands Service│ (Port 8081) - Validates JWT, processes commands
+│ Commands Service│ - Validates JWT, processes commands
 │  /v1/accounts   │
 │  /v1/wallets    │
 │  /v1/orders     │
@@ -1205,7 +1204,7 @@ public class AccountQueryModel implements QueryModel<AccountQueryModelState> {
          │ Emits events
          ▼
 ┌─────────────────┐
-│ Queries Service │ (Port 8082) - Validates JWT, serves queries
+│ Queries Service │ - Validates JWT, serves queries
 │  /v1/accounts   │
 │  /v1/wallets    │
 │  /v1/orders     │
