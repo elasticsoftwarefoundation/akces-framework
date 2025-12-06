@@ -17,28 +17,26 @@
 
 package org.elasticsoftware.cryptotrading.security.config;
 
+import org.elasticsoftware.cryptotrading.security.jwt.JwtAuthenticationManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
+import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.security.web.server.authentication.AuthenticationWebFilter;
+import org.springframework.security.web.server.authentication.ServerAuthenticationConverter;
+import reactor.core.publisher.Mono;
 
 /**
  * Security configuration for Commands Service.
  * 
- * <p><strong>WARNING: This is a Phase 1 foundation setup configuration.</strong>
- * <p>Current configuration permits all requests without authentication to allow tests to pass
- * during the foundation setup phase. This is intentionally insecure and must be replaced in Phase 2.
+ * <p>This configuration validates JWT tokens from the Authorization header
+ * and requires authentication for all endpoints except actuator health checks.
  * 
- * <p><strong>Phase 2 TODO:</strong>
- * <ul>
- *   <li>Enable JWT validation using Spring Security OAuth2 Resource Server</li>
- *   <li>Configure proper authorization rules for endpoints</li>
- *   <li>Keep CSRF disabled (appropriate for stateless JWT-based APIs)</li>
- *   <li>Add security headers (X-Frame-Options, X-Content-Type-Options, etc.)</li>
- * </ul>
- * 
- * <p><strong>CSRF Protection:</strong> Disabled because this API will use JWT tokens
+ * <p><strong>CSRF Protection:</strong> Disabled because this API uses JWT tokens
  * for stateless authentication. CSRF protection is not needed for stateless APIs
  * where authentication is via bearer tokens rather than cookies.
  * 
@@ -48,32 +46,62 @@ import org.springframework.security.web.server.SecurityWebFilterChain;
 @EnableWebFluxSecurity
 public class SecurityConfig {
 
+    private final JwtAuthenticationManager jwtAuthenticationManager;
+    
     /**
-     * Configures the security filter chain.
+     * Constructs the security configuration with JWT authentication manager.
      * 
-     * <p><strong>SECURITY WARNING:</strong> This configuration permits all requests without authentication.
-     * This is only acceptable for Phase 1 foundation setup and must be replaced with proper
-     * JWT validation in Phase 2.
+     * @param jwtAuthenticationManager the JWT authentication manager
+     */
+    public SecurityConfig(JwtAuthenticationManager jwtAuthenticationManager) {
+        this.jwtAuthenticationManager = jwtAuthenticationManager;
+    }
+
+    /**
+     * Configures the security filter chain with JWT validation.
      * 
      * @param http the server HTTP security configuration
      * @return the configured security web filter chain
      */
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
+        // Create JWT authentication filter
+        AuthenticationWebFilter jwtFilter = new AuthenticationWebFilter(jwtAuthenticationManager);
+        jwtFilter.setServerAuthenticationConverter(jwtAuthenticationConverter());
+        
         http
             // CSRF disabled for stateless JWT-based API (no session cookies)
             .csrf(csrf -> csrf.disable())
-            // TODO Phase 2: Replace with proper JWT validation
-            // Example Phase 2 configuration:
-            // .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
-            // .authorizeExchange(exchanges -> exchanges
-            //     .pathMatchers("/actuator/health", "/actuator/info").permitAll()
-            //     .anyExchange().authenticated()
-            // )
+            
+            // Add JWT authentication filter
+            .addFilterAt(jwtFilter, SecurityWebFiltersOrder.AUTHENTICATION)
+            
+            // Authorization rules
             .authorizeExchange(exchanges -> exchanges
-                .anyExchange().permitAll()  // WARNING: Permits all requests without authentication
+                // Public endpoints
+                .pathMatchers("/actuator/health", "/actuator/info").permitAll()
+                // All other endpoints require authentication
+                .anyExchange().authenticated()
             );
         
         return http.build();
+    }
+    
+    /**
+     * Converts the JWT token from the Authorization header to an Authentication object.
+     * 
+     * @return the server authentication converter
+     */
+    private ServerAuthenticationConverter jwtAuthenticationConverter() {
+        return exchange -> {
+            String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+            
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                return Mono.just(new UsernamePasswordAuthenticationToken(token, token));
+            }
+            
+            return Mono.empty();
+        };
     }
 }

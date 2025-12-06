@@ -79,11 +79,10 @@ akces:
 # JWT Configuration
 app:
   jwt:
-    gcp-service-account-key: ${GCP_SERVICE_ACCOUNT_KEY:}
+    secret: ${JWT_SECRET:default-secret-change-in-production}
     access-token-expiration: 900000      # 15 minutes in milliseconds
     refresh-token-expiration: 604800000  # 7 days in milliseconds
     issuer: akces-crypto-trading
-    service-account-email: ${GCP_SERVICE_ACCOUNT_EMAIL:}
 
 # Logging
 logging:
