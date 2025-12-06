@@ -1798,31 +1798,100 @@ spec:
    - OAuth provider statistics
    - Security audit logs
 
-## Open Questions for Architect Review
+## Architect Decisions
 
-1. **Account ID Strategy**: Should we use OAuth provider ID as userId or continue generating UUIDs?
-   - **Recommendation**: Keep UUID for userId, use provider ID as secondary identifier
+The following decisions have been made by the architect for this implementation:
 
-2. **Multi-Provider Support**: How should we handle users signing in with different providers using the same email?
-   - **Recommendation**: First provider wins, implement account linking in future
+1. **Account ID Strategy**: ✅ **APPROVED**
+   - Continue using UUIDs for userId (internal identifier)
+   - OAuth provider ID stored as secondary identifier for lookup
+   - Maintains consistency with existing Akces framework patterns
 
-3. **Backward Compatibility**: Should we keep the manual account creation endpoint?
-   - **Recommendation**: Yes, for testing and admin purposes
+2. **Multi-Provider Support**: ⚠️ **RESTRICTED**
+   - Do NOT allow users to sign in with different providers using the same email
+   - Only support OAuth providers with unique email verification (Gmail, Microsoft, GitHub)
+   - Users must use their original OAuth provider to sign in
+   - In case of email collision: Account creation fails with error message indicating existing account with that email
+   - Future enhancement: Implement explicit account linking flow if needed
 
-4. **Session vs. JWT**: Should we use session-based or JWT-based authentication?
-   - **Decision**: Use JWT-based authentication for stateless, scalable API access
-   - Access tokens: 15 minutes, Refresh tokens: 7 days
+3. **Backward Compatibility**: ✅ **APPROVED**
+   - Keep manual account creation endpoint for testing and admin purposes
+   - Manual and OAuth account creation coexist in the same Account aggregate
+
+4. **Session vs. JWT**: ✅ **APPROVED - JWT-Based**
+   - Use JWT-based authentication for stateless, scalable API access
+   - Access tokens: 15 minutes
+   - Refresh tokens: 7 days
    - Tokens returned in response body, not cookies (API-first design)
 
-5. **Required Scopes**: What additional OAuth scopes should we request?
-   - **Recommendation**: Start with basic profile and email, add more as needed
+5. **Required OAuth Scopes**: ✅ **APPROVED - Basic Only**
+   - Start with basic profile and email scopes only
+   - Additional scopes can be added incrementally as features require them
+   - Minimizes permission requests and improves user trust
 
-6. **Database Schema**: Do we need a separate users table or rely on event sourcing?
-   - **Recommendation**: Rely on event sourcing and query models, add database model if query performance becomes an issue
+6. **Data Storage Strategy**: ✅ **APPROVED - Event Sourcing Query Models**
+   - Rely on event sourcing and query models (AccountQueryModel)
+   - Query models are fast enough for authentication lookups
+   - Can add database models later if query performance becomes an issue
+   - No separate users table - use Akces framework's built-in query model capabilities
+
+## Implementation Notes Based on Architect Decisions
+
+### Email Uniqueness Enforcement
+
+```java
+@Service
+public class CustomOAuth2UserService extends DefaultOAuth2UserService {
+    
+    @Override
+    public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
+        OAuth2User oauth2User = super.loadUser(userRequest);
+        
+        // Extract user info
+        OAuth2UserInfo userInfo = OAuth2UserInfoFactory.getOAuth2UserInfo(registrationId, oauth2User.getAttributes());
+        
+        // Check if account exists by email OR by OAuth provider+ID
+        Optional<AccountQueryModelState> existingAccountByEmail = 
+            accountQueryService.findByEmail(userInfo.getEmail());
+        Optional<AccountQueryModelState> existingAccountByOAuth = 
+            accountQueryService.findByOAuthProvider(userInfo.getProvider(), userInfo.getId());
+        
+        if (existingAccountByOAuth.isPresent()) {
+            // Same OAuth provider - login allowed
+            return createOAuth2User(existingAccountByOAuth.get());
+        }
+        
+        if (existingAccountByEmail.isPresent()) {
+            // Different provider with same email - REJECT
+            throw new OAuth2AuthenticationException(
+                "An account with this email already exists. Please sign in using " + 
+                existingAccountByEmail.get().getOauthProvider()
+            );
+        }
+        
+        // New user - create account
+        String userId = UUID.randomUUID().toString();
+        CreateAccountCommandV2 command = new CreateAccountCommandV2(
+            userId,
+            "Unknown",
+            userInfo.getName(),
+            "",
+            userInfo.getEmail(),
+            userInfo.getProvider(),
+            userInfo.getId()
+        );
+        
+        akcesClient.send("DEFAULT_TENANT", command).toCompletableFuture().join();
+        
+        return createOAuth2User(userId, userInfo);
+    }
+}
+```
 
 ## Approval and Next Steps
 
-**Approval Required From**: Architect
+**Status**: ✅ **APPROVED BY ARCHITECT**  
+**Ready for Implementation**: Yes
 
 **Next Steps After Approval**:
 1. Begin Phase 1 implementation (Foundation Setup)
