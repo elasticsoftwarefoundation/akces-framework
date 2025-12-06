@@ -21,10 +21,10 @@ import org.elasticsoftware.cryptotrading.security.jwt.JwtAuthenticationManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
+import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthenticationToken;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.authentication.AuthenticationWebFilter;
 import org.springframework.security.web.server.authentication.ServerAuthenticationConverter;
@@ -88,7 +88,7 @@ public class SecurityConfig {
     }
     
     /**
-     * Converts the JWT token from the Authorization header to an Authentication object.
+     * Converts the JWT token from the Authorization header to a BearerTokenAuthenticationToken.
      * 
      * @return the server authentication converter
      */
@@ -98,7 +98,7 @@ public class SecurityConfig {
             
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 String token = authHeader.substring(7);
-                return Mono.just(new UsernamePasswordAuthenticationToken(token, token));
+                return Mono.just(new BearerTokenAuthenticationToken(token));
             }
             
             return Mono.empty();

@@ -19,15 +19,17 @@ package org.elasticsoftware.cryptotrading.security.jwt;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
@@ -77,20 +79,26 @@ public class JwtAuthenticationManager implements ReactiveAuthenticationManager {
         return Mono.fromCallable(() -> validateToken(token))
             .flatMap(claims -> {
                 String userId = (String) claims.get("sub");
-                String email = (String) claims.get("email");
+                String issuerClaim = (String) claims.get("iss");
+                Number iat = (Number) claims.get("iat");
+                Number exp = (Number) claims.get("exp");
                 
-                // Create authenticated token with user details
-                UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                    userId,
-                    null,
+                // Create JWT object
+                Jwt jwt = Jwt.withTokenValue(token)
+                    .header("alg", "HS256")
+                    .header("typ", "JWT")
+                    .claims(c -> c.putAll(claims))
+                    .subject(userId)
+                    .issuer(issuerClaim)
+                    .issuedAt(iat != null ? Instant.ofEpochSecond(iat.longValue()) : null)
+                    .expiresAt(exp != null ? Instant.ofEpochSecond(exp.longValue()) : null)
+                    .build();
+                
+                // Create JwtAuthenticationToken with user details and authorities
+                JwtAuthenticationToken auth = new JwtAuthenticationToken(
+                    jwt,
                     Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
                 );
-                
-                // Add additional details
-                auth.setDetails(Map.of(
-                    "email", email != null ? email : "",
-                    "sub", userId
-                ));
                 
                 return Mono.<Authentication>just(auth);
             })
