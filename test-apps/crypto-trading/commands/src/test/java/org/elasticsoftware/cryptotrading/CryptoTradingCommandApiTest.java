@@ -72,7 +72,10 @@ import static org.elasticsoftware.cryptotrading.TestUtils.prepareKafka;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureWebTestClient
 @PropertySource("classpath:akces-aggregateservice.properties")
-@ContextConfiguration(initializers = CryptoTradingCommandApiTest.Initializer.class)
+@ContextConfiguration(
+        initializers = CryptoTradingCommandApiTest.Initializer.class,
+        classes = org.elasticsoftware.cryptotrading.security.config.TestSecurityConfig.class
+)
 @Testcontainers
 @DirtiesContext
 public class CryptoTradingCommandApiTest {
