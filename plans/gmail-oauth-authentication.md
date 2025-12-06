@@ -475,7 +475,7 @@ Instead of using a shared secret (HS256), we'll use **GCP Service Account with R
    - No need to manually manage public key distribution
    - Key rotation is handled automatically by Google
 
-4. **Configuration (Commands Service - JWT Generation):**
+4. **Configuration (Auth Service - JWT Generation):**
 ```yaml
 app:
   jwt:
@@ -486,7 +486,7 @@ app:
     service-account-email: akces-jwt-signer@PROJECT_ID.iam.gserviceaccount.com
 ```
 
-5. **Configuration (Queries Service - JWT Validation):**
+5. **Configuration (Commands and Queries Services - JWT Validation):**
 ```yaml
 spring:
   security:
