@@ -31,10 +31,10 @@
     <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
 
     <properties>
-        <operator-sdk.version>5.1.4</operator-sdk.version>
+        <operator-sdk.version>5.2.0</operator-sdk.version>
         <operator-sdk.spring.version>6.2.0</operator-sdk.spring.version>
         <bouncycastle.version>1.82</bouncycastle.version>
-        <fabric8.version>7.3.1</fabric8.version>
+        <fabric8.version>7.4.0</fabric8.version>
     </properties>
 
     <dependencyManagement>
@@ -68,6 +68,31 @@
             <dependency>
                 <groupId>io.fabric8</groupId>
                 <artifactId>crd-generator-apt-v2</artifactId>
+                <version>${fabric8.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.fabric8</groupId>
+                <artifactId>kubernetes-client-api</artifactId>
+                <version>${fabric8.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.fabric8</groupId>
+                <artifactId>kubernetes-client</artifactId>
+                <version>${fabric8.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.fabric8</groupId>
+                <artifactId>openshift-client</artifactId>
+                <version>${fabric8.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.fabric8</groupId>
+                <artifactId>openshift-client-api</artifactId>
+                <version>${fabric8.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.fabric8</groupId>
+                <artifactId>kubernetes-httpclient-jdk</artifactId>
                 <version>${fabric8.version}</version>
             </dependency>
             <dependency>
