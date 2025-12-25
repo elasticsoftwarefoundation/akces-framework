@@ -23,19 +23,13 @@
         <artifactId>akces-crypto-trading-parent</artifactId>
         <version>0.11.0-SNAPSHOT</version>
     </parent>
-    <artifactId>akces-crypto-trading-commands</artifactId>
-    <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Command Services</name>
-    <description>Crypto Trading Akces Test Application</description>
+    <artifactId>akces-crypto-trading-auth</artifactId>
+    <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Auth Service</name>
+    <description>Authentication service for Crypto Trading Akces Test Application</description>
     <properties>
     </properties>
     <dependencies>
-        <!-- we need this at compile time -->
-        <dependency>
-            <groupId>org.elasticsoftwarefoundation.akces</groupId>
-            <artifactId>akces-crypto-trading-aggregates</artifactId>
-            <scope>provided</scope>
-            <version>${project.version}</version>
-        </dependency>
+        <!-- Akces Framework Dependencies -->
         <dependency>
             <groupId>org.elasticsoftwarefoundation.akces</groupId>
             <artifactId>akces-crypto-trading-aggregates</artifactId>
@@ -49,44 +43,44 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
+            <groupId>org.elasticsoftwarefoundation.akces</groupId>
+            <artifactId>akces-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsoftwarefoundation.akces</groupId>
+            <artifactId>akces-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsoftwarefoundation.akces</groupId>
+            <artifactId>akces-query-support</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Dependencies -->
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-logging</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-autoconfigure</artifactId>
         </dependency>
 
-        <dependency>
-            <groupId>org.springframework.kafka</groupId>
-            <artifactId>spring-kafka</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.elasticsoftwarefoundation.akces</groupId>
-            <artifactId>akces-api</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.elasticsoftwarefoundation.akces</groupId>
-            <artifactId>akces-client</artifactId>
-        </dependency>
-
-        <!-- Spring Security OAuth2 for JWT validation -->
+        <!-- Spring Security OAuth2 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-client</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.security</groupId>
@@ -97,6 +91,47 @@
             <artifactId>spring-security-oauth2-jose</artifactId>
         </dependency>
 
+        <!-- Database Support -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-liquibase</artifactId>
+        </dependency>
+
+        <!-- Kafka -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+        <!-- GCP Service Account for JWT Signing - will be added in Phase 2 -->
+        <!-- Temporarily commented out to avoid dependency convergence issues in Phase 1 -->
+        <!--
+        <dependency>
+            <groupId>com.google.auth</groupId>
+            <artifactId>google-auth-library-oauth2-http</artifactId>
+            <version>1.23.0</version>
+        </dependency>
+        -->
+
+        <!-- GCP Secret Manager - will be added in Phase 2 -->
+        <!--
+        <dependency>
+            <groupId>com.google.cloud</groupId>
+            <artifactId>google-cloud-secretmanager</artifactId>
+            <version>2.40.0</version>
+            <optional>true</optional>
+        </dependency>
+        -->
+
     </dependencies>
 
     <build>
@@ -105,7 +140,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <mainClass>org.elasticsoftware.akces.client.CommandServiceApplication</mainClass>
+                    <mainClass>org.elasticsoftware.cryptotrading.auth.AuthServiceApplication</mainClass>
                 </configuration>
                 <executions>
                     <execution>
@@ -113,30 +148,7 @@
                             <goal>process-aot</goal>
                         </goals>
                         <configuration>
-                            <mainClass>org.elasticsoftware.akces.client.CommandServiceApplication</mainClass>
-                            <arguments>
-                                <argument>org.elasticsoftware.cryptotrading.ClientConfig</argument>
-                            </arguments>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>shared-web-jar</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                        <configuration>
-                            <classifier>shared-web</classifier>
-                            <includes>
-                                <include>**/dto/*</include>
-                                <include>**/errors/*</include>
-                            </includes>
+                            <mainClass>org.elasticsoftware.cryptotrading.auth.AuthServiceApplication</mainClass>
                         </configuration>
                     </execution>
                 </executions>
