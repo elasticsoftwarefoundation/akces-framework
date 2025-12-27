@@ -15,25 +15,26 @@
  *
  */
 
-package org.elasticsoftware.cryptotrading.query;
+package org.elasticsoftware.cryptotrading.aggregates.orders.commands;
 
-import org.elasticsoftware.akces.annotations.QueryModelStateInfo;
-import org.elasticsoftware.akces.query.QueryModelState;
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.AggregateIdentifier;
+import org.elasticsoftware.akces.annotations.CommandInfo;
+import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
 
 import java.math.BigDecimal;
-import java.util.List;
 
-@QueryModelStateInfo(type = "Orders")
-public record OrdersQueryModelState(String userId, List<BuyOrder> openBuyOrders, List<SellOrder> openSellOrders) implements QueryModelState {
+@CommandInfo(type = "PlaceSellOrder", version = 1)
+public record PlaceSellOrderCommand(
+        @NotNull @AggregateIdentifier String userId,
+        @NotNull CryptoMarket market,
+        @NotNull BigDecimal amount,
+        @NotNull String clientReference
+) implements Command {
     @Override
-    public String getIndexKey() {
+    @NotNull
+    public String getAggregateId() {
         return userId();
-    }
-
-    public record BuyOrder(String orderId, CryptoMarket market, BigDecimal amount, String clientReference, OrderState state) {
-    }
-
-    public record SellOrder(String orderId, CryptoMarket market, BigDecimal amount, String clientReference, OrderState state) {
     }
 }

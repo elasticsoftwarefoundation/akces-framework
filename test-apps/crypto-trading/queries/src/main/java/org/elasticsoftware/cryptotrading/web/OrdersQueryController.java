@@ -52,15 +52,29 @@ public class OrdersQueryController {
     }
 
     @GetMapping("/{accountId}/orders/{orderId}")
-    Mono<ResponseEntity<OrdersQueryModelState.BuyOrder>> getOrderById(
+    Mono<ResponseEntity<Object>> getOrderById(
             @PathVariable("accountId") String accountId,
             @PathVariable("orderId") String orderId) {
         return Mono.fromCompletionStage(queryModels.getHydratedState(OrdersQueryModel.class, accountId))
-            .map(state -> state.openBuyOrders().stream()
-                .filter(order -> order.orderId().equals(orderId))
-                .findFirst()
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build()))
+            .map(state -> {
+                // First check buy orders
+                var buyOrder = state.openBuyOrders().stream()
+                    .filter(order -> order.orderId().equals(orderId))
+                    .findFirst();
+                if (buyOrder.isPresent()) {
+                    return ResponseEntity.ok((Object) buyOrder.get());
+                }
+                
+                // Then check sell orders
+                var sellOrder = state.openSellOrders().stream()
+                    .filter(order -> order.orderId().equals(orderId))
+                    .findFirst();
+                if (sellOrder.isPresent()) {
+                    return ResponseEntity.ok((Object) sellOrder.get());
+                }
+                
+                return ResponseEntity.notFound().build();
+            })
             .onErrorResume(throwable -> {
                 if (throwable instanceof QueryModelNotFoundException || throwable instanceof QueryModelIdNotFoundException) {
                     return Mono.just(ResponseEntity.notFound().build());

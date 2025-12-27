@@ -22,6 +22,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.elasticsoftware.akces.processmanager.AkcesProcess;
 import org.elasticsoftware.cryptotrading.aggregates.orders.commands.RejectOrderCommand;
 import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
+import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderRejectedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.InsufficientFundsErrorEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.InvalidCryptoCurrencyErrorEvent;
@@ -30,9 +31,10 @@ import java.math.BigDecimal;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
-        @JsonSubTypes.Type(value = BuyOrderProcess.class, name = "BUY")
+        @JsonSubTypes.Type(value = BuyOrderProcess.class, name = "BUY"),
+        @JsonSubTypes.Type(value = SellOrderProcess.class, name = "SELL")
 })
-public sealed interface OrderProcess extends AkcesProcess permits BuyOrderProcess {
+public sealed interface OrderProcess extends AkcesProcess permits BuyOrderProcess, SellOrderProcess {
     String orderId();
 
     CryptoMarket market();
@@ -45,11 +47,11 @@ public sealed interface OrderProcess extends AkcesProcess permits BuyOrderProces
 
     OrderProcessState state();
 
-    BuyOrderRejectedEvent handle(InsufficientFundsErrorEvent error);
+    DomainEvent handle(InsufficientFundsErrorEvent error);
 
-    BuyOrderRejectedEvent handle(InvalidCryptoCurrencyErrorEvent error);
+    DomainEvent handle(InvalidCryptoCurrencyErrorEvent error);
 
-    BuyOrderRejectedEvent handle(RejectOrderCommand command);
+    DomainEvent handle(RejectOrderCommand command);
 
     OrderProcess withState(OrderProcessState state);
 }
