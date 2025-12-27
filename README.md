@@ -8,6 +8,8 @@ The framework implements the full event sourcing pattern, capturing all changes 
 
 Akces leverages Kafka's distributed architecture for reliable event storage and processing, making it highly scalable and resilient. It also provides built-in support for privacy protection (GDPR compliance), schema evolution, and efficient state management.
 
+[Code Wiki](https://codewiki.google/github.com/elasticsoftwarefoundation/akces-framework)
+
 ## Core Concepts
 
 - **Aggregates**: Domain entities that encapsulate business logic and maintain consistency boundaries
