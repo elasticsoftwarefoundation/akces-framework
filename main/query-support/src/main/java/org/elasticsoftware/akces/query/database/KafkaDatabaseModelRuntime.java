@@ -100,7 +100,7 @@ public class KafkaDatabaseModelRuntime implements DatabaseModelRuntime {
                     DatabaseModelEventHandlerFunction<DomainEvent> eventHandler = databaseModelEventHandlers.get(domainEventType);
                     if (eventHandler != null) {
                         try {
-                            if (Boolean.TRUE.equals(domainEventType.piiData())) {
+                            if (domainEventType.piiData()) {
                                 GDPRContextHolder.setCurrentGDPRContext(gdprContextSupplier.apply(eventRecord.aggregateId()));
                             }
                             eventHandler.accept(materialize(domainEventType, eventRecord));
