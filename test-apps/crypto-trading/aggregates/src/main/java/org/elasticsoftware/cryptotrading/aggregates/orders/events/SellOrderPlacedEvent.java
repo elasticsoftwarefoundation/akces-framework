@@ -15,25 +15,26 @@
  *
  */
 
-package org.elasticsoftware.cryptotrading.query;
+package org.elasticsoftware.cryptotrading.aggregates.orders.events;
 
-import org.elasticsoftware.akces.annotations.QueryModelStateInfo;
-import org.elasticsoftware.akces.query.QueryModelState;
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.AggregateIdentifier;
+import org.elasticsoftware.akces.annotations.DomainEventInfo;
+import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
 
 import java.math.BigDecimal;
-import java.util.List;
 
-@QueryModelStateInfo(type = "Orders")
-public record OrdersQueryModelState(String userId, List<BuyOrder> openBuyOrders, List<SellOrder> openSellOrders) implements QueryModelState {
+@DomainEventInfo(type = "SellOrderPlaced", version = 1)
+public record SellOrderPlacedEvent(
+        @NotNull @AggregateIdentifier String userId,
+        @NotNull String orderId,
+        @NotNull CryptoMarket market,
+        @NotNull BigDecimal amount,
+        BigDecimal limitPrice
+) implements DomainEvent {
     @Override
-    public String getIndexKey() {
-        return userId();
-    }
-
-    public record BuyOrder(String orderId, CryptoMarket market, BigDecimal amount, String clientReference, OrderState state) {
-    }
-
-    public record SellOrder(String orderId, CryptoMarket market, BigDecimal amount, String clientReference, OrderState state) {
+    public String getAggregateId() {
+        return orderId();
     }
 }
