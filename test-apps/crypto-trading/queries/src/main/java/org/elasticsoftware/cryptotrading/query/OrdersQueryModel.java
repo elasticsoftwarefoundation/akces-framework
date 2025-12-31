@@ -24,6 +24,10 @@ import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderCreate
 import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderFilledEvent;
 import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderPlacedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderRejectedEvent;
+import org.elasticsoftware.cryptotrading.aggregates.orders.events.SellOrderCreatedEvent;
+import org.elasticsoftware.cryptotrading.aggregates.orders.events.SellOrderFilledEvent;
+import org.elasticsoftware.cryptotrading.aggregates.orders.events.SellOrderPlacedEvent;
+import org.elasticsoftware.cryptotrading.aggregates.orders.events.SellOrderRejectedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.orders.events.UserOrderProcessesCreatedEvent;
 
 import java.util.ArrayList;
@@ -48,7 +52,7 @@ public class OrdersQueryModel implements QueryModel<OrdersQueryModelState> {
 
     @QueryModelEventHandler(create = true)
     public OrdersQueryModelState create(UserOrderProcessesCreatedEvent event, OrdersQueryModelState isNull) {
-        return new OrdersQueryModelState(event.userId(), List.of());
+        return new OrdersQueryModelState(event.userId(), List.of(), List.of());
     }
 
     @QueryModelEventHandler(create = false)
@@ -62,7 +66,7 @@ public class OrdersQueryModel implements QueryModel<OrdersQueryModelState> {
         );
         List<OrdersQueryModelState.BuyOrder> orders = new ArrayList<>(currentState.openBuyOrders());
         orders.add(buyOrder);
-        return new OrdersQueryModelState(currentState.userId(), orders);
+        return new OrdersQueryModelState(currentState.userId(), orders, currentState.openSellOrders());
     }
 
     @QueryModelEventHandler(create = false)
@@ -73,7 +77,7 @@ public class OrdersQueryModel implements QueryModel<OrdersQueryModelState> {
                         ? new OrdersQueryModelState.BuyOrder(order.orderId(), order.market(), order.amount(), order.clientReference(), OrderState.PLACED)
                         : order)
                 .toList();
-        return new OrdersQueryModelState(currentState.userId(), orders);
+        return new OrdersQueryModelState(currentState.userId(), orders, currentState.openSellOrders());
     }
 
     @QueryModelEventHandler(create = false)
@@ -84,7 +88,7 @@ public class OrdersQueryModel implements QueryModel<OrdersQueryModelState> {
                         ? new OrdersQueryModelState.BuyOrder(order.orderId(), order.market(), order.amount(), order.clientReference(), OrderState.FILLED)
                         : order)
                 .toList();
-        return new OrdersQueryModelState(currentState.userId(), orders);
+        return new OrdersQueryModelState(currentState.userId(), orders, currentState.openSellOrders());
     }
 
     @QueryModelEventHandler(create = false)
@@ -95,6 +99,53 @@ public class OrdersQueryModel implements QueryModel<OrdersQueryModelState> {
                         ? new OrdersQueryModelState.BuyOrder(order.orderId(), order.market(), order.amount(), order.clientReference(), OrderState.REJECTED)
                         : order)
                 .toList();
-        return new OrdersQueryModelState(currentState.userId(), orders);
+        return new OrdersQueryModelState(currentState.userId(), orders, currentState.openSellOrders());
+    }
+
+    @QueryModelEventHandler(create = false)
+    public OrdersQueryModelState addSellOrder(SellOrderCreatedEvent event, OrdersQueryModelState currentState) {
+        OrdersQueryModelState.SellOrder sellOrder = new OrdersQueryModelState.SellOrder(
+                event.orderId(),
+                event.market(),
+                event.quantity(),
+                event.clientReference(),
+                OrderState.CREATED
+        );
+        List<OrdersQueryModelState.SellOrder> orders = new ArrayList<>(currentState.openSellOrders());
+        orders.add(sellOrder);
+        return new OrdersQueryModelState(currentState.userId(), currentState.openBuyOrders(), orders);
+    }
+
+    @QueryModelEventHandler(create = false)
+    public OrdersQueryModelState sellOrderPlaced(SellOrderPlacedEvent event, OrdersQueryModelState currentState) {
+        // Update order state to PLACED
+        List<OrdersQueryModelState.SellOrder> orders = currentState.openSellOrders().stream()
+                .map(order -> order.orderId().equals(event.orderId())
+                        ? new OrdersQueryModelState.SellOrder(order.orderId(), order.market(), order.quantity(), order.clientReference(), OrderState.PLACED)
+                        : order)
+                .toList();
+        return new OrdersQueryModelState(currentState.userId(), currentState.openBuyOrders(), orders);
+    }
+
+    @QueryModelEventHandler(create = false)
+    public OrdersQueryModelState sellOrderFilled(SellOrderFilledEvent event, OrdersQueryModelState currentState) {
+        // Update order state to FILLED
+        List<OrdersQueryModelState.SellOrder> orders = currentState.openSellOrders().stream()
+                .map(order -> order.orderId().equals(event.orderId())
+                        ? new OrdersQueryModelState.SellOrder(order.orderId(), order.market(), order.quantity(), order.clientReference(), OrderState.FILLED)
+                        : order)
+                .toList();
+        return new OrdersQueryModelState(currentState.userId(), currentState.openBuyOrders(), orders);
+    }
+
+    @QueryModelEventHandler(create = false)
+    public OrdersQueryModelState sellOrderRejected(SellOrderRejectedEvent event, OrdersQueryModelState currentState) {
+        // Update order state to REJECTED
+        List<OrdersQueryModelState.SellOrder> orders = currentState.openSellOrders().stream()
+                .map(order -> order.orderId().equals(event.orderId())
+                        ? new OrdersQueryModelState.SellOrder(order.orderId(), order.market(), order.quantity(), order.clientReference(), OrderState.REJECTED)
+                        : order)
+                .toList();
+        return new OrdersQueryModelState(currentState.userId(), currentState.openBuyOrders(), orders);
     }
 }

@@ -21,6 +21,7 @@ import jakarta.inject.Inject;
 import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.client.AkcesClientController;
+import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.CreateCryptoMarketCommand;
 import org.elasticsoftware.cryptotrading.services.coinbase.CoinbaseService;
 import org.elasticsoftware.cryptotrading.services.coinbase.Product;
@@ -38,6 +39,7 @@ import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTest
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.PropertySource;
+import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.support.TestPropertySourceUtils;
@@ -57,10 +59,7 @@ import java.nio.file.Paths;
 import java.util.Comparator;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.elasticsoftware.cryptotrading.TestUtils.prepareAggregateServiceRecords;
-import static org.elasticsoftware.cryptotrading.TestUtils.prepareCommandSchemas;
-import static org.elasticsoftware.cryptotrading.TestUtils.prepareDomainEventSchemas;
-import static org.elasticsoftware.cryptotrading.TestUtils.prepareKafka;
+import static org.elasticsoftware.cryptotrading.TestUtils.*;
 
 @SpringBootTest(
         classes = AggregateServiceApplication.class,
@@ -111,6 +110,9 @@ public class CryptoTradingCommandApiTest {
     private WebTestClient webTestClient;
     @Inject
     CoinbaseService coinbaseService;
+    @Inject
+    @Qualifier("aggregateServiceControlConsumerFactory")
+    ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory;
 
     private final static String counterPartyId = "337f335d-caf1-4f85-9440-6bc3c0ebbb77";
 
@@ -175,6 +177,7 @@ public class CryptoTradingCommandApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
@@ -202,6 +205,7 @@ public class CryptoTradingCommandApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
@@ -238,6 +242,7 @@ public class CryptoTradingCommandApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
@@ -273,6 +278,7 @@ public class CryptoTradingCommandApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
@@ -303,6 +309,8 @@ public class CryptoTradingCommandApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
+
         webTestClient.get()
                 .uri("/v13/accounts/invalid-id")
                 .exchange()
@@ -318,6 +326,7 @@ public class CryptoTradingCommandApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         Product product = coinbaseService.getProduct("BTC-EUR");
         akcesClientController.sendAndForget("TEST", new CreateCryptoMarketCommand(
@@ -380,11 +389,6 @@ public class CryptoTradingCommandApiTest {
             prepareKafka(kafka.getBootstrapServers());
             prepareDomainEventSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
             prepareCommandSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
-            try {
-                prepareAggregateServiceRecords(kafka.getBootstrapServers());
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
                     applicationContext,
                     "akces.rocksdb.baseDir=/tmp/akces",
@@ -392,5 +396,110 @@ public class CryptoTradingCommandApiTest {
                     "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers()
             );
         }
+    }
+
+    @Test
+    void testPlaceSellOrder() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
+
+        Product product = coinbaseService.getProduct("BTC-EUR");
+        akcesClientController.sendAndForget("TEST", new CreateCryptoMarketCommand(
+                product.id(),
+                product.baseCurrency(),
+                product.quoteCurrency(),
+                product.baseIncrement(),
+                product.quoteIncrement(),
+                counterPartyId));
+
+        AccountInput accountInput = new AccountInput("NL", "Jane", "Seller", "jane.seller@example.com");
+        webTestClient.post()
+                .uri("/v1/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .value(accountOutput -> {
+                    assertThat(accountOutput.userId()).isNotNull();
+                    String userId = accountOutput.userId();
+
+                    // Add BTC balance
+                    CreateBalanceInput createBalanceInput = new CreateBalanceInput("BTC");
+                    webTestClient.post()
+                            .uri("/v1/accounts/" + userId + "/wallet/balances")
+                            .bodyValue(createBalanceInput)
+                            .exchange()
+                            .expectStatus().is2xxSuccessful();
+
+                    // Credit BTC balance
+                    CreditWalletInput creditInput = new CreditWalletInput(new BigDecimal("1.0"));
+                    webTestClient.post()
+                            .uri("/v1/accounts/" + userId + "/wallet/balances/BTC/credit")
+                            .bodyValue(creditInput)
+                            .exchange()
+                            .expectStatus().is2xxSuccessful();
+
+                    // Place sell order
+                    SellOrderInput sellOrderInput = new SellOrderInput("BTC-EUR", new BigDecimal("0.5"), "sell-ref-1");
+                    webTestClient.post()
+                            .uri("/v1/accounts/" + userId + "/orders/sell")
+                            .bodyValue(sellOrderInput)
+                            .exchange()
+                            .expectStatus().is2xxSuccessful()
+                            .expectBody(OrderOutput.class)
+                            .value(orderOutput -> {
+                                assertThat(orderOutput).isNotNull();
+                                assertThat(orderOutput.orderId()).isNotNull();
+                                assertThat(orderOutput.market().id()).isEqualTo("BTC-EUR");
+                                assertThat(orderOutput.amount().toString()).isEqualTo("0.5");
+                                assertThat(orderOutput.clientReference()).isEqualTo("sell-ref-1");
+                            });
+                });
+    }
+
+    @Test
+    void testSellOrderWithInsufficientBalance() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
+
+        AccountInput accountInput = new AccountInput("NL", "Poor", "Seller", "poor.seller@example.com");
+        webTestClient.post()
+                .uri("/v1/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .value(accountOutput -> {
+                    assertThat(accountOutput.userId()).isNotNull();
+                    String userId = accountOutput.userId();
+
+                    // Add BTC balance but don't credit it
+                    CreateBalanceInput createBalanceInput = new CreateBalanceInput("BTC");
+                    webTestClient.post()
+                            .uri("/v1/accounts/" + userId + "/wallet/balances")
+                            .bodyValue(createBalanceInput)
+                            .exchange()
+                            .expectStatus().is2xxSuccessful();
+
+                    // Try to place sell order without sufficient BTC
+                    SellOrderInput sellOrderInput = new SellOrderInput("BTC-EUR", new BigDecimal("0.5"), "sell-ref-insufficient");
+                    webTestClient.post()
+                            .uri("/v1/accounts/" + userId + "/orders/sell")
+                            .bodyValue(sellOrderInput)
+                            .exchange()
+                            .expectStatus().is2xxSuccessful(); // Order is created but will be rejected
+                });
     }
 }

@@ -21,6 +21,7 @@ import jakarta.inject.Inject;
 import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.client.AkcesClientController;
+import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.cryptotrading.query.jdbc.CryptoMarketRepository;
 import org.elasticsoftware.cryptotrading.web.AccountCommandController;
 import org.elasticsoftware.cryptotrading.web.AccountQueryController;
@@ -38,6 +39,7 @@ import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTest
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.PropertySource;
+import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.support.TestPropertySourceUtils;
@@ -129,6 +131,36 @@ public class CryptoTradingQueryApiTest {
     private CryptoMarketRepository cryptoMarketRepository;
     @Inject
     private CryptoMarketsQueryController cryptoMarketsQueryController;
+    @Inject
+    @Qualifier("aggregateServiceControlConsumerFactory")
+    ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory;
+
+    public static class Initializer
+            implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+
+        @Override
+        public void initialize(ConfigurableApplicationContext applicationContext) {
+            // initialize kafka topics
+            prepareKafka(kafka.getBootstrapServers());
+            prepareDomainEventSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
+            prepareCommandSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
+            // This is still required for the CryptoMarketsService to function properly
+            try {
+                prepareAggregateServiceRecords(kafka.getBootstrapServers());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
+                    applicationContext,
+                    "akces.rocksdb.baseDir=/tmp/akces",
+                    "spring.kafka.enabled=true",
+                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
+                    "spring.datasource.url=" + postgresql.getJdbcUrl(),
+                    "spring.datasource.username=akces",
+                    "spring.datasource.password=akces"
+            );
+        }
+    }
 
     @AfterAll
     @BeforeAll
@@ -193,6 +225,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
@@ -220,6 +253,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
@@ -256,6 +290,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
@@ -291,6 +326,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
@@ -321,6 +357,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         AccountInput accountInput = new AccountInput("US", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
@@ -358,6 +395,8 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
+
         webTestClient.get()
                 .uri("/v13/accounts/invalid-id")
                 .exchange()
@@ -373,6 +412,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         // see if we have any crypto markets in the database
         while(cryptoMarketRepository.count() == 0) {
@@ -391,6 +431,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         // Wait until crypto markets are available in the database
         while(cryptoMarketRepository.count() == 0) {
@@ -417,6 +458,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         // Create account and credit EUR balance
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
@@ -470,6 +512,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         // Create account and credit EUR balance
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
@@ -538,12 +581,12 @@ public class CryptoTradingQueryApiTest {
                 .jsonPath("$.openBuyOrders.length()").isEqualTo(2)
                 .jsonPath("$.openBuyOrders[0].orderId").exists()
                 .jsonPath("$.openBuyOrders[0].market.id").isEqualTo("BTC-EUR")
-                .jsonPath("$.openBuyOrders[0].amount").isEqualTo(1000)
+                .jsonPath("$.openBuyOrders[0].amount").isEqualTo("1000")
                 .jsonPath("$.openBuyOrders[0].clientReference").isEqualTo("client-ref-1")
                 .jsonPath("$.openBuyOrders[0].state").exists()
                 .jsonPath("$.openBuyOrders[1].orderId").exists()
                 .jsonPath("$.openBuyOrders[1].market.id").isEqualTo("BTC-EUR")
-                .jsonPath("$.openBuyOrders[1].amount").isEqualTo(500)
+                .jsonPath("$.openBuyOrders[1].amount").isEqualTo("500")
                 .jsonPath("$.openBuyOrders[1].clientReference").isEqualTo("client-ref-2")
                 .jsonPath("$.openBuyOrders[1].state").exists();
     }
@@ -557,6 +600,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         // Create account and credit EUR balance
         AccountInput accountInput = new AccountInput("NL", "Jane", "Smith", "jane.smith@example.com");
@@ -609,7 +653,7 @@ public class CryptoTradingQueryApiTest {
                 .expectBody()
                 .jsonPath("$.orderId").isEqualTo(orderId)
                 .jsonPath("$.market.id").isEqualTo("BTC-EUR")
-                .jsonPath("$.amount").isEqualTo(750)
+                .jsonPath("$.amount").isEqualTo("750")
                 .jsonPath("$.clientReference").isEqualTo("test-ref-123")
                 .jsonPath("$.state").exists();
 
@@ -620,30 +664,147 @@ public class CryptoTradingQueryApiTest {
                 .expectStatus().isNotFound();
     }
 
-
-    public static class Initializer
-            implements ApplicationContextInitializer<ConfigurableApplicationContext> {
-
-        @Override
-        public void initialize(ConfigurableApplicationContext applicationContext) {
-            // initialize kafka topics
-            prepareKafka(kafka.getBootstrapServers());
-            prepareDomainEventSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
-            prepareCommandSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
-            try {
-                prepareAggregateServiceRecords(kafka.getBootstrapServers());
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
-                    applicationContext,
-                    "akces.rocksdb.baseDir=/tmp/akces",
-                    "spring.kafka.enabled=true",
-                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
-                    "spring.datasource.url=" + postgresql.getJdbcUrl(),
-                    "spring.datasource.username=akces",
-                    "spring.datasource.password=akces"
-            );
+    @Test
+    void testPlaceSellOrder() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
+
+        // Create account and credit BTC balance
+        AccountInput accountInput = new AccountInput("NL", "Jane", "Doe", "jane.doe@example.com");
+        AccountOutput accountOutput = webTestClient.post()
+                .uri("/v1/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(accountOutput).isNotNull();
+        String userId = accountOutput.userId();
+
+        // Add BTC balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances")
+                .bodyValue(new CreateBalanceInput("BTC"))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Credit BTC balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances/BTC/credit")
+                .bodyValue(new CreditWalletInput(new BigDecimal("1.5")))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Place sell order
+        SellOrderInput sellOrderInput = new SellOrderInput("BTC-EUR", new BigDecimal("0.5"), "sell-client-ref-1");
+
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/orders/sell")
+                .bodyValue(sellOrderInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(OrderOutput.class)
+                .value(orderOutput -> {
+                    assertThat(orderOutput).isNotNull();
+                    assertThat(orderOutput.orderId()).isNotNull();
+                    assertThat(orderOutput.market().id()).isEqualTo("BTC-EUR");
+                    assertThat(orderOutput.amount().toString()).isEqualTo("0.5");
+                });
+    }
+
+    @Test
+    void testGetOpenSellOrders() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
+
+        // Create account and credit BTC balance
+        AccountInput accountInput = new AccountInput("NL", "Jane", "Doe", "jane.doe@example.com");
+        AccountOutput accountOutput = webTestClient.post()
+                .uri("/v1/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(accountOutput).isNotNull();
+        String userId = accountOutput.userId();
+
+        // Add BTC balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances")
+                .bodyValue(new CreateBalanceInput("BTC"))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Credit BTC balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances/BTC/credit")
+                .bodyValue(new CreditWalletInput(new BigDecimal("2.0")))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Place first sell order
+        SellOrderInput sellOrderInput1 = new SellOrderInput("BTC-EUR", new BigDecimal("0.5"), "sell-ref-1");
+        OrderOutput orderOutput1 = webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/orders/sell")
+                .bodyValue(sellOrderInput1)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(OrderOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(orderOutput1).isNotNull();
+        assertThat(orderOutput1.orderId()).isNotNull();
+
+        // Place second sell order
+        SellOrderInput sellOrderInput2 = new SellOrderInput("BTC-EUR", new BigDecimal("0.3"), "sell-ref-2");
+        OrderOutput orderOutput2 = webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/orders/sell")
+                .bodyValue(sellOrderInput2)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(OrderOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(orderOutput2).isNotNull();
+        assertThat(orderOutput2.orderId()).isNotNull();
+
+        // Get open orders
+        webTestClient.get()
+                .uri("/v1/accounts/" + userId + "/orders")
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody()
+                .jsonPath("$.userId").isEqualTo(userId)
+                .jsonPath("$.openSellOrders").isArray()
+                .jsonPath("$.openSellOrders.length()").isEqualTo(2)
+                .jsonPath("$.openSellOrders[0].orderId").exists()
+                .jsonPath("$.openSellOrders[0].market.id").isEqualTo("BTC-EUR")
+                .jsonPath("$.openSellOrders[0].quantity").isEqualTo("0.5")
+                .jsonPath("$.openSellOrders[0].clientReference").isEqualTo("sell-ref-1")
+                .jsonPath("$.openSellOrders[0].state").exists()
+                .jsonPath("$.openSellOrders[1].orderId").exists()
+                .jsonPath("$.openSellOrders[1].market.id").isEqualTo("BTC-EUR")
+                .jsonPath("$.openSellOrders[1].quantity").isEqualTo("0.3")
+                .jsonPath("$.openSellOrders[1].clientReference").isEqualTo("sell-ref-2")
+                .jsonPath("$.openSellOrders[1].state").exists();
     }
 }

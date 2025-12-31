@@ -137,7 +137,7 @@ public class CryptoTradingE2ETests {
                 .value(balanceOutput -> {
                     assertThat(balanceOutput).isNotNull();
                     assertThat(balanceOutput.currency()).isEqualTo("ETH");
-                    assertThat(balanceOutput.amount()).isEqualTo(BigDecimal.ZERO);
+                    assertThat(balanceOutput.amount().toString()).isEqualTo("0");
                 });
 
         // credit the EUR wallet with a balance of 1000
@@ -150,8 +150,8 @@ public class CryptoTradingE2ETests {
                 .value(balanceOutput -> {
                     assertThat(balanceOutput).isNotNull();
                     assertThat(balanceOutput.currency()).isEqualTo("EUR");
-                    assertThat(balanceOutput.amount()).isEqualTo(new BigDecimal("1000.00"));
-                    assertThat(balanceOutput.balance()).isEqualTo(new BigDecimal("1000.00"));
+                    assertThat(balanceOutput.amount().toString()).isEqualTo("1000.00");
+                    assertThat(balanceOutput.balance().toString()).isEqualTo("1000.00");
                 });
 
         // buy for 1000 EUR worth of ETH
@@ -166,7 +166,7 @@ public class CryptoTradingE2ETests {
                     assertThat(orderOutput.orderId()).isNotNull();
                     assertThat(orderOutput.market()).isNotNull();
                     assertThat(orderOutput.market().id()).isEqualTo("ETH-EUR");
-                    assertThat(orderOutput.amount()).isEqualTo(new BigDecimal("1000.00"));
+                    assertThat(orderOutput.amount().toString()).isEqualTo("1000.00");
                     assertThat(orderOutput.clientReference()).isEqualTo("buy-eth-eur");
                 }).returnResult().getResponseBody().orderId();
 
@@ -187,7 +187,7 @@ public class CryptoTradingE2ETests {
                             var eurBalance = wallet.balances().stream()
                                     .filter(b -> "EUR".equals(b.currency()))
                                     .findFirst().orElseThrow();
-                            assertThat(eurBalance.amount()).isEqualTo(new BigDecimal("0.00"));
+                            assertThat(eurBalance.amount().toString()).isEqualTo("0.00");
 
                             // Find and verify ETH balance (should be 10.00 after buying)
                             var ethBalance = wallet.balances().stream()
@@ -212,5 +212,136 @@ public class CryptoTradingE2ETests {
                 .jsonPath("$.baseIncrement").exists()
                 .jsonPath("$.quoteIncrement").exists()
                 .jsonPath("$.defaultCounterPartyId").exists();
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "AKCES_CRYPTO_TRADING_BASE_URL", matches = ".*")
+    public void testSellCrypto() {
+        AccountInput accountInput = new AccountInput("NL", "Crypto", "Seller", "crypto.seller@example.com");
+        String userId = e2eTestClient.post()
+                .uri("/v1/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .value(accountOutput -> {
+                    assertThat(accountOutput).isNotNull();
+                    assertThat(accountOutput.userId()).isNotNull();
+                }).returnResult().getResponseBody().userId();
+
+        System.out.println("Created account with userId: " + userId);
+
+        // Create a BTC wallet and credit it with 1 BTC
+        e2eTestClient.post()
+                .uri("/v1/accounts/{userId}/wallet/balances", userId)
+                .bodyValue(new CreateBalanceInput("BTC"))
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(BalanceOutput.class)
+                .value(balanceOutput -> {
+                    assertThat(balanceOutput).isNotNull();
+                    assertThat(balanceOutput.currency()).isEqualTo("BTC");
+                    assertThat(balanceOutput.amount().toString()).isEqualTo("0");
+                });
+
+        // Credit BTC balance with 1 BTC
+        e2eTestClient.post()
+                .uri("/v1/accounts/{userId}/wallet/balances/BTC/credit", userId)
+                .bodyValue(new CreditWalletInput(new BigDecimal("1.00")))
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(BalanceOutput.class)
+                .value(balanceOutput -> {
+                    assertThat(balanceOutput).isNotNull();
+                    assertThat(balanceOutput.currency()).isEqualTo("BTC");
+                    assertThat(balanceOutput.amount().toString()).isEqualTo("1.00");
+                    assertThat(balanceOutput.balance().toString()).isEqualTo("1.00");
+                });
+
+        // Create EUR balance
+        e2eTestClient.post()
+                .uri("/v1/accounts/{userId}/wallet/balances", userId)
+                .bodyValue(new CreateBalanceInput("EUR"))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Sell 0.5 BTC for EUR
+        String orderId = e2eTestClient.post()
+                .uri("/v1/accounts/{userId}/orders/sell", userId)
+                .bodyValue(new SellOrderInput("BTC-EUR", new BigDecimal("0.50"), "sell-btc-eur"))
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(OrderOutput.class)
+                .value(orderOutput -> {
+                    assertThat(orderOutput).isNotNull();
+                    assertThat(orderOutput.orderId()).isNotNull();
+                    assertThat(orderOutput.market()).isNotNull();
+                    assertThat(orderOutput.market().id()).isEqualTo("BTC-EUR");
+                    assertThat(orderOutput.amount().toString()).isEqualTo("0.50");
+                    assertThat(orderOutput.clientReference()).isEqualTo("sell-btc-eur");
+                }).returnResult().getResponseBody().orderId();
+
+        // Wait for the order to reach a terminal state (FILLED or REJECTED)
+        waitForSellOrderTerminalState(userId, orderId, Duration.ofSeconds(30));
+
+        // Test the wallet balances
+        e2eTestClient.get()
+                .uri("/v1/accounts/{userId}/wallet", userId)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(WalletQueryModelState.class)
+                .value(wallet -> {
+                    assertThat(wallet).isNotNull();
+                    assertThat(wallet.balances()).hasSize(2);
+
+                    // Find and verify BTC balance (should be 0.5 after selling 0.5 BTC)
+                    var btcBalance = wallet.balances().stream()
+                            .filter(b -> "BTC".equals(b.currency()))
+                            .findFirst().orElseThrow();
+                    assertThat(btcBalance.amount().toString()).isEqualTo("0.50");
+
+                    // Find and verify EUR balance (should have increased after selling BTC)
+                    var eurBalance = wallet.balances().stream()
+                            .filter(b -> "EUR".equals(b.currency()))
+                            .findFirst().orElseThrow();
+                    assertThat(eurBalance.amount()).isNotEqualTo(BigDecimal.ZERO);
+                });
+    }
+
+    /**
+     * Waits for a sell order to reach a terminal state (FILLED or REJECTED) by polling the orders API.
+     *
+     * @param userId the account ID
+     * @param orderId the order ID
+     * @param timeout maximum time to wait
+     */
+    private void waitForSellOrderTerminalState(String userId, String orderId, Duration timeout) {
+        long startTime = System.currentTimeMillis();
+        long timeoutMillis = timeout.toMillis();
+        long pollIntervalMillis = 500; // Poll every 500ms
+
+        while (System.currentTimeMillis() - startTime < timeoutMillis) {
+            OrdersQueryModelState.SellOrder order = e2eTestClient.get()
+                    .uri("/v1/accounts/{userId}/orders/{orderId}", userId, orderId)
+                    .exchange()
+                    .expectStatus().is2xxSuccessful()
+                    .expectBody(OrdersQueryModelState.SellOrder.class)
+                    .returnResult()
+                    .getResponseBody();
+
+            if (order != null && (order.state() == OrderState.FILLED || order.state() == OrderState.REJECTED)) {
+                System.out.println("Sell order " + orderId + " reached terminal state: " + order.state());
+                return;
+            }
+
+            try {
+                Thread.sleep(pollIntervalMillis);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                fail("Interrupted while waiting for sell order to reach terminal state");
+            }
+        }
+
+        fail("Sell order " + orderId + " did not reach a terminal state within " + timeout.getSeconds() + " seconds");
     }
 }
