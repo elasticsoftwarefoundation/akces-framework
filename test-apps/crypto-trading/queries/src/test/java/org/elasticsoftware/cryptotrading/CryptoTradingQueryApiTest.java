@@ -646,4 +646,160 @@ public class CryptoTradingQueryApiTest {
             );
         }
     }
+
+    @Test
+    void testPlaceSellOrder() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        // Create account and credit BTC balance
+        AccountInput accountInput = new AccountInput("NL", "Jane", "Doe", "jane.doe@example.com");
+        AccountOutput accountOutput = webTestClient.post()
+                .uri("/v1/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(accountOutput).isNotNull();
+        String userId = accountOutput.userId();
+
+        // Add BTC balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances")
+                .bodyValue(new CreateBalanceInput("BTC"))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Credit BTC balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances/BTC/credit")
+                .bodyValue(new CreditWalletInput(new BigDecimal("1.5")))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Add EUR balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances")
+                .bodyValue(new CreateBalanceInput("EUR"))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Place sell order
+        SellOrderInput sellOrderInput = new SellOrderInput("BTC-EUR", new BigDecimal("0.5"), "sell-client-ref-1");
+
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/orders/sell")
+                .bodyValue(sellOrderInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(OrderOutput.class)
+                .value(orderOutput -> {
+                    assertThat(orderOutput).isNotNull();
+                    assertThat(orderOutput.orderId()).isNotNull();
+                    assertThat(orderOutput.market().id()).isEqualTo("BTC-EUR");
+                    assertThat(orderOutput.amount()).isEqualTo(new BigDecimal("0.5"));
+                });
+    }
+
+    @Test
+    void testGetOpenSellOrders() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        // Create account and credit BTC balance
+        AccountInput accountInput = new AccountInput("NL", "Jane", "Doe", "jane.doe@example.com");
+        AccountOutput accountOutput = webTestClient.post()
+                .uri("/v1/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(accountOutput).isNotNull();
+        String userId = accountOutput.userId();
+
+        // Add BTC balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances")
+                .bodyValue(new CreateBalanceInput("BTC"))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Credit BTC balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances/BTC/credit")
+                .bodyValue(new CreditWalletInput(new BigDecimal("2.0")))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Add EUR balance
+        webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/wallet/balances")
+                .bodyValue(new CreateBalanceInput("EUR"))
+                .exchange()
+                .expectStatus().is2xxSuccessful();
+
+        // Place first sell order
+        SellOrderInput sellOrderInput1 = new SellOrderInput("BTC-EUR", new BigDecimal("0.5"), "sell-ref-1");
+        OrderOutput orderOutput1 = webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/orders/sell")
+                .bodyValue(sellOrderInput1)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(OrderOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(orderOutput1).isNotNull();
+        assertThat(orderOutput1.orderId()).isNotNull();
+
+        // Place second sell order
+        SellOrderInput sellOrderInput2 = new SellOrderInput("BTC-EUR", new BigDecimal("0.3"), "sell-ref-2");
+        OrderOutput orderOutput2 = webTestClient.post()
+                .uri("/v1/accounts/" + userId + "/orders/sell")
+                .bodyValue(sellOrderInput2)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(OrderOutput.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(orderOutput2).isNotNull();
+        assertThat(orderOutput2.orderId()).isNotNull();
+
+        // Get open orders
+        webTestClient.get()
+                .uri("/v1/accounts/" + userId + "/orders")
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody()
+                .jsonPath("$.userId").isEqualTo(userId)
+                .jsonPath("$.openSellOrders").isArray()
+                .jsonPath("$.openSellOrders.length()").isEqualTo(2)
+                .jsonPath("$.openSellOrders[0].orderId").exists()
+                .jsonPath("$.openSellOrders[0].market.id").isEqualTo("BTC-EUR")
+                .jsonPath("$.openSellOrders[0].quantity").isEqualTo(0.5)
+                .jsonPath("$.openSellOrders[0].clientReference").isEqualTo("sell-ref-1")
+                .jsonPath("$.openSellOrders[0].state").exists()
+                .jsonPath("$.openSellOrders[1].orderId").exists()
+                .jsonPath("$.openSellOrders[1].market.id").isEqualTo("BTC-EUR")
+                .jsonPath("$.openSellOrders[1].quantity").isEqualTo(0.3)
+                .jsonPath("$.openSellOrders[1].clientReference").isEqualTo("sell-ref-2")
+                .jsonPath("$.openSellOrders[1].state").exists();
+    }
 }

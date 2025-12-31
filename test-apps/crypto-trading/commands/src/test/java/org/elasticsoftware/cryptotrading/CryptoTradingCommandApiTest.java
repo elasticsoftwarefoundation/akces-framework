@@ -393,4 +393,98 @@ public class CryptoTradingCommandApiTest {
             );
         }
     }
+
+    @Test
+    void testPlaceSellOrder() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        AccountInput accountInput = new AccountInput("NL", "Jane", "Seller", "jane.seller@example.com");
+        webTestClient.post()
+                .uri("/v1/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .value(accountOutput -> {
+                    assertThat(accountOutput.userId()).isNotNull();
+                    String userId = accountOutput.userId();
+
+                    // Add BTC balance
+                    CreateBalanceInput createBalanceInput = new CreateBalanceInput("BTC");
+                    webTestClient.post()
+                            .uri("/v1/accounts/" + userId + "/wallet/balances")
+                            .bodyValue(createBalanceInput)
+                            .exchange()
+                            .expectStatus().is2xxSuccessful();
+
+                    // Credit BTC balance
+                    CreditWalletInput creditInput = new CreditWalletInput(new BigDecimal("1.0"));
+                    webTestClient.post()
+                            .uri("/v1/accounts/" + userId + "/wallet/balances/BTC/credit")
+                            .bodyValue(creditInput)
+                            .exchange()
+                            .expectStatus().is2xxSuccessful();
+
+                    // Place sell order
+                    SellOrderInput sellOrderInput = new SellOrderInput("BTC-EUR", new BigDecimal("0.5"), "sell-ref-1");
+                    webTestClient.post()
+                            .uri("/v1/accounts/" + userId + "/orders/sell")
+                            .bodyValue(sellOrderInput)
+                            .exchange()
+                            .expectStatus().is2xxSuccessful()
+                            .expectBody(OrderOutput.class)
+                            .value(orderOutput -> {
+                                assertThat(orderOutput).isNotNull();
+                                assertThat(orderOutput.orderId()).isNotNull();
+                                assertThat(orderOutput.market().id()).isEqualTo("BTC-EUR");
+                                assertThat(orderOutput.amount()).isEqualTo(new BigDecimal("0.5"));
+                                assertThat(orderOutput.clientReference()).isEqualTo("sell-ref-1");
+                            });
+                });
+    }
+
+    @Test
+    void testSellOrderWithInsufficientBalance() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        AccountInput accountInput = new AccountInput("NL", "Poor", "Seller", "poor.seller@example.com");
+        webTestClient.post()
+                .uri("/v1/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .value(accountOutput -> {
+                    assertThat(accountOutput.userId()).isNotNull();
+                    String userId = accountOutput.userId();
+
+                    // Add BTC balance but don't credit it
+                    CreateBalanceInput createBalanceInput = new CreateBalanceInput("BTC");
+                    webTestClient.post()
+                            .uri("/v1/accounts/" + userId + "/wallet/balances")
+                            .bodyValue(createBalanceInput)
+                            .exchange()
+                            .expectStatus().is2xxSuccessful();
+
+                    // Try to place sell order without sufficient BTC
+                    SellOrderInput sellOrderInput = new SellOrderInput("BTC-EUR", new BigDecimal("0.5"), "sell-ref-insufficient");
+                    webTestClient.post()
+                            .uri("/v1/accounts/" + userId + "/orders/sell")
+                            .bodyValue(sellOrderInput)
+                            .exchange()
+                            .expectStatus().is2xxSuccessful(); // Order is created but will be rejected
+                });
+    }
 }

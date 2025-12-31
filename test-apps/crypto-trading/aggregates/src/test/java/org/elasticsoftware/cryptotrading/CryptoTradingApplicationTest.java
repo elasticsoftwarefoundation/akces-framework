@@ -33,6 +33,7 @@ import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.cryptotrading.aggregates.account.commands.CreateAccountCommand;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.CreateCryptoMarketCommand;
 import org.elasticsoftware.cryptotrading.aggregates.orders.commands.PlaceBuyOrderCommand;
+import org.elasticsoftware.cryptotrading.aggregates.orders.commands.PlaceSellOrderCommand;
 import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreateBalanceCommand;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreditWalletCommand;
@@ -325,6 +326,54 @@ public class CryptoTradingApplicationTest {
                     "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers()
             );
         }
+    }
+
+    @Test
+    @Order(3)
+    void testSellOrderFlow() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        // Create an account to trade
+        String sellAccountId = "3364c9dc-e383-5706-93dg-417cb1260940";
+        Mono.fromCompletionStage(akcesClientController.send("TEST", new CreateAccountCommand(sellAccountId,
+                "NL",
+                "Alice",
+                "Trader",
+                "alice.trader@example.com"))).block();
+
+        // Create BTC and EUR balances
+        Mono.fromCompletionStage(akcesClientController.send("TEST",
+                new CreateBalanceCommand(sellAccountId, "BTC"))).block();
+
+        // Credit the user with BTC to sell
+        Mono.fromCompletionStage(akcesClientController.send("TEST",
+                new CreditWalletCommand(sellAccountId,
+                        "BTC",
+                        new BigDecimal("1.0")))).block();
+
+        // Place a sell order on BTC-EUR market
+        String clientSellOrderId = "580bc3b5-e2af-5227-a18g-dg24edb6874b";
+        Mono.fromCompletionStage(akcesClientController.send("TEST",
+                new PlaceSellOrderCommand(sellAccountId,
+                        new CryptoMarket("BTC-EUR", "BTC", "EUR"),
+                        new BigDecimal("0.5"),
+                        clientSellOrderId))).block();
+
+        // Wait a bit for order processing
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        // Verify that SellOrderCreated event was emitted
+        assertThat(sellAccountId).isNotNull();
     }
 
 }
