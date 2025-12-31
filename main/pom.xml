@@ -55,7 +55,7 @@
         <victools.version>4.38.0</victools.version>
         <joda-time.version>2.14.0</joda-time.version>
         <logback.version>1.5.23</logback.version>
-        <testcontainers.version>2.0.2</testcontainers.version>
+        <testcontainers.version>2.0.3</testcontainers.version>
         <compile-testing.version>0.23.0</compile-testing.version>
     </properties>
 
