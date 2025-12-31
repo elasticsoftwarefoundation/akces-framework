@@ -29,7 +29,6 @@ public record SellOrderProcess(
         String orderId,
         CryptoMarket market,
         BigDecimal size,
-        BigDecimal quantity,
         String clientReference,
         OrderProcessState state
 ) implements OrderProcess {
@@ -37,12 +36,17 @@ public record SellOrderProcess(
                             CryptoMarket market,
                             BigDecimal quantity,
                             String clientReference) {
-        this(orderId, market, null, quantity, clientReference, OrderProcessState.CREATED);
+        this(orderId, market, quantity, clientReference, OrderProcessState.CREATED);
     }
 
     @Override
     public String getProcessId() {
         return orderId();
+    }
+
+    @Override
+    public BigDecimal amount() {
+        return size();
     }
 
     @Override
@@ -62,6 +66,6 @@ public record SellOrderProcess(
 
     @Override
     public OrderProcess withState(OrderProcessState state) {
-        return new SellOrderProcess(orderId(), market, size(), quantity(), clientReference(), state);
+        return new SellOrderProcess(orderId(), market, size(), clientReference(), state);
     }
 }

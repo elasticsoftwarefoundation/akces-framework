@@ -196,11 +196,11 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
                     command.quoteCurrency(),
                     command.orderId()));
             // TODO: the amount should be in the BuyOrderFilledEvent
-            log.info("CommandHandler: Debiting {} {} from user wallet", buyOrderProcess.quantity(), command.quoteCurrency());
+            log.info("CommandHandler: Debiting {} {} from user wallet", buyOrderProcess.amount(), command.quoteCurrency());
             getCommandBus().send(new DebitWalletCommand(
                     command.userId(),
                     command.quoteCurrency(),
-                    buyOrderProcess.quantity()));
+                    buyOrderProcess.amount()));
             // credit the base currency
             log.info("CommandHandler: Crediting {} {} to user wallet", command.quantity(), command.baseCurrency());
             getCommandBus().send(new CreditWalletCommand(
@@ -263,11 +263,11 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
                     command.baseCurrency(),
                     command.orderId()));
             // debit the base currency
-            log.info("CommandHandler: Debiting {} {} from user wallet", sellOrderProcess.quantity(), command.baseCurrency());
+            log.info("CommandHandler: Debiting {} {} from user wallet", sellOrderProcess.amount(), command.baseCurrency());
             getCommandBus().send(new DebitWalletCommand(
                     command.userId(),
                     command.baseCurrency(),
-                    sellOrderProcess.quantity()));
+                    sellOrderProcess.amount()));
             // credit the quote currency (user receives quote currency for selling base currency)
             BigDecimal quoteAmount = command.quantity().multiply(command.price());
             log.info("CommandHandler: Crediting {} {} to user wallet", quoteAmount, command.quoteCurrency());
@@ -305,12 +305,12 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
                     orderProcess.orderId(),
                     state.userId(),
                     side,
-                    orderProcess.quantity(),
+                    orderProcess.amount(),
                     null));
             if (orderProcess instanceof BuyOrderProcess) {
-                return Stream.of(new BuyOrderPlacedEvent(state.userId(), orderProcess.orderId(), orderProcess.market(), orderProcess.quantity(), null));
+                return Stream.of(new BuyOrderPlacedEvent(state.userId(), orderProcess.orderId(), orderProcess.market(), orderProcess.amount(), null));
             } else {
-                return Stream.of(new SellOrderPlacedEvent(state.userId(), orderProcess.orderId(), orderProcess.market(), orderProcess.quantity(), null));
+                return Stream.of(new SellOrderPlacedEvent(state.userId(), orderProcess.orderId(), orderProcess.market(), orderProcess.amount(), null));
             }
         } else {
             log.info("EventHandler: No order process found for referenceId={}", event.referenceId());
