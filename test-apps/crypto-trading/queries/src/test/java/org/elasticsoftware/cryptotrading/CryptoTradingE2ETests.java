@@ -137,7 +137,7 @@ public class CryptoTradingE2ETests {
                 .value(balanceOutput -> {
                     assertThat(balanceOutput).isNotNull();
                     assertThat(balanceOutput.currency()).isEqualTo("ETH");
-                    assertThat(balanceOutput.amount()).isEqualTo(BigDecimal.ZERO);
+                    assertThat(balanceOutput.amount().toString()).isEqualTo("0");
                 });
 
         // credit the EUR wallet with a balance of 1000
@@ -150,8 +150,8 @@ public class CryptoTradingE2ETests {
                 .value(balanceOutput -> {
                     assertThat(balanceOutput).isNotNull();
                     assertThat(balanceOutput.currency()).isEqualTo("EUR");
-                    assertThat(balanceOutput.amount()).isEqualTo(new BigDecimal("1000.00"));
-                    assertThat(balanceOutput.balance()).isEqualTo(new BigDecimal("1000.00"));
+                    assertThat(balanceOutput.amount().toString()).isEqualTo("1000.00");
+                    assertThat(balanceOutput.balance().toString()).isEqualTo("1000.00");
                 });
 
         // buy for 1000 EUR worth of ETH
@@ -166,7 +166,7 @@ public class CryptoTradingE2ETests {
                     assertThat(orderOutput.orderId()).isNotNull();
                     assertThat(orderOutput.market()).isNotNull();
                     assertThat(orderOutput.market().id()).isEqualTo("ETH-EUR");
-                    assertThat(orderOutput.amount()).isEqualTo(new BigDecimal("1000.00"));
+                    assertThat(orderOutput.amount().toString()).isEqualTo("1000.00");
                     assertThat(orderOutput.clientReference()).isEqualTo("buy-eth-eur");
                 }).returnResult().getResponseBody().orderId();
 
@@ -187,7 +187,7 @@ public class CryptoTradingE2ETests {
                             var eurBalance = wallet.balances().stream()
                                     .filter(b -> "EUR".equals(b.currency()))
                                     .findFirst().orElseThrow();
-                            assertThat(eurBalance.amount()).isEqualTo(new BigDecimal("0.00"));
+                            assertThat(eurBalance.amount().toString()).isEqualTo("0.00");
 
                             // Find and verify ETH balance (should be 10.00 after buying)
                             var ethBalance = wallet.balances().stream()
@@ -241,7 +241,7 @@ public class CryptoTradingE2ETests {
                 .value(balanceOutput -> {
                     assertThat(balanceOutput).isNotNull();
                     assertThat(balanceOutput.currency()).isEqualTo("BTC");
-                    assertThat(balanceOutput.amount()).isEqualTo(BigDecimal.ZERO);
+                    assertThat(balanceOutput.amount().toString()).isEqualTo("0");
                 });
 
         // Credit BTC balance with 1 BTC
@@ -254,8 +254,8 @@ public class CryptoTradingE2ETests {
                 .value(balanceOutput -> {
                     assertThat(balanceOutput).isNotNull();
                     assertThat(balanceOutput.currency()).isEqualTo("BTC");
-                    assertThat(balanceOutput.amount()).isEqualTo(new BigDecimal("1.00"));
-                    assertThat(balanceOutput.balance()).isEqualTo(new BigDecimal("1.00"));
+                    assertThat(balanceOutput.amount().toString()).isEqualTo("1.00");
+                    assertThat(balanceOutput.balance().toString()).isEqualTo("1.00");
                 });
 
         // Create EUR balance
@@ -277,7 +277,7 @@ public class CryptoTradingE2ETests {
                     assertThat(orderOutput.orderId()).isNotNull();
                     assertThat(orderOutput.market()).isNotNull();
                     assertThat(orderOutput.market().id()).isEqualTo("BTC-EUR");
-                    assertThat(orderOutput.amount()).isEqualTo(new BigDecimal("0.50"));
+                    assertThat(orderOutput.amount().toString()).isEqualTo("0.50");
                     assertThat(orderOutput.clientReference()).isEqualTo("sell-btc-eur");
                 }).returnResult().getResponseBody().orderId();
 
@@ -298,7 +298,7 @@ public class CryptoTradingE2ETests {
                     var btcBalance = wallet.balances().stream()
                             .filter(b -> "BTC".equals(b.currency()))
                             .findFirst().orElseThrow();
-                    assertThat(btcBalance.amount()).isEqualTo(new BigDecimal("0.50"));
+                    assertThat(btcBalance.amount().toString()).isEqualTo("0.50");
 
                     // Find and verify EUR balance (should have increased after selling BTC)
                     var eurBalance = wallet.balances().stream()

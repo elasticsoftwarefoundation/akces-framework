@@ -443,7 +443,7 @@ public class CryptoTradingCommandApiTest {
                                 assertThat(orderOutput).isNotNull();
                                 assertThat(orderOutput.orderId()).isNotNull();
                                 assertThat(orderOutput.market().id()).isEqualTo("BTC-EUR");
-                                assertThat(orderOutput.amount()).isEqualTo(new BigDecimal("0.5"));
+                                assertThat(orderOutput.amount().toString()).isEqualTo("0.5");
                                 assertThat(orderOutput.clientReference()).isEqualTo("sell-ref-1");
                             });
                 });

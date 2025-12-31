@@ -538,12 +538,12 @@ public class CryptoTradingQueryApiTest {
                 .jsonPath("$.openBuyOrders.length()").isEqualTo(2)
                 .jsonPath("$.openBuyOrders[0].orderId").exists()
                 .jsonPath("$.openBuyOrders[0].market.id").isEqualTo("BTC-EUR")
-                .jsonPath("$.openBuyOrders[0].amount").isEqualTo(1000)
+                .jsonPath("$.openBuyOrders[0].amount").isEqualTo("1000")
                 .jsonPath("$.openBuyOrders[0].clientReference").isEqualTo("client-ref-1")
                 .jsonPath("$.openBuyOrders[0].state").exists()
                 .jsonPath("$.openBuyOrders[1].orderId").exists()
                 .jsonPath("$.openBuyOrders[1].market.id").isEqualTo("BTC-EUR")
-                .jsonPath("$.openBuyOrders[1].amount").isEqualTo(500)
+                .jsonPath("$.openBuyOrders[1].amount").isEqualTo("500")
                 .jsonPath("$.openBuyOrders[1].clientReference").isEqualTo("client-ref-2")
                 .jsonPath("$.openBuyOrders[1].state").exists();
     }
@@ -609,7 +609,7 @@ public class CryptoTradingQueryApiTest {
                 .expectBody()
                 .jsonPath("$.orderId").isEqualTo(orderId)
                 .jsonPath("$.market.id").isEqualTo("BTC-EUR")
-                .jsonPath("$.amount").isEqualTo(750)
+                .jsonPath("$.amount").isEqualTo("750")
                 .jsonPath("$.clientReference").isEqualTo("test-ref-123")
                 .jsonPath("$.state").exists();
 
@@ -705,7 +705,7 @@ public class CryptoTradingQueryApiTest {
                     assertThat(orderOutput).isNotNull();
                     assertThat(orderOutput.orderId()).isNotNull();
                     assertThat(orderOutput.market().id()).isEqualTo("BTC-EUR");
-                    assertThat(orderOutput.amount()).isEqualTo(new BigDecimal("0.5"));
+                    assertThat(orderOutput.amount().toString()).isEqualTo("0.5");
                 });
     }
 
@@ -793,12 +793,12 @@ public class CryptoTradingQueryApiTest {
                 .jsonPath("$.openSellOrders.length()").isEqualTo(2)
                 .jsonPath("$.openSellOrders[0].orderId").exists()
                 .jsonPath("$.openSellOrders[0].market.id").isEqualTo("BTC-EUR")
-                .jsonPath("$.openSellOrders[0].quantity").isEqualTo(0.5)
+                .jsonPath("$.openSellOrders[0].quantity").isEqualTo("0.5")
                 .jsonPath("$.openSellOrders[0].clientReference").isEqualTo("sell-ref-1")
                 .jsonPath("$.openSellOrders[0].state").exists()
                 .jsonPath("$.openSellOrders[1].orderId").exists()
                 .jsonPath("$.openSellOrders[1].market.id").isEqualTo("BTC-EUR")
-                .jsonPath("$.openSellOrders[1].quantity").isEqualTo(0.3)
+                .jsonPath("$.openSellOrders[1].quantity").isEqualTo("0.3")
                 .jsonPath("$.openSellOrders[1].clientReference").isEqualTo("sell-ref-2")
                 .jsonPath("$.openSellOrders[1].state").exists();
     }

@@ -17,6 +17,8 @@
 
 package org.elasticsoftware.cryptotrading.query;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.QueryModelStateInfo;
 import org.elasticsoftware.akces.query.QueryModelState;
@@ -31,7 +33,9 @@ public record WalletQueryModelState(String walletId, List<Balance> balances) imp
         return walletId();
     }
 
-    public record Balance(String currency, BigDecimal amount, BigDecimal reservedAmount) {
+    public record Balance(String currency, 
+                         @JsonSerialize(using = ToStringSerializer.class) BigDecimal amount, 
+                         @JsonSerialize(using = ToStringSerializer.class) BigDecimal reservedAmount) {
         public Balance(@NotNull String currency) {
             this(currency, BigDecimal.ZERO, BigDecimal.ZERO);
         }

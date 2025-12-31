@@ -17,6 +17,8 @@
 
 package org.elasticsoftware.cryptotrading.query;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import org.elasticsoftware.akces.annotations.QueryModelStateInfo;
 import org.elasticsoftware.akces.query.QueryModelState;
 import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
@@ -31,9 +33,9 @@ public record OrdersQueryModelState(String userId, List<BuyOrder> openBuyOrders,
         return userId();
     }
 
-    public record BuyOrder(String orderId, CryptoMarket market, BigDecimal amount, String clientReference, OrderState state) {
+    public record BuyOrder(String orderId, CryptoMarket market, @JsonSerialize(using = ToStringSerializer.class) BigDecimal amount, String clientReference, OrderState state) {
     }
 
-    public record SellOrder(String orderId, CryptoMarket market, BigDecimal quantity, String clientReference, OrderState state) {
+    public record SellOrder(String orderId, CryptoMarket market, @JsonSerialize(using = ToStringSerializer.class) BigDecimal quantity, String clientReference, OrderState state) {
     }
 }
