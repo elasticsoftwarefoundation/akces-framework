@@ -116,7 +116,7 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
             add(new SellOrderProcess(
                     event.orderId(),
                     event.market(),
-                    event.amount(),
+                    event.quantity(),
                     event.clientReference()));
         }});
     }
@@ -196,11 +196,11 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
                     command.quoteCurrency(),
                     command.orderId()));
             // TODO: the amount should be in the BuyOrderFilledEvent
-            log.info("CommandHandler: Debiting {} {} from user wallet", buyOrderProcess.amount(), command.quoteCurrency());
+            log.info("CommandHandler: Debiting {} {} from user wallet", buyOrderProcess.quantity(), command.quoteCurrency());
             getCommandBus().send(new DebitWalletCommand(
                     command.userId(),
                     command.quoteCurrency(),
-                    buyOrderProcess.amount()));
+                    buyOrderProcess.quantity()));
             // credit the base currency
             log.info("CommandHandler: Crediting {} {} to user wallet", command.quantity(), command.baseCurrency());
             getCommandBus().send(new CreditWalletCommand(
@@ -231,8 +231,8 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
      */
     @CommandHandler(produces = SellOrderCreatedEvent.class, errors = {})
     public Stream<SellOrderCreatedEvent> placeSellOrder(PlaceSellOrderCommand command, OrderProcessManagerState state) {
-        log.info("CommandHandler: Placing sell order for userId={}, market={}, amount={}", 
-            state.userId(), command.market().id(), command.amount());
+        log.info("CommandHandler: Placing sell order for userId={}, market={}, quantity={}", 
+            state.userId(), command.market().id(), command.quantity());
         // we need to reserve the base currency amount on wallet of the user
         String orderId = UUID.randomUUID().toString();
         log.info("CommandHandler: Generated orderId={} for sell order", orderId);
@@ -240,14 +240,14 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
         getCommandBus().send(new ReserveAmountCommand(
                 state.userId(),
                 command.market().baseCrypto(),
-                command.amount(),
+                command.quantity(),
                 orderId));
         // register the sell order process
         return Stream.of(new SellOrderCreatedEvent(
                 state.userId(),
                 orderId,
                 command.market(),
-                command.amount(),
+                command.quantity(),
                 command.clientReference()));
     }
 
@@ -263,11 +263,11 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
                     command.baseCurrency(),
                     command.orderId()));
             // debit the base currency
-            log.info("CommandHandler: Debiting {} {} from user wallet", sellOrderProcess.amount(), command.baseCurrency());
+            log.info("CommandHandler: Debiting {} {} from user wallet", sellOrderProcess.quantity(), command.baseCurrency());
             getCommandBus().send(new DebitWalletCommand(
                     command.userId(),
                     command.baseCurrency(),
-                    sellOrderProcess.amount()));
+                    sellOrderProcess.quantity()));
             // credit the quote currency (user receives quote currency for selling base currency)
             BigDecimal quoteAmount = command.quantity().multiply(command.price());
             log.info("CommandHandler: Crediting {} {} to user wallet", quoteAmount, command.quoteCurrency());
@@ -305,12 +305,12 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
                     orderProcess.orderId(),
                     state.userId(),
                     side,
-                    orderProcess.amount(),
+                    orderProcess.quantity(),
                     null));
             if (orderProcess instanceof BuyOrderProcess) {
-                return Stream.of(new BuyOrderPlacedEvent(state.userId(), orderProcess.orderId(), orderProcess.market(), orderProcess.amount(), null));
+                return Stream.of(new BuyOrderPlacedEvent(state.userId(), orderProcess.orderId(), orderProcess.market(), orderProcess.quantity(), null));
             } else {
-                return Stream.of(new SellOrderPlacedEvent(state.userId(), orderProcess.orderId(), orderProcess.market(), orderProcess.amount(), null));
+                return Stream.of(new SellOrderPlacedEvent(state.userId(), orderProcess.orderId(), orderProcess.market(), orderProcess.quantity(), null));
             }
         } else {
             log.info("EventHandler: No order process found for referenceId={}", event.referenceId());

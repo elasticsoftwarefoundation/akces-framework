@@ -69,7 +69,7 @@ public class OrdersCommandController {
                             event.orderId(),
                             event.market(),
                             null,
-                            event.amount(),
+                            event.quantity(),
                             event.clientReference()
                     );
                     return ResponseEntity.ok(output);

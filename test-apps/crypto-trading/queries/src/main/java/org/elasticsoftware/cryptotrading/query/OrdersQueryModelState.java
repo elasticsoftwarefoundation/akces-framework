@@ -34,6 +34,6 @@ public record OrdersQueryModelState(String userId, List<BuyOrder> openBuyOrders,
     public record BuyOrder(String orderId, CryptoMarket market, BigDecimal amount, String clientReference, OrderState state) {
     }
 
-    public record SellOrder(String orderId, CryptoMarket market, BigDecimal amount, String clientReference, OrderState state) {
+    public record SellOrder(String orderId, CryptoMarket market, BigDecimal quantity, String clientReference, OrderState state) {
     }
 }

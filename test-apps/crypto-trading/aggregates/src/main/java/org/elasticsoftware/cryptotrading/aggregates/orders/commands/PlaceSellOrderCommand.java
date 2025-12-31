@@ -29,7 +29,7 @@ import java.math.BigDecimal;
 public record PlaceSellOrderCommand(
         @NotNull @AggregateIdentifier String userId,
         @NotNull CryptoMarket market,
-        @NotNull BigDecimal amount,
+        @NotNull BigDecimal quantity,
         @NotNull String clientReference
 ) implements Command {
     @Override

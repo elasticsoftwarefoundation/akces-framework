@@ -30,7 +30,7 @@ public record SellOrderCreatedEvent(
         @NotNull @AggregateIdentifier String userId,
         @NotNull String orderId,
         @NotNull CryptoMarket market,
-        @NotNull BigDecimal amount,
+        @NotNull BigDecimal quantity,
         @NotNull String clientReference
 ) implements DomainEvent {
     @Override

@@ -107,7 +107,7 @@ public class OrdersQueryModel implements QueryModel<OrdersQueryModelState> {
         OrdersQueryModelState.SellOrder sellOrder = new OrdersQueryModelState.SellOrder(
                 event.orderId(),
                 event.market(),
-                event.amount(),
+                event.quantity(),
                 event.clientReference(),
                 OrderState.CREATED
         );
@@ -121,7 +121,7 @@ public class OrdersQueryModel implements QueryModel<OrdersQueryModelState> {
         // Update order state to PLACED
         List<OrdersQueryModelState.SellOrder> orders = currentState.openSellOrders().stream()
                 .map(order -> order.orderId().equals(event.orderId())
-                        ? new OrdersQueryModelState.SellOrder(order.orderId(), order.market(), order.amount(), order.clientReference(), OrderState.PLACED)
+                        ? new OrdersQueryModelState.SellOrder(order.orderId(), order.market(), order.quantity(), order.clientReference(), OrderState.PLACED)
                         : order)
                 .toList();
         return new OrdersQueryModelState(currentState.userId(), currentState.openBuyOrders(), orders);
@@ -132,7 +132,7 @@ public class OrdersQueryModel implements QueryModel<OrdersQueryModelState> {
         // Update order state to FILLED
         List<OrdersQueryModelState.SellOrder> orders = currentState.openSellOrders().stream()
                 .map(order -> order.orderId().equals(event.orderId())
-                        ? new OrdersQueryModelState.SellOrder(order.orderId(), order.market(), order.amount(), order.clientReference(), OrderState.FILLED)
+                        ? new OrdersQueryModelState.SellOrder(order.orderId(), order.market(), order.quantity(), order.clientReference(), OrderState.FILLED)
                         : order)
                 .toList();
         return new OrdersQueryModelState(currentState.userId(), currentState.openBuyOrders(), orders);
@@ -143,7 +143,7 @@ public class OrdersQueryModel implements QueryModel<OrdersQueryModelState> {
         // Update order state to REJECTED
         List<OrdersQueryModelState.SellOrder> orders = currentState.openSellOrders().stream()
                 .map(order -> order.orderId().equals(event.orderId())
-                        ? new OrdersQueryModelState.SellOrder(order.orderId(), order.market(), order.amount(), order.clientReference(), OrderState.REJECTED)
+                        ? new OrdersQueryModelState.SellOrder(order.orderId(), order.market(), order.quantity(), order.clientReference(), OrderState.REJECTED)
                         : order)
                 .toList();
         return new OrdersQueryModelState(currentState.userId(), currentState.openBuyOrders(), orders);

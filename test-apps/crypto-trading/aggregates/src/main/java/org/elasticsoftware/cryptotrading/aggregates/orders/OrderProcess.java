@@ -41,7 +41,7 @@ public sealed interface OrderProcess extends AkcesProcess permits BuyOrderProces
 
     BigDecimal size();
 
-    BigDecimal amount();
+    BigDecimal quantity();
 
     String clientReference();
 

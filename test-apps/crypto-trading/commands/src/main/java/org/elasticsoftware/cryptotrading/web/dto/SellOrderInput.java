@@ -7,14 +7,14 @@ import java.math.BigDecimal;
 
 public record SellOrderInput(
         String marketId,
-        BigDecimal amount,
+        BigDecimal quantity,
         String clientReference
 ) {
     public PlaceSellOrderCommand toCommand(String accountId) {
         return new PlaceSellOrderCommand(
                 accountId,
                 CryptoMarket.fromId(marketId),
-                amount,
+                quantity,
                 clientReference
         );
     }
