@@ -21,6 +21,7 @@ import jakarta.inject.Inject;
 import org.elasticsoftware.akces.AggregateServiceApplication;
 import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.client.AkcesClientController;
+import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.cryptotrading.query.jdbc.CryptoMarketRepository;
 import org.elasticsoftware.cryptotrading.web.AccountCommandController;
 import org.elasticsoftware.cryptotrading.web.AccountQueryController;
@@ -38,6 +39,7 @@ import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTest
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.PropertySource;
+import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.support.TestPropertySourceUtils;
@@ -129,6 +131,36 @@ public class CryptoTradingQueryApiTest {
     private CryptoMarketRepository cryptoMarketRepository;
     @Inject
     private CryptoMarketsQueryController cryptoMarketsQueryController;
+    @Inject
+    @Qualifier("aggregateServiceControlConsumerFactory")
+    ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory;
+
+    public static class Initializer
+            implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+
+        @Override
+        public void initialize(ConfigurableApplicationContext applicationContext) {
+            // initialize kafka topics
+            prepareKafka(kafka.getBootstrapServers());
+            prepareDomainEventSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
+            prepareCommandSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
+            // This is still required for the CryptoMarketsService to function properly
+            try {
+                prepareAggregateServiceRecords(kafka.getBootstrapServers());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
+                    applicationContext,
+                    "akces.rocksdb.baseDir=/tmp/akces",
+                    "spring.kafka.enabled=true",
+                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
+                    "spring.datasource.url=" + postgresql.getJdbcUrl(),
+                    "spring.datasource.username=akces",
+                    "spring.datasource.password=akces"
+            );
+        }
+    }
 
     @AfterAll
     @BeforeAll
@@ -193,6 +225,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
@@ -220,6 +253,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
@@ -256,6 +290,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
@@ -291,6 +326,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
@@ -321,6 +357,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         AccountInput accountInput = new AccountInput("US", "John", "Doe", "john.doe@example.com");
         webTestClient.post()
@@ -358,6 +395,8 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
+
         webTestClient.get()
                 .uri("/v13/accounts/invalid-id")
                 .exchange()
@@ -373,6 +412,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         // see if we have any crypto markets in the database
         while(cryptoMarketRepository.count() == 0) {
@@ -391,6 +431,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         // Wait until crypto markets are available in the database
         while(cryptoMarketRepository.count() == 0) {
@@ -417,6 +458,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         // Create account and credit EUR balance
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
@@ -470,6 +512,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         // Create account and credit EUR balance
         AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
@@ -557,6 +600,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         // Create account and credit EUR balance
         AccountInput accountInput = new AccountInput("NL", "Jane", "Smith", "jane.smith@example.com");
@@ -620,33 +664,6 @@ public class CryptoTradingQueryApiTest {
                 .expectStatus().isNotFound();
     }
 
-
-    public static class Initializer
-            implements ApplicationContextInitializer<ConfigurableApplicationContext> {
-
-        @Override
-        public void initialize(ConfigurableApplicationContext applicationContext) {
-            // initialize kafka topics
-            prepareKafka(kafka.getBootstrapServers());
-            prepareDomainEventSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
-            prepareCommandSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
-            try {
-                prepareAggregateServiceRecords(kafka.getBootstrapServers());
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
-                    applicationContext,
-                    "akces.rocksdb.baseDir=/tmp/akces",
-                    "spring.kafka.enabled=true",
-                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
-                    "spring.datasource.url=" + postgresql.getJdbcUrl(),
-                    "spring.datasource.username=akces",
-                    "spring.datasource.password=akces"
-            );
-        }
-    }
-
     @Test
     void testPlaceSellOrder() {
         while (!walletController.isRunning() ||
@@ -656,6 +673,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         // Create account and credit BTC balance
         AccountInput accountInput = new AccountInput("NL", "Jane", "Doe", "jane.doe@example.com");
@@ -685,13 +703,6 @@ public class CryptoTradingQueryApiTest {
                 .exchange()
                 .expectStatus().is2xxSuccessful();
 
-        // Add EUR balance
-        webTestClient.post()
-                .uri("/v1/accounts/" + userId + "/wallet/balances")
-                .bodyValue(new CreateBalanceInput("EUR"))
-                .exchange()
-                .expectStatus().is2xxSuccessful();
-
         // Place sell order
         SellOrderInput sellOrderInput = new SellOrderInput("BTC-EUR", new BigDecimal("0.5"), "sell-client-ref-1");
 
@@ -718,6 +729,7 @@ public class CryptoTradingQueryApiTest {
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
 
         // Create account and credit BTC balance
         AccountInput accountInput = new AccountInput("NL", "Jane", "Doe", "jane.doe@example.com");
@@ -744,13 +756,6 @@ public class CryptoTradingQueryApiTest {
         webTestClient.post()
                 .uri("/v1/accounts/" + userId + "/wallet/balances/BTC/credit")
                 .bodyValue(new CreditWalletInput(new BigDecimal("2.0")))
-                .exchange()
-                .expectStatus().is2xxSuccessful();
-
-        // Add EUR balance
-        webTestClient.post()
-                .uri("/v1/accounts/" + userId + "/wallet/balances")
-                .bodyValue(new CreateBalanceInput("EUR"))
                 .exchange()
                 .expectStatus().is2xxSuccessful();
 

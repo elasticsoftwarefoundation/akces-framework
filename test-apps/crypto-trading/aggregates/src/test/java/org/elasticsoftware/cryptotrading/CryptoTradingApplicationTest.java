@@ -69,10 +69,7 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.elasticsoftware.cryptotrading.TestUtils.prepareAggregateServiceRecords;
-import static org.elasticsoftware.cryptotrading.TestUtils.prepareCommandSchemas;
-import static org.elasticsoftware.cryptotrading.TestUtils.prepareDomainEventSchemas;
-import static org.elasticsoftware.cryptotrading.TestUtils.prepareKafka;
+import static org.elasticsoftware.cryptotrading.TestUtils.*;
 
 @SpringBootTest(
         classes = AggregateServiceApplication.class,
@@ -106,7 +103,7 @@ public class CryptoTradingApplicationTest {
     AkcesAggregateController accountController;
     @Inject
     @Qualifier("OrderProcessManagerAkcesController")
-    AkcesAggregateController prderProcessManagerController;
+    AkcesAggregateController orderProcessManagerController;
     @Inject
     @Qualifier("CryptoMarketAkcesController")
     AkcesAggregateController cryptoMarketController;
@@ -164,13 +161,13 @@ public class CryptoTradingApplicationTest {
     void contextLoads() throws IOException {
         assertThat(walletController).isNotNull();
         assertThat(accountController).isNotNull();
-        assertThat(prderProcessManagerController).isNotNull();
+        assertThat(orderProcessManagerController).isNotNull();
         assertThat(akcesClientController).isNotNull();
         assertThat(cryptoMarketController).isNotNull();
 
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
-                !prderProcessManagerController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
                 !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
@@ -206,11 +203,12 @@ public class CryptoTradingApplicationTest {
     void testCreateBTCEURMarketAndMakeATrade() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
-                !prderProcessManagerController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
                 !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
         // these are the events in the order we expect
         String[] expectedEventTypes = new String[]{
                 "AccountCreated",
@@ -305,40 +303,17 @@ public class CryptoTradingApplicationTest {
 
     }
 
-    public static class Initializer
-            implements ApplicationContextInitializer<ConfigurableApplicationContext> {
-
-        @Override
-        public void initialize(ConfigurableApplicationContext applicationContext) {
-            // initialize kafka topics
-            prepareKafka(kafka.getBootstrapServers());
-            prepareDomainEventSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
-            prepareCommandSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
-            try {
-                prepareAggregateServiceRecords(kafka.getBootstrapServers());
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
-                    applicationContext,
-                    "akces.rocksdb.baseDir=/tmp/akces",
-                    "spring.kafka.enabled=true",
-                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers()
-            );
-        }
-    }
-
     @Test
     @Order(3)
     void testSellOrderFlow() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
-                !prderProcessManagerController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
                 !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
-
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
         // Create an account to trade
         String sellAccountId = "3364c9dc-e383-5706-93df-417cb1260940";
         Mono.fromCompletionStage(akcesClientController.send("TEST", new CreateAccountCommand(sellAccountId,
@@ -374,6 +349,24 @@ public class CryptoTradingApplicationTest {
 
         // Verify that SellOrderCreated event was emitted
         assertThat(sellAccountId).isNotNull();
+    }
+
+    public static class Initializer
+            implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+
+        @Override
+        public void initialize(ConfigurableApplicationContext applicationContext) {
+            // initialize kafka topics
+            prepareKafka(kafka.getBootstrapServers());
+            prepareDomainEventSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
+            prepareCommandSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
+            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
+                    applicationContext,
+                    "akces.rocksdb.baseDir=/tmp/akces",
+                    "spring.kafka.enabled=true",
+                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers()
+            );
+        }
     }
 
 }

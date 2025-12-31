@@ -267,7 +267,7 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
             getCommandBus().send(new DebitWalletCommand(
                     command.userId(),
                     command.baseCurrency(),
-                    sellOrderProcess.amount()));
+                    sellOrderProcess.size()));
             // credit the quote currency (user receives quote currency for selling base currency)
             BigDecimal quoteAmount = command.quantity().multiply(command.price());
             log.info("CommandHandler: Crediting {} {} to user wallet", quoteAmount, command.quoteCurrency());
@@ -306,11 +306,11 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
                     state.userId(),
                     side,
                     orderProcess.amount(),
-                    null));
+                    orderProcess.size()));
             if (orderProcess instanceof BuyOrderProcess) {
                 return Stream.of(new BuyOrderPlacedEvent(state.userId(), orderProcess.orderId(), orderProcess.market(), orderProcess.amount(), null));
             } else {
-                return Stream.of(new SellOrderPlacedEvent(state.userId(), orderProcess.orderId(), orderProcess.market(), orderProcess.amount(), null));
+                return Stream.of(new SellOrderPlacedEvent(state.userId(), orderProcess.orderId(), orderProcess.market(), orderProcess.size(), null));
             }
         } else {
             log.info("EventHandler: No order process found for referenceId={}", event.referenceId());

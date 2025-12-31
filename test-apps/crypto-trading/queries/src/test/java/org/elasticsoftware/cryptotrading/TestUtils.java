@@ -22,10 +22,14 @@ import com.github.victools.jsonschema.generator.SchemaGenerator;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
@@ -46,10 +50,13 @@ import org.springframework.context.ApplicationContextException;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
+import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -100,6 +107,28 @@ public class TestUtils {
                 "compression.type", "lz4"));
     }
 
+    public static void ensureAggregateServiceRecordsExist(ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory) {
+        try (Consumer<String, AkcesControlRecord> controlConsumer = controlConsumerFactory.createConsumer("Test-AkcesControl", "test-akces-control")) {
+            TopicPartition controlPartition = new TopicPartition("Akces-Control", 0);
+            controlConsumer.assign(List.of(controlPartition));
+            controlConsumer.seekToBeginning(controlConsumer.assignment());
+
+            Map<String, AggregateServiceRecord> serviceRecords = new HashMap<>();
+
+            while (serviceRecords.size() < 4) {
+                ConsumerRecords<String, AkcesControlRecord> controlRecords = controlConsumer.poll(Duration.ofMillis(1000));
+                if (!controlRecords.isEmpty()) {
+                    for (ConsumerRecord<String, AkcesControlRecord> record : controlRecords.records(controlPartition)) {
+                        if (record.value() instanceof AggregateServiceRecord aggregateServiceRecord) {
+                            serviceRecords.put(record.key(), aggregateServiceRecord);
+                        }
+                    }
+                }
+            }
+
+        }
+    }
+
     public static void prepareAggregateServiceRecords(String bootstrapServers) throws IOException {
         Jackson2ObjectMapperBuilder builder = new Jackson2ObjectMapperBuilder();
         builder.modulesToInstall(new AkcesGDPRModule());
@@ -118,15 +147,9 @@ public class TestUtils {
                 ProducerConfig.CLIENT_ID_CONFIG, "Test-AkcesControllerProducer");
         try (Producer<String, AkcesControlRecord> controlProducer = new KafkaProducer<>(controlProducerProps, new StringSerializer(), controlSerde.serializer())) {
             controlProducer.initTransactions();
-            AggregateServiceRecord accountServiceRecord = objectMapper.readValue("{\"aggregateName\":\"Account\",\"commandTopic\":\"Account-Commands\",\"domainEventTopic\":\"Account-DomainEvents\",\"supportedCommands\":[{\"typeName\":\"CreateAccount\",\"version\":1,\"create\":true,\"schemaName\":\"commands.CreateAccount\"}],\"producedEvents\":[{\"typeName\":\"AggregateAlreadyExistsError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.AggregateAlreadyExistsError\"},{\"typeName\":\"CommandExecutionError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.CommandExecutionError\"},{\"typeName\":\"AccountCreated\",\"version\":1,\"create\":true,\"external\":false,\"schemaName\":\"domainevents.AccountCreated\"}],\"consumedEvents\":[]}", AggregateServiceRecord.class);
-            AggregateServiceRecord orderProcessManagerServiceRecord = objectMapper.readValue("{\"aggregateName\":\"OrderProcessManager\",\"commandTopic\":\"OrderProcessManager-Commands\",\"domainEventTopic\":\"OrderProcessManager-DomainEvents\",\"supportedCommands\":[{\"typeName\":\"FillBuyOrder\",\"version\":1,\"create\":false,\"schemaName\":\"commands.FillBuyOrder\"},{\"typeName\":\"PlaceBuyOrder\",\"version\":1,\"create\":false,\"schemaName\":\"commands.PlaceBuyOrder\"},{\"typeName\":\"RejectOrder\",\"version\":1,\"create\":false,\"schemaName\":\"commands.RejectOrder\"}],\"producedEvents\":[{\"typeName\":\"AggregateAlreadyExistsError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.AggregateAlreadyExistsError\"},{\"typeName\":\"CommandExecutionError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.CommandExecutionError\"},{\"typeName\":\"BuyOrderFilled\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.BuyOrderFilled\"},{\"typeName\":\"BuyOrderCreated\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.BuyOrderCreated\"},{\"typeName\":\"BuyOrderPlaced\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.BuyOrderPlaced\"},{\"typeName\":\"UserOrderProcessesCreated\",\"version\":1,\"create\":true,\"external\":false,\"schemaName\":\"domainevents.UserOrderProcessesCreated\"},{\"typeName\":\"BuyOrderRejected\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.BuyOrderRejected\"}],\"consumedEvents\":[{\"typeName\":\"InsufficientFundsError\",\"version\":1,\"create\":false,\"external\":true,\"schemaName\":\"domainevents.InsufficientFundsError\"},{\"typeName\":\"AccountCreated\",\"version\":1,\"create\":true,\"external\":true,\"schemaName\":\"domainevents.AccountCreated\"},{\"typeName\":\"AmountReserved\",\"version\":1,\"create\":false,\"external\":true,\"schemaName\":\"domainevents.AmountReserved\"},{\"typeName\":\"MarketOrderFilled\",\"version\":1,\"create\":false,\"external\":true,\"schemaName\":\"domainevents.MarketOrderFilled\"},{\"typeName\":\"MarketOrderRejected\",\"version\":1,\"create\":false,\"external\":true,\"schemaName\":\"domainevents.MarketOrderRejected\"},{\"typeName\":\"InvalidCryptoCurrencyError\",\"version\":1,\"create\":false,\"external\":true,\"schemaName\":\"domainevents.InvalidCryptoCurrencyError\"}]}", AggregateServiceRecord.class);
-            AggregateServiceRecord walletServiceRecord = objectMapper.readValue("{\"aggregateName\":\"Wallet\",\"commandTopic\":\"Wallet-Commands\",\"domainEventTopic\":\"Wallet-DomainEvents\",\"supportedCommands\":[{\"typeName\":\"CreateWallet\",\"version\":1,\"create\":true,\"schemaName\":\"commands.CreateWallet\"},{\"typeName\":\"CancelReservation\",\"version\":1,\"create\":false,\"schemaName\":\"commands.CancelReservation\"},{\"typeName\":\"CreditWallet\",\"version\":1,\"create\":false,\"schemaName\":\"commands.CreditWallet\"},{\"typeName\":\"CreateBalance\",\"version\":1,\"create\":false,\"schemaName\":\"commands.CreateBalance\"},{\"typeName\":\"ReserveAmount\",\"version\":1,\"create\":false,\"schemaName\":\"commands.ReserveAmount\"},{\"typeName\":\"DebitWallet\",\"version\":1,\"create\":false,\"schemaName\":\"commands.DebitWallet\"}],\"producedEvents\":[{\"typeName\":\"AggregateAlreadyExistsError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.AggregateAlreadyExistsError\"},{\"typeName\":\"CommandExecutionError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.CommandExecutionError\"},{\"typeName\":\"ReservationNotFoundError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.ReservationNotFoundError\"},{\"typeName\":\"InvalidAmountError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.InvalidAmountError\"},{\"typeName\":\"InsufficientFundsError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.InsufficientFundsError\"},{\"typeName\":\"WalletDebited\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.WalletDebited\"},{\"typeName\":\"ReservationCancelled\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.ReservationCancelled\"},{\"typeName\":\"BalanceCreated\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.BalanceCreated\"},{\"typeName\":\"AmountReserved\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.AmountReserved\"},{\"typeName\":\"BalanceAlreadyExistsError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.BalanceAlreadyExistsError\"},{\"typeName\":\"InvalidCryptoCurrencyError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.InvalidCryptoCurrencyError\"},{\"typeName\":\"WalletCredited\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.WalletCredited\"},{\"typeName\":\"WalletCreated\",\"version\":1,\"create\":true,\"external\":false,\"schemaName\":\"domainevents.WalletCreated\"}],\"consumedEvents\":[{\"typeName\":\"AccountCreated\",\"version\":1,\"create\":true,\"external\":true,\"schemaName\":\"domainevents.AccountCreated\"}]}", AggregateServiceRecord.class);
             AggregateServiceRecord cryptoMarketServiceRecord = objectMapper.readValue("{\"aggregateName\":\"CryptoMarket\",\"commandTopic\":\"CryptoMarket-Commands\",\"domainEventTopic\":\"CryptoMarket-DomainEvents\",\"supportedCommands\":[{\"typeName\":\"CreateCryptoMarket\",\"version\":1,\"create\":true,\"schemaName\":\"commands.CreateCryptoMarket\"},{\"typeName\":\"PlaceMarketOrder\",\"version\":1,\"create\":false,\"schemaName\":\"commands.PlaceMarketOrder\"}],\"producedEvents\":[{\"typeName\":\"CommandExecutionError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.CommandExecutionError\"},{\"typeName\":\"MarketOrderPlaced\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.MarketOrderPlaced\"},{\"typeName\":\"CryptoMarketCreated\",\"version\":1,\"create\":true,\"external\":false,\"schemaName\":\"domainevents.CryptoMarketCreated\"},{\"typeName\":\"AggregateAlreadyExistsError\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.AggregateAlreadyExistsError\"},{\"typeName\":\"MarketOrderRejected\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.MarketOrderRejected\"},{\"typeName\":\"MarketOrderFilled\",\"version\":1,\"create\":false,\"external\":false,\"schemaName\":\"domainevents.MarketOrderFilled\"}],\"consumedEvents\":[]}", AggregateServiceRecord.class);
             controlProducer.beginTransaction();
             for (int partition = 0; partition < 3; partition++) {
-                controlProducer.send(new ProducerRecord<>("Akces-Control", partition, "Account", accountServiceRecord));
-                controlProducer.send(new ProducerRecord<>("Akces-Control", partition, "OrderProcessManager", orderProcessManagerServiceRecord));
-                controlProducer.send(new ProducerRecord<>("Akces-Control", partition, "Wallet", walletServiceRecord));
                 controlProducer.send(new ProducerRecord<>("Akces-Control", partition, "CryptoMarket", cryptoMarketServiceRecord));
             }
             controlProducer.commitTransaction();

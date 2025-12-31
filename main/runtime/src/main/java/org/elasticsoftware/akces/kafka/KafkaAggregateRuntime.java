@@ -140,7 +140,7 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
             }
         } catch (Throwable t) {
             // TODO: potentially see if we need to terminate the runtime
-            log.error("Exception while handling command, sending CommandExecutionError", t);
+            log.error("Exception while handling command {}:{}, sending CommandExecutionError", commandRecord.name(), commandRecord.version(), t);
             commandExecutionError(commandRecord, protocolRecordConsumer, t);
         }
     }
