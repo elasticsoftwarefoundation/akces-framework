@@ -340,7 +340,7 @@ public class CryptoTradingApplicationTest {
         }
 
         // Create an account to trade
-        String sellAccountId = "3364c9dc-e383-5706-93dg-417cb1260940";
+        String sellAccountId = "3364c9dc-e383-5706-93df-417cb1260940";
         Mono.fromCompletionStage(akcesClientController.send("TEST", new CreateAccountCommand(sellAccountId,
                 "NL",
                 "Alice",
@@ -358,7 +358,7 @@ public class CryptoTradingApplicationTest {
                         new BigDecimal("1.0")))).block();
 
         // Place a sell order on BTC-EUR market
-        String clientSellOrderId = "580bc3b5-e2af-5227-a18g-dg24edb6874b";
+        String clientSellOrderId = "580bc3b5-e2af-5227-a18f-df24edb6874b";
         Mono.fromCompletionStage(akcesClientController.send("TEST",
                 new PlaceSellOrderCommand(sellAccountId,
                         new CryptoMarket("BTC-EUR", "BTC", "EUR"),
