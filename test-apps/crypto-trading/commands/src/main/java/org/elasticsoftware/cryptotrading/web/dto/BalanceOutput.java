@@ -18,7 +18,7 @@
 package org.elasticsoftware.cryptotrading.web.dto;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.BalanceCreatedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletCreditedEvent;
 
@@ -26,9 +26,9 @@ import java.math.BigDecimal;
 
 public record BalanceOutput(String id,
                             String currency,
-                            @JsonSerialize(using = ToStringSerializer.class)
+                            @JsonSerialize(using = BigDecimalSerializer.class)
                             BigDecimal amount,
-                            @JsonSerialize(using = ToStringSerializer.class)
+                            @JsonSerialize(using = BigDecimalSerializer.class)
                             BigDecimal balance) {
     public static BalanceOutput from(WalletCreditedEvent event) {
         return new BalanceOutput(event.id(), event.currency(), event.amount(), event.balance());
