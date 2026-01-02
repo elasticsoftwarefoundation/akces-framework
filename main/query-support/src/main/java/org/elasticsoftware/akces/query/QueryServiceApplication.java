@@ -19,9 +19,9 @@ package org.elasticsoftware.akces.query;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 import java.util.Set;
 

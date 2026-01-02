@@ -17,9 +17,9 @@
 
 package org.elasticsoftware.cryptotrading;
 
-import com.fasterxml.jackson.core.JacksonException;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.victools.jsonschema.generator.SchemaGenerator;
+import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -31,21 +31,19 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.elasticsoftware.akces.control.AggregateServiceRecord;
-import org.elasticsoftware.akces.control.AkcesControlRecord;
-import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
-import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
-import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftware.akces.control.AggregateServiceRecord;
+import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.schemas.SchemaRegistry;
+import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akces.serialization.SchemaRecordSerde;
-import org.junit.jupiter.api.Assertions;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.ApplicationContextException;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
@@ -53,10 +51,7 @@ import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
-import com.github.victools.jsonschema.generator.SchemaGenerator;
-import io.confluent.kafka.schemaregistry.json.JsonSchema;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.HashMap;

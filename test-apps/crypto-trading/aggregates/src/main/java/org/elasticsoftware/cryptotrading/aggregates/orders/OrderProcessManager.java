@@ -26,11 +26,7 @@ import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.PlaceM
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.data.Side;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderFilledEvent;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events.MarketOrderRejectedErrorEvent;
-import org.elasticsoftware.cryptotrading.aggregates.orders.commands.FillBuyOrderCommand;
-import org.elasticsoftware.cryptotrading.aggregates.orders.commands.FillSellOrderCommand;
-import org.elasticsoftware.cryptotrading.aggregates.orders.commands.PlaceBuyOrderCommand;
-import org.elasticsoftware.cryptotrading.aggregates.orders.commands.PlaceSellOrderCommand;
-import org.elasticsoftware.cryptotrading.aggregates.orders.commands.RejectOrderCommand;
+import org.elasticsoftware.cryptotrading.aggregates.orders.commands.*;
 import org.elasticsoftware.cryptotrading.aggregates.orders.events.*;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CancelReservationCommand;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreditWalletCommand;
