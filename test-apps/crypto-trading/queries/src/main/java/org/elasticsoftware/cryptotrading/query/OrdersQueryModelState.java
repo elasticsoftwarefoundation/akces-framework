@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2025 The Original Authors
+ * Copyright 2022 - 2026 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -17,20 +17,25 @@
 
 package org.elasticsoftware.cryptotrading.query;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.elasticsoftware.akces.annotations.QueryModelStateInfo;
 import org.elasticsoftware.akces.query.QueryModelState;
+import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 @QueryModelStateInfo(type = "Orders")
-public record OrdersQueryModelState(String userId, List<BuyOrder> openBuyOrders) implements QueryModelState {
+public record OrdersQueryModelState(String userId, List<BuyOrder> openBuyOrders, List<SellOrder> openSellOrders) implements QueryModelState {
     @Override
     public String getIndexKey() {
         return userId();
     }
 
-    public record BuyOrder(String orderId, CryptoMarket market, BigDecimal amount, String clientReference, OrderState state) {
+    public record BuyOrder(String orderId, CryptoMarket market, @JsonSerialize(using = BigDecimalSerializer.class) BigDecimal amount, String clientReference, OrderState state) {
+    }
+
+    public record SellOrder(String orderId, CryptoMarket market, @JsonSerialize(using = BigDecimalSerializer.class) BigDecimal quantity, String clientReference, OrderState state) {
     }
 }

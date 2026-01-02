@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2025 The Original Authors
+ * Copyright 2022 - 2026 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -19,8 +19,10 @@ package org.elasticsoftware.cryptotrading.web;
 
 import org.elasticsoftware.akces.client.AkcesClient;
 import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderCreatedEvent;
+import org.elasticsoftware.cryptotrading.aggregates.orders.events.SellOrderCreatedEvent;
 import org.elasticsoftware.cryptotrading.web.dto.BuyOrderInput;
 import org.elasticsoftware.cryptotrading.web.dto.OrderOutput;
+import org.elasticsoftware.cryptotrading.web.dto.SellOrderInput;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
@@ -49,6 +51,25 @@ public class OrdersCommandController {
                             event.market(),
                             null,
                             event.amount(),
+                            event.clientReference()
+                    );
+                    return ResponseEntity.ok(output);
+                });
+    }
+
+    @PostMapping("/sell")
+    public Mono<ResponseEntity<OrderOutput>> placeSellOrder(
+            @PathVariable("accountId") String accountId,
+            @RequestBody SellOrderInput input) {
+        return Mono.fromCompletionStage(akcesClient.send("TEST", input.toCommand(accountId)))
+                .map(List::getFirst)
+                .map(domainEvent -> {
+                    SellOrderCreatedEvent event = (SellOrderCreatedEvent) domainEvent;
+                    OrderOutput output = new OrderOutput(
+                            event.orderId(),
+                            event.market(),
+                            null,
+                            event.quantity(),
                             event.clientReference()
                     );
                     return ResponseEntity.ok(output);

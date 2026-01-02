@@ -1,5 +1,5 @@
 <!--
-  ~ Copyright 2022 - 2025 The Original Authors
+  ~ Copyright 2022 - 2026 The Original Authors
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~     you may not use this file except in compliance with the License.
@@ -74,8 +74,8 @@
         <java.version>25</java.version>
         <!-- this is needed for surefire, needs to be kept in sync with the mockito-core version in spring-boot -->
         <mockito.version>5.18.0</mockito.version>
-        <spring.version>7.0.1</spring.version>
-        <spring-boot.version>4.0.0</spring-boot.version>
+        <spring.version>7.0.2</spring.version>
+        <spring-boot.version>4.0.1</spring-boot.version>
         <guava.version>33.5.0-jre</guava.version>
         <caffeine.version>3.2.3</caffeine.version>
     </properties>
@@ -100,7 +100,7 @@
                 </plugin>
                 <plugin>
                     <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.14.0</version>
+                    <version>3.14.1</version>
                 </plugin>
                 <plugin>
                     <artifactId>maven-surefire-plugin</artifactId>
@@ -120,7 +120,7 @@
                 </plugin>
                 <plugin>
                     <artifactId>maven-release-plugin</artifactId>
-                    <version>3.1.1</version>
+                    <version>3.3.0</version>
                 </plugin>
                 <plugin>
                     <artifactId>maven-assembly-plugin</artifactId>

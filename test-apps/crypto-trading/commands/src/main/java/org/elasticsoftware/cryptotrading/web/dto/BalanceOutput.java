@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2025 The Original Authors
+ * Copyright 2022 - 2026 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@
 
 package org.elasticsoftware.cryptotrading.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.BalanceCreatedEvent;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.events.WalletCreditedEvent;
 
@@ -24,7 +26,9 @@ import java.math.BigDecimal;
 
 public record BalanceOutput(String id,
                             String currency,
+                            @JsonSerialize(using = BigDecimalSerializer.class)
                             BigDecimal amount,
+                            @JsonSerialize(using = BigDecimalSerializer.class)
                             BigDecimal balance) {
     public static BalanceOutput from(WalletCreditedEvent event) {
         return new BalanceOutput(event.id(), event.currency(), event.amount(), event.balance());

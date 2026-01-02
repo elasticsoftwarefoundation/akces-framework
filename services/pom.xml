@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright 2022 - 2025 The Original Authors
+  ~ Copyright 2022 - 2026 The Original Authors
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~     you may not use this file except in compliance with the License.
@@ -31,9 +31,9 @@
     <url>https://github.com/elasticsoftwarefoundation/akces-framework</url>
 
     <properties>
-        <operator-sdk.version>5.2.0</operator-sdk.version>
+        <operator-sdk.version>5.2.1</operator-sdk.version>
         <operator-sdk.spring.version>6.2.0</operator-sdk.spring.version>
-        <bouncycastle.version>1.82</bouncycastle.version>
+        <bouncycastle.version>1.83</bouncycastle.version>
         <fabric8.version>7.4.0</fabric8.version>
     </properties>
 
@@ -108,7 +108,7 @@
             <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-compress</artifactId>
-                <version>1.27.1</version>
+                <version>1.28.0</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework.boot</groupId>

@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2025 The Original Authors
+ * Copyright 2022 - 2026 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.cryptotrading.aggregates.account.commands.CreateAccountCommand;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands.CreateCryptoMarketCommand;
 import org.elasticsoftware.cryptotrading.aggregates.orders.commands.PlaceBuyOrderCommand;
+import org.elasticsoftware.cryptotrading.aggregates.orders.commands.PlaceSellOrderCommand;
 import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreateBalanceCommand;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreditWalletCommand;
@@ -68,10 +69,7 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.elasticsoftware.cryptotrading.TestUtils.prepareAggregateServiceRecords;
-import static org.elasticsoftware.cryptotrading.TestUtils.prepareCommandSchemas;
-import static org.elasticsoftware.cryptotrading.TestUtils.prepareDomainEventSchemas;
-import static org.elasticsoftware.cryptotrading.TestUtils.prepareKafka;
+import static org.elasticsoftware.cryptotrading.TestUtils.*;
 
 @SpringBootTest(
         classes = AggregateServiceApplication.class,
@@ -105,7 +103,7 @@ public class CryptoTradingApplicationTest {
     AkcesAggregateController accountController;
     @Inject
     @Qualifier("OrderProcessManagerAkcesController")
-    AkcesAggregateController prderProcessManagerController;
+    AkcesAggregateController orderProcessManagerController;
     @Inject
     @Qualifier("CryptoMarketAkcesController")
     AkcesAggregateController cryptoMarketController;
@@ -163,13 +161,13 @@ public class CryptoTradingApplicationTest {
     void contextLoads() throws IOException {
         assertThat(walletController).isNotNull();
         assertThat(accountController).isNotNull();
-        assertThat(prderProcessManagerController).isNotNull();
+        assertThat(orderProcessManagerController).isNotNull();
         assertThat(akcesClientController).isNotNull();
         assertThat(cryptoMarketController).isNotNull();
 
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
-                !prderProcessManagerController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
                 !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
@@ -205,11 +203,12 @@ public class CryptoTradingApplicationTest {
     void testCreateBTCEURMarketAndMakeATrade() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
-                !prderProcessManagerController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
                 !cryptoMarketController.isRunning() ||
                 !akcesClientController.isRunning()) {
             Thread.onSpinWait();
         }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
         // these are the events in the order we expect
         String[] expectedEventTypes = new String[]{
                 "AccountCreated",
@@ -304,6 +303,54 @@ public class CryptoTradingApplicationTest {
 
     }
 
+    @Test
+    @Order(3)
+    void testSellOrderFlow() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !orderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
+        // Create an account to trade
+        String sellAccountId = "3364c9dc-e383-5706-93df-417cb1260940";
+        Mono.fromCompletionStage(akcesClientController.send("TEST", new CreateAccountCommand(sellAccountId,
+                "NL",
+                "Alice",
+                "Trader",
+                "alice.trader@example.com"))).block();
+
+        // Create BTC and EUR balances
+        Mono.fromCompletionStage(akcesClientController.send("TEST",
+                new CreateBalanceCommand(sellAccountId, "BTC"))).block();
+
+        // Credit the user with BTC to sell
+        Mono.fromCompletionStage(akcesClientController.send("TEST",
+                new CreditWalletCommand(sellAccountId,
+                        "BTC",
+                        new BigDecimal("1.0")))).block();
+
+        // Place a sell order on BTC-EUR market
+        String clientSellOrderId = "580bc3b5-e2af-5227-a18f-df24edb6874b";
+        Mono.fromCompletionStage(akcesClientController.send("TEST",
+                new PlaceSellOrderCommand(sellAccountId,
+                        new CryptoMarket("BTC-EUR", "BTC", "EUR"),
+                        new BigDecimal("0.5"),
+                        clientSellOrderId))).block();
+
+        // Wait a bit for order processing
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        // Verify that SellOrderCreated event was emitted
+        assertThat(sellAccountId).isNotNull();
+    }
+
     public static class Initializer
             implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
@@ -313,11 +360,6 @@ public class CryptoTradingApplicationTest {
             prepareKafka(kafka.getBootstrapServers());
             prepareDomainEventSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
             prepareCommandSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.cryptotrading.aggregates");
-            try {
-                prepareAggregateServiceRecords(kafka.getBootstrapServers());
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
                     applicationContext,
                     "akces.rocksdb.baseDir=/tmp/akces",

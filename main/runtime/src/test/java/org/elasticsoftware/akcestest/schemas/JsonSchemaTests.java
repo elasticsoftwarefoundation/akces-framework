@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2025 The Original Authors
+ * Copyright 2022 - 2026 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -88,14 +88,14 @@ public class JsonSchemaTests {
 
         List<Difference> differencesV2 = SchemaDiff.compare(schema1.rawSchema(), schema2.rawSchema())
                 .stream().filter(diff ->
-                        !SchemaDiff.COMPATIBLE_CHANGES.contains(diff.getType()) &&
+                        !SchemaDiff.COMPATIBLE_CHANGES_STRICT.contains(diff.getType()) &&
                         !Difference.Type.REQUIRED_PROPERTY_ADDED_TO_UNOPEN_CONTENT_MODEL.equals(diff.getType())).toList();
 
         assertEquals(0, differencesV2.size());
 
         List<Difference> differencesV3 = SchemaDiff.compare(schema2.rawSchema(), schema3.rawSchema())
                 .stream().filter(diff ->
-                        !SchemaDiff.COMPATIBLE_CHANGES.contains(diff.getType()) &&
+                        !SchemaDiff.COMPATIBLE_CHANGES_STRICT.contains(diff.getType()) &&
                                 !Difference.Type.REQUIRED_PROPERTY_ADDED_TO_UNOPEN_CONTENT_MODEL.equals(diff.getType())).toList();
 
         assertEquals(0, differencesV3.size());

@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2025 The Original Authors
+ * Copyright 2022 - 2026 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -100,7 +100,7 @@ public class KafkaDatabaseModelRuntime implements DatabaseModelRuntime {
                     DatabaseModelEventHandlerFunction<DomainEvent> eventHandler = databaseModelEventHandlers.get(domainEventType);
                     if (eventHandler != null) {
                         try {
-                            if (Boolean.TRUE.equals(domainEventType.piiData())) {
+                            if (domainEventType.piiData()) {
                                 GDPRContextHolder.setCurrentGDPRContext(gdprContextSupplier.apply(eventRecord.aggregateId()));
                             }
                             eventHandler.accept(materialize(domainEventType, eventRecord));

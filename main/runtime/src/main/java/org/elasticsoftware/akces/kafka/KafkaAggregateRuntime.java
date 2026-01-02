@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2025 The Original Authors
+ * Copyright 2022 - 2026 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -140,7 +140,7 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
             }
         } catch (Throwable t) {
             // TODO: potentially see if we need to terminate the runtime
-            log.error("Exception while handling command, sending CommandExecutionError", t);
+            log.error("Exception while handling command {}:{}, sending CommandExecutionError", commandRecord.name(), commandRecord.version(), t);
             commandExecutionError(commandRecord, protocolRecordConsumer, t);
         }
     }

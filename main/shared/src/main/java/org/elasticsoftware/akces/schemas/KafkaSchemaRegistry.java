@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2025 The Original Authors
+ * Copyright 2022 - 2026 The Original Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  *     you may not use this file except in compliance with the License.
@@ -229,7 +229,7 @@ public class KafkaSchemaRegistry implements SchemaRegistry {
                                                JsonSchema localSchema, JsonSchema previousSchema) {
         List<Difference> differences = SchemaDiff.compare(previousSchema.rawSchema(), localSchema.rawSchema())
                 .stream().filter(diff ->
-                        !SchemaDiff.COMPATIBLE_CHANGES.contains(diff.getType()) &&
+                        !SchemaDiff.COMPATIBLE_CHANGES_STRICT.contains(diff.getType()) &&
                                 !Difference.Type.REQUIRED_PROPERTY_ADDED_TO_UNOPEN_CONTENT_MODEL.equals(diff.getType()))
                 .toList();
         
