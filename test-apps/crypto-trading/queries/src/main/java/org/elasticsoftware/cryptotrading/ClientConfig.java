@@ -31,7 +31,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 @ComponentScan(basePackages = {
         "org.elasticsoftware.cryptotrading.web",
         "org.elasticsoftware.cryptotrading.query",
-        "org.elasticsoftware.cryptotrading.services"
+        "org.elasticsoftware.cryptotrading.services",
+        "org.elasticsoftware.cryptotrading.security"
 })
 @EnableJdbcRepositories(basePackages = {"org.elasticsoftware.cryptotrading.query.jdbc"})
 @PropertySource("classpath:akces-framework.properties")
