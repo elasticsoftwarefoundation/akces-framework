@@ -277,10 +277,11 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                         consumerRecords.forEach(record -> {
                             AkcesControlRecord controlRecord = record.value();
                             if (controlRecord instanceof AggregateServiceRecord aggregateServiceRecord) {
-                                // only log it once
-                                if (aggregateServices.putIfAbsent(record.key(), aggregateServiceRecord) == null) {
+                                if (!aggregateServices.containsKey(record.key())) {
                                     logger.info("Discovered service: {}", aggregateServiceRecord.aggregateName());
                                 }
+                                // always overwrite with the latest version
+                                aggregateServices.put(record.key(), aggregateServiceRecord);
                             } else {
                                 logger.info("Received unknown AkcesControlRecord type: {}", controlRecord.getClass().getSimpleName());
                             }
