@@ -120,6 +120,7 @@ jobs:
           spring-boot:build-image
           -Ddocker.image.version=${{ steps.version.outputs.prerelease_version }}
           -DskipTests
+          -U
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
@@ -138,6 +139,7 @@ jobs:
           spring-boot:build-image
           -Ddocker.image.version=${{ steps.version.outputs.prerelease_version }}
           -DskipTests
+          -U
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
