@@ -24,6 +24,7 @@ import org.elasticsoftware.akces.annotations.*;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.errors.AggregateAlreadyExistsErrorEvent;
+import org.elasticsoftware.akces.errors.AggregateNotFoundErrorEvent;
 import org.elasticsoftware.akces.errors.CommandExecutionErrorEvent;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.events.ErrorEvent;
@@ -57,10 +58,14 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
             new DomainEventType<>("CommandExecutionError", 1, CommandExecutionErrorEvent.class, false, false, true, false)
     );
     public static final List<DomainEventType<? extends DomainEvent>> COMMAND_HANDLER_SYSTEM_ERRORS = List.of(
+            new DomainEventType<>("AggregateNotFoundError", 1, AggregateNotFoundErrorEvent.class, false, false, true, false),
             new DomainEventType<>("CommandExecutionError", 1, CommandExecutionErrorEvent.class, false, false, true, false)
     );
     public static final List<DomainEventType<? extends DomainEvent>> EVENT_HANDLER_CREATE_SYSTEM_ERRORS = List.of(
             new DomainEventType<>("AggregateAlreadyExistsError", 1, AggregateAlreadyExistsErrorEvent.class, false, false, true, false)
+    );
+    public static final List<DomainEventType<? extends DomainEvent>> EVENT_HANDLER_SYSTEM_ERRORS = List.of(
+            new DomainEventType<>("AggregateNotFoundError", 1, AggregateNotFoundErrorEvent.class, false, false, true, false)
     );
 
     @Override
@@ -469,7 +474,7 @@ public class AggregateBeanFactoryPostProcessor implements BeanFactoryPostProcess
     }
 
     private List<DomainEventType<?>> generateEventHandlerErrorEventTypes(Class<? extends DomainEvent>[] domainEventClasses, boolean isCreate) {
-        Stream<DomainEventType<? extends DomainEvent>> systemErrorEvents = (isCreate) ? EVENT_HANDLER_CREATE_SYSTEM_ERRORS.stream() : Stream.empty();
+        Stream<DomainEventType<? extends DomainEvent>> systemErrorEvents = (isCreate) ? EVENT_HANDLER_CREATE_SYSTEM_ERRORS.stream() : EVENT_HANDLER_SYSTEM_ERRORS.stream();
         return Stream.concat(Arrays.stream(domainEventClasses).map(eventClass -> {
             DomainEventInfo eventInfo = eventClass.getAnnotation(DomainEventInfo.class);
             return new DomainEventType<>(eventInfo.type(), eventInfo.version(), eventClass, false, false, true, hasPIIDataAnnotation(eventClass));
