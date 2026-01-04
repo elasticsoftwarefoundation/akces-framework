@@ -40,14 +40,14 @@ public class PIIDataSerializerModifier extends BeanSerializerModifier {
             if (null == writer.getAnnotation(PIIData.class)) {
                 newWriters.add(writer);
             } else {
-                newWriters.add(new PersonalDataPropertyWriter(writer, instance));
+                newWriters.add(new PIIDataPropertyWriter(writer, instance));
             }
         }
         return newWriters;
     }
 
-    static class PersonalDataPropertyWriter extends BeanPropertyWriter {
-        PersonalDataPropertyWriter(final BeanPropertyWriter base, final JsonSerializer<Object> serializer) {
+    static class PIIDataPropertyWriter extends BeanPropertyWriter {
+        PIIDataPropertyWriter(final BeanPropertyWriter base, final JsonSerializer<Object> serializer) {
             super(base);
             this._serializer = serializer;
         }

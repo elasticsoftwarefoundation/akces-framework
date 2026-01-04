@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces.query.models;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -59,6 +60,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -67,7 +69,7 @@ import static org.elasticsoftware.akces.query.models.AkcesQueryModelControllerSt
 import static org.elasticsoftware.akces.util.KafkaUtils.getIndexTopicName;
 
 @SuppressWarnings({"rawtypes", "unchecked"})
-public class AkcesQueryModelController extends Thread implements AutoCloseable, ApplicationContextAware, QueryModels {
+public class AkcesQueryModelController<S extends QueryModelState> extends Thread implements AutoCloseable, ApplicationContextAware, QueryModels<S> {
     private static final Logger logger = LoggerFactory.getLogger(AkcesQueryModelController.class);
     private final Map<Class<? extends QueryModel>, QueryModelRuntime> enabledRuntimes = new ConcurrentHashMap<>();
     private final Map<Class<? extends QueryModel>, QueryModelRuntime> disabledRuntimes = new ConcurrentHashMap<>();
@@ -77,7 +79,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
     private final GDPRContextRepositoryFactory gdprContextRepositoryFactory;
     private final Map<TopicPartition, GDPRContextRepository> gdprContextRepositories = new HashMap<>();
     private final BlockingQueue<HydrationRequest<?>> commandQueue = new LinkedBlockingQueue<>();
-    private final Map<TopicPartition, HydrationExecution<?>> hydrationExecutions = new HashMap<>();
+    private final Map<TopicPartition, HydrationExecution<S>> hydrationExecutions = new HashMap<>();
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
     private volatile AkcesQueryModelControllerState processState = INITIALIZING;
     private final Set<TopicPartition> gdprKeyPartitions = new HashSet<>();
@@ -114,16 +116,16 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
 
 
     @SuppressWarnings("unchecked")
-    private <S extends QueryModelState> QueryModelRuntime<S> getEnabledRuntime(Class<? extends QueryModel<S>> modelClass) {
+    private QueryModelRuntime<S> getEnabledRuntime(Class<? extends QueryModel<S>> modelClass) {
         return (QueryModelRuntime<S>) this.enabledRuntimes.get(modelClass);
     }
 
-    private <S extends QueryModelState> boolean isRuntimeDisabled(Class<? extends QueryModel<S>> modelClass) {
+    private boolean isRuntimeDisabled(Class<? extends QueryModel<S>> modelClass) {
         return this.disabledRuntimes.containsKey(modelClass);
     }
 
     @Override
-    public <S extends QueryModelState> CompletionStage<S> getHydratedState(Class<? extends QueryModel<S>> modelClass, String id) {
+    public CompletionStage<S> getHydratedState(Class<? extends QueryModel<S>> modelClass, String id) {
         QueryModelRuntime<S> runtime = getEnabledRuntime(modelClass);
         if (runtime != null) {
             CachedQueryModelState<S> cachedQueryModelState = (CachedQueryModelState<S>) queryModelStateCache.getIfPresent(runtime.getName()+"-"+id);
@@ -167,7 +169,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
             pendingRequests.forEach(request -> request.completableFuture.completeExceptionally(
                     new QueryModelExecutionCancelledException(request.runtime().getQueryModelClass())));
             // handle all pending executions
-            Iterator<HydrationExecution<?>> iterator = hydrationExecutions.values().iterator();
+            Iterator<HydrationExecution<S>> iterator = hydrationExecutions.values().iterator();
             while (iterator.hasNext()) {
                 HydrationExecution<?> execution = iterator.next();
                 execution.completableFuture.completeExceptionally(
@@ -191,7 +193,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
     private void process(Consumer<String, ProtocolRecord> indexConsumer, SchemaStorage schemaStorage) {
         if (processState == RUNNING) {
             try {
-                Map<TopicPartition, HydrationExecution<?>> newExecutions = processHydrationRequests(indexConsumer);
+                Map<TopicPartition, HydrationExecution<S>> newExecutions = processHydrationRequests(indexConsumer);
                 // assign all the hydrationExecution partition and the gdpKeyPartitions (if any)
                 hydrationExecutions.putAll(newExecutions);
                 indexConsumer.assign(Stream.concat(hydrationExecutions.keySet().stream(), gdprKeyPartitions.stream()).toList());
@@ -238,16 +240,20 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                             hydrationExecutions.computeIfPresent(partition,
                                     (topicPartition, hydrationExecution) ->
                                             processHydrationExecution(
-                                                    hydrationExecution.runtime().shouldHandlePIIData() ? getGDPRContextRepository(hydrationExecution.id()) : null,
                                                     hydrationExecution,
                                                     consumerRecords.records(partition)));
                         }
                     }
                 }
                 // check for stop condition
-                Iterator<HydrationExecution<?>> itr = hydrationExecutions.values().iterator();
+                Iterator<HydrationExecution<S>> itr = hydrationExecutions.values().iterator();
                 while (itr.hasNext()) {
-                    HydrationExecution<?> execution = itr.next();
+                    HydrationExecution<S> execution = itr.next();
+                    // we might have to wait for GDPRKey to be available
+                    if(execution.runtime().shouldHandlePIIData() &&
+                            !getGDPRContextRepository(execution.id()).exists(execution.id())) {
+                        continue;
+                    }
                     if (execution.endOffset() <= indexConsumer.position(execution.indexPartition())) {
                         logger.info(
                                 "HydrationExecution on index {} with id {} and runtime {} is complete: indexPartition {} endOffset {} consumerPosition {}",
@@ -258,7 +264,7 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                                 execution.endOffset(),
                                 indexConsumer.position(execution.indexPartition()));
                         // we are done with this execution
-                        execution.complete();
+                        execution.complete(execution.runtime().shouldHandlePIIData() ? this::decrypt : Function.identity());
                         itr.remove();
                         queryModelStateCache.put(
                                 execution.runtime().getName()+"-"+execution.id(),
@@ -362,13 +368,25 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         }
     }
 
+    private S decrypt(S state) {
+        // first convert to map
+        Map<String, Object> map = objectMapper.convertValue(state, new TypeReference<>() {});
+        GDPRContextRepository gdprContextRepository = getGDPRContextRepository(state.getIndexKey());
+        try {
+            GDPRContextHolder.setCurrentGDPRContext(gdprContextRepository.get(state.getIndexKey()));
+            return objectMapper.convertValue(map, (Class<S>) state.getClass());
+        } finally {
+            GDPRContextHolder.resetCurrentGDPRContext();
+        }
+    }
+
     private GDPRContextRepository getGDPRContextRepository(String id) {
         Integer partition = Math.abs(hashFunction.hashString(id, UTF_8).asInt()) % totalPartitions;
         return gdprContextRepositories.get(new TopicPartition("Akces-GDPRKeys", partition));
     }
 
-    private Map<TopicPartition, HydrationExecution<?>> processHydrationRequests(Consumer<String, ProtocolRecord> indexConsumer) {
-        Map<TopicPartition, HydrationExecution<?>> newExecutions = new HashMap<>();
+    private Map<TopicPartition, HydrationExecution<S>> processHydrationRequests(Consumer<String, ProtocolRecord> indexConsumer) {
+        Map<TopicPartition, HydrationExecution<S>> newExecutions = new HashMap<>();
         // see if we have new commands to process
         try {
             HydrationRequest request = commandQueue.poll(100, TimeUnit.MILLISECONDS);
@@ -395,15 +413,9 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
         return newExecutions;
     }
 
-    private <S extends QueryModelState> HydrationExecution<S> processHydrationExecution(@Nullable GDPRContextRepository gdprContextRepository,
-                                                                                        HydrationExecution<S> execution,
-                                                                                        List<ConsumerRecord<String, ProtocolRecord>> records) {
+    private HydrationExecution<S> processHydrationExecution(HydrationExecution<S> execution,
+                                                            List<ConsumerRecord<String, ProtocolRecord>> records) {
         try {
-            if(gdprContextRepository != null) {
-                GDPRContext gdprContext = gdprContextRepository.get(execution.id());
-                logger.info("Setting GDPRContext {} for aggregateId {}", gdprContext.getClass().getSimpleName(), execution.id());
-                GDPRContextHolder.setCurrentGDPRContext(gdprContext);
-            }
             logger.info(
                     "Processing {} records HydrationExecution on index {} with id {} and runtime {}",
                     records.size(),
@@ -421,8 +433,6 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
                             execution.runtime().getQueryModelClass(),
                             e));
             return null; // this will remove the HydrationExecution from the map
-        } finally {
-            GDPRContextHolder.resetCurrentGDPRContext();
         }
     }
 
@@ -462,9 +472,9 @@ public class AkcesQueryModelController extends Thread implements AutoCloseable, 
             return new HydrationExecution<>(runtime, completableFuture, id, currentState, currentOffset, indexPartition, endOffset);
         }
 
-        void complete() {
+        void complete(Function<S,S> statePostProcessor) {
             if(currentState != null) {
-                completableFuture.complete(currentState);
+                completableFuture.complete(statePostProcessor.apply(currentState));
             } else {
                 // TODO: this should not happen because we only create the index topic when there is an event to write
                 completableFuture.completeExceptionally(new QueryModelIdNotFoundException(runtime.getQueryModelClass(), id));

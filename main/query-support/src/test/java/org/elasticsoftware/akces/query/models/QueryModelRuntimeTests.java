@@ -61,6 +61,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.elasticsoftware.akces.query.TestUtils.*;
@@ -283,7 +284,7 @@ public class QueryModelRuntimeTests {
         }
 
         List<CompletableFuture<WalletQueryModelState>> stateFutures = userIds.stream()
-                .map(userId -> akcesQueryModelController.getHydratedState(WalletQueryModel.class, userId)
+                .map(userId -> (CompletableFuture<WalletQueryModelState>) akcesQueryModelController.getHydratedState(WalletQueryModel.class, userId)
                         .toCompletableFuture())
                 .toList();
 
@@ -328,7 +329,7 @@ public class QueryModelRuntimeTests {
         assertThat(state.email()).isEqualTo("john.doe@example.com");
     }
 
-    @Test @Order(8)
+    @Test @Order(9)
     public void testAccountQueryModelUsingCache() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
