@@ -234,6 +234,46 @@ public class CryptoTradingCommandApiTest {
     }
 
     @Test
+    void testDecimalFieldsReturnedAsStringsNotDoubles() {
+        while (!walletController.isRunning() ||
+                !accountController.isRunning() ||
+                !prderProcessManagerController.isRunning() ||
+                !cryptoMarketController.isRunning() ||
+                !akcesClientController.isRunning()) {
+            Thread.onSpinWait();
+        }
+        ensureAggregateServiceRecordsExist(controlConsumerFactory);
+
+        AccountInput accountInput = new AccountInput("NL", "John", "Doe", "john.doe@example.com");
+        webTestClient.post()
+                .uri("/v1/accounts")
+                .bodyValue(accountInput)
+                .exchange()
+                .expectStatus().is2xxSuccessful()
+                .expectBody(AccountOutput.class)
+                .value(accountOutput -> {
+                    assertThat(accountOutput.userId()).isNotNull();
+
+                    // credit the wallet with a precise decimal value that would lose precision as double
+                    CreditWalletInput creditInput = new CreditWalletInput(new BigDecimal("123.456789012345"));
+                    webTestClient.post()
+                            .uri("/v1/accounts/" + accountOutput.userId() + "/wallet/balances/EUR/credit")
+                            .bodyValue(creditInput)
+                            .exchange()
+                            .expectStatus().is2xxSuccessful()
+                            .expectBody(String.class)
+                            .value(responseBody -> {
+                                assertThat(responseBody).isNotNull();
+                                // Verify the amount field is a string, not a number
+                                // JSON strings are quoted, numbers are not
+                                assertThat(responseBody).contains("\"amount\":\"123.456789012345\"");
+                                assertThat(responseBody).doesNotContain("\"amount\":123.456789012345");
+                                assertThat(responseBody).contains("\"currency\":\"EUR\"");
+                            });
+                });
+    }
+
+    @Test
     void testCreateAccountAndCreditWalletWithoutBalance() {
         while (!walletController.isRunning() ||
                 !accountController.isRunning() ||
