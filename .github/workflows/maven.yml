@@ -105,6 +105,20 @@ jobs:
           PRERELEASE_VERSION="${BASE_VERSION}-dev.${TIMESTAMP}"
           echo "prerelease_version=${PRERELEASE_VERSION}" >> $GITHUB_OUTPUT
           echo "Building Docker images with version: ${PRERELEASE_VERSION}"
+      # This is needed because the cache restores older SNAPSHOT versions of the artifacts
+      - name: Install Framework with Maven
+        working-directory: ${{ github.workspace }}/main
+        run: >
+          mvn
+          --show-version
+          --batch-mode
+          --no-transfer-progress
+          --activate-profiles ci
+          --file pom.xml
+          --settings $GITHUB_WORKSPACE/settings.xml
+          install
+          -U
+          -DskipTests
       - name: Build Services Docker Images
         working-directory: ${{ github.workspace }}/services
         run: >
