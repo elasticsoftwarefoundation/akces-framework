@@ -173,6 +173,13 @@ public class CryptoTradingE2ETests {
         // Wait for the order to reach a terminal state (FILLED or REJECTED)
         waitForOrderTerminalState(userId, orderId, Duration.ofSeconds(30));
 
+        // there might be a slight delay before the wallet is updated, so we can wait a bit
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            // Ignore
+        }
+
         // test the wallet balances
         e2eTestClient.get()
                         .uri("/v1/accounts/{userId}/wallet", userId)
@@ -278,6 +285,13 @@ public class CryptoTradingE2ETests {
 
         // Wait for the order to reach a terminal state (FILLED or REJECTED)
         waitForOrderTerminalState(userId, orderId, Duration.ofSeconds(30));
+
+        // there might be a slight delay before the wallet is updated, so we can wait a bit
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            // Ignore
+        }
 
         // Test the wallet balances
         e2eTestClient.get()
