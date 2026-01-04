@@ -259,7 +259,7 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
                     command.baseCurrency(),
                     command.orderId()));
             // debit the base currency
-            log.info("CommandHandler: Debiting {} {} from user wallet", sellOrderProcess.amount(), command.baseCurrency());
+            log.info("CommandHandler: Debiting {} {} from user wallet", sellOrderProcess.size(), command.baseCurrency());
             getCommandBus().send(new DebitWalletCommand(
                     command.userId(),
                     command.baseCurrency(),
