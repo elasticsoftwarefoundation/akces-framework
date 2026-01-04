@@ -32,7 +32,7 @@ import reactor.core.publisher.Mono;
 @RestController
 @RequestMapping("/v{version:1}/accounts")
 public class OrdersQueryController {
-    private final QueryModels queryModels;
+    private final QueryModels<OrdersQueryModelState> queryModels;
 
     public OrdersQueryController(QueryModels queryModels) {
         this.queryModels = queryModels;
