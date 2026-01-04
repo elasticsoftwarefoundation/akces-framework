@@ -17,21 +17,37 @@
 
 package org.elasticsoftware.cryptotrading;
 
-import com.fasterxml.jackson.databind.Module;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
-import org.springframework.context.annotation.Bean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.codec.ServerCodecConfigurer;
+import org.springframework.http.codec.json.Jackson2JsonDecoder;
+import org.springframework.http.codec.json.Jackson2JsonEncoder;
+import org.springframework.web.reactive.config.WebFluxConfigurer;
 
 import java.math.BigDecimal;
 
+/**
+ * Jackson configuration for WebFlux controllers.
+ * Configures BigDecimal serialization to use plain string format instead of numbers.
+ */
 @Configuration
-public class JacksonConfig {
+public class JacksonConfig implements WebFluxConfigurer {
     
-    @Bean
-    public Module bigDecimalModule() {
+    private static final Logger log = LoggerFactory.getLogger(JacksonConfig.class);
+    
+    @Override
+    public void configureHttpMessageCodecs(ServerCodecConfigurer configurer) {
+        log.info("Configuring HTTP message codecs for WebFlux with BigDecimalSerializer");
+        ObjectMapper mapper = new ObjectMapper();
         SimpleModule module = new SimpleModule();
         module.addSerializer(BigDecimal.class, new BigDecimalSerializer());
-        return module;
+        mapper.registerModule(module);
+        log.info("Custom ObjectMapper modules: {}", mapper.getRegisteredModuleIds());
+        configurer.defaultCodecs().jackson2JsonEncoder(new Jackson2JsonEncoder(mapper));
+        configurer.defaultCodecs().jackson2JsonDecoder(new Jackson2JsonDecoder(mapper));
     }
 }
