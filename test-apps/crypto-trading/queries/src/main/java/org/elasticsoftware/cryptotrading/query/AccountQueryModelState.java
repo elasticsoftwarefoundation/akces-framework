@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.query;
 
+import jakarta.annotation.Nonnull;
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.PIIData;
 import org.elasticsoftware.akces.annotations.QueryModelStateInfo;
@@ -28,7 +29,7 @@ public record AccountQueryModelState(@NotNull String accountId,
                                      @NotNull @PIIData String firstName,
                                      @NotNull @PIIData String lastName,
                                      @NotNull @PIIData String email) implements QueryModelState {
-    @Override
+    @Override @Nonnull
     public String getIndexKey() {
         return accountId();
     }
