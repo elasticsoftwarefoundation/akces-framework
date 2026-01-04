@@ -48,6 +48,7 @@ import org.elasticsoftware.akces.control.AggregateServiceDomainEventType;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.errors.AggregateAlreadyExistsErrorEvent;
+import org.elasticsoftware.akces.errors.AggregateNotFoundErrorEvent;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.protocol.*;
@@ -879,6 +880,29 @@ public class RuntimeTests {
         assertInstanceOf(AggregateAlreadyExistsErrorEvent.class, result.getFirst());
 
 
+    }
+
+    @Test
+    @Order(12)
+    public void testAggregateNotFoundErrorWithAkcesClient() throws ExecutionException, InterruptedException, TimeoutException {
+        // wait until the akces controller is running
+        while (!walletAggregateController.isRunning() ||
+                !accountAggregateController.isRunning() ||
+                !orderProcessManagerAggregateController.isRunning() ||
+                !akcesClient.isRunning()) {
+            Thread.onSpinWait();
+        }
+
+        // Generate a random wallet ID that doesn't exist
+        String nonExistentWalletId = UUID.randomUUID().toString();
+
+        // Try to credit a wallet that doesn't exist
+        CreditWalletCommand command = new CreditWalletCommand(nonExistentWalletId, "USD", new BigDecimal("100.00"));
+        List<DomainEvent> result = akcesClient.send("TEST_TENANT", command).toCompletableFuture().get(10, TimeUnit.SECONDS);
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(1, result.size());
+        assertInstanceOf(AggregateNotFoundErrorEvent.class, result.getFirst());
     }
 
     public TopicDescription getTopicDescription(String topic) {

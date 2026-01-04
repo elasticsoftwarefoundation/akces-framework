@@ -27,6 +27,7 @@ import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.errors.AggregateAlreadyExistsErrorEvent;
+import org.elasticsoftware.akces.errors.AggregateNotFoundErrorEvent;
 import org.elasticsoftware.akces.errors.CommandExecutionErrorEvent;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.events.ErrorEvent;
@@ -161,6 +162,22 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
         protocolRecordConsumer.accept(eventRecord);
     }
 
+    private void aggregateNotFound(ProtocolRecord commandOrDomainEventRecord,
+                                   Consumer<ProtocolRecord> protocolRecordConsumer) {
+        AggregateNotFoundErrorEvent errorEvent = new AggregateNotFoundErrorEvent(commandOrDomainEventRecord.aggregateId(), this.getName());
+        DomainEventType<?> type = getDomainEventType(errorEvent.getClass());
+        DomainEventRecord eventRecord = new DomainEventRecord(
+                commandOrDomainEventRecord.tenantId(),
+                type.typeName(),
+                type.version(),
+                serialize(errorEvent),
+                getEncoding(type),
+                errorEvent.getAggregateId(),
+                commandOrDomainEventRecord.correlationId(),
+                -1L); // ErrorEvents have no generation number because they don't alter the state
+        protocolRecordConsumer.accept(eventRecord);
+    }
+
     private void commandExecutionError(CommandRecord commandRecord,
                                        Consumer<ProtocolRecord> protocolRecordConsumer,
                                        Throwable exception) {
@@ -265,6 +282,15 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
         // does have PIIData. in that case we need to load the proper GDPRContext
         Command command = materialize(commandType, commandRecord);
         AggregateStateRecord currentStateRecord = stateRecordSupplier.get();
+        // if we don't have state, this is an error and the aggregate does not exist
+        if (currentStateRecord == null) {
+            log.warn("Command {} wants to update a {} Aggregate with id {}, but the state does not exist. Generating a AggregateNotFoundError",
+                    commandRecord.name(),
+                    getName(),
+                    commandRecord.aggregateId());
+            aggregateNotFound(commandRecord, protocolRecordConsumer);
+            return;
+        }
         AggregateState currentState = materialize(currentStateRecord);
         Stream<DomainEvent> domainEvents = commandHandlers.get(commandType).apply(command, currentState);
         for (DomainEvent domainEvent : domainEvents.toList())
@@ -333,6 +359,15 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
         // materialize the event
         DomainEvent externalEvent = materialize(eventType, domainEventRecord);
         AggregateStateRecord currentStateRecord = stateRecordSupplier.get();
+        // if we don't have state, this is an error and the aggregate does not exist
+        if (currentStateRecord == null) {
+            log.warn("External DomainEvent {} wants to update a {} Aggregate with id {}, but the state does not exist. Generating a AggregateNotFoundError",
+                    domainEventRecord.name(),
+                    getName(),
+                    domainEventRecord.aggregateId());
+            aggregateNotFound(domainEventRecord, protocolRecordConsumer);
+            return;
+        }
         AggregateState currentState = materialize(currentStateRecord);
         Stream<DomainEvent> domainEvents = eventHandlers.get(eventType).apply(externalEvent, currentState);
         for (DomainEvent domainEvent : domainEvents.toList())
