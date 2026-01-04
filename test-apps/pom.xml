@@ -136,7 +136,7 @@
                                     <BP_JVM_JLINK_ENABLED>false</BP_JVM_JLINK_ENABLED>
                                     <BP_SPRING_AOT_ENABLED>true</BP_SPRING_AOT_ENABLED>
                                     <BP_JVM_CDS_ENABLED>false</BP_JVM_CDS_ENABLED>
-                                    <JAVA_TOOL_OPTIONS>-XX:+UseZGC -XX:+ZGenerational</JAVA_TOOL_OPTIONS>
+                                    <JAVA_TOOL_OPTIONS>-XX:+UseZGC</JAVA_TOOL_OPTIONS>
                                 </env>
                                 <buildpacks>
                                     <buildpack>paketo-buildpacks/ca-certificates</buildpack>
@@ -186,7 +186,7 @@
                                     <BP_JVM_JLINK_ENABLED>false</BP_JVM_JLINK_ENABLED>
                                     <BP_SPRING_AOT_ENABLED>true</BP_SPRING_AOT_ENABLED>
                                     <BP_JVM_CDS_ENABLED>false</BP_JVM_CDS_ENABLED>
-                                    <JAVA_TOOL_OPTIONS>-XX:+UseZGC -XX:+ZGenerational</JAVA_TOOL_OPTIONS>
+                                    <JAVA_TOOL_OPTIONS>-XX:+UseZGC</JAVA_TOOL_OPTIONS>
                                 </env>
                                 <buildpacks>
                                     <buildpack>paketo-buildpacks/ca-certificates</buildpack>
