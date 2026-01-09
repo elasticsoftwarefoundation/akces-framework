@@ -141,15 +141,6 @@ public class DatabaseModelPartition implements Runnable, AutoCloseable {
         }
     }
 
-    private void setupGDPRContext(String tenantId, String aggregateId) {
-        // setup the context, this will either be a DefaultGDPRContext or a NoopGDPRContext
-        GDPRContextHolder.setCurrentGDPRContext(gdprContextRepository.get(aggregateId));
-    }
-
-    private void tearDownGDPRContext() {
-        GDPRContextHolder.resetCurrentGDPRContext();
-    }
-
     private void process() {
         try {
             if (processState == PROCESSING) {

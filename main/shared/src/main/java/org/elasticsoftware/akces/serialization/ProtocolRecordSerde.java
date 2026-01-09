@@ -32,7 +32,6 @@ import org.elasticsoftware.akces.protocol.*;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.util.Map;
 
 public final class ProtocolRecordSerde implements Serde<ProtocolRecord> {
     private static final String domainEventRecordProto = """

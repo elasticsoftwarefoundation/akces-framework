@@ -258,6 +258,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
             }
             // publish our own record
             publishControlRecord(partitions);
+            // this will trigger a rebalancing
             processControlRecords();
             // we don't switch to the running state because we wait for the INITIAL_REBALANCING state
             // which should be triggered by the processControlRecords() method
@@ -277,10 +278,11 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                         consumerRecords.forEach(record -> {
                             AkcesControlRecord controlRecord = record.value();
                             if (controlRecord instanceof AggregateServiceRecord aggregateServiceRecord) {
-                                // only log it once
-                                if (aggregateServices.putIfAbsent(record.key(), aggregateServiceRecord) == null) {
+                                if (!aggregateServices.containsKey(record.key())) {
                                     logger.info("Discovered service: {}", aggregateServiceRecord.aggregateName());
                                 }
+                                // always overwrite with the latest version
+                                aggregateServices.put(record.key(), aggregateServiceRecord);
                             } else {
                                 logger.info("Received unknown AkcesControlRecord type: {}", controlRecord.getClass().getSimpleName());
                             }
@@ -541,7 +543,6 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     @Override
     @Nonnull
     public CommandType<?> resolveType(@Nonnull Class<? extends Command> commandClass) {
-        // TODO: if the command class is for an external service it won't be derived from the local Aggregate
         CommandInfo commandInfo = commandClass.getAnnotation(CommandInfo.class);
         if (commandInfo != null) {
             List<AggregateServiceRecord> services = aggregateServices.values().stream()
@@ -560,6 +561,9 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                             true,
                             hasPIIDataAnnotation(commandClass));
                 }
+            } else if(aggregateRuntime.getLocalCommandTypes().stream().anyMatch(commandType -> commandType.typeName().equals(commandInfo.type()) && commandType.version() == commandInfo.version())) {
+                // return the local command type
+                return aggregateRuntime.getLocalCommandType(commandInfo.type(), commandInfo.version());
             } else {
                 // TODO: throw exception, we cannot determine where to send the command
                 throw new IllegalStateException("Cannot determine where to send command " + commandClass.getName());

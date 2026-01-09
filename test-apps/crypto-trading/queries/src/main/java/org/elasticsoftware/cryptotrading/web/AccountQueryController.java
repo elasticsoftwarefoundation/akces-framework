@@ -21,6 +21,7 @@ import org.elasticsoftware.akces.query.models.QueryModelIdNotFoundException;
 import org.elasticsoftware.akces.query.models.QueryModelNotFoundException;
 import org.elasticsoftware.akces.query.models.QueryModels;
 import org.elasticsoftware.cryptotrading.query.AccountQueryModel;
+import org.elasticsoftware.cryptotrading.query.AccountQueryModelState;
 import org.elasticsoftware.cryptotrading.web.dto.AccountOutput;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,7 +33,7 @@ import reactor.core.publisher.Mono;
 @RestController
 @RequestMapping("/v{version:1}/accounts")
 public class AccountQueryController {
-    private final QueryModels queryModels;
+    private final QueryModels<AccountQueryModelState> queryModels;
 
     public AccountQueryController(QueryModels queryModels) {
         this.queryModels = queryModels;

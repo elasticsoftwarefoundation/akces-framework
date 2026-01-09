@@ -20,15 +20,7 @@ package org.elasticsoftware.cryptotrading.query;
 import org.elasticsoftware.akces.annotations.QueryModelEventHandler;
 import org.elasticsoftware.akces.annotations.QueryModelInfo;
 import org.elasticsoftware.akces.query.QueryModel;
-import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderCreatedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderFilledEvent;
-import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderPlacedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.orders.events.BuyOrderRejectedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.orders.events.SellOrderCreatedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.orders.events.SellOrderFilledEvent;
-import org.elasticsoftware.cryptotrading.aggregates.orders.events.SellOrderPlacedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.orders.events.SellOrderRejectedEvent;
-import org.elasticsoftware.cryptotrading.aggregates.orders.events.UserOrderProcessesCreatedEvent;
+import org.elasticsoftware.cryptotrading.aggregates.orders.events.*;
 
 import java.util.ArrayList;
 import java.util.List;

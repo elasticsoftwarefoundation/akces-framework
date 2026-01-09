@@ -42,12 +42,10 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.ApplicationContextException;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
-import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.kafka.core.KafkaAdmin;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Map;
 
 public class TestUtils {

@@ -20,9 +20,6 @@ package org.elasticsoftware.akces.kafka;
 import org.apache.kafka.common.TopicPartition;
 import org.elasticsoftware.akces.aggregate.AggregateRuntime;
 
-import java.util.*;
-import java.util.stream.Collectors;
-
 public final class PartitionUtils {
     public static final String COMMANDS_SUFFIX = "-Commands";
     public static final String DOMAINEVENTS_SUFFIX = "-DomainEvents";

@@ -18,10 +18,10 @@
 package org.elasticsoftware.cryptotrading.query;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.QueryModelStateInfo;
 import org.elasticsoftware.akces.query.QueryModelState;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
-import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 import java.util.List;

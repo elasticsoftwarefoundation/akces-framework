@@ -15,17 +15,19 @@
  *
  */
 
-package org.elasticsoftware.cryptotrading.web.dto;
+package org.elasticsoftware.akces.errors;
 
-import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
+import jakarta.validation.constraints.NotNull;
+import org.elasticsoftware.akces.annotations.DomainEventInfo;
+import org.elasticsoftware.akces.events.ErrorEvent;
 
-import java.math.BigDecimal;
-
-public record OrderOutput(
-        String orderId,
-        CryptoMarket market,
-        BigDecimal size,
-        BigDecimal amount,
-        String clientReference
-) {
+@DomainEventInfo(type = "AggregateNotFoundError")
+public record AggregateNotFoundErrorEvent(
+        @NotNull String aggregateId,
+        @NotNull String aggregateName
+) implements ErrorEvent {
+    @Override
+    public String getAggregateId() {
+        return aggregateId();
+    }
 }

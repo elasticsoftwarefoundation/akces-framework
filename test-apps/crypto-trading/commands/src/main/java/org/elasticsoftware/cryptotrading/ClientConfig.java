@@ -17,9 +17,15 @@
 
 package org.elasticsoftware.cryptotrading;
 
+import org.elasticsoftware.cryptotrading.web.dto.Jackson3BigDecimalSerializer;
+import org.springframework.boot.jackson.autoconfigure.JsonMapperBuilderCustomizer;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
+import tools.jackson.databind.module.SimpleModule;
+
+import java.math.BigDecimal;
 
 @Configuration
 @ComponentScan(basePackages = {
@@ -28,4 +34,10 @@ import org.springframework.context.annotation.PropertySource;
 })
 @PropertySource("classpath:akces-framework.properties")
 public class ClientConfig {
+    @Bean
+    JsonMapperBuilderCustomizer jacksonCustomizer() {
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(BigDecimal.class, new Jackson3BigDecimalSerializer());
+        return builder -> builder.addModule(module);
+    }
 }

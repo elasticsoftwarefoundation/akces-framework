@@ -17,6 +17,8 @@
 
 package org.elasticsoftware.cryptotrading;
 
+import org.elasticsoftware.cryptotrading.web.dto.Jackson3BigDecimalSerializer;
+import org.springframework.boot.jackson.autoconfigure.JsonMapperBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
@@ -26,6 +28,9 @@ import org.springframework.data.jdbc.repository.config.EnableJdbcRepositories;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
+import tools.jackson.databind.module.SimpleModule;
+
+import java.math.BigDecimal;
 
 @Configuration
 @ComponentScan(basePackages = {
@@ -37,6 +42,13 @@ import org.springframework.web.reactive.function.client.WebClient;
 @EnableJdbcRepositories(basePackages = {"org.elasticsoftware.cryptotrading.query.jdbc"})
 @PropertySource("classpath:akces-framework.properties")
 public class ClientConfig {
+    @Bean
+    JsonMapperBuilderCustomizer jacksonCustomizer() {
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(BigDecimal.class, new Jackson3BigDecimalSerializer());
+        return builder -> builder.addModule(module);
+    }
+
     @Bean("coinbaseWebClient")
     public WebClient coinbaseWebClient() {
         return WebClient.builder()

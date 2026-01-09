@@ -173,6 +173,13 @@ public class CryptoTradingE2ETests {
         // Wait for the order to reach a terminal state (FILLED or REJECTED)
         waitForOrderTerminalState(userId, orderId, Duration.ofSeconds(30));
 
+        // there might be a slight delay before the wallet is updated, so we can wait a bit
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            // Ignore
+        }
+
         // test the wallet balances
         e2eTestClient.get()
                         .uri("/v1/accounts/{userId}/wallet", userId)
@@ -258,12 +265,7 @@ public class CryptoTradingE2ETests {
                     assertThat(balanceOutput.balance().toString()).isEqualTo("1.00");
                 });
 
-        // Create EUR balance
-        e2eTestClient.post()
-                .uri("/v1/accounts/{userId}/wallet/balances", userId)
-                .bodyValue(new CreateBalanceInput("EUR"))
-                .exchange()
-                .expectStatus().is2xxSuccessful();
+        // EUR balance is created automatically on account creation, no need to create it manually
 
         // Sell 0.5 BTC for EUR
         String orderId = e2eTestClient.post()
@@ -282,7 +284,14 @@ public class CryptoTradingE2ETests {
                 }).returnResult().getResponseBody().orderId();
 
         // Wait for the order to reach a terminal state (FILLED or REJECTED)
-        waitForSellOrderTerminalState(userId, orderId, Duration.ofSeconds(30));
+        waitForOrderTerminalState(userId, orderId, Duration.ofSeconds(30));
+
+        // there might be a slight delay before the wallet is updated, so we can wait a bit
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            // Ignore
+        }
 
         // Test the wallet balances
         e2eTestClient.get()
@@ -306,42 +315,5 @@ public class CryptoTradingE2ETests {
                             .findFirst().orElseThrow();
                     assertThat(eurBalance.amount()).isNotEqualTo(BigDecimal.ZERO);
                 });
-    }
-
-    /**
-     * Waits for a sell order to reach a terminal state (FILLED or REJECTED) by polling the orders API.
-     *
-     * @param userId the account ID
-     * @param orderId the order ID
-     * @param timeout maximum time to wait
-     */
-    private void waitForSellOrderTerminalState(String userId, String orderId, Duration timeout) {
-        long startTime = System.currentTimeMillis();
-        long timeoutMillis = timeout.toMillis();
-        long pollIntervalMillis = 500; // Poll every 500ms
-
-        while (System.currentTimeMillis() - startTime < timeoutMillis) {
-            OrdersQueryModelState.SellOrder order = e2eTestClient.get()
-                    .uri("/v1/accounts/{userId}/orders/{orderId}", userId, orderId)
-                    .exchange()
-                    .expectStatus().is2xxSuccessful()
-                    .expectBody(OrdersQueryModelState.SellOrder.class)
-                    .returnResult()
-                    .getResponseBody();
-
-            if (order != null && (order.state() == OrderState.FILLED || order.state() == OrderState.REJECTED)) {
-                System.out.println("Sell order " + orderId + " reached terminal state: " + order.state());
-                return;
-            }
-
-            try {
-                Thread.sleep(pollIntervalMillis);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                fail("Interrupted while waiting for sell order to reach terminal state");
-            }
-        }
-
-        fail("Sell order " + orderId + " did not reach a terminal state within " + timeout.getSeconds() + " seconds");
     }
 }

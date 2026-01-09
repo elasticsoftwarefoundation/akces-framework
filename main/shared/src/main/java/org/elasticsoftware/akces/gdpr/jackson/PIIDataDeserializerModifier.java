@@ -54,7 +54,7 @@ public class PIIDataDeserializerModifier extends BeanDeserializerModifier {
                         updatedArguments[i] = constructorArguments[i];
                     }
                 }
-                builder.setValueInstantiator(new PersonalDataValueInstantiator((StdValueInstantiator) builder.getValueInstantiator(), updatedArguments));
+                builder.setValueInstantiator(new PIIDataValueInstantiator((StdValueInstantiator) builder.getValueInstantiator(), updatedArguments));
             }
         }
 
@@ -62,9 +62,9 @@ public class PIIDataDeserializerModifier extends BeanDeserializerModifier {
         return builder;
     }
 
-    static class PersonalDataValueInstantiator extends StdValueInstantiator {
+    static class PIIDataValueInstantiator extends StdValueInstantiator {
 
-        PersonalDataValueInstantiator(StdValueInstantiator src, SettableBeanProperty[] arguments) {
+        PIIDataValueInstantiator(StdValueInstantiator src, SettableBeanProperty[] arguments) {
             super(src);
             _constructorArguments = arguments;
         }

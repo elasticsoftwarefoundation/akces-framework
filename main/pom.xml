@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-framework-parent</artifactId>
-        <version>0.11.0-SNAPSHOT</version>
+        <version>0.12.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>akces-framework-main</artifactId>
@@ -49,7 +49,7 @@
         <persistence-api.version>2.2</persistence-api.version>
         <plexus-utils.version>4.0.2</plexus-utils.version>
         <netty.version>4.2.7.Final</netty.version>
-        <micrometer.version>1.16.0</micrometer.version>
+        <micrometer.version>1.16.1</micrometer.version>
         <fast-uuid.version>0.2.0</fast-uuid.version>
         <confluent.version>8.1.1</confluent.version>
         <victools.version>4.38.0</victools.version>
@@ -397,11 +397,6 @@
                         <artifactId>snakeyaml</artifactId>
                     </exclusion>
                 </exclusions>
-            </dependency>
-            <dependency>
-                <groupId>org.mockito</groupId>
-                <artifactId>mockito-core</artifactId>
-                <version>${mockito.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework</groupId>

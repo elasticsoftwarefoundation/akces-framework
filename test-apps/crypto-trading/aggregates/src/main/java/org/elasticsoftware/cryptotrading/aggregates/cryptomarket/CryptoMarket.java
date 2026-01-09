@@ -98,6 +98,12 @@ public class CryptoMarket implements Aggregate<CryptoMarketState> {
             BigDecimal quantity = command.side().equals(Side.BUY) ? command.funds().divide(price, mathContext) : command.size();
             log.info("CommandHandler: Market order filled for marketId={}, orderId={}, price={}, quantity={}", 
                 command.marketId(), command.orderId(), price, quantity);
+            MarketOrderPlacedEvent marketOrderPlacedEvent = new MarketOrderPlacedEvent(command.marketId(),
+                    command.orderId(),
+                    command.ownerId(),
+                    command.side(),
+                    command.funds(),
+                    command.size());
             MarketOrderFilledEvent marketOrderFilledEvent = new MarketOrderFilledEvent(command.marketId(),
                     command.orderId(),
                     command.ownerId(),
@@ -107,12 +113,6 @@ public class CryptoMarket implements Aggregate<CryptoMarketState> {
                     currentState.quoteCrypto(),
                     price,
                     quantity);
-            MarketOrderPlacedEvent marketOrderPlacedEvent = new MarketOrderPlacedEvent(command.marketId(),
-                    command.orderId(),
-                    command.ownerId(),
-                    command.side(),
-                    command.funds(),
-                    command.size());
             return Stream.of(marketOrderPlacedEvent, marketOrderFilledEvent);
         }
     }

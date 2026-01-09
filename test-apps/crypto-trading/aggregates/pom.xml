@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <!--
   ~ Copyright 2022 - 2026 The Original Authors
   ~
@@ -21,7 +20,7 @@
     <parent>
         <groupId>org.elasticsoftwarefoundation.akces</groupId>
         <artifactId>akces-crypto-trading-parent</artifactId>
-        <version>0.11.0-SNAPSHOT</version>
+        <version>0.12.0-SNAPSHOT</version>
     </parent>
     <artifactId>akces-crypto-trading-aggregates</artifactId>
     <name>Elastic Software Foundation :: Akces :: Test Apps :: Crypto Trading :: Aggregates</name>
