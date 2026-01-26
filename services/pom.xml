@@ -31,7 +31,7 @@
 
     <properties>
         <operator-sdk.version>5.2.2</operator-sdk.version>
-        <operator-sdk.spring.version>6.2.0</operator-sdk.spring.version>
+        <operator-sdk.spring.version>6.3.3</operator-sdk.spring.version>
         <bouncycastle.version>1.83</bouncycastle.version>
         <fabric8.version>7.5.0</fabric8.version>
     </properties>
