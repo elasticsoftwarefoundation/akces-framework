@@ -29,7 +29,8 @@ import java.math.BigDecimal;
 
 @Configuration
 @ComponentScan(basePackages = {
-        "org.elasticsoftware.cryptotrading.web"
+        "org.elasticsoftware.cryptotrading.web",
+        "org.elasticsoftware.cryptotrading.security"
 })
 @PropertySource("classpath:akces-framework.properties")
 public class ClientConfig {
