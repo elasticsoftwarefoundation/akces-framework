@@ -93,8 +93,8 @@ public class SecurityConfig {
                     "/.well-known/jwks.json",  // JWKS endpoint for JWT validation
                     "/v1/auth/login/**",       // OAuth login initiation endpoints
                     "/v1/auth/callback-info",  // OAuth callback information endpoint
-                    "/login/oauth2/**",        // Spring Security OAuth2 login endpoints
-                    "/oauth2/**"               // Spring Security OAuth2 authorization endpoints
+                    "/v1/auth/login/oauth2/**",        // Spring Security OAuth2 login endpoints
+                    "/v1/auth/oauth2/**"               // Spring Security OAuth2 authorization endpoints
                 ).permitAll()
                 // All other endpoints require authentication
                 .anyExchange().authenticated()
