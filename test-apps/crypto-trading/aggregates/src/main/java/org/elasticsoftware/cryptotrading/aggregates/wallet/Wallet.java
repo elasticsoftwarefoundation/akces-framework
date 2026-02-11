@@ -203,59 +203,68 @@ public final class Wallet implements Aggregate<WalletStateV2> {
 
     @EventSourcingHandler
     public @NotNull WalletStateV2 createBalance(@NotNull BalanceCreatedEvent event, WalletStateV2 state) {
+        // Using Java 25 'with' expression for derived record state
         List<WalletStateV2.Balance> balances = new ArrayList<>(state.balances());
         balances.add(new WalletStateV2.Balance(event.currency(), BigDecimal.ZERO));
-        return new WalletStateV2(state.id(), balances);
+        return state with { balances; };
     }
 
     @EventSourcingHandler
     public @NotNull WalletStateV2 credit(@NotNull WalletCreditedEvent event, @NotNull WalletStateV2 state) {
-        return new WalletStateV2(state.id(), state.balances().stream().map(b -> {
+        // Using Java 25 'with' expression for derived record state
+        List<WalletStateV2.Balance> updatedBalances = state.balances().stream().map(b -> {
             if (b.currency().equals(event.currency())) {
-                return new WalletStateV2.Balance(b.currency(), b.amount().add(event.amount()));
+                return b with { amount = b.amount().add(event.amount()); };
             } else {
                 return b;
             }
-        }).toList());
+        }).toList();
+        return state with { balances = updatedBalances; };
     }
 
     @EventSourcingHandler
     public @NotNull WalletStateV2 debit(@NotNull WalletDebitedEvent event, @NotNull WalletStateV2 state) {
-        return new WalletStateV2(state.id(), state.balances().stream().map(b -> {
+        // Using Java 25 'with' expression for derived record state
+        List<WalletStateV2.Balance> updatedBalances = state.balances().stream().map(b -> {
             if (b.currency().equals(event.currency())) {
-                return new WalletStateV2.Balance(b.currency(), event.newBalance(), b.reservations());
+                return b with { amount = event.newBalance(); };
             } else {
                 return b;
             }
-        }).toList());
+        }).toList();
+        return state with { balances = updatedBalances; };
     }
 
 
     @EventSourcingHandler
     public @NotNull WalletStateV2 reserveAmount(@NotNull AmountReservedEvent event, @NotNull WalletStateV2 state) {
-        return new WalletStateV2(state.id(), state.balances().stream().map(b -> {
+        // Using Java 25 'with' expression for derived record state
+        List<WalletStateV2.Balance> updatedBalances = state.balances().stream().map(b -> {
             if (b.currency().equals(event.currency())) {
                 List<WalletStateV2.Reservation> reservations = new ArrayList<>(b.reservations());
-                reservations.add(new WalletStateV2.Reservation(event.referenceId(), b.amount()));
-                return new WalletStateV2.Balance(b.currency(), b.amount(), reservations);
+                reservations.add(new WalletStateV2.Reservation(event.referenceId(), event.amount()));
+                return b with { reservations; };
             } else {
                 return b;
             }
-        }).toList());
+        }).toList();
+        return state with { balances = updatedBalances; };
     }
 
     @EventSourcingHandler
     public @NotNull WalletStateV2 cancelReservation(@NotNull ReservationCancelledEvent event, @NotNull WalletStateV2 state) {
-        return new WalletStateV2(state.id(), state.balances().stream().map(b -> {
+        // Using Java 25 'with' expression for derived record state
+        List<WalletStateV2.Balance> updatedBalances = state.balances().stream().map(b -> {
             if (b.currency().equals(event.currency())) {
                 List<WalletStateV2.Reservation> reservations = b.reservations().stream()
                         .filter(r -> !r.referenceId().equals(event.referenceId()))
                         .toList();
-                return new WalletStateV2.Balance(b.currency(), b.amount(), reservations);
+                return b with { reservations; };
             } else {
                 return b;
             }
-        }).toList());
+        }).toList();
+        return state with { balances = updatedBalances; };
     }
 
 }

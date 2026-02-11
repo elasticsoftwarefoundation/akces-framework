@@ -31,7 +31,8 @@ public class SchemaNotBackwardsCompatibleException extends SchemaException {
                                                  int schemaVersion,
                                                  Class<?> implementationClass,
                                                  List<Difference> differences) {
-        super("Schema not backwards compatible with previous version: " + previousSchemaVersion, schemaIdentifier, implementationClass);
+        String message = "Schema not backwards compatible with previous version: " + previousSchemaVersion;
+        super(message, schemaIdentifier, implementationClass);
         this.previousSchemaVersion = previousSchemaVersion;
         this.schemaVersion = schemaVersion;
         this.differences = differences;

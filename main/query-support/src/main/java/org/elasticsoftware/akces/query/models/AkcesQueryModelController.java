@@ -464,12 +464,14 @@ public class AkcesQueryModelController<S extends QueryModelState> extends Thread
                                                                  CompletableFuture<S> completableFuture, String id,
                                                                  S currentState, Long currentOffset,
                                                                  TopicPartition indexPartition, Long endOffset) {
+        // Using Java 25 'with' expression for derived record state
         HydrationExecution<S> withEndOffset(Long endOffset) {
-            return new HydrationExecution<>(runtime, completableFuture, id, currentState, currentOffset, indexPartition, endOffset);
+            return this with { endOffset; };
         }
 
+        // Using Java 25 'with' expression for derived record state
         HydrationExecution<S> withCurrentState(S currentState) {
-            return new HydrationExecution<>(runtime, completableFuture, id, currentState, currentOffset, indexPartition, endOffset);
+            return this with { currentState; };
         }
 
         void complete(Function<S,S> statePostProcessor) {

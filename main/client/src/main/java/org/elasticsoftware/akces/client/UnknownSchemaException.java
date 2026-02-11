@@ -25,7 +25,9 @@ public class UnknownSchemaException extends AkcesClientCommandException {
     private final String schemaIdentifier;
 
     public UnknownSchemaException(@Nonnull Class<? extends Command> commandClass, String schemaIdentifier) {
-        super(commandClass, commandClass.getAnnotation(CommandInfo.class), "Unknown Schema " + schemaIdentifier);
+        CommandInfo commandInfo = commandClass.getAnnotation(CommandInfo.class);
+        String message = "Unknown Schema " + schemaIdentifier;
+        super(commandClass, commandInfo, message);
         this.schemaIdentifier = schemaIdentifier;
     }
 
