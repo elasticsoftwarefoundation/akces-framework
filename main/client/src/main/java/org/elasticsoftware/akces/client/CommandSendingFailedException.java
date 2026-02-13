@@ -23,6 +23,7 @@ import org.elasticsoftware.akces.commands.Command;
 
 public class CommandSendingFailedException extends AkcesClientCommandException {
     public CommandSendingFailedException(@Nonnull Class<? extends Command> commandClass, @Nonnull Throwable cause) {
-        super(commandClass, commandClass.getAnnotation(CommandInfo.class), "Sending", cause);
+        CommandInfo commandInfo = commandClass.getAnnotation(CommandInfo.class);
+        super(commandClass, commandInfo, "Sending", cause);
     }
 }
