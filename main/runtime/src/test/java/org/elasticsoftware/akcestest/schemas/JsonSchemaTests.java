@@ -26,6 +26,7 @@ import com.github.victools.jsonschema.module.jackson.JacksonSchemaModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import tools.jackson.databind.node.ArrayNode;
 import io.confluent.kafka.schemaregistry.json.diff.Difference;
 import io.confluent.kafka.schemaregistry.json.diff.SchemaDiff;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
@@ -61,7 +62,7 @@ public class JsonSchemaTests {
             if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
                 var typeNode = collectedTypeAttributes.get("type");
                 if (typeNode.isArray()) {
-                    ((tools.jackson.databind.node.ArrayNode) typeNode).set(0, "string");
+                    ((ArrayNode) typeNode).set(0, "string");
                 } else
                     collectedTypeAttributes.put("type", "string");
             }

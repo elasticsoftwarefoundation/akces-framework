@@ -25,6 +25,7 @@ import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.aggregate.SchemaType;
+import tools.jackson.databind.node.ArrayNode;
 
 import java.util.List;
 import java.util.Map;
@@ -49,7 +50,7 @@ public interface SchemaRegistry {
             if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
                 var typeNode = collectedTypeAttributes.get("type");
                 if (typeNode.isArray()) {
-                    ((tools.jackson.databind.node.ArrayNode) typeNode).set(0, "string");
+                    ((ArrayNode) typeNode).set(0, "string");
                 } else
                     collectedTypeAttributes.put("type", "string");
             }
