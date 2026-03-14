@@ -158,7 +158,7 @@ public class AkcesQueryModelController<S extends QueryModelState> extends Thread
              )) {
             // first initialize the schema storage
             schemaStorage.initialize();
-            this.schemaRegistry = new KafkaSchemaRegistry(schemaStorage, objectMapper);
+            this.schemaRegistry = new KafkaSchemaRegistry(schemaStorage);
             while (processState != SHUTTING_DOWN) {
                 process(indexConsumer, schemaStorage);
             }

@@ -140,7 +140,7 @@ public class TestUtils {
                 ProducerConfig.ACKS_CONFIG, "all",
                 ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
 
-        SchemaGenerator jsonSchemaGenerator = SchemaRegistry.createJsonSchemaGenerator(mapper);
+        SchemaGenerator jsonSchemaGenerator = SchemaRegistry.createJsonSchemaGenerator();
 
         // Scan for classes annotated with @DomainEventInfo
         ClassPathScanningCandidateComponentProvider scanner =
@@ -178,7 +178,7 @@ public class TestUtils {
                 ProducerConfig.ACKS_CONFIG, "all",
                 ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
 
-        SchemaGenerator jsonSchemaGenerator = SchemaRegistry.createJsonSchemaGenerator(mapper);
+        SchemaGenerator jsonSchemaGenerator = SchemaRegistry.createJsonSchemaGenerator();
 
         // Scan for classes annotated with @CommandInfo
         ClassPathScanningCandidateComponentProvider scanner =

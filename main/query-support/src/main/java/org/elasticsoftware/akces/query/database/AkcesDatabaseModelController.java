@@ -113,7 +113,7 @@ public class AkcesDatabaseModelController extends Thread implements AutoCloseabl
             );
             // load the schemas
             schemaStorage.initialize();
-            this.schemaRegistry = new KafkaSchemaRegistry(schemaStorage, objectMapper);
+            this.schemaRegistry = new KafkaSchemaRegistry(schemaStorage);
             // make sure the runtime has valid events
             databaseModelRuntime.validateDomainEventSchemas(schemaRegistry);
             while (processState != SHUTTING_DOWN) {
