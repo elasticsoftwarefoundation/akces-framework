@@ -107,7 +107,7 @@ public class TestUtils {
                 ProducerConfig.ACKS_CONFIG, "all",
                 ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
 
-       SchemaGenerator jsonSchemaGenerator = SchemaRegistry.createJsonSchemaGenerator(mapper);
+       SchemaGenerator jsonSchemaGenerator = SchemaRegistry.createJsonSchemaGenerator();
 
         // Scan for classes annotated with @DomainEventInfo
         ClassPathScanningCandidateComponentProvider scanner =
@@ -149,7 +149,7 @@ public class TestUtils {
                 ProducerConfig.ACKS_CONFIG, "all",
                 ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
 
-       SchemaGenerator jsonSchemaGenerator = SchemaRegistry.createJsonSchemaGenerator(mapper);
+       SchemaGenerator jsonSchemaGenerator = SchemaRegistry.createJsonSchemaGenerator();
         
         try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
             for (Class<? extends DomainEvent> eventClass : externalDomainEvents) {

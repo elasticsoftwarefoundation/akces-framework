@@ -21,13 +21,12 @@ package org.elasticsoftware.akcestest.schemas;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.victools.jsonschema.generator.*;
-import com.github.victools.jsonschema.module.jackson.JacksonModule;
+import com.github.victools.jsonschema.module.jackson.JacksonSchemaModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import tools.jackson.databind.node.ArrayNode;
 import io.confluent.kafka.schemaregistry.json.diff.Difference;
 import io.confluent.kafka.schemaregistry.json.diff.SchemaDiff;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
@@ -49,24 +48,21 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class JsonSchemaTests {
     private static @NotNull SchemaGenerator createSchemaGenerator() {
-        Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
-        objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
-        objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
-        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(objectMapperBuilder.build(),
+        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(
                 SchemaVersion.DRAFT_7,
                 OptionPreset.PLAIN_JSON);
         configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
                 JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
-        configBuilder.with(new JacksonModule());
+        configBuilder.with(new JacksonSchemaModule());
         configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
         configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
         configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
         // we need to override the default behavior of the generator to write BigDecimal as type = number
         configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
             if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
-                JsonNode typeNode = collectedTypeAttributes.get("type");
+                var typeNode = collectedTypeAttributes.get("type");
                 if (typeNode.isArray()) {
-                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
+                    ((ArrayNode) typeNode).set(0, "string");
                 } else
                     collectedTypeAttributes.put("type", "string");
             }
@@ -78,13 +74,13 @@ public class JsonSchemaTests {
     public void testSchemaCompatibility() throws IOException {
         SchemaGenerator generator = createSchemaGenerator();
 
-        ObjectNode schemaV1 = generator.generateSchema(AccountCreatedEvent.class);
-        ObjectNode schemaV2 = generator.generateSchema(AccountCreatedEventV2.class);
-        ObjectNode schemaV3 = generator.generateSchema(AccountCreatedEventV3.class);
+        var schemaV1 = generator.generateSchema(AccountCreatedEvent.class);
+        var schemaV2 = generator.generateSchema(AccountCreatedEventV2.class);
+        var schemaV3 = generator.generateSchema(AccountCreatedEventV3.class);
 
-        JsonSchema schema1 = new JsonSchema(schemaV1);
-        JsonSchema schema2 = new JsonSchema(schemaV2);
-        JsonSchema schema3 = new JsonSchema(schemaV3);
+        JsonSchema schema1 = new JsonSchema(schemaV1.toString());
+        JsonSchema schema2 = new JsonSchema(schemaV2.toString());
+        JsonSchema schema3 = new JsonSchema(schemaV3.toString());
 
         List<Difference> differencesV2 = SchemaDiff.compare(schema1.rawSchema(), schema2.rawSchema())
                 .stream().filter(diff ->
@@ -115,8 +111,8 @@ public class JsonSchemaTests {
     public void testNullableString() throws IOException {
         SchemaGenerator generator = createSchemaGenerator();
 
-        JsonNode schema = generator.generateSchema(InvalidAmountErrorEvent.class);
-        JsonSchema jsonSchema = new JsonSchema(schema);
+        var schema = generator.generateSchema(InvalidAmountErrorEvent.class);
+        JsonSchema jsonSchema = new JsonSchema(schema.toString());
 
         jsonSchema.validate(jsonSchema.toJson(new InvalidAmountErrorEvent(UUID.randomUUID().toString(), "USD")));
     }
@@ -125,8 +121,8 @@ public class JsonSchemaTests {
     public void testNullForNotNullField() {
         SchemaGenerator generator = createSchemaGenerator();
 
-        JsonNode schema = generator.generateSchema(InvalidAmountErrorEvent.class);
-        JsonSchema jsonSchema = new JsonSchema(schema);
+        var schema = generator.generateSchema(InvalidAmountErrorEvent.class);
+        JsonSchema jsonSchema = new JsonSchema(schema.toString());
 
         ValidationException exception = Assertions.assertThrows(ValidationException.class, () -> {
             jsonSchema.validate(jsonSchema.toJson(new InvalidAmountErrorEvent(UUID.randomUUID().toString(), null)));
@@ -145,9 +141,9 @@ public class JsonSchemaTests {
         ObjectMapper objectMapper = builder.build();
         SchemaGenerator generator = createSchemaGenerator();
 
-        JsonNode schema = generator.generateSchema(CreditWalletCommand.class);
+        var schema = generator.generateSchema(CreditWalletCommand.class);
         System.out.println(schema);
-        JsonSchema jsonSchema = new JsonSchema(schema);
+        JsonSchema jsonSchema = new JsonSchema(schema.toString());
 
         JsonNode jsonNode = objectMapper.valueToTree(new CreditWalletCommand("de6f87c6-0e4a-4f20-8c06-659fe5bcb7bc", "USD", new BigDecimal("100.00"), null));
         jsonSchema.validate(jsonNode);

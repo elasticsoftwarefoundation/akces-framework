@@ -20,12 +20,12 @@ package org.elasticsoftware.akcestest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.github.victools.jsonschema.generator.*;
-import com.github.victools.jsonschema.module.jackson.JacksonModule;
+import com.github.victools.jsonschema.module.jackson.JacksonSchemaModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import tools.jackson.databind.node.ArrayNode;
 import jakarta.inject.Inject;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -220,21 +220,21 @@ public class RuntimeTests {
         Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
         objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
         objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
-        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(objectMapperBuilder.build(),
+        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(
                 SchemaVersion.DRAFT_7,
                 OptionPreset.PLAIN_JSON);
         configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
                 JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
-        configBuilder.with(new JacksonModule());
+        configBuilder.with(new JacksonSchemaModule());
         configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
         configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
         configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
         // we need to override the default behavior of the generator to write BigDecimal as type = number
         configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
             if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
-                JsonNode typeNode = collectedTypeAttributes.get("type");
+                var typeNode = collectedTypeAttributes.get("type");
                 if (typeNode.isArray()) {
-                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
+                    ((ArrayNode) typeNode).set(0, "string");
                 } else
                     collectedTypeAttributes.put("type", "string");
             }
@@ -251,7 +251,7 @@ public class RuntimeTests {
                 ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
         
         try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
-            JsonSchema schema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.CreateWalletCommand.class), List.of(), Map.of(), 1);
+            JsonSchema schema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.CreateWalletCommand.class).toString(), List.of(), Map.of(), 1);
             SchemaRecord record = new SchemaRecord("commands.CreateWallet", 1, schema, System.currentTimeMillis());
             String key = "commands.CreateWallet-v1";
             ProducerRecord<String, SchemaRecord> producerRecord = new ProducerRecord<>("Akces-Schemas", key, record);
@@ -266,21 +266,21 @@ public class RuntimeTests {
         Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
         objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
         objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
-        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(objectMapperBuilder.build(),
+        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(
                 SchemaVersion.DRAFT_7,
                 OptionPreset.PLAIN_JSON);
         configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
                 JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
-        configBuilder.with(new JacksonModule());
+        configBuilder.with(new JacksonSchemaModule());
         configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
         configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
         configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
         // we need to override the default behavior of the generator to write BigDecimal as type = number
         configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
             if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
-                JsonNode typeNode = collectedTypeAttributes.get("type");
+                var typeNode = collectedTypeAttributes.get("type");
                 if (typeNode.isArray()) {
-                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
+                    ((ArrayNode) typeNode).set(0, "string");
                 } else
                     collectedTypeAttributes.put("type", "string");
             }
@@ -298,17 +298,17 @@ public class RuntimeTests {
         
         try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
             // Register BalanceCreated schema
-            JsonSchema balanceCreatedSchema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.BalanceCreatedEvent.class), List.of(), Map.of(), 1);
+            JsonSchema balanceCreatedSchema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.BalanceCreatedEvent.class).toString(), List.of(), Map.of(), 1);
             SchemaRecord balanceCreatedRecord = new SchemaRecord("domainevents.BalanceCreated", 1, balanceCreatedSchema, System.currentTimeMillis());
             producer.send(new ProducerRecord<>("Akces-Schemas", "domainevents.BalanceCreated-v1", balanceCreatedRecord)).get();
             
             // Register BuyOrderPlaced schema
-            JsonSchema buyOrderPlacedSchema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.BuyOrderPlacedEvent.class), List.of(), Map.of(), 1);
+            JsonSchema buyOrderPlacedSchema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.BuyOrderPlacedEvent.class).toString(), List.of(), Map.of(), 1);
             SchemaRecord buyOrderPlacedRecord = new SchemaRecord("domainevents.BuyOrderPlaced", 1, buyOrderPlacedSchema, System.currentTimeMillis());
             producer.send(new ProducerRecord<>("Akces-Schemas", "domainevents.BuyOrderPlaced-v1", buyOrderPlacedRecord)).get();
             
             // Register WalletCredited schema
-            JsonSchema walletCreditedSchema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.WalletCreditedEvent.class), List.of(), Map.of(), 1);
+            JsonSchema walletCreditedSchema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.WalletCreditedEvent.class).toString(), List.of(), Map.of(), 1);
             SchemaRecord walletCreditedRecord = new SchemaRecord("domainevents.WalletCredited", 1, walletCreditedSchema, System.currentTimeMillis());
             producer.send(new ProducerRecord<>("Akces-Schemas", "domainevents.WalletCredited-v1", walletCreditedRecord)).get();
             

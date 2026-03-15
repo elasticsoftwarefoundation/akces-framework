@@ -148,7 +148,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
             );
             // ensure we loaded all the available schemas first
             schemaStorage.initialize();
-            schemaRegistry = new KafkaSchemaRegistry(schemaStorage, objectMapper);
+            schemaRegistry = new KafkaSchemaRegistry(schemaStorage);
             
             // and start consuming
             controlConsumer =
