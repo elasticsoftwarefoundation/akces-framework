@@ -17,7 +17,6 @@
 
 package org.elasticsoftware.akces.schemas;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.victools.jsonschema.generator.SchemaGenerator;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import io.confluent.kafka.schemaregistry.json.diff.Difference;
@@ -42,9 +41,9 @@ public class KafkaSchemaRegistry implements SchemaRegistry {
     /**
      * Creates a KafkaSchemaRegistry using Kafka topic-based schema storage.
      */
-    public KafkaSchemaRegistry(SchemaStorage schemaStorage, ObjectMapper objectMapper) {
+    public KafkaSchemaRegistry(SchemaStorage schemaStorage) {
         this.schemaStorage = schemaStorage;
-        this.schemaGeneratorTheadLocal = ThreadLocal.withInitial(() -> SchemaRegistry.createJsonSchemaGenerator(objectMapper));
+        this.schemaGeneratorTheadLocal = ThreadLocal.withInitial(SchemaRegistry::createJsonSchemaGenerator);
     }
 
     @Override

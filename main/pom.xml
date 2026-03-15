@@ -52,7 +52,7 @@
         <micrometer.version>1.16.2</micrometer.version>
         <fast-uuid.version>0.2.0</fast-uuid.version>
         <confluent.version>8.1.1</confluent.version>
-        <victools.version>4.38.0</victools.version>
+        <victools.version>5.0.0</victools.version>
         <joda-time.version>2.14.0</joda-time.version>
         <logback.version>1.5.25</logback.version>
         <testcontainers.version>2.0.3</testcontainers.version>

@@ -154,7 +154,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
             // initialize the SchemaStorage
             schemaStorage.initialize();
             // create the schema registry
-            this.schemaRegistry = new KafkaSchemaRegistry(schemaStorage, objectMapper);
+            this.schemaRegistry = new KafkaSchemaRegistry(schemaStorage);
             // find out about the partitions
             partitions = kafkaAdmin.describeTopics("Akces-Control").get("Akces-Control").partitions().size();
             // always assign the first partition since all control data exists on every partition

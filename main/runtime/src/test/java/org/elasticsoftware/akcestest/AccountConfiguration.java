@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akcestest;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import org.elasticsoftware.akces.beans.AggregateBeanFactoryPostProcessor;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
@@ -100,8 +100,7 @@ public class AccountConfiguration {
     }
 
     @Bean(name = "aggregateServiceSchemaRegistry")
-    public SchemaRegistry createSchemaRegistry(@Qualifier("aggregateServiceSchemaStorage") SchemaStorage storage,
-                                               ObjectMapper objectMapper) {
-        return new KafkaSchemaRegistry(storage, objectMapper);
+    public SchemaRegistry createSchemaRegistry(@Qualifier("aggregateServiceSchemaStorage") SchemaStorage storage) {
+        return new KafkaSchemaRegistry(storage);
     }
 }

@@ -20,12 +20,12 @@ package org.elasticsoftware.akces.client;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.github.victools.jsonschema.generator.*;
-import com.github.victools.jsonschema.module.jackson.JacksonModule;
+import com.github.victools.jsonschema.module.jackson.JacksonSchemaModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import tools.jackson.databind.node.ArrayNode;
 import jakarta.inject.Inject;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -176,21 +176,21 @@ public class AkcesClientTests {
         Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
         objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
         objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
-        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(objectMapperBuilder.build(),
+        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(
                 SchemaVersion.DRAFT_7,
                 OptionPreset.PLAIN_JSON);
         configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
                 JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
-        configBuilder.with(new JacksonModule());
+        configBuilder.with(new JacksonSchemaModule());
         configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
         configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
         configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
         // we need to override the default behavior of the generator to write BigDecimal as type = number
         configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
             if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
-                JsonNode typeNode = collectedTypeAttributes.get("type");
+                var typeNode = collectedTypeAttributes.get("type");
                 if (typeNode.isArray()) {
-                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
+                    ((ArrayNode) typeNode).set(0, "string");
                 } else
                     collectedTypeAttributes.put("type", "string");
             }
@@ -209,7 +209,7 @@ public class AkcesClientTests {
         try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
             for (Class<C> commandClass : commandClasses) {
                 CommandInfo info = commandClass.getAnnotation(CommandInfo.class);
-                JsonSchema schema = new JsonSchema(jsonSchemaGenerator.generateSchema(commandClass), List.of(), Map.of(), info.version());
+                JsonSchema schema = new JsonSchema(jsonSchemaGenerator.generateSchema(commandClass).toString(), List.of(), Map.of(), info.version());
                 SchemaRecord record = new SchemaRecord("commands." + info.type(), info.version(), schema, System.currentTimeMillis());
                 String key = "commands." + info.type() + "-v" + info.version();
                 ProducerRecord<String, SchemaRecord> producerRecord = new ProducerRecord<>("Akces-Schemas", key, record);
@@ -225,21 +225,21 @@ public class AkcesClientTests {
         Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
         objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
         objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
-        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(objectMapperBuilder.build(),
+        SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(
                 SchemaVersion.DRAFT_7,
                 OptionPreset.PLAIN_JSON);
         configBuilder.with(new JakartaValidationModule(JakartaValidationOption.INCLUDE_PATTERN_EXPRESSIONS,
                 JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
-        configBuilder.with(new JacksonModule());
+        configBuilder.with(new JacksonSchemaModule());
         configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
         configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
         configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
         // we need to override the default behavior of the generator to write BigDecimal as type = number
         configBuilder.forTypesInGeneral().withTypeAttributeOverride((collectedTypeAttributes, scope, context) -> {
             if (scope.getType().getTypeName().equals("java.math.BigDecimal")) {
-                JsonNode typeNode = collectedTypeAttributes.get("type");
+                var typeNode = collectedTypeAttributes.get("type");
                 if (typeNode.isArray()) {
-                    ((ArrayNode) collectedTypeAttributes.get("type")).set(0, "string");
+                    ((ArrayNode) typeNode).set(0, "string");
                 } else
                     collectedTypeAttributes.put("type", "string");
             }
@@ -258,7 +258,7 @@ public class AkcesClientTests {
         try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
             for (Class<D> domainEventClass : domainEventClasses) {
                 DomainEventInfo info = domainEventClass.getAnnotation(DomainEventInfo.class);
-                JsonSchema schema = new JsonSchema(jsonSchemaGenerator.generateSchema(domainEventClass), List.of(), Map.of(), info.version());
+                JsonSchema schema = new JsonSchema(jsonSchemaGenerator.generateSchema(domainEventClass).toString(), List.of(), Map.of(), info.version());
                 SchemaRecord record = new SchemaRecord("domainevents." + info.type(), info.version(), schema, System.currentTimeMillis());
                 String key = "domainevents." + info.type() + "-v" + info.version();
                 ProducerRecord<String, SchemaRecord> producerRecord = new ProducerRecord<>("Akces-Schemas", key, record);
