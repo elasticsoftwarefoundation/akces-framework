@@ -236,7 +236,7 @@ public final class Wallet implements Aggregate<WalletStateV2> {
         return new WalletStateV2(state.id(), state.balances().stream().map(b -> {
             if (b.currency().equals(event.currency())) {
                 List<WalletStateV2.Reservation> reservations = new ArrayList<>(b.reservations());
-                reservations.add(new WalletStateV2.Reservation(event.referenceId(), b.amount()));
+                reservations.add(new WalletStateV2.Reservation(event.referenceId(), event.amount()));
                 return new WalletStateV2.Balance(b.currency(), b.amount(), reservations);
             } else {
                 return b;

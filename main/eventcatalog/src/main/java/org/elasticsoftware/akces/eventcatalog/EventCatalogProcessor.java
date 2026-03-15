@@ -17,6 +17,8 @@
 
 package org.elasticsoftware.akces.eventcatalog;
 
+import module java.base;
+
 import com.google.auto.service.AutoService;
 import org.elasticsoftware.akces.annotations.*;
 
@@ -28,10 +30,6 @@ import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
 import javax.tools.FileObject;
 import javax.tools.StandardLocation;
-import java.io.IOException;
-import java.io.Writer;
-import java.util.*;
-import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 

@@ -17,6 +17,8 @@
 
 package org.elasticsoftware.akces.query.database;
 
+import module java.base;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Nonnull;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -50,10 +52,6 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
-
-import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.*;
 
 import static org.elasticsoftware.akces.query.database.AkcesDatabaseModelControllerState.*;
 
