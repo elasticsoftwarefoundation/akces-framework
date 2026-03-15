@@ -79,7 +79,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 )
 @AutoConfigureWebTestClient
 @PropertySource("classpath:akces-aggregateservice.properties")
-@ContextConfiguration(initializers = CryptoTradingQueryApiTest.Initializer.class)
+@ContextConfiguration(
+        initializers = CryptoTradingQueryApiTest.Initializer.class,
+        classes = org.elasticsoftware.cryptotrading.security.config.TestSecurityConfig.class
+)
 @Testcontainers
 @DirtiesContext
 public class CryptoTradingQueryApiTest {
