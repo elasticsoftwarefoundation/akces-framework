@@ -17,17 +17,19 @@
 
 package org.elasticsoftware.akces.errors;
 
+import jakarta.annotation.Nonnull;
 import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.ErrorEvent;
 
 @DomainEventInfo(type = "AggregateAlreadyExistsError")
 public record AggregateAlreadyExistsErrorEvent(
-        @NotNull String aggregateId,
+        @NotNull String id,
         @NotNull String aggregateName
 ) implements ErrorEvent {
     @Override
+    @Nonnull
     public String getAggregateId() {
-        return aggregateId();
+        return id();
     }
 }

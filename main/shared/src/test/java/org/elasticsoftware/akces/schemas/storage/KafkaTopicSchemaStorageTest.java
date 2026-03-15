@@ -162,7 +162,7 @@ class KafkaTopicSchemaStorageTest {
         
         CompletableFuture<RecordMetadata> future = new CompletableFuture<>();
         future.completeExceptionally(new RuntimeException("Kafka error"));
-        when(producer.send(any(ProducerRecord.class))).thenReturn(future);
+        when(producer.send(any(ProducerRecord.class), any(Callback.class))).thenReturn(future);
         
         // When/Then
         assertThrows(SchemaException.class, 
