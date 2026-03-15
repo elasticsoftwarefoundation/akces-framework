@@ -98,7 +98,7 @@ import java.util.concurrent.TimeUnit;
 @DirtiesContext
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class AkcesClientTests {
-    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.1";
+    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.7";
 
     private static final Network network = Network.newNetwork();
 
