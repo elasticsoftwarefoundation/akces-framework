@@ -83,7 +83,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 @Testcontainers
 @DirtiesContext
 public class CryptoTradingQueryApiTest {
-    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.1";
+    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.7";
 
     private static final Network network = Network.newNetwork();
 

@@ -66,7 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @DirtiesContext
 public class DatabaseModelRuntimeTests {
-    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.1";
+    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.7";
 
     private static final Network network = Network.newNetwork();
 

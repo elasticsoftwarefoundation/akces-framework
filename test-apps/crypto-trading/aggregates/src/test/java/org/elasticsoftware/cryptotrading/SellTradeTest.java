@@ -82,7 +82,7 @@ import static org.elasticsoftware.cryptotrading.TestUtils.*;
 @DirtiesContext
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class SellTradeTest {
-    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.1";
+    private static final String CONFLUENT_PLATFORM_VERSION = "7.8.7";
 
     private static final Network network = Network.newNetwork();
 
