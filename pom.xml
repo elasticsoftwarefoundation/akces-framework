@@ -72,8 +72,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- java 25+ -->
         <java.version>25</java.version>
-        <!-- this is needed for surefire, needs to be kept in sync with the mockito-core version in spring-boot -->
-        <mockito.version>5.23.0</mockito.version>
+        <!-- this is needed for surefire, needs to be kept in sync with the mockito-core version in spring-boot-dependencies -->
+        <mockito.version>5.20.0</mockito.version>
         <spring.version>7.0.5</spring.version>
         <spring-boot.version>4.0.3</spring-boot.version>
         <guava.version>33.5.0-jre</guava.version>
