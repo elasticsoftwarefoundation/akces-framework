@@ -24,9 +24,20 @@ Three Confluent artifacts are used:
 | `Difference` | `io.confluent.kafka.schemaregistry.json.diff` | 3 files | Schema difference representation |
 | `ParsedSchema` | `io.confluent.kafka.schemaregistry` | 1 file | Generic schema interface |
 
-### Everit JSON Schema (transitive via Confluent)
+### Everit JSON Schema (transitive via Confluent, to be retained)
 - `org.everit.json.schema.Schema` — Used internally by Confluent's `JsonSchema.rawSchema()` and `SchemaDiff.compare()`
 - `org.everit.json.schema.ValidationException` — Caught in **3 files** for validation error handling
+- **Key insight**: Everit (`com.github.erosb:everit-json-schema:1.14.6`) depends on `org.json:json`, **not** on Jackson. It has no Jackson 2 dependency, so it can be kept as-is during the Jackson 3 migration. It currently enters the dependency tree transitively via `kafka-json-schema-provider`; after removing Confluent, it should be added as an explicit dependency.
+
+### Spring Boot Jackson 2 Usage
+The framework currently uses Spring Boot 4's **legacy Jackson 2 support** module (`spring-boot-jackson2`):
+- **3 POM files** depend on `spring-boot-jackson2`: `main/runtime`, `main/client`, `main/query-support`
+- **3 auto-configuration classes** use `Jackson2ObjectMapperBuilderCustomizer` from `spring.boot.jackson2.autoconfigure`:
+  - `AggregateServiceApplication.java`
+  - `AkcesClientAutoConfiguration.java`
+  - `AkcesQueryModelAutoConfiguration.java` / `AkcesDatabaseModelAutoConfiguration.java`
+- **8+ test files** use `Jackson2ObjectMapperBuilder` from `spring.http.converter.json`
+- Spring Boot 4 / Spring Framework 7 default to Jackson 3 via `spring-boot-jackson` module. The Jackson 2 module (`spring-boot-jackson2`) is a backward-compatibility shim that should be replaced.
 
 ### Specific API Surface Used
 
@@ -79,9 +90,9 @@ main/shared/src/main/java/org/elasticsoftware/akces/schemas/
 
 ### New Component: `JsonSchema`
 A framework-owned JSON Schema wrapper class that:
-- Stores the schema as a Jackson 3 `tools.jackson.databind.JsonNode` internally
-- Uses a Jackson 3-compatible JSON Schema validator for `validate()` (see [JSON Schema Validator Selection](#json-schema-validator-selection))
-- Provides `rawSchema()` returning a parsed schema object for `SchemaDiff` to consume
+- Stores the schema as a `com.fasterxml.jackson.databind.JsonNode` internally (Jackson 2 for now, migrated to `tools.jackson.databind.JsonNode` in Phase 8)
+- Uses `org.everit.json.schema` for `validate()` (Everit has no Jackson dependency, so it's safe to keep)
+- Provides `rawSchema()` returning `org.everit.json.schema.Schema` for `SchemaDiff` to consume
 - Implements `deepEquals()`, `version()`, `toString()`, `toJsonNode()`
 
 ```java
@@ -98,12 +109,12 @@ public final class JsonSchema {
     public JsonSchema(String schemaJson, Integer version);
     public JsonSchema(JsonNode schemaNode, Integer version);
     
-    // Validation
-    public JsonNode validate(JsonNode data) throws JsonSchemaValidationException;
+    // Validation (delegates to org.everit.json.schema internally)
+    public JsonNode validate(JsonNode data) throws org.everit.json.schema.ValidationException;
     
     // Schema access
     public JsonNode toJsonNode();
-    public Object rawSchema();  // Returns parsed schema for SchemaDiff
+    public org.everit.json.schema.Schema rawSchema();  // Returns Everit Schema for SchemaDiff
     public Integer version();
     
     // Comparison
@@ -120,21 +131,8 @@ public final class JsonSchema {
 }
 ```
 
-### New Component: `JsonSchemaValidationException`
-Replaces `org.everit.json.schema.ValidationException`:
-
-```java
-package org.elasticsoftware.akces.schemas;
-
-public class JsonSchemaValidationException extends Exception {
-    private final String schemaLocation;
-    private final String pointerToViolation;
-    
-    public JsonSchemaValidationException(String message);
-    public JsonSchemaValidationException(String message, Throwable cause);
-    // ... getters
-}
-```
+### Everit Validation (Retained)
+The `org.everit.json.schema.ValidationException` will continue to be used as-is. No replacement exception class is needed since Everit does not depend on Jackson and is safe to keep.
 
 ### New Component: `Difference`
 Replaces `io.confluent.kafka.schemaregistry.json.diff.Difference`:
@@ -171,7 +169,7 @@ public final class SchemaDiff {
         // Same 56 types as Confluent's COMPATIBLE_CHANGES_STRICT
     );
     
-    public static List<Difference> compare(Object originalSchema, Object updatedSchema);
+    public static List<Difference> compare(org.everit.json.schema.Schema originalSchema, org.everit.json.schema.Schema updatedSchema);
 }
 ```
 
@@ -183,62 +181,38 @@ The `compare()` method needs to:
 
 This is the most complex part of the in-sourcing effort.
 
-### JSON Schema Validator Selection
+### JSON Schema Validation: Keep Everit
 
-Since `org.everit.json.schema` depends on `org.json` (not Jackson), and we want Jackson 3 only, we need a compatible validator. Options:
+The `org.everit.json.schema` library (`com.github.erosb:everit-json-schema:1.14.6`) depends only on `org.json:json`, `com.damnhandy:handy-uri-templates`, and `com.google.re2j:re2j` — **none of which are Jackson-related**. It is therefore safe to retain as the JSON Schema validation library.
 
-**Option A: `com.networknt:json-schema-validator` (Recommended)**
-- Pure Java, works directly with Jackson's `JsonNode`
-- Supports JSON Schema Draft-07 (which is what the framework uses)
-- Version 1.5.x+ supports Jackson 3 via `tools.jackson`
-- Active maintenance, widely used
-- License: Apache 2.0
+Currently it enters the dependency tree transitively via Confluent's `kafka-json-schema-provider`. After removing the Confluent dependencies, `everit-json-schema` must be added as an **explicit dependency** in the shared module's POM.
 
-**Option B: `com.github.erosb:json-sKema`**
-- Modern JSON Schema validator
-- Supports Draft 2020-12 and Draft 2019-09
-- Already a transitive dependency of Confluent's code
-- Would need to verify Jackson 3 compatibility
-
-**Option C: Custom Validation Using Jackson 3**
-- Write minimal validation logic directly against `tools.jackson.databind.JsonNode`
-- For Draft-07, the validation rules are well-defined
-- Highest effort but zero external dependencies
-- Only need to validate: types, required properties, patterns, string constraints, numeric constraints, enum values, additionalProperties
-
-**Recommendation**: **Option A** (`com.networknt:json-schema-validator`). It has the best Jackson integration, supports Draft-07, and is well-maintained. Check for Jackson 3 compatibility before committing. If not yet available, consider Option C for initial implementation.
+The `org.everit.json.schema.ValidationException` will continue to be caught in `KafkaAggregateRuntime.java` and `AkcesClientController.java` without any changes.
 
 ### Schema Comparison Strategy for `SchemaDiff`
 
-The `SchemaDiff.compare()` operates on parsed schema objects (currently `org.everit.json.schema.Schema`). Two approaches:
+The `SchemaDiff.compare()` operates on `org.everit.json.schema.Schema` objects (same as Confluent's implementation). Since we are retaining Everit, the `SchemaDiff` implementation can work directly with Everit's typed schema model:
 
-**Approach 1: JSON Tree Comparison (Recommended)**
-- Work directly with `tools.jackson.databind.JsonNode` trees
-- Walk both schema trees recursively
-- Compare `properties`, `required`, `type`, `additionalProperties`, `items`, `allOf`/`anyOf`/`oneOf`, and constraint keywords
-- Generate `Difference` records for each detected change
-- Advantages: No additional dependency needed, works natively with Jackson 3
+- `org.everit.json.schema.ObjectSchema` — for property/additionalProperties comparison
+- `org.everit.json.schema.StringSchema` — for minLength/maxLength/pattern
+- `org.everit.json.schema.NumberSchema` — for minimum/maximum/multipleOf
+- `org.everit.json.schema.ArraySchema` — for items/minItems/maxItems
+- `org.everit.json.schema.EnumSchema` — for enum values
+- `org.everit.json.schema.CombinedSchema` — for allOf/anyOf/oneOf
+- `org.everit.json.schema.NotSchema` — for not
 
-**Approach 2: Schema Model Comparison**
-- Parse schemas into a structural model first, then compare models
-- More complex but more accurate
-- Higher development effort
-
-**Recommendation**: **Approach 1** — JSON Tree Comparison. The framework uses Draft-07 schemas generated from Java classes via VicTools, which produces well-structured, normalized schema JSON. A tree-based comparison is sufficient for detecting the difference types actually used (property changes, required changes, type changes, constraint changes).
+This is the same approach Confluent uses internally. Walking the typed Everit schema tree is more accurate than comparing raw JSON nodes.
 
 ## Implementation Phases
 
 ### Phase 0: Pre-Verification (0.5 day)
 
-- [ ] Verify Jackson 3-compatible JSON Schema validator availability:
-  - Check `com.networknt:json-schema-validator` for Jackson 3 (`tools.jackson`) support
-  - If not available, plan for custom validation implementation (Option C)
-  - This determines the approach for `JsonSchema.validate()` in Phase 1.2
 - [ ] Verify `jackson-dataformat-protobuf` has a Jackson 3 version available (needed for `SchemaRecordSerde`)
 - [ ] Verify `kafka-protobuf-serializer` is not used at runtime:
   - Run `mvn dependency:tree` to check what depends on it
   - Search for any runtime class loading or service provider configuration
   - If it provides Kafka serializers used via configuration (not Java imports), identify and replace
+- [ ] Verify `com.github.erosb:everit-json-schema:1.14.6` works correctly as an explicit (non-transitive) dependency
 
 ### Phase 1: Create In-Sourced Schema Classes (3-4 days)
 
@@ -260,16 +234,13 @@ The `SchemaDiff.compare()` operates on parsed schema objects (currently `org.eve
 **1.2 — Create `JsonSchema` wrapper class**
 - [ ] Create `org.elasticsoftware.akces.schemas.JsonSchema` class
 - [ ] Implement constructors: `JsonSchema(String)`, `JsonSchema(String, Integer)`, `JsonSchema(JsonNode, Integer)`
-- [ ] Implement `toJsonNode()` returning `tools.jackson.databind.JsonNode`
-- [ ] Implement `validate(JsonNode)` using chosen validator (Option A or C)
-- [ ] Implement `rawSchema()` returning appropriate object for SchemaDiff
-- [ ] Implement `deepEquals()` using Jackson node comparison
+- [ ] Implement `toJsonNode()` returning Jackson `JsonNode`
+- [ ] Implement `validate(JsonNode)` delegating to `org.everit.json.schema.Schema.validate()` internally
+- [ ] Implement `rawSchema()` returning `org.everit.json.schema.Schema` for SchemaDiff
+- [ ] Implement `deepEquals()` using JSON node comparison
 - [ ] Implement `version()`, `toString()`, `equals()`, `hashCode()`
 - [ ] Unit tests for JsonSchema
-
-**1.3 — Create `JsonSchemaValidationException`**
-- [ ] Create exception class replacing `org.everit.json.schema.ValidationException`
-- [ ] Include meaningful error messages with schema location and violation pointer
+- [ ] Add `com.github.erosb:everit-json-schema` as explicit dependency in `main/shared/pom.xml`
 
 ### Phase 2: Update Shared Module (1-2 days)
 
@@ -288,6 +259,7 @@ The `SchemaDiff.compare()` operates on parsed schema objects (currently `org.eve
 - [ ] Update `IncompatibleSchemaException.java` — replace Confluent `Difference` import
 - [ ] Update `SchemaNotBackwardsCompatibleException.java` — replace Confluent `Difference` import
 - [ ] Remove `kafka-json-serializer` and `kafka-json-schema-serializer` dependencies from `main/shared/pom.xml`
+- [ ] Add `com.github.erosb:everit-json-schema` as explicit dependency (it was previously transitive via Confluent)
 - [ ] Remove `joda-time` dependency (only needed by Confluent)
 - [ ] Run `mvn compile -pl main/shared` to verify compilation
 
@@ -295,9 +267,8 @@ The `SchemaDiff.compare()` operates on parsed schema objects (currently `org.eve
 
 - [ ] Update `KafkaAggregateRuntime.java`:
   - Replace `io.confluent.kafka.schemaregistry.json.JsonSchema` → `org.elasticsoftware.akces.schemas.JsonSchema`
-  - Replace `org.everit.json.schema.ValidationException` → `org.elasticsoftware.akces.schemas.JsonSchemaValidationException`
+  - Keep `org.everit.json.schema.ValidationException` as-is (Everit is retained)
   - Update `domainEventSchemas` and `commandSchemas` map types
-  - Update `serialize(DomainEvent)` and `serialize(Command)` catch blocks
 - [ ] Remove `kafka-json-serializer`, `kafka-json-schema-serializer`, `kafka-protobuf-serializer` from `main/runtime/pom.xml`
 - [ ] Remove `joda-time` dependency
 - [ ] Update test files:
@@ -314,7 +285,7 @@ The `SchemaDiff.compare()` operates on parsed schema objects (currently `org.eve
 - [ ] Update `AkcesClientController.java`:
   - Replace `io.confluent.kafka.schemaregistry.ParsedSchema` — remove usage (use `JsonSchema` directly)
   - Replace `io.confluent.kafka.schemaregistry.json.JsonSchema` → `org.elasticsoftware.akces.schemas.JsonSchema`
-  - Replace `org.everit.json.schema.ValidationException` → `org.elasticsoftware.akces.schemas.JsonSchemaValidationException`
+  - Keep `org.everit.json.schema.ValidationException` as-is (Everit is retained)
   - Simplify `commandSchemas`, `domainEventSchemas`, `commandSchemasLookup` maps to use `JsonSchema` directly (remove `ParsedSchema` interface)
   - Remove `instanceof JsonSchema` check in `serialize()` since we always use `JsonSchema`
 - [ ] Remove `kafka-json-serializer`, `kafka-json-schema-serializer`, `kafka-protobuf-serializer` from `main/client/pom.xml`
@@ -351,16 +322,58 @@ The `SchemaDiff.compare()` operates on parsed schema objects (currently `org.eve
 - [ ] Verify no remaining references to `io.confluent` in any POM or Java file
 - [ ] Full build: `mvn clean compile`
 
-### Phase 8: Jackson 2 → Jackson 3 Migration (Separate, Larger Effort)
+### Phase 8: Jackson 2 → Jackson 3 Migration Including Spring Boot/Framework (Separate, Larger Effort)
 
-> **Note**: This phase covers the broader Jackson 2 → 3 migration which is a separate, much larger effort. The phases above focus specifically on removing Confluent dependencies, which is the blocker for the Jackson 3 migration.
+> **Note**: This phase covers the broader Jackson 2 → 3 migration which is a separate, much larger effort. The phases above focus specifically on removing Confluent dependencies, which is the blocker for the Jackson 3 migration. Spring Boot 4 and Spring Framework 7 default to Jackson 3 (`tools.jackson`), so this migration aligns the framework with the platform defaults.
 
+**8.1 — Core Jackson Migration**
 - [ ] Replace `com.fasterxml.jackson` imports with `tools.jackson` across all 64 files
-- [ ] Update `ObjectMapper` → Jackson 3 equivalent
-- [ ] Update custom serializers/deserializers (GDPR module, BigDecimal, etc.)
-- [ ] Update `jackson-dataformat-protobuf` to Jackson 3 version
-- [ ] Update `jackson-bom` import to Jackson 3 BOM
-- [ ] Update Spring Boot Jackson auto-configuration
+- [ ] Update `ObjectMapper` → `tools.jackson.databind.json.JsonMapper` (Jackson 3 equivalent)
+- [ ] Update `JsonNode` / `ObjectNode` / `ArrayNode` imports to `tools.jackson.databind.node.*`
+- [ ] Update `JsonProcessingException` → `tools.jackson.core.JacksonException`
+- [ ] Update custom serializers/deserializers (GDPR module, BigDecimal, etc.) to extend Jackson 3 base classes
+- [ ] Update `jackson-dataformat-protobuf` to Jackson 3 version (`tools.jackson.dataformat.protobuf`)
+- [ ] Replace `jackson-bom` (`com.fasterxml.jackson:jackson-bom`) with Jackson 3 BOM (`tools.jackson:jackson-bom`)
+
+**8.2 — Spring Boot 4 / Spring Framework 7 Jackson 3 Integration**
+
+Spring Boot 4 provides two Jackson modules: `spring-boot-jackson` (Jackson 3, the default) and `spring-boot-jackson2` (legacy backward-compatibility). The framework should migrate to the Jackson 3 module.
+
+**POM dependency changes (3 modules):**
+- [ ] In `main/runtime/pom.xml`: Replace `spring-boot-jackson2` → `spring-boot-jackson`
+- [ ] In `main/client/pom.xml`: Replace `spring-boot-jackson2` → `spring-boot-jackson`
+- [ ] In `main/query-support/pom.xml`: Replace `spring-boot-jackson2` → `spring-boot-jackson`
+
+**Auto-configuration classes — replace Jackson 2 customizer with Jackson 3 equivalents:**
+
+| Jackson 2 (current) | Jackson 3 (target) |
+|---------------------|-------------------|
+| `org.springframework.boot.jackson2.autoconfigure.Jackson2ObjectMapperBuilderCustomizer` | `org.springframework.boot.jackson.autoconfigure.JsonMapperBuilderCustomizer` |
+| `Jackson2ObjectMapperBuilder` | `JsonMapper.builder()` or Spring's Jackson 3 builder |
+| `Jackson2AutoConfiguration` | `JacksonAutoConfiguration` |
+| `spring.jackson2.*` properties | `spring.jackson.*` properties |
+
+- [ ] `main/runtime/src/main/java/.../AggregateServiceApplication.java` — Replace `Jackson2ObjectMapperBuilderCustomizer` with `JsonMapperBuilderCustomizer`
+- [ ] `main/client/src/main/java/.../AkcesClientAutoConfiguration.java` — Replace `Jackson2ObjectMapperBuilderCustomizer` with `JsonMapperBuilderCustomizer`
+- [ ] `main/query-support/src/main/java/.../AkcesQueryModelAutoConfiguration.java` — Replace `Jackson2ObjectMapperBuilderCustomizer` with `JsonMapperBuilderCustomizer`
+- [ ] `main/query-support/src/main/java/.../AkcesDatabaseModelAutoConfiguration.java` — Replace `Jackson2ObjectMapperBuilderCustomizer` with `JsonMapperBuilderCustomizer`
+
+**Test files — replace Jackson2ObjectMapperBuilder usage:**
+- [ ] `main/runtime/src/test/.../TestUtils.java` — Replace `Jackson2ObjectMapperBuilder` with Jackson 3 builder
+- [ ] `main/runtime/src/test/.../JsonSchemaTests.java` — Replace `Jackson2ObjectMapperBuilder`
+- [ ] `main/runtime/src/test/.../RuntimeTests.java` — Replace `Jackson2ObjectMapperBuilder`
+- [ ] `main/runtime/src/test/.../WalletConfiguration.java` — Replace `Jackson2ObjectMapperBuilderCustomizer`
+- [ ] `main/runtime/src/test/.../AccountConfiguration.java` — Replace `Jackson2ObjectMapperBuilderCustomizer`
+- [ ] `main/client/src/test/.../AkcesClientTests.java` — Replace `Jackson2ObjectMapperBuilder`
+- [ ] `main/eventcatalog/src/test/.../EventCatalogProcessorTest.java` — Replace `Jackson2ObjectMapperBuilder`
+- [ ] `test-apps/crypto-trading/commands/src/test/.../TestUtils.java` — Replace `Jackson2ObjectMapperBuilder`
+- [ ] `test-apps/crypto-trading/queries/src/test/.../TestUtils.java` — Replace `Jackson2ObjectMapperBuilder`
+- [ ] `test-apps/crypto-trading/aggregates/src/test/.../TestUtils.java` — Replace `Jackson2ObjectMapperBuilder`
+
+**8.3 — Remove Jackson 2 Dependencies**
+- [ ] Remove `spring-boot-jackson2` dependency from all POMs
+- [ ] Remove `com.fasterxml.jackson:jackson-bom` from `main/pom.xml` dependencyManagement
+- [ ] Verify no transitive Jackson 2 dependencies remain: `mvn dependency:tree -Dincludes=com.fasterxml.jackson*`
 - [ ] Full test suite pass
 
 ## Technical Decisions
@@ -376,10 +389,15 @@ In-sourcing gives full control over the implementation, removes a large dependen
 ### Why Not Use Confluent's Source Code Directly?
 Confluent's source code is licensed under the Confluent Community License (CCL), which is not Apache 2.0 compatible. We must write our own implementation inspired by the same JSON Schema specification, not copy Confluent's code.
 
-### Schema Validation Without Everit
-The `org.everit.json.schema` library depends on `org.json` (not Jackson). Options:
-1. **`com.networknt:json-schema-validator`** — Works with Jackson `JsonNode`, supports Draft-07. Check for Jackson 3 support.
-2. **Custom implementation** — Since the framework generates simple schemas (flat records with basic types), a custom validator could handle the needed cases.
+### Schema Validation: Keeping Everit
+The `org.everit.json.schema` library depends on `org.json:json` (not Jackson). It has **zero Jackson dependency** and is therefore fully compatible with both Jackson 2 and Jackson 3 codebases. After removing Confluent, Everit must be added as an explicit dependency. This avoids the need to find or build a Jackson 3-compatible JSON Schema validator, significantly reducing migration effort and risk.
+
+### Spring Boot 4 Jackson 3 Integration
+Spring Boot 4 ships with two Jackson modules:
+- `spring-boot-jackson` — **Jackson 3** (the default, recommended)
+- `spring-boot-jackson2` — **Jackson 2** (legacy backward-compatibility shim)
+
+The framework currently uses `spring-boot-jackson2` and its `Jackson2ObjectMapperBuilderCustomizer`. Phase 8 replaces these with `spring-boot-jackson` and `JsonMapperBuilderCustomizer`. This is the natural path for Spring Boot 4 / Spring Framework 7 applications.
 
 ### `ParsedSchema` Interface Removal
 The `AkcesClientController` uses `ParsedSchema` as a generic interface, then checks `instanceof JsonSchema`. Since the framework only supports JSON Schema (not Avro or Protobuf schemas), we can simplify this to use `JsonSchema` directly, removing the need for the `ParsedSchema` abstraction.
@@ -392,7 +410,7 @@ This Confluent dependency is listed in `main/runtime/pom.xml` and `main/client/p
 ### Shared Module (`main/shared`)
 | File | Change |
 |------|--------|
-| `pom.xml` | Remove Confluent dependencies |
+| `pom.xml` | Remove Confluent dependencies, add `everit-json-schema` as explicit dependency |
 | `schemas/SchemaRegistry.java` | Replace `io.confluent.*.JsonSchema` with new `JsonSchema` |
 | `schemas/KafkaSchemaRegistry.java` | Replace all Confluent imports (JsonSchema, SchemaDiff, Difference) |
 | `schemas/IncompatibleSchemaException.java` | Replace `Difference` import |
@@ -401,16 +419,15 @@ This Confluent dependency is listed in `main/runtime/pom.xml` and `main/client/p
 | `schemas/storage/KafkaTopicSchemaStorage.java` | Replace `JsonSchema` import |
 | `protocol/SchemaRecord.java` | Replace `JsonSchema` import |
 | `serialization/SchemaRecordSerde.java` | Replace `JsonSchema` import, update constructors |
-| **NEW** `schemas/JsonSchema.java` | New class |
-| **NEW** `schemas/JsonSchemaValidationException.java` | New exception class |
+| **NEW** `schemas/JsonSchema.java` | New class (wrapper using Everit internally) |
 | **NEW** `schemas/diff/Difference.java` | New record |
-| **NEW** `schemas/diff/SchemaDiff.java` | New class |
+| **NEW** `schemas/diff/SchemaDiff.java` | New class (operates on Everit Schema objects) |
 
 ### Runtime Module (`main/runtime`)
 | File | Change |
 |------|--------|
 | `pom.xml` | Remove Confluent dependencies |
-| `kafka/KafkaAggregateRuntime.java` | Replace imports |
+| `kafka/KafkaAggregateRuntime.java` | Replace Confluent `JsonSchema` import; keep Everit `ValidationException` |
 | `test/.../TestUtils.java` | Replace imports |
 | `test/.../JsonSchemaTests.java` | Replace imports |
 | `test/.../RuntimeTests.java` | Replace imports |
@@ -422,7 +439,7 @@ This Confluent dependency is listed in `main/runtime/pom.xml` and `main/client/p
 | File | Change |
 |------|--------|
 | `pom.xml` | Remove Confluent dependencies |
-| `client/AkcesClientController.java` | Replace imports, simplify types |
+| `client/AkcesClientController.java` | Replace Confluent imports, simplify types; keep Everit `ValidationException` |
 | `test/.../AkcesClientTests.java` | Replace imports |
 
 ### Other Modules
@@ -433,6 +450,20 @@ This Confluent dependency is listed in `main/runtime/pom.xml` and `main/client/p
 | `test-apps/crypto-trading/*/test/.../TestUtils.java` (3 files) | Replace imports |
 | `main/pom.xml` | Remove Confluent dependency management, repository |
 | `bom/pom.xml` | Remove Confluent references if any |
+
+### Spring Boot Jackson 3 Migration (Phase 8)
+| File | Change |
+|------|--------|
+| `main/runtime/pom.xml` | Replace `spring-boot-jackson2` → `spring-boot-jackson` |
+| `main/client/pom.xml` | Replace `spring-boot-jackson2` → `spring-boot-jackson` |
+| `main/query-support/pom.xml` | Replace `spring-boot-jackson2` → `spring-boot-jackson` |
+| `main/runtime/.../AggregateServiceApplication.java` | Replace `Jackson2ObjectMapperBuilderCustomizer` → `JsonMapperBuilderCustomizer` |
+| `main/client/.../AkcesClientAutoConfiguration.java` | Replace `Jackson2ObjectMapperBuilderCustomizer` → `JsonMapperBuilderCustomizer` |
+| `main/query-support/.../AkcesQueryModelAutoConfiguration.java` | Replace `Jackson2ObjectMapperBuilderCustomizer` → `JsonMapperBuilderCustomizer` |
+| `main/query-support/.../AkcesDatabaseModelAutoConfiguration.java` | Replace `Jackson2ObjectMapperBuilderCustomizer` → `JsonMapperBuilderCustomizer` |
+| `main/runtime/test/.../WalletConfiguration.java` | Replace `Jackson2ObjectMapperBuilderCustomizer` → `JsonMapperBuilderCustomizer` |
+| `main/runtime/test/.../AccountConfiguration.java` | Replace `Jackson2ObjectMapperBuilderCustomizer` → `JsonMapperBuilderCustomizer` |
+| 10+ test files across modules | Replace `Jackson2ObjectMapperBuilder` with Jackson 3 builder |
 
 ## `COMPATIBLE_CHANGES_STRICT` Reference
 
@@ -480,27 +511,29 @@ PROPERTY_REMOVED_NOT_COVERED_BY_PARTIALLY_OPEN_CONTENT_MODEL
 
 ## Impact
 
-**Dependency Reduction**: Removes ~15-20 transitive JARs from the Confluent dependency tree
+**Dependency Reduction**: Removes ~15-20 transitive JARs from the Confluent dependency tree; retains `everit-json-schema` as explicit dependency
 **Breaking Changes**: None for framework users (all changes are internal implementation)
 **API Surface**: `SchemaRegistry`, `SchemaRecord`, `SchemaStorage` interfaces change their `JsonSchema` type from `io.confluent` to `org.elasticsoftware.akces.schemas`
-**Timeline**: 7-10 days for Phases 1-7 (Confluent removal), additional time for Phase 8 (full Jackson 3 migration)
+**Spring Boot**: Phase 8 migrates from `spring-boot-jackson2` to `spring-boot-jackson` (Jackson 3), aligning with Spring Boot 4 defaults
+**Timeline**: 7-10 days for Phases 1-7 (Confluent removal), additional time for Phase 8 (full Jackson 3 migration including Spring Boot)
 
 ## Risks & Mitigations
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | SchemaDiff comparison misses edge cases | High | Comprehensive unit tests, compare results with Confluent's implementation for known schemas |
-| JSON Schema validation behavior differs | Medium | Test validation against same schemas and data used in existing tests |
-| Jackson 3-compatible validator not available | Medium | Fall back to custom validation (Option C) or use a bridge approach |
-| Transitive dependency on Jackson 2 via other libs | Low | Run `mvn dependency:tree` to verify no Jackson 2 remains |
+| JSON Schema validation behavior differs after wrapping | Low | Everit is retained as-is; only the wrapper class changes, not the validation logic |
+| Transitive dependency on Jackson 2 via other libs | Low | Run `mvn dependency:tree` to verify no Jackson 2 remains after Phase 8 |
 | `kafka-protobuf-serializer` removal breaks functionality | Medium | Verify no runtime usage, check if it's needed for Protobuf schema loading |
+| Spring Boot Jackson 3 auto-configuration behavioral differences | Medium | Test all auto-configuration classes; `JsonMapperBuilderCustomizer` has similar API to `Jackson2ObjectMapperBuilderCustomizer` |
 
 ## Success Criteria
 
 - [ ] Zero imports from `io.confluent` in any Java file
-- [ ] Zero imports from `org.everit` in any Java file  
+- [ ] `org.everit` imports retained (Everit is kept as explicit dependency)
 - [ ] No Confluent dependencies in any `pom.xml`
 - [ ] No Confluent Maven repository reference
+- [ ] `com.github.erosb:everit-json-schema` added as explicit dependency
 - [ ] All existing unit tests pass
 - [ ] All existing integration tests pass
 - [ ] Schema validation produces same results as before
@@ -508,3 +541,5 @@ PROPERTY_REMOVED_NOT_COVERED_BY_PARTIALLY_OPEN_CONTENT_MODEL
 - [ ] `mvn clean compile` succeeds for entire project
 - [ ] `mvn test` succeeds for entire project
 - [ ] No `com.fasterxml.jackson` imports remain (Phase 8 only)
+- [ ] No `spring-boot-jackson2` dependencies remain (Phase 8 only)
+- [ ] All Spring Boot classes use Jackson 3 auto-configuration (`spring-boot-jackson`) (Phase 8 only)
