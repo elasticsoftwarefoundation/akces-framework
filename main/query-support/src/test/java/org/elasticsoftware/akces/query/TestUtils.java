@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.query;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.github.victools.jsonschema.generator.SchemaGenerator;
 import org.elasticsoftware.akces.schemas.JsonSchema;
 import org.apache.kafka.clients.admin.AdminClientConfig;

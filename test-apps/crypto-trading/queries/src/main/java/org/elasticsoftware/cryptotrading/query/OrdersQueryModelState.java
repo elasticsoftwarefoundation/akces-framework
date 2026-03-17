@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.query;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import tools.jackson.databind.annotation.JsonSerialize;
 import org.elasticsoftware.akces.annotations.QueryModelStateInfo;
 import org.elasticsoftware.akces.query.QueryModelState;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;

@@ -17,9 +17,9 @@
 
 package org.elasticsoftware.akces.client;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.github.victools.jsonschema.generator.*;
 import com.github.victools.jsonschema.module.jackson.JacksonSchemaModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
@@ -64,7 +64,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContextException;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
+import tools.jackson.databind.json.JsonMapper;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.ProducerFactory;
@@ -361,7 +361,7 @@ public class AkcesClientTests {
     }
 
     @Test
-    public void testSendCommand() throws InterruptedException, JsonProcessingException {
+    public void testSendCommand() throws InterruptedException, JacksonException {
         // make sure it's running
         while (!akcesClient.isRunning()) {
             Thread.onSpinWait();
@@ -419,7 +419,7 @@ public class AkcesClientTests {
     }
 
     @Test
-    public void testSendCommandWithCorrelationId() throws InterruptedException, JsonProcessingException {
+    public void testSendCommandWithCorrelationId() throws InterruptedException, JacksonException {
         // make sure it's running
         while (!akcesClient.isRunning()) {
             Thread.onSpinWait();
@@ -482,7 +482,7 @@ public class AkcesClientTests {
     }
 
     @Test
-    public void testGDPRDecryption() throws InterruptedException, JsonProcessingException {
+    public void testGDPRDecryption() throws InterruptedException, JacksonException {
         // make sure it's running
         while (!akcesClient.isRunning()) {
             Thread.onSpinWait();
