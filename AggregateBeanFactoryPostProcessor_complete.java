@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.beans;
 
-import tools.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsoftware.akces.AkcesAggregateController;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.annotations.*;

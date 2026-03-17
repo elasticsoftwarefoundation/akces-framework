@@ -17,7 +17,8 @@
 
 package org.elasticsoftware.akcestest.state;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
@@ -47,7 +48,7 @@ import static org.mockito.Mockito.when;
 
 public class RocksDBAggregateStateRepositoryTests {
     private final ProtocolRecordSerde serde = new ProtocolRecordSerde();
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new JsonMapper();
 
     private final Future<RecordMetadata> producerResponse = mock(Future.class);
 

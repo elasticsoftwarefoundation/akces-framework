@@ -18,9 +18,11 @@
 package org.elasticsoftware.akcestest.schemas;
 
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.module.SimpleModule;
 import com.github.victools.jsonschema.generator.*;
 import com.github.victools.jsonschema.module.jackson.JacksonSchemaModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
@@ -37,7 +39,7 @@ import org.everit.json.schema.ValidationException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
+
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -135,10 +137,12 @@ public class JsonSchemaTests {
 
     @Test
     public void testCommandWithBigDecimal() throws IOException {
-        Jackson2ObjectMapperBuilder builder = new Jackson2ObjectMapperBuilder();
-        builder.modulesToInstall(new AkcesGDPRModule());
-        builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
-        ObjectMapper objectMapper = builder.build();
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(BigDecimal.class, new BigDecimalSerializer());
+        ObjectMapper objectMapper = JsonMapper.builder()
+                .addModule(new AkcesGDPRModule())
+                .addModule(module)
+                .build();
         SchemaGenerator generator = createSchemaGenerator();
 
         var schema = generator.generateSchema(CreditWalletCommand.class);
@@ -153,16 +157,18 @@ public class JsonSchemaTests {
     }
 
     //@Test
-    public void testDeepEquals() throws JsonProcessingException {
+    public void testDeepEquals() {
         String registeredSchemaString = "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"funds\":{\"type\":[\"string\",\"null\"]},\"marketId\":{\"type\":[\"string\",\"null\"]},\"orderId\":{\"type\":[\"string\",\"null\"]},\"ownerId\":{\"type\":[\"string\",\"null\"]},\"side\":{\"anyOf\":[{\"type\":\"null\"},{\"type\":\"string\",\"enum\":[\"BUY\",\"SELL\"]}]},\"size\":{\"type\":[\"string\",\"null\"]}},\"additionalProperties\":false}";
         String localSchemaString = "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"funds\":{\"type\":[\"string\",\"null\"]},\"marketId\":{\"type\":[\"string\",\"null\"]},\"orderId\":{\"type\":[\"string\",\"null\"]},\"ownerId\":{\"type\":[\"string\",\"null\"]},\"side\":{\"anyOf\":[{\"type\":\"null\"},{\"type\":\"string\",\"enum\":[\"BUY\",\"SELL\"]}]},\"size\":{\"type\":[\"string\",\"null\"]}},\"additionalProperties\":false}";
 
         Assertions.assertEquals(registeredSchemaString, localSchemaString);
 
-        Jackson2ObjectMapperBuilder builder = new Jackson2ObjectMapperBuilder();
-        builder.modulesToInstall(new AkcesGDPRModule());
-        builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
-        ObjectMapper objectMapper = builder.build();
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(BigDecimal.class, new BigDecimalSerializer());
+        ObjectMapper objectMapper = JsonMapper.builder()
+                .addModule(new AkcesGDPRModule())
+                .addModule(module)
+                .build();
 
         JsonSchema localSchema = new JsonSchema(localSchemaString);
         JsonSchema registeredSchema = new JsonSchema(registeredSchemaString);

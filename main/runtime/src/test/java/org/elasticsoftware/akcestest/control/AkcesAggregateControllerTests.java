@@ -17,8 +17,8 @@
 
 package org.elasticsoftware.akcestest.control;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import org.elasticsoftware.akces.control.AggregateServiceCommandType;
 import org.elasticsoftware.akces.control.AggregateServiceDomainEventType;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
@@ -26,7 +26,6 @@ import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -35,8 +34,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class AkcesAggregateControllerTests {
     @Test
-    public void testSerialization() throws IOException {
-        ObjectMapper objectMapper = new ObjectMapper();
+    public void testSerialization() {
+        ObjectMapper objectMapper = new JsonMapper();
         AggregateServiceRecord record = new AggregateServiceRecord(
                 "Account",
                 "Account-Commands",
@@ -49,7 +48,7 @@ public class AkcesAggregateControllerTests {
     }
 
     @Test
-    public void testDeserialization() throws JsonProcessingException {
+    public void testDeserialization() {
         String serializedRecord = """
                 {
                   "aggregateName" : "Account",
@@ -69,7 +68,7 @@ public class AkcesAggregateControllerTests {
                 }
                 """;
 
-        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectMapper objectMapper = new JsonMapper();
         AkcesControlRecord deserialized = objectMapper.readValue(serializedRecord, AggregateServiceRecord.class);
         assertNotNull(deserialized);
         assertInstanceOf(AggregateServiceRecord.class, deserialized);
@@ -79,7 +78,7 @@ public class AkcesAggregateControllerTests {
 
     @Test
     public void testSerde() {
-        AkcesControlRecordSerde serde = new AkcesControlRecordSerde(new ObjectMapper());
+        AkcesControlRecordSerde serde = new AkcesControlRecordSerde(new JsonMapper());
         AggregateServiceRecord record = new AggregateServiceRecord(
                 "Account",
                 "Account-Commands",

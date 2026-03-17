@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.kafka;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.annotations.AggregateInfo;
 import org.elasticsoftware.akces.annotations.AggregateStateInfo;

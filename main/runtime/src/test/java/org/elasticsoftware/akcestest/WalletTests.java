@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akcestest;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.elasticsoftware.akces.schemas.JsonSchema;
 import jakarta.inject.Inject;
 import org.elasticsoftware.akces.aggregate.*;

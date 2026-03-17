@@ -17,9 +17,9 @@
 
 package org.elasticsoftware.akces.kafka;
 
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsoftware.akces.schemas.JsonSchema;
 import jakarta.annotation.Nullable;
 import org.apache.kafka.common.errors.SerializationException;
@@ -642,7 +642,7 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
             return objectMapper.writeValueAsBytes(jsonNode);
         } catch (ValidationException e) {
             throw new SerializationException("Validation Failed while Serializing DomainEventClass " + domainEvent.getClass().getName(), e);
-        } catch (JacksonException e) {
+        } catch (JsonProcessingException e) {
             throw new SerializationException("Serialization Failed while Serializing DomainEventClass " + domainEvent.getClass().getName(), e);
         }
     }
@@ -655,7 +655,7 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
             return objectMapper.writeValueAsBytes(command);
         } catch (ValidationException e) {
             throw new SerializationException("Validation Failed while Serializing CommandClass " + command.getClass().getName(), e);
-        } catch (JacksonException e) {
+        } catch (JsonProcessingException e) {
             throw new SerializationException("Serialization Failed while Serializing CommandClass " + command.getClass().getName(), e);
         }
 

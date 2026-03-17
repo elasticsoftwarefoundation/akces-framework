@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -42,7 +42,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.jackson2.autoconfigure.Jackson2ObjectMapperBuilderCustomizer;
+import org.springframework.boot.jackson.autoconfigure.JsonMapperBuilderCustomizer;
+import tools.jackson.databind.module.SimpleModule;
 import org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Bean;
@@ -76,10 +77,12 @@ public class AggregateServiceApplication {
     }
 
     @Bean(name = "aggregateServiceJsonCustomizer")
-    public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
+    public JsonMapperBuilderCustomizer jsonCustomizer() {
         return builder -> {
-            builder.modulesToInstall(new AkcesGDPRModule());
-            builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+            SimpleModule module = new SimpleModule();
+            module.addSerializer(BigDecimal.class, new BigDecimalSerializer());
+            builder.addModule(new AkcesGDPRModule());
+            builder.addModule(module);
         };
     }
 

@@ -17,9 +17,11 @@
 
 package org.elasticsoftware.akcestest;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.module.SimpleModule;
 import com.github.victools.jsonschema.generator.*;
 import com.github.victools.jsonschema.module.jackson.JacksonSchemaModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
@@ -68,7 +70,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContextException;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
+
 import org.springframework.kafka.KafkaException;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
@@ -165,7 +167,7 @@ public class RuntimeTests {
     ObjectMapper objectMapper;
 
     public static void prepareExternalServices(String bootstrapServers) {
-        AkcesControlRecordSerde controlSerde = new AkcesControlRecordSerde(new ObjectMapper());
+        AkcesControlRecordSerde controlSerde = new AkcesControlRecordSerde(new JsonMapper());
         Map<String, Object> controlProducerProps = Map.of(
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
                 ProducerConfig.ACKS_CONFIG, "all",
@@ -217,9 +219,8 @@ public class RuntimeTests {
     }
 
     public static <C extends Command> void prepareOldCommandSchemas(String bootstrapServers) {
-        Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
-        objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
-        objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+        SimpleModule bigDecimalModule = new SimpleModule();
+        bigDecimalModule.addSerializer(BigDecimal.class, new BigDecimalSerializer());
         SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(
                 SchemaVersion.DRAFT_7,
                 OptionPreset.PLAIN_JSON);
@@ -243,7 +244,10 @@ public class RuntimeTests {
         SchemaGenerator jsonSchemaGenerator = new SchemaGenerator(config);
         
         // Write schemas to Akces-Schemas topic
-        ObjectMapper mapper = objectMapperBuilder.build();
+        ObjectMapper mapper = JsonMapper.builder()
+                .addModule(new AkcesGDPRModule())
+                .addModule(bigDecimalModule)
+                .build();
         SchemaRecordSerde serde = new SchemaRecordSerde(mapper);
         Map<String, Object> producerProps = Map.of(
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
@@ -263,9 +267,8 @@ public class RuntimeTests {
     }
 
     public static <D extends DomainEvent> void prepareOldDomainEventSchemas(String bootstrapServers) {
-        Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
-        objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
-        objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+        SimpleModule bigDecimalModule = new SimpleModule();
+        bigDecimalModule.addSerializer(BigDecimal.class, new BigDecimalSerializer());
         SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(
                 SchemaVersion.DRAFT_7,
                 OptionPreset.PLAIN_JSON);
@@ -289,7 +292,10 @@ public class RuntimeTests {
         SchemaGenerator jsonSchemaGenerator = new SchemaGenerator(config);
         
         // Write schemas to Akces-Schemas topic
-        ObjectMapper mapper = objectMapperBuilder.build();
+        ObjectMapper mapper = JsonMapper.builder()
+                .addModule(new AkcesGDPRModule())
+                .addModule(bigDecimalModule)
+                .build();
         SchemaRecordSerde serde = new SchemaRecordSerde(mapper);
         Map<String, Object> producerProps = Map.of(
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
@@ -351,7 +357,7 @@ public class RuntimeTests {
 
     @Test
     @Order(3)
-    public void testAkcesControl() throws JsonProcessingException {
+    public void testAkcesControl() {
         assertNotNull(walletAggregateController);
         assertNotNull(accountAggregateController);
         assertNotNull(orderProcessManagerAggregateController);
@@ -459,7 +465,7 @@ public class RuntimeTests {
 
     @Test
     @Order(4)
-    public void testBatchedCommands() throws JsonProcessingException {
+    public void testBatchedCommands() {
         // wait until the ackes controller is running
         while (!walletAggregateController.isRunning() ||
                 !accountAggregateController.isRunning() ||
@@ -528,7 +534,7 @@ public class RuntimeTests {
 
     @Test
     @Order(5)
-    public void testCreateViaExternalDomainEvent() throws JsonProcessingException {
+    public void testCreateViaExternalDomainEvent() {
         // wait until the ackes controller is running
         while (!walletAggregateController.isRunning() ||
                 !accountAggregateController.isRunning() ||
