@@ -18,7 +18,7 @@
 package org.elasticsoftware.akcestest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import org.elasticsoftware.akces.schemas.JsonSchema;
 import jakarta.inject.Inject;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.protocol.*;

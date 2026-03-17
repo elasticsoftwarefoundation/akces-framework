@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.protocol;
 
-import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import org.elasticsoftware.akces.schemas.JsonSchema;
 
 /**
  * Record for storing schema information in Kafka.

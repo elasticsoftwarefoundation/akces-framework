@@ -21,18 +21,17 @@ import com.github.victools.jsonschema.generator.*;
 import com.github.victools.jsonschema.module.jackson.JacksonSchemaModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
-import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import org.elasticsoftware.akces.schemas.JsonSchema;
 import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.aggregate.SchemaType;
 import tools.jackson.databind.node.ArrayNode;
 
-import java.util.List;
 import java.util.Map;
 
 public interface SchemaRegistry {
     static JsonSchema generateJsonSchema(SchemaType<?> schemaType, SchemaGenerator schemaGenerator) {
-        return new JsonSchema(schemaGenerator.generateSchema(schemaType.typeClass()).toString(), List.of(), Map.of(), schemaType.version());
+        return new JsonSchema(schemaGenerator.generateSchema(schemaType.typeClass()).toString(), schemaType.version());
     }
 
     static SchemaGenerator createJsonSchemaGenerator() {

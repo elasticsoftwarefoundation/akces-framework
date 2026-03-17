@@ -51,12 +51,11 @@
         <netty.version>4.2.10.Final</netty.version>
         <micrometer.version>1.16.4</micrometer.version>
         <fast-uuid.version>0.2.0</fast-uuid.version>
-        <confluent.version>8.2.0</confluent.version>
         <victools.version>5.0.0</victools.version>
-        <joda-time.version>2.14.1</joda-time.version>
         <logback.version>1.5.32</logback.version>
         <testcontainers.version>2.0.3</testcontainers.version>
         <compile-testing.version>0.23.0</compile-testing.version>
+        <everit-json-schema.version>1.14.6</everit-json-schema.version>
     </properties>
 
     <scm>
@@ -87,10 +86,6 @@
         <repository>
             <id>central</id>
             <url>https://repo.maven.apache.org/maven2</url>
-        </repository>
-        <repository>
-            <id>Confluent</id>
-            <url>https://packages.confluent.io/maven/</url>
         </repository>
     </repositories>
 
@@ -170,89 +165,14 @@
                 <version>2.21.0</version>
             </dependency>
             <dependency>
-                <groupId>io.confluent</groupId>
-                <artifactId>kafka-json-serializer</artifactId>
-                <version>${confluent.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.confluent</groupId>
-                <artifactId>kafka-json-schema-serializer</artifactId>
-                <version>${confluent.version}</version>
-                <exclusions>
-                    <exclusion>
-                        <groupId>joda-time</groupId>
-                        <artifactId>joda-time</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.jetbrains.kotlin</groupId>
-                        <artifactId>kotlin-scripting-compiler-embeddable</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.jetbrains</groupId>
-                        <artifactId>annotations</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.scala-lang</groupId>
-                        <artifactId>scala-library</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>commons-validator</groupId>
-                        <artifactId>commons-validator</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.checkerframework</groupId>
-                        <artifactId>checker-qual</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>com.google.guava</groupId>
-                        <artifactId>guava</artifactId>
-                    </exclusion>
-                </exclusions>
-            </dependency>
-            <dependency>
-                <groupId>joda-time</groupId>
-                <artifactId>joda-time</artifactId>
-                <version>${joda-time.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.confluent</groupId>
-                <artifactId>kafka-protobuf-serializer</artifactId>
-                <version>${confluent.version}</version>
-                <exclusions>
-                    <exclusion>
-                        <groupId>org.jetbrains.kotlin</groupId>
-                        <artifactId>*</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>com.google.errorprone</groupId>
-                        <artifactId>error_prone_annotations</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.apache.commons</groupId>
-                        <artifactId>commons-compress</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.checkerframework</groupId>
-                        <artifactId>checker-qual</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>com.squareup.okio</groupId>
-                        <artifactId>okio-jvm</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>com.google.j2objc</groupId>
-                        <artifactId>j2objc-annotations</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>com.google.protobuf</groupId>
-                        <artifactId>protobuf-java</artifactId>
-                    </exclusion>
-                </exclusions>
-            </dependency>
-            <dependency>
                 <groupId>org.lz4</groupId>
                 <artifactId>lz4-java</artifactId>
                 <version>${lz4.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.erosb</groupId>
+                <artifactId>everit-json-schema</artifactId>
+                <version>${everit-json-schema.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.eatthepath</groupId>

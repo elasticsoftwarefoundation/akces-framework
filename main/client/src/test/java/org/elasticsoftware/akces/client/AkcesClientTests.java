@@ -24,7 +24,7 @@ import com.github.victools.jsonschema.generator.*;
 import com.github.victools.jsonschema.module.jackson.JacksonSchemaModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
-import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import org.elasticsoftware.akces.schemas.JsonSchema;
 import tools.jackson.databind.node.ArrayNode;
 import jakarta.inject.Inject;
 import org.apache.kafka.clients.admin.AdminClientConfig;
@@ -209,7 +209,7 @@ public class AkcesClientTests {
         try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
             for (Class<C> commandClass : commandClasses) {
                 CommandInfo info = commandClass.getAnnotation(CommandInfo.class);
-                JsonSchema schema = new JsonSchema(jsonSchemaGenerator.generateSchema(commandClass).toString(), List.of(), Map.of(), info.version());
+                JsonSchema schema = new JsonSchema(jsonSchemaGenerator.generateSchema(commandClass).toString(), info.version());
                 SchemaRecord record = new SchemaRecord("commands." + info.type(), info.version(), schema, System.currentTimeMillis());
                 String key = "commands." + info.type() + "-v" + info.version();
                 ProducerRecord<String, SchemaRecord> producerRecord = new ProducerRecord<>("Akces-Schemas", key, record);
@@ -258,7 +258,7 @@ public class AkcesClientTests {
         try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
             for (Class<D> domainEventClass : domainEventClasses) {
                 DomainEventInfo info = domainEventClass.getAnnotation(DomainEventInfo.class);
-                JsonSchema schema = new JsonSchema(jsonSchemaGenerator.generateSchema(domainEventClass).toString(), List.of(), Map.of(), info.version());
+                JsonSchema schema = new JsonSchema(jsonSchemaGenerator.generateSchema(domainEventClass).toString(), info.version());
                 SchemaRecord record = new SchemaRecord("domainevents." + info.type(), info.version(), schema, System.currentTimeMillis());
                 String key = "domainevents." + info.type() + "-v" + info.version();
                 ProducerRecord<String, SchemaRecord> producerRecord = new ProducerRecord<>("Akces-Schemas", key, record);

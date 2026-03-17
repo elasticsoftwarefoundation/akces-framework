@@ -18,7 +18,7 @@
 package org.elasticsoftware.akcestest;
 
 
-import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import org.elasticsoftware.akces.schemas.JsonSchema;
 import org.elasticsoftware.akces.beans.AggregateBeanFactoryPostProcessor;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.protocol.SchemaRecord;

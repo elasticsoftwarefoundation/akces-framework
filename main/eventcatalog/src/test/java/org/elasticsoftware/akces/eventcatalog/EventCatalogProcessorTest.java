@@ -21,9 +21,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.testing.compile.Compilation;
 import com.google.testing.compile.JavaFileObjects;
-import io.confluent.kafka.schemaregistry.json.JsonSchema;
-import io.confluent.kafka.schemaregistry.json.diff.Difference;
-import io.confluent.kafka.schemaregistry.json.diff.SchemaDiff;
+import org.elasticsoftware.akces.schemas.JsonSchema;
+import org.elasticsoftware.akces.schemas.diff.Difference;
+import org.elasticsoftware.akces.schemas.diff.SchemaDiff;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.junit.jupiter.api.Assertions;
@@ -927,7 +927,7 @@ public record ReserveAmountCommand(
         System.out.println(eventCatalogSchemaString);
         JsonNode eventCatalogSchema = objectMapper.readTree(eventCatalogSchemaString);
 
-        List<Difference> differences = SchemaDiff.compare(new JsonSchema(schemaRegistrySchema).rawSchema(), new JsonSchema(eventCatalogSchema).rawSchema());
+        List<Difference> differences = SchemaDiff.compare(new JsonSchema(schemaRegistrySchema, null).rawSchema(), new JsonSchema(eventCatalogSchema, null).rawSchema());
 
         Assertions.assertTrue(differences.isEmpty(), "Schema differences found: " + differences);
     }

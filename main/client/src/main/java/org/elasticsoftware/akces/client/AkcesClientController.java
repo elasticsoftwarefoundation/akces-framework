@@ -22,8 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
-import io.confluent.kafka.schemaregistry.ParsedSchema;
-import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import org.elasticsoftware.akces.schemas.JsonSchema;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -97,9 +96,9 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
     private final ObjectMapper objectMapper;
     private final Map<Class<? extends Command>, AggregateServiceCommandType> commandTypes = new ConcurrentHashMap<>();
     private final Map<String, TreeMap<Integer, DomainEventType<? extends DomainEvent>>> domainEventClasses = new ConcurrentHashMap<>();
-    private final Map<String, Map<Integer, ParsedSchema>> commandSchemas = new ConcurrentHashMap<>();
-    private final Map<String, Map<Integer, ParsedSchema>> domainEventSchemas = new ConcurrentHashMap<>();
-    private final Map<Class<? extends Command>, ParsedSchema> commandSchemasLookup = new ConcurrentHashMap<>();
+    private final Map<String, Map<Integer, JsonSchema>> commandSchemas = new ConcurrentHashMap<>();
+    private final Map<String, Map<Integer, JsonSchema>> domainEventSchemas = new ConcurrentHashMap<>();
+    private final Map<Class<? extends Command>, JsonSchema> commandSchemasLookup = new ConcurrentHashMap<>();
     private final ClassPathScanningCandidateComponentProvider domainEventScanner;
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
     private Integer partitions = null;
@@ -503,7 +502,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
             AggregateServiceCommandType commandType = resolveCommandType(type, version);
             if (commandType != null) {
                 // see if we have a schema for this command
-                ParsedSchema schema = schemaRegistry.validate(commandType.toExternalCommandType(commandClass));
+                JsonSchema schema = schemaRegistry.validate(commandType.toExternalCommandType(commandClass));
                 commandSchemas.computeIfAbsent(
                         commandType.typeName(),
                         k -> new ConcurrentHashMap<>()).put(commandType.version(), schema);
@@ -547,8 +546,8 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
     private byte[] serialize(Command command) {
         try {
             // get the schema
-            ParsedSchema schema = commandSchemasLookup.get(command.getClass());
-            if (schema instanceof JsonSchema jsonSchema) {
+            JsonSchema jsonSchema = commandSchemasLookup.get(command.getClass());
+            if (jsonSchema != null) {
                 JsonNode jsonNode = objectMapper.valueToTree(command);
                 jsonSchema.validate(jsonNode);
                 return objectMapper.writeValueAsBytes(jsonNode);
