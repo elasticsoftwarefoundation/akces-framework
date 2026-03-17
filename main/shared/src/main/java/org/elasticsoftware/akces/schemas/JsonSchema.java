@@ -36,56 +36,86 @@ import java.util.Objects;
  * {@link Schema} used for validation.
  */
 public final class JsonSchema {
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final ObjectMapper DEFAULT_OBJECT_MAPPER = new ObjectMapper();
 
+    private final ObjectMapper objectMapper;
     private final JsonNode schemaNode;
     private final Schema rawSchema;
     private final Integer version;
 
     /**
      * Creates a JsonSchema by parsing a JSON string, with no version.
+     * Uses the default static ObjectMapper.
      *
      * @param schemaJson the JSON Schema as a string
      * @throws IllegalArgumentException if the JSON string cannot be parsed
      */
     public JsonSchema(String schemaJson) {
-        this(schemaJson, null);
+        this(schemaJson, null, DEFAULT_OBJECT_MAPPER);
     }
 
     /**
      * Creates a JsonSchema by parsing a JSON string, with a specific version.
+     * Uses the default static ObjectMapper.
      *
      * @param schemaJson the JSON Schema as a string
      * @param version    the schema version, may be {@code null}
      * @throws IllegalArgumentException if the JSON string cannot be parsed or is not a valid JSON Schema
      */
     public JsonSchema(String schemaJson, Integer version) {
+        this(schemaJson, version, DEFAULT_OBJECT_MAPPER);
+    }
+
+    /**
+     * Creates a JsonSchema by parsing a JSON string, with a specific version and a custom ObjectMapper.
+     *
+     * @param schemaJson   the JSON Schema as a string
+     * @param version      the schema version, may be {@code null}
+     * @param objectMapper the ObjectMapper to use for JSON processing
+     * @throws IllegalArgumentException if the JSON string cannot be parsed or is not a valid JSON Schema
+     */
+    public JsonSchema(String schemaJson, Integer version, ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
         try {
             this.schemaNode = objectMapper.readTree(schemaJson);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("Invalid JSON schema: " + schemaJson, e);
         }
         this.version = version;
-        this.rawSchema = loadSchema(this.schemaNode);
+        this.rawSchema = loadSchema(this.schemaNode, objectMapper);
     }
 
     /**
      * Creates a JsonSchema from a Jackson {@link JsonNode}, with a specific version.
+     * Uses the default static ObjectMapper.
      *
      * @param schemaNode the JSON Schema as a Jackson JsonNode
      * @param version    the schema version, may be {@code null}
      * @throws IllegalArgumentException if schemaNode is {@code null} or not a valid JSON Schema
      */
     public JsonSchema(JsonNode schemaNode, Integer version) {
+        this(schemaNode, version, DEFAULT_OBJECT_MAPPER);
+    }
+
+    /**
+     * Creates a JsonSchema from a Jackson {@link JsonNode}, with a specific version and a custom ObjectMapper.
+     *
+     * @param schemaNode   the JSON Schema as a Jackson JsonNode
+     * @param version      the schema version, may be {@code null}
+     * @param objectMapper the ObjectMapper to use for JSON processing
+     * @throws IllegalArgumentException if schemaNode is {@code null} or not a valid JSON Schema
+     */
+    public JsonSchema(JsonNode schemaNode, Integer version, ObjectMapper objectMapper) {
         if (schemaNode == null) {
             throw new IllegalArgumentException("schemaNode cannot be null");
         }
+        this.objectMapper = objectMapper;
         this.schemaNode = schemaNode;
         this.version = version;
-        this.rawSchema = loadSchema(schemaNode);
+        this.rawSchema = loadSchema(schemaNode, objectMapper);
     }
 
-    private static Schema loadSchema(JsonNode schemaNode) {
+    private static Schema loadSchema(JsonNode schemaNode, ObjectMapper objectMapper) {
         try {
             String schemaString = objectMapper.writeValueAsString(schemaNode);
             JSONObject jsonObject = new JSONObject(schemaString);
