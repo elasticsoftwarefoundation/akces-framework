@@ -18,7 +18,6 @@
 package org.elasticsoftware.akcestest.schemas;
 
 
-import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -162,13 +161,6 @@ public class JsonSchemaTests {
         String localSchemaString = "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"funds\":{\"type\":[\"string\",\"null\"]},\"marketId\":{\"type\":[\"string\",\"null\"]},\"orderId\":{\"type\":[\"string\",\"null\"]},\"ownerId\":{\"type\":[\"string\",\"null\"]},\"side\":{\"anyOf\":[{\"type\":\"null\"},{\"type\":\"string\",\"enum\":[\"BUY\",\"SELL\"]}]},\"size\":{\"type\":[\"string\",\"null\"]}},\"additionalProperties\":false}";
 
         Assertions.assertEquals(registeredSchemaString, localSchemaString);
-
-        SimpleModule module = new SimpleModule();
-        module.addSerializer(BigDecimal.class, new BigDecimalSerializer());
-        ObjectMapper objectMapper = JsonMapper.builder()
-                .addModule(new AkcesGDPRModule())
-                .addModule(module)
-                .build();
 
         JsonSchema localSchema = new JsonSchema(localSchemaString);
         JsonSchema registeredSchema = new JsonSchema(registeredSchemaString);

@@ -35,7 +35,6 @@ import static org.junit.jupiter.api.Assertions.*;
 public class AkcesAggregateControllerTests {
     @Test
     public void testSerialization() {
-        ObjectMapper objectMapper = new JsonMapper();
         AggregateServiceRecord record = new AggregateServiceRecord(
                 "Account",
                 "Account-Commands",
@@ -44,7 +43,6 @@ public class AkcesAggregateControllerTests {
                 List.of(new AggregateServiceDomainEventType("AccountCreated", 1, true, false, "domainevents.AccountCreated")),
                 Collections.emptyList());
         assertNotNull(record);
-        //objectMapper.writerWithDefaultPrettyPrinter().writeValue(System.out, record);
     }
 
     @Test
