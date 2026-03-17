@@ -49,6 +49,7 @@ import org.springframework.context.ApplicationContextException;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.module.SimpleModule;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 
@@ -129,12 +130,11 @@ public class TestUtils {
     }
 
     public static void prepareDomainEventSchemas(String bootstrapServers, String basePackage) {
-        Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
-        objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
-        objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(BigDecimal.class, new BigDecimalSerializer());
 
         // Write schemas to Akces-Schemas topic
-        ObjectMapper mapper = objectMapperBuilder.build();
+        ObjectMapper mapper = JsonMapper.builder().addModule(new AkcesGDPRModule()).addModule(module).build();
         SchemaRecordSerde serde = new SchemaRecordSerde(mapper);
         Map<String, Object> producerProps = Map.of(
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
@@ -167,12 +167,11 @@ public class TestUtils {
     }
 
     public static void prepareCommandSchemas(String bootstrapServers, String basePackage) {
-        Jackson2ObjectMapperBuilder objectMapperBuilder = new Jackson2ObjectMapperBuilder();
-        objectMapperBuilder.modulesToInstall(new AkcesGDPRModule());
-        objectMapperBuilder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(BigDecimal.class, new BigDecimalSerializer());
 
         // Write schemas to Akces-Schemas topic
-        ObjectMapper mapper = objectMapperBuilder.build();
+        ObjectMapper mapper = JsonMapper.builder().addModule(new AkcesGDPRModule()).addModule(module).build();
         SchemaRecordSerde serde = new SchemaRecordSerde(mapper);
         Map<String, Object> producerProps = Map.of(
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,

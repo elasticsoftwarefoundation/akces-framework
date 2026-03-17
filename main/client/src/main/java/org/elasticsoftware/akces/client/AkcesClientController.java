@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces.client;
 
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
@@ -68,7 +69,6 @@ import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaAdminOperations;
 import org.springframework.kafka.core.ProducerFactory;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
@@ -360,7 +360,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                             }
                             // TODO: maybe we should handle ErrorEvent instances differentlu
                             pendingCommandResponse.completableFuture().complete(domainEvents);
-                        } catch (IOException e) {
+                        } catch (JacksonException e) {
                             // TODO: generate a Framework specific exception
                             pendingCommandResponse.completableFuture().completeExceptionally(e);
                         }
@@ -554,14 +554,14 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
             } else {
                 return objectMapper.writeValueAsBytes(command);
             }
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             throw new CommandSerializationException(command.getClass(), e);
         } catch (ValidationException e) {
             throw new CommandValidationException(command.getClass(), e);
         }
     }
 
-    private DomainEvent deserialize(DomainEventRecord der, @Nullable byte[] encryptionKey) throws IOException {
+    private DomainEvent deserialize(DomainEventRecord der, @Nullable byte[] encryptionKey) {
         try {
             setCurrentGDPRContext(encryptionKey != null ? new EncryptingGDPRContext(der.aggregateId(), encryptionKey, GDPRKeyUtils.isUUID(der.aggregateId())) : null);
             // find the correct deserializer

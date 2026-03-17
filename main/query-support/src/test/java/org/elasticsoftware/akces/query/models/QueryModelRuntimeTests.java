@@ -455,11 +455,7 @@ public class QueryModelRuntimeTests {
             prepareKafka(kafka.getBootstrapServers());
             // Prepare schemas by writing to Akces-Schemas topic
             prepareDomainEventSchemas(kafka.getBootstrapServers(), "org.elasticsoftware.akcestest.aggregate");
-            try {
-                prepareAggregateServiceRecords(kafka.getBootstrapServers());
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            prepareAggregateServiceRecords(kafka.getBootstrapServers());
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
                     applicationContext,
                     "akces.rocksdb.baseDir=/tmp/akces",

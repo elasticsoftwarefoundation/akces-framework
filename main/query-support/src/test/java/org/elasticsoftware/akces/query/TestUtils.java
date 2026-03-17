@@ -18,6 +18,8 @@
 package org.elasticsoftware.akces.query;
 
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.module.SimpleModule;
 import com.github.victools.jsonschema.generator.SchemaGenerator;
 import org.elasticsoftware.akces.schemas.JsonSchema;
 import org.apache.kafka.clients.admin.AdminClientConfig;
@@ -44,7 +46,6 @@ import org.springframework.context.annotation.ClassPathScanningCandidateComponen
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.kafka.core.KafkaAdmin;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Map;
 
@@ -93,10 +94,12 @@ public class TestUtils {
     }
 
     public static void prepareDomainEventSchemas(String bootstrapServers, String basePackage) {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.registerModule(new AkcesGDPRModule());
-        mapper.registerModule(new com.fasterxml.jackson.databind.module.SimpleModule()
-            .addSerializer(BigDecimal.class, new BigDecimalSerializer()));
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(BigDecimal.class, new BigDecimalSerializer());
+        ObjectMapper mapper = JsonMapper.builder()
+                .addModule(new AkcesGDPRModule())
+                .addModule(module)
+                .build();
         SchemaRecordSerde serde = new SchemaRecordSerde(mapper);
         Map<String, Object> producerProps = Map.of(
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
@@ -128,11 +131,13 @@ public class TestUtils {
         }
     }
 
-    public static void prepareAggregateServiceRecords(String bootstrapServers) throws IOException {
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new AkcesGDPRModule());
-        objectMapper.registerModule(new com.fasterxml.jackson.databind.module.SimpleModule()
-            .addSerializer(BigDecimal.class, new BigDecimalSerializer()));
+    public static void prepareAggregateServiceRecords(String bootstrapServers) {
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(BigDecimal.class, new BigDecimalSerializer());
+        ObjectMapper objectMapper = JsonMapper.builder()
+                .addModule(new AkcesGDPRModule())
+                .addModule(module)
+                .build();
         AkcesControlRecordSerde controlSerde = new AkcesControlRecordSerde(objectMapper);
         Map<String, Object> controlProducerProps = Map.of(
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,

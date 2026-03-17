@@ -29,6 +29,7 @@ import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.module.SimpleModule;
 
 import javax.tools.JavaFileObject;
 import javax.tools.StandardLocation;
@@ -911,10 +912,12 @@ public record ReserveAmountCommand(
         assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT, "META-INF/eventcatalog/services/OrderProcessManager/events/UserOrderProcessesCreated/schema.json");
 
         // check the generated schema
-        Jackson2ObjectMapperBuilder builder = new Jackson2ObjectMapperBuilder();
-        builder.modulesToInstall(new AkcesGDPRModule());
-        builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
-        ObjectMapper objectMapper = builder.build();
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(BigDecimal.class, new BigDecimalSerializer());
+        ObjectMapper objectMapper = JsonMapper.builder()
+                .addModule(new AkcesGDPRModule())
+                .addModule(module)
+                .build();
 
         validateGeneratedSchema(compilation, objectMapper,"META-INF/eventcatalog/services/Account/commands/CreateAccount/schema.json","{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"country\":{\"type\":\"string\"},\"email\":{\"type\":\"string\"},\"firstName\":{\"type\":\"string\"},\"lastName\":{\"type\":\"string\"},\"userId\":{\"type\":\"string\"}},\"required\":[\"country\",\"email\",\"firstName\",\"lastName\",\"userId\"],\"additionalProperties\":false}");
         validateGeneratedSchema(compilation, objectMapper, "META-INF/eventcatalog/services/OrderProcessManager/events/BuyOrderCreated/schema.json", "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"clientReference\":{\"type\":\"string\"},\"limitPrice\":{\"type\":\"string\"},\"market\":{\"type\":\"object\",\"properties\":{\"baseCurrency\":{\"type\":[\"string\",\"null\"]},\"id\":{\"type\":[\"string\",\"null\"]},\"quoteCurrency\":{\"type\":[\"string\",\"null\"]}},\"additionalProperties\":false},\"orderId\":{\"type\":\"string\"},\"quantity\":{\"type\":\"string\"},\"userId\":{\"type\":\"string\"}},\"required\":[\"clientReference\",\"limitPrice\",\"market\",\"orderId\",\"quantity\",\"userId\"],\"additionalProperties\":false}");

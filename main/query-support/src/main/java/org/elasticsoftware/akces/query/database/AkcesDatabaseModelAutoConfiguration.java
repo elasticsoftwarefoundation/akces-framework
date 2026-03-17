@@ -18,6 +18,7 @@
 package org.elasticsoftware.akces.query.database;
 
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.module.SimpleModule;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
@@ -60,8 +61,10 @@ public class AkcesDatabaseModelAutoConfiguration {
     @Bean(name = "akcesDatabaseModelJsonCustomizer")
     public JsonMapperBuilderCustomizer jsonCustomizer() {
         return builder -> {
-            builder.modulesToInstall(new AkcesGDPRModule());
-            builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+            SimpleModule module = new SimpleModule();
+            module.addSerializer(BigDecimal.class, new BigDecimalSerializer());
+            builder.addModule(new AkcesGDPRModule());
+            builder.addModule(module);
         };
     }
 
