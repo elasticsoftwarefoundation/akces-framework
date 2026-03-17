@@ -24,7 +24,7 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.dataformat.protobuf.ProtobufMapper;
 import com.fasterxml.jackson.dataformat.protobuf.schema.ProtobufSchema;
 import com.fasterxml.jackson.dataformat.protobuf.schema.ProtobufSchemaLoader;
-import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import org.elasticsoftware.akces.schemas.JsonSchema;
 import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serde;
@@ -33,7 +33,6 @@ import org.elasticsoftware.akces.protocol.SchemaRecord;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.util.Collections;
 
 public final class SchemaRecordSerde implements Serde<SchemaRecord> {
     private static final String schemaRecordProto = """
@@ -78,7 +77,7 @@ public final class SchemaRecordSerde implements Serde<SchemaRecord> {
                 return new SchemaRecord(
                         schemaName,
                         version,
-                        new JsonSchema(jsonMapper.readTree(schema), Collections.emptyList(), Collections.emptyMap(), version ),
+                        new JsonSchema(jsonMapper.readTree(schema), version),
                         registeredAt
                 );
             } catch (Exception e) {

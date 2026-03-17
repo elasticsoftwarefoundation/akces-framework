@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.schemas.storage;
 
-import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import org.elasticsoftware.akces.schemas.JsonSchema;
 import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.schemas.SchemaException;
 

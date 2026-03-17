@@ -25,10 +25,10 @@ import com.github.victools.jsonschema.generator.*;
 import com.github.victools.jsonschema.module.jackson.JacksonSchemaModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationModule;
 import com.github.victools.jsonschema.module.jakarta.validation.JakartaValidationOption;
-import io.confluent.kafka.schemaregistry.json.JsonSchema;
+import org.elasticsoftware.akces.schemas.JsonSchema;
 import tools.jackson.databind.node.ArrayNode;
-import io.confluent.kafka.schemaregistry.json.diff.Difference;
-import io.confluent.kafka.schemaregistry.json.diff.SchemaDiff;
+import org.elasticsoftware.akces.schemas.diff.Difference;
+import org.elasticsoftware.akces.schemas.diff.SchemaDiff;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akcestest.aggregate.wallet.InvalidAmountErrorEvent;
@@ -164,8 +164,8 @@ public class JsonSchemaTests {
         builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
         ObjectMapper objectMapper = builder.build();
 
-        JsonSchema localSchema = new JsonSchema(objectMapper.readValue(localSchemaString, Schema.class));
-        JsonSchema registeredSchema = new JsonSchema(objectMapper.readValue(registeredSchemaString, Schema.class));
+        JsonSchema localSchema = new JsonSchema(localSchemaString);
+        JsonSchema registeredSchema = new JsonSchema(registeredSchemaString);
 
         Assertions.assertTrue(registeredSchema.deepEquals(localSchema));
     }

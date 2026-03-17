@@ -18,9 +18,8 @@
 package org.elasticsoftware.akces.schemas;
 
 import com.github.victools.jsonschema.generator.SchemaGenerator;
-import io.confluent.kafka.schemaregistry.json.JsonSchema;
-import io.confluent.kafka.schemaregistry.json.diff.Difference;
-import io.confluent.kafka.schemaregistry.json.diff.SchemaDiff;
+import org.elasticsoftware.akces.schemas.diff.Difference;
+import org.elasticsoftware.akces.schemas.diff.SchemaDiff;
 import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.aggregate.SchemaType;

@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.schemas;
 
-import io.confluent.kafka.schemaregistry.json.diff.Difference;
+import org.elasticsoftware.akces.schemas.diff.Difference;
 
 import java.util.List;
 
