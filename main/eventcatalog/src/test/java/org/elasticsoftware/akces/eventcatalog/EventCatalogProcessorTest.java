@@ -927,7 +927,7 @@ public record ReserveAmountCommand(
         System.out.println(eventCatalogSchemaString);
         JsonNode eventCatalogSchema = objectMapper.readTree(eventCatalogSchemaString);
 
-        List<Difference> differences = SchemaDiff.compare(new JsonSchema(schemaRegistrySchema).rawSchema(), new JsonSchema(eventCatalogSchema).rawSchema());
+        List<Difference> differences = SchemaDiff.compare(new JsonSchema(schemaRegistrySchema, null).rawSchema(), new JsonSchema(eventCatalogSchema, null).rawSchema());
 
         Assertions.assertTrue(differences.isEmpty(), "Schema differences found: " + differences);
     }

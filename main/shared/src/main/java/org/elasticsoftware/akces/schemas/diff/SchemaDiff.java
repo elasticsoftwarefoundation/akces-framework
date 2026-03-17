@@ -582,10 +582,31 @@ public final class SchemaDiff {
         List<Schema> origSubs = new ArrayList<>(orig.getSubschemas());
         List<Schema> updSubs = new ArrayList<>(upd.getSubschemas());
 
-        // Compare common subschemas (positional matching)
-        int commonCount = Math.min(origSubs.size(), updSubs.size());
-        for (int i = 0; i < commonCount; i++) {
-            compareSchemas(path, origSubs.get(i), updSubs.get(i), diffs);
+        // Match subschemas by type rather than position since getSubschemas() returns a Set
+        Set<Integer> matchedUpdIndices = new HashSet<>();
+        for (Schema origSub : origSubs) {
+            Schema resolvedOrig = resolveSchema(origSub);
+            boolean matched = false;
+            for (int j = 0; j < updSubs.size(); j++) {
+                if (matchedUpdIndices.contains(j)) continue;
+                Schema resolvedUpd = resolveSchema(updSubs.get(j));
+                if (resolvedOrig.getClass().equals(resolvedUpd.getClass())) {
+                    compareSchemas(path, origSub, updSubs.get(j), diffs);
+                    matchedUpdIndices.add(j);
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                // Original subschema type not found in updated
+                diffs.add(new Difference(COMBINED_TYPE_SUBSCHEMAS_CHANGED, path));
+            }
+        }
+        // Check for new subschema types in updated
+        for (int j = 0; j < updSubs.size(); j++) {
+            if (!matchedUpdIndices.contains(j)) {
+                diffs.add(new Difference(COMBINED_TYPE_SUBSCHEMAS_CHANGED, path));
+            }
         }
 
         // Report subschema count changes

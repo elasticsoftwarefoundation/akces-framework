@@ -109,6 +109,16 @@ public final class JsonSchema {
     }
 
     /**
+     * Converts a Java object to a Jackson {@link JsonNode} using the internal ObjectMapper.
+     *
+     * @param object the object to convert
+     * @return the JSON representation as a JsonNode
+     */
+    public JsonNode toJson(Object object) {
+        return objectMapper.valueToTree(object);
+    }
+
+    /**
      * Returns the JSON Schema as a Jackson {@link JsonNode}.
      *
      * @return the schema node

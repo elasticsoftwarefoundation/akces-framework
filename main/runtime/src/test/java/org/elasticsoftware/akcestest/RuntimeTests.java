@@ -251,7 +251,7 @@ public class RuntimeTests {
                 ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
         
         try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
-            JsonSchema schema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.CreateWalletCommand.class).toString(), List.of(), Map.of(), 1);
+            JsonSchema schema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.CreateWalletCommand.class).toString(), 1);
             SchemaRecord record = new SchemaRecord("commands.CreateWallet", 1, schema, System.currentTimeMillis());
             String key = "commands.CreateWallet-v1";
             ProducerRecord<String, SchemaRecord> producerRecord = new ProducerRecord<>("Akces-Schemas", key, record);
@@ -298,17 +298,17 @@ public class RuntimeTests {
         
         try (Producer<String, SchemaRecord> producer = new KafkaProducer<>(producerProps, new StringSerializer(), serde.serializer())) {
             // Register BalanceCreated schema
-            JsonSchema balanceCreatedSchema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.BalanceCreatedEvent.class).toString(), List.of(), Map.of(), 1);
+            JsonSchema balanceCreatedSchema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.BalanceCreatedEvent.class).toString(), 1);
             SchemaRecord balanceCreatedRecord = new SchemaRecord("domainevents.BalanceCreated", 1, balanceCreatedSchema, System.currentTimeMillis());
             producer.send(new ProducerRecord<>("Akces-Schemas", "domainevents.BalanceCreated-v1", balanceCreatedRecord)).get();
             
             // Register BuyOrderPlaced schema
-            JsonSchema buyOrderPlacedSchema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.BuyOrderPlacedEvent.class).toString(), List.of(), Map.of(), 1);
+            JsonSchema buyOrderPlacedSchema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.BuyOrderPlacedEvent.class).toString(), 1);
             SchemaRecord buyOrderPlacedRecord = new SchemaRecord("domainevents.BuyOrderPlaced", 1, buyOrderPlacedSchema, System.currentTimeMillis());
             producer.send(new ProducerRecord<>("Akces-Schemas", "domainevents.BuyOrderPlaced-v1", buyOrderPlacedRecord)).get();
             
             // Register WalletCredited schema
-            JsonSchema walletCreditedSchema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.WalletCreditedEvent.class).toString(), List.of(), Map.of(), 1);
+            JsonSchema walletCreditedSchema = new JsonSchema(jsonSchemaGenerator.generateSchema(org.elasticsoftware.akcestest.old.WalletCreditedEvent.class).toString(), 1);
             SchemaRecord walletCreditedRecord = new SchemaRecord("domainevents.WalletCredited", 1, walletCreditedSchema, System.currentTimeMillis());
             producer.send(new ProducerRecord<>("Akces-Schemas", "domainevents.WalletCredited-v1", walletCreditedRecord)).get();
             
