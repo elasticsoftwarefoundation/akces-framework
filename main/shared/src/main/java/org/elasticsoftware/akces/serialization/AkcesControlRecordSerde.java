@@ -17,16 +17,14 @@
 
 package org.elasticsoftware.akces.serialization;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serializer;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
-
-import java.io.IOException;
 
 public final class AkcesControlRecordSerde implements Serde<AkcesControlRecord> {
     private final Serializer<AkcesControlRecord> serializer;
@@ -57,7 +55,7 @@ public final class AkcesControlRecordSerde implements Serde<AkcesControlRecord> 
                 } else {
                     throw new SerializationException("Unsupported AkcesControlRecord type " + data.getClass().getSimpleName());
                 }
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 throw new SerializationException(e);
             }
         }
@@ -75,7 +73,7 @@ public final class AkcesControlRecordSerde implements Serde<AkcesControlRecord> 
                 } else {
                     throw new SerializationException("Unsupported topic " + topic);
                 }
-            } catch (IOException e) {
+            } catch (JacksonException e) {
                 throw new SerializationException(e);
             }
         }
