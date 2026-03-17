@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.query.database;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.elasticsoftware.akces.aggregate.DomainEventType;

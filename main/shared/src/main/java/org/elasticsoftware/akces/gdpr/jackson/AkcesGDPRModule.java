@@ -17,8 +17,8 @@
 
 package org.elasticsoftware.akces.gdpr.jackson;
 
-import com.fasterxml.jackson.core.Version;
-import com.fasterxml.jackson.databind.Module;
+import tools.jackson.core.Version;
+import tools.jackson.databind.JacksonModule;
 import org.semver4j.Semver;
 
 import java.net.URL;
@@ -27,7 +27,7 @@ import java.util.jar.Manifest;
 
 import static java.lang.String.format;
 
-public class AkcesGDPRModule extends Module {
+public class AkcesGDPRModule extends JacksonModule {
     private static Version extractVersion() {
         String className = format("/%s.class", AkcesGDPRModule.class.getName().replace('.', '/'));
         URL resource = AkcesGDPRModule.class.getResource(className);
@@ -83,7 +83,7 @@ public class AkcesGDPRModule extends Module {
 
     @Override
     public void setupModule(SetupContext setupContext) {
-        setupContext.addBeanSerializerModifier(new PIIDataSerializerModifier());
-        setupContext.addBeanDeserializerModifier(new PIIDataDeserializerModifier());
+        setupContext.addSerializerModifier(new PIIDataSerializerModifier());
+        setupContext.addDeserializerModifier(new PIIDataDeserializerModifier());
     }
 }

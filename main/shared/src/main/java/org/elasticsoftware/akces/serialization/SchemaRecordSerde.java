@@ -17,13 +17,13 @@
 
 package org.elasticsoftware.akces.serialization;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
-import com.fasterxml.jackson.databind.ObjectWriter;
-import com.fasterxml.jackson.dataformat.protobuf.ProtobufMapper;
-import com.fasterxml.jackson.dataformat.protobuf.schema.ProtobufSchema;
-import com.fasterxml.jackson.dataformat.protobuf.schema.ProtobufSchemaLoader;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectReader;
+import tools.jackson.databind.ObjectWriter;
+import tools.jackson.dataformat.protobuf.ProtobufMapper;
+import tools.jackson.dataformat.protobuf.schema.ProtobufSchema;
+import tools.jackson.dataformat.protobuf.schema.ProtobufSchemaLoader;
 import org.elasticsoftware.akces.schemas.JsonSchema;
 import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.Deserializer;
@@ -60,7 +60,7 @@ public final class SchemaRecordSerde implements Serde<SchemaRecord> {
         /**
          * Converts a SchemaRecord to DTO (JsonSchema → String).
          */
-        static SchemaRecordDTO from(SchemaRecord record, ObjectMapper jsonMapper) throws JsonProcessingException {
+        static SchemaRecordDTO from(SchemaRecord record, ObjectMapper jsonMapper) throws JacksonException {
             return new SchemaRecordDTO(
                     record.schemaName(),
                     record.version(),
@@ -120,7 +120,7 @@ public final class SchemaRecordSerde implements Serde<SchemaRecord> {
                 // Convert SchemaRecord to DTO (JsonSchema → String) before serialization
                 SchemaRecordDTO dto = SchemaRecordDTO.from(data, jsonMapper);
                 return schemaRecordWriter.writeValueAsBytes(dto);
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 throw new SerializationException(e);
             }
         }
@@ -136,7 +136,7 @@ public final class SchemaRecordSerde implements Serde<SchemaRecord> {
                 // Deserialize to DTO then convert to SchemaRecord (String → JsonSchema)
                 SchemaRecordDTO dto = schemaRecordReader.readValue(data);
                 return dto.toSchemaRecord(jsonMapper);
-            } catch (IOException e) {
+            } catch (JacksonException e) {
                 throw new SerializationException(e);
             }
         }

@@ -17,18 +17,17 @@
 
 package org.elasticsoftware.akces.gdpr.jackson;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.deser.std.StringDeserializer;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.deser.jdk.StringDeserializer;
 import org.elasticsoftware.akces.gdpr.GDPRContext;
 import org.elasticsoftware.akces.gdpr.GDPRContextHolder;
-
-import java.io.IOException;
 
 public class PIIDataJsonDeserializer extends StringDeserializer {
 
     @Override
-    public String deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+    public String deserialize(JsonParser p, DeserializationContext ctxt) throws JacksonException {
         String encryptedString = super.deserialize(p, ctxt);
         GDPRContext gdprContext = GDPRContextHolder.getCurrentGDPRContext();
         return gdprContext != null ? gdprContext.decrypt(encryptedString) : encryptedString;

@@ -17,12 +17,12 @@
 
 package org.elasticsoftware.akcestest.protocol;
 
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.protobuf.ProtobufMapper;
-import com.fasterxml.jackson.dataformat.protobuf.schema.NativeProtobufSchema;
-import com.fasterxml.jackson.dataformat.protobuf.schema.ProtobufSchema;
-import com.fasterxml.jackson.dataformat.protobuf.schema.ProtobufSchemaLoader;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.protobuf.ProtobufMapper;
+import tools.jackson.dataformat.protobuf.schema.NativeProtobufSchema;
+import tools.jackson.dataformat.protobuf.schema.ProtobufSchema;
+import tools.jackson.dataformat.protobuf.schema.ProtobufSchemaLoader;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.CommandRecord;
 import org.elasticsoftware.akces.protocol.CommandResponseRecord;
@@ -83,7 +83,7 @@ public class ProtocolTests {
     }
 
     @Test
-    public void generateDomainEventRecordProtobufSchema() throws JsonMappingException {
+    public void generateDomainEventRecordProtobufSchema() {
         ProtobufMapper mapper = new ProtobufMapper();
         ProtobufSchema schemaWrapper = mapper.generateSchemaFor(DomainEventRecord.class);
         NativeProtobufSchema nativeProtobufSchema = schemaWrapper.getSource();
@@ -94,7 +94,7 @@ public class ProtocolTests {
     }
 
     @Test
-    public void generateCommandRecordProtobufSchema() throws JsonMappingException {
+    public void generateCommandRecordProtobufSchema() {
         ProtobufMapper mapper = new ProtobufMapper();
         ProtobufSchema schemaWrapper = mapper.generateSchemaFor(CommandRecord.class);
         NativeProtobufSchema nativeProtobufSchema = schemaWrapper.getSource();
@@ -105,7 +105,7 @@ public class ProtocolTests {
     }
 
     @Test
-    public void generateAggregateStateRecordProtobufSchema() throws JsonMappingException {
+    public void generateAggregateStateRecordProtobufSchema() {
         ProtobufMapper mapper = new ProtobufMapper();
         ProtobufSchema schemaWrapper = mapper.generateSchemaFor(AggregateStateRecord.class);
         NativeProtobufSchema nativeProtobufSchema = schemaWrapper.getSource();
@@ -116,7 +116,7 @@ public class ProtocolTests {
     }
 
     @Test
-    public void generateCommandResponseRecordProtobufSchema() throws JsonMappingException {
+    public void generateCommandResponseRecordProtobufSchema() {
         ProtobufMapper mapper = new ProtobufMapper();
         ProtobufSchema schemaWrapper = mapper.generateSchemaFor(CommandResponseRecord.class);
         NativeProtobufSchema nativeProtobufSchema = schemaWrapper.getSource();

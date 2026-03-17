@@ -17,8 +17,7 @@
 
 package org.elasticsoftware.akcestest;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.inject.Inject;
 import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import org.elasticsoftware.akcestest.aggregate.account.AccountState;
@@ -38,7 +37,7 @@ public class AccountTests {
     SchemaRegistry schemaRegistry;
 
     @Test
-    public void testAggregateStateSerializationWithChangingSchema() throws JsonProcessingException {
+    public void testAggregateStateSerializationWithChangingSchema() {
         String userId = "a2b04808-19d7-4ec8-94db-1ce28ca517f1";
         String serializedState= objectMapper.writeValueAsString(new PreviousAccountState(userId, "US", "John", "Doe", "john.doe@example.com"));
         AccountState accountState = objectMapper.readValue(serializedState, AccountState.class);
