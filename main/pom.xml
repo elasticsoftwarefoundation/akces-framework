@@ -53,7 +53,7 @@
         <fast-uuid.version>0.2.0</fast-uuid.version>
         <victools.version>5.0.0</victools.version>
         <logback.version>1.5.32</logback.version>
-        <testcontainers.version>2.0.3</testcontainers.version>
+        <testcontainers.version>2.0.4</testcontainers.version>
         <compile-testing.version>0.23.0</compile-testing.version>
         <everit-json-schema.version>1.14.6</everit-json-schema.version>
     </properties>
