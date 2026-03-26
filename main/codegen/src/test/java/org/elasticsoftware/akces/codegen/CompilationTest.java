@@ -21,12 +21,10 @@ import org.elasticsoftware.akces.codegen.model.EventModelDefinition;
 import org.testng.annotations.Test;
 
 import javax.tools.*;
-import java.io.File;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 import static org.testng.Assert.*;
@@ -35,8 +33,13 @@ import static org.testng.Assert.*;
  * Tests that verify the generated Java source code actually compiles.
  * Uses the Java Compiler API ({@link javax.tools.JavaCompiler}) to compile
  * the generated files with the Akces API on the classpath.
+ * <p>
+ * Generated sources are written to {@code target/generated-test-sources/akces-codegen}
+ * which is managed by Maven (cleaned by {@code mvn clean}).
  */
 public class CompilationTest {
+
+    private static final Path GENERATED_SOURCES_DIR = Path.of("target", "generated-test-sources", "akces-codegen");
 
     private final AkcesCodeGenerator generator = new AkcesCodeGenerator();
 
@@ -59,45 +62,42 @@ public class CompilationTest {
         EventModelDefinition accountDef = loadDefinition("crypto-trading-account.json");
         EventModelDefinition walletDef = loadDefinition("crypto-trading-wallet.json");
 
-        Path outputDir = Files.createTempDirectory("akces-codegen-compile-test");
-        try {
-            generator.generateToDirectory(accountDef, outputDir);
-            generator.generateToDirectory(walletDef, outputDir);
+        Path outputDir = GENERATED_SOURCES_DIR;
+        Files.createDirectories(outputDir);
 
-            List<Path> sourceFiles = collectJavaFiles(outputDir);
-            assertFalse(sourceFiles.isEmpty(), "Should have generated Java source files");
+        generator.generateToDirectory(accountDef, outputDir);
+        generator.generateToDirectory(walletDef, outputDir);
 
-            compileAndAssert(sourceFiles, outputDir);
-        } finally {
-            deleteRecursively(outputDir);
-        }
+        List<Path> sourceFiles = collectJavaFiles(outputDir);
+        assertFalse(sourceFiles.isEmpty(), "Should have generated Java source files");
+
+        compileAndAssert(sourceFiles, outputDir);
     }
 
     /**
-     * Generates code from the definition, writes it to a temp directory,
+     * Generates code from the definition, writes it to
+     * {@code target/generated-test-sources/akces-codegen},
      * and compiles it using the Java Compiler API.
      */
     private void assertCompiles(EventModelDefinition definition, String aggregateName) throws Exception {
-        Path outputDir = Files.createTempDirectory("akces-codegen-compile-test");
-        try {
-            List<GeneratedFile> generated = generator.generateToDirectory(definition, outputDir);
-            assertFalse(generated.isEmpty(),
-                    "Should have generated files for " + aggregateName);
+        Path outputDir = GENERATED_SOURCES_DIR;
+        Files.createDirectories(outputDir);
 
-            // Verify all generated files exist on disk
-            for (GeneratedFile gf : generated) {
-                Path filePath = outputDir.resolve(gf.relativePath());
-                assertTrue(Files.exists(filePath),
-                        "Generated file should exist: " + gf.relativePath());
-            }
+        List<GeneratedFile> generated = generator.generateToDirectory(definition, outputDir);
+        assertFalse(generated.isEmpty(),
+                "Should have generated files for " + aggregateName);
 
-            List<Path> sourceFiles = collectJavaFiles(outputDir);
-            assertFalse(sourceFiles.isEmpty(), "Should have .java files on disk");
-
-            compileAndAssert(sourceFiles, outputDir);
-        } finally {
-            deleteRecursively(outputDir);
+        // Verify all generated files exist on disk
+        for (GeneratedFile gf : generated) {
+            Path filePath = outputDir.resolve(gf.relativePath());
+            assertTrue(Files.exists(filePath),
+                    "Generated file should exist: " + gf.relativePath());
         }
+
+        List<Path> sourceFiles = collectJavaFiles(outputDir);
+        assertFalse(sourceFiles.isEmpty(), "Should have .java files on disk");
+
+        compileAndAssert(sourceFiles, outputDir);
     }
 
     /**
@@ -164,15 +164,5 @@ public class CompilationTest {
         InputStream is = getClass().getClassLoader().getResourceAsStream(resourceName);
         assertNotNull(is, "Test resource not found: " + resourceName);
         return generator.parse(is);
-    }
-
-    private void deleteRecursively(Path dir) throws Exception {
-        if (Files.exists(dir)) {
-            try (var walk = Files.walk(dir)) {
-                walk.sorted(Comparator.reverseOrder())
-                        .map(Path::toFile)
-                        .forEach(File::delete);
-            }
-        }
     }
 }
