@@ -406,6 +406,35 @@ public class CryptoTradingCodeGenTest {
         assertTrue(content.contains("@NotNull String referenceId"));
     }
 
+    // --- File Output Test ---
+
+    @Test
+    public void testGenerateToDirectory() throws Exception {
+        EventModelDefinition definition = loadDefinition("crypto-trading-account.json");
+        java.nio.file.Path outputDir = java.nio.file.Files.createTempDirectory("akces-codegen-test");
+        try {
+            List<GeneratedFile> files = generator.generateToDirectory(definition, outputDir);
+            assertEquals(files.size(), 4);
+
+            // Verify files exist on disk
+            for (GeneratedFile file : files) {
+                java.nio.file.Path filePath = outputDir.resolve(file.relativePath());
+                assertTrue(java.nio.file.Files.exists(filePath),
+                        "File should exist: " + file.relativePath());
+                String diskContent = java.nio.file.Files.readString(filePath);
+                assertEquals(diskContent, file.content(),
+                        "Disk content should match generated content");
+            }
+        } finally {
+            // Clean up
+            try (var walk = java.nio.file.Files.walk(outputDir)) {
+                walk.sorted(java.util.Comparator.reverseOrder())
+                        .map(java.nio.file.Path::toFile)
+                        .forEach(java.io.File::delete);
+            }
+        }
+    }
+
     // --- Helper Methods ---
 
     private EventModelDefinition loadDefinition(String resourceName) {
