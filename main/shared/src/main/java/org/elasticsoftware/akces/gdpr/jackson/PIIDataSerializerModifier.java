@@ -17,22 +17,22 @@
 
 package org.elasticsoftware.akces.gdpr.jackson;
 
-import com.fasterxml.jackson.databind.BeanDescription;
-import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.SerializationConfig;
-import com.fasterxml.jackson.databind.ser.BeanPropertyWriter;
-import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
+import tools.jackson.databind.BeanDescription;
+import tools.jackson.databind.SerializationConfig;
+import tools.jackson.databind.ValueSerializer;
+import tools.jackson.databind.ser.BeanPropertyWriter;
+import tools.jackson.databind.ser.ValueSerializerModifier;
 import org.elasticsoftware.akces.annotations.PIIData;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class PIIDataSerializerModifier extends BeanSerializerModifier {
+public class PIIDataSerializerModifier extends ValueSerializerModifier {
     private final PIIDataJsonSerializer instance = new PIIDataJsonSerializer();
 
     @Override
     public List<BeanPropertyWriter> changeProperties(final SerializationConfig config,
-                                                     final BeanDescription beanDescription,
+                                                     final BeanDescription.Supplier beanDescription,
                                                      final List<BeanPropertyWriter> beanProperties) {
         List<BeanPropertyWriter> newWriters = new ArrayList<>();
 
@@ -47,7 +47,7 @@ public class PIIDataSerializerModifier extends BeanSerializerModifier {
     }
 
     static class PIIDataPropertyWriter extends BeanPropertyWriter {
-        PIIDataPropertyWriter(final BeanPropertyWriter base, final JsonSerializer<Object> serializer) {
+        PIIDataPropertyWriter(final BeanPropertyWriter base, final ValueSerializer<Object> serializer) {
             super(base);
             this._serializer = serializer;
         }

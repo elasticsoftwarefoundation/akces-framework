@@ -17,14 +17,13 @@
 
 package org.elasticsoftware.akces.serialization;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.jsonFormatVisitors.JsonFormatVisitorWrapper;
-import com.fasterxml.jackson.databind.ser.std.StdSerializer;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.jsonFormatVisitors.JsonFormatVisitorWrapper;
+import tools.jackson.databind.ser.std.StdSerializer;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 
 public final class BigDecimalSerializer extends StdSerializer<BigDecimal> {
@@ -34,13 +33,12 @@ public final class BigDecimalSerializer extends StdSerializer<BigDecimal> {
     }
 
     @Override
-    public void serialize(BigDecimal value, JsonGenerator gen, SerializerProvider provider) throws IOException {
+    public void serialize(BigDecimal value, JsonGenerator gen, SerializationContext provider) throws JacksonException {
         gen.writeString(value.toPlainString());
     }
 
     @Override
-    public void acceptJsonFormatVisitor(JsonFormatVisitorWrapper visitor, JavaType typeHint)
-            throws JsonMappingException {
+    public void acceptJsonFormatVisitor(JsonFormatVisitorWrapper visitor, JavaType typeHint) {
         visitor.expectStringFormat(typeHint);
     }
 }

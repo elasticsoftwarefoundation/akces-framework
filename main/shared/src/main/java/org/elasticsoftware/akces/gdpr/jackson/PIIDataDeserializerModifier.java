@@ -17,22 +17,22 @@
 
 package org.elasticsoftware.akces.gdpr.jackson;
 
-import com.fasterxml.jackson.databind.BeanDescription;
-import com.fasterxml.jackson.databind.DeserializationConfig;
-import com.fasterxml.jackson.databind.deser.BeanDeserializerBuilder;
-import com.fasterxml.jackson.databind.deser.BeanDeserializerModifier;
-import com.fasterxml.jackson.databind.deser.SettableBeanProperty;
-import com.fasterxml.jackson.databind.deser.std.StdValueInstantiator;
+import tools.jackson.databind.BeanDescription;
+import tools.jackson.databind.DeserializationConfig;
+import tools.jackson.databind.deser.BeanDeserializerBuilder;
+import tools.jackson.databind.deser.ValueDeserializerModifier;
+import tools.jackson.databind.deser.SettableBeanProperty;
+import tools.jackson.databind.deser.std.StdValueInstantiator;
 import org.elasticsoftware.akces.annotations.PIIData;
 
 import java.util.Iterator;
 
-public class PIIDataDeserializerModifier extends BeanDeserializerModifier {
+public class PIIDataDeserializerModifier extends ValueDeserializerModifier {
     private final PIIDataJsonDeserializer instance = new PIIDataJsonDeserializer();
 
     @Override
     public BeanDeserializerBuilder updateBuilder(DeserializationConfig config,
-                                                 BeanDescription beanDescription,
+                                                 BeanDescription.Supplier beanDescription,
                                                  BeanDeserializerBuilder builder) {
         Iterator<SettableBeanProperty> it = builder.getProperties();
 
