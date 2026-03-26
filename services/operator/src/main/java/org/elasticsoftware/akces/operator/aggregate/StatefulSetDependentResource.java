@@ -22,7 +22,7 @@ import io.fabric8.kubernetes.api.model.ObjectMeta;
 import io.fabric8.kubernetes.api.model.Quantity;
 import io.fabric8.kubernetes.api.model.apps.StatefulSet;
 import io.fabric8.kubernetes.api.model.apps.StatefulSetBuilder;
-import io.javaoperatorsdk.operator.ReconcilerUtils;
+import io.fabric8.kubernetes.client.utils.Serialization;
 import io.javaoperatorsdk.operator.api.config.informer.Informer;
 import io.javaoperatorsdk.operator.api.reconciler.Context;
 import io.javaoperatorsdk.operator.processing.dependent.kubernetes.CRUDKubernetesDependentResource;
@@ -39,7 +39,7 @@ public class StatefulSetDependentResource extends CRUDKubernetesDependentResourc
 
     @Override
     protected StatefulSet desired(Aggregate aggregate, Context<Aggregate> context) {
-        StatefulSet statefulSet = ReconcilerUtils.loadYaml(StatefulSet.class, getClass(), "statefulset.yaml");
+        StatefulSet statefulSet = Serialization.unmarshal(getClass().getResourceAsStream("statefulset.yaml"), StatefulSet.class);
         final ObjectMeta aggregateMetadata = aggregate.getMetadata();
         final String aggregateName = aggregateMetadata.getName();
 
