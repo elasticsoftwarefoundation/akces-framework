@@ -545,7 +545,8 @@ public final class AkcesCodeGenerator {
                 generatedCommandHandlers.add(cmd.title());
 
                 // Find events produced by this command (events in the same slice)
-                List<String> producesEvents = sliceData.successEvents().stream()
+                List<Element> successEvts = sliceData.successEvents();
+                List<String> producesEvents = successEvts.stream()
                         .map(e -> e.title() + "Event.class")
                         .toList();
                 List<String> errorEventNames = sliceData.errorEvents().stream()
@@ -555,7 +556,7 @@ public final class AkcesCodeGenerator {
                 boolean creates = cmd.createsAggregate() != null && cmd.createsAggregate();
                 sb.append("\n");
                 sb.append(generateCommandHandler(
-                        aggregateName, stateClassName, cmd, creates, producesEvents, errorEventNames));
+                        aggregateName, stateClassName, cmd, creates, producesEvents, errorEventNames, successEvts));
             }
 
             // Generate event sourcing handlers for success events
@@ -583,7 +584,8 @@ public final class AkcesCodeGenerator {
             Element command,
             boolean creates,
             List<String> producesEvents,
-            List<String> errorEvents) {
+            List<String> errorEvents,
+            List<Element> successEventElements) {
 
         StringBuilder sb = new StringBuilder();
         String cmdClassName = command.title() + "Command";
@@ -614,12 +616,13 @@ public final class AkcesCodeGenerator {
         }
         sb.append(") {\n");
 
-        // Method body - generate event construction from command fields
-        if (producesEvents.size() == 1) {
+        // Method body - generate event construction
+        if (producesEvents.size() == 1 && successEventElements.size() == 1) {
+            Element event = successEventElements.getFirst();
             String eventClassName = producesEvents.getFirst().replace(".class", "");
             sb.append("        // TODO: Implement command handler logic\n");
             sb.append("        return Stream.of(new ").append(eventClassName).append("(");
-            sb.append(generateEventConstructorArgs(command));
+            sb.append(generateEventConstructorArgsFromCommand(command, event));
             sb.append("));\n");
         } else {
             sb.append("        // TODO: Implement command handler logic\n");
@@ -683,10 +686,45 @@ public final class AkcesCodeGenerator {
 
     // --- Helper methods ---
 
-    private String generateEventConstructorArgs(Element command) {
-        return command.fields().stream()
-                .map(f -> "cmd." + f.name() + "()")
+    /**
+     * Generates event constructor arguments by mapping event fields from command fields.
+     * Fields present in both command and event are mapped as {@code cmd.fieldName()}.
+     * Fields in the event but not in the command get a typed default value placeholder.
+     */
+    private String generateEventConstructorArgsFromCommand(Element command, Element event) {
+        Set<String> commandFieldNames = command.fields().stream()
+                .map(Field::name)
+                .collect(Collectors.toSet());
+
+        return event.fields().stream()
+                .map(eventField -> {
+                    if (commandFieldNames.contains(eventField.name())) {
+                        return "cmd." + eventField.name() + "()";
+                    } else {
+                        // Generate a typed default for fields not available from the command
+                        return getDefaultValue(eventField);
+                    }
+                })
                 .collect(Collectors.joining(", "));
+    }
+
+    /**
+     * Returns a sensible default value expression for a field type to use in scaffolding code.
+     */
+    private String getDefaultValue(Field field) {
+        String type = field.type();
+        if (type == null) {
+            return "null /* TODO: " + field.name() + " */";
+        }
+        return switch (type) {
+            case "String", "UUID" -> "null /* TODO: " + field.name() + " */";
+            case "Boolean" -> "false /* TODO: " + field.name() + " */";
+            case "Double" -> "0.0 /* TODO: " + field.name() + " */";
+            case "Decimal" -> "java.math.BigDecimal.ZERO /* TODO: " + field.name() + " */";
+            case "Long" -> "0L /* TODO: " + field.name() + " */";
+            case "Int" -> "0 /* TODO: " + field.name() + " */";
+            default -> "null /* TODO: " + field.name() + " */";
+        };
     }
 
     private String generateStateConstructorArgsFromEvent(AggregateConfig config, Element event) {
