@@ -266,11 +266,15 @@ public final class AkcesCodeGenerator {
 
         boolean hasRequired = command.fields().stream().anyMatch(f -> !f.isOptional());
         boolean hasOptional = command.fields().stream().anyMatch(Field::isOptional);
+        boolean hasPii = command.fields().stream().anyMatch(Field::isPiiData);
         if (hasRequired) {
             imports.add("jakarta.validation.constraints.NotNull");
         }
         if (hasOptional) {
             imports.add("jakarta.annotation.Nullable");
+        }
+        if (hasPii) {
+            imports.add("org.elasticsoftware.akces.annotations.PIIData");
         }
 
         collectFieldTypeImports(command.fields(), imports);
@@ -341,11 +345,15 @@ public final class AkcesCodeGenerator {
 
         boolean hasRequired = event.fields().stream().anyMatch(f -> !f.isOptional());
         boolean hasOptional = event.fields().stream().anyMatch(Field::isOptional);
+        boolean hasPii = event.fields().stream().anyMatch(Field::isPiiData);
         if (hasRequired) {
             imports.add("jakarta.validation.constraints.NotNull");
         }
         if (hasOptional) {
             imports.add("jakarta.annotation.Nullable");
+        }
+        if (hasPii) {
+            imports.add("org.elasticsoftware.akces.annotations.PIIData");
         }
 
         collectFieldTypeImports(event.fields(), imports);
@@ -755,6 +763,9 @@ public final class AkcesCodeGenerator {
     private void appendFieldAnnotations(StringBuilder sb, Field field) {
         if (field.isIdAttribute()) {
             sb.append("@AggregateIdentifier ");
+        }
+        if (field.isPiiData()) {
+            sb.append("@PIIData ");
         }
         if (field.isOptional()) {
             sb.append("@Nullable ");

@@ -32,9 +32,9 @@
           "fields": [
             { "name": "userId", "type": "String", "idAttribute": true },
             { "name": "country", "type": "String" },
-            { "name": "firstName", "type": "String" },
-            { "name": "lastName", "type": "String" },
-            { "name": "email", "type": "String" }
+            { "name": "firstName", "type": "String", "piiData": true },
+            { "name": "lastName", "type": "String", "piiData": true },
+            { "name": "email", "type": "String", "piiData": true }
           ],
           "dependencies": []
         }
@@ -50,9 +50,9 @@
           "fields": [
             { "name": "userId", "type": "String", "idAttribute": true },
             { "name": "country", "type": "String" },
-            { "name": "firstName", "type": "String" },
-            { "name": "lastName", "type": "String" },
-            { "name": "email", "type": "String" }
+            { "name": "firstName", "type": "String", "piiData": true },
+            { "name": "lastName", "type": "String", "piiData": true },
+            { "name": "email", "type": "String", "piiData": true }
           ],
           "dependencies": []
         }

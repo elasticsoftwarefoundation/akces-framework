@@ -347,6 +347,10 @@
         },
         "mapping": { "type": "string" },
         "optional": { "type": "boolean" },
+        "piiData": {
+          "type": "boolean",
+          "description": "Whether this field contains PII data requiring GDPR protection"
+        },
         "technicalAttribute": { "type": "boolean" },
         "generated": { "type": "boolean" },
         "idAttribute": { "type": "boolean" },

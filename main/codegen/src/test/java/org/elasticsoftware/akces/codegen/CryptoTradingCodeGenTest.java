@@ -96,12 +96,12 @@ public class CryptoTradingCodeGenTest {
                 "Should have userId field");
         assertTrue(content.contains("@NotNull String country"),
                 "Should have country field");
-        assertTrue(content.contains("@NotNull String firstName"),
-                "Should have firstName field");
-        assertTrue(content.contains("@NotNull String lastName"),
-                "Should have lastName field");
-        assertTrue(content.contains("@NotNull String email"),
-                "Should have email field");
+        assertTrue(content.contains("@PIIData @NotNull String firstName"),
+                "Should have PIIData annotation on firstName field");
+        assertTrue(content.contains("@PIIData @NotNull String lastName"),
+                "Should have PIIData annotation on lastName field");
+        assertTrue(content.contains("@PIIData @NotNull String email"),
+                "Should have PIIData annotation on email field");
         assertTrue(content.contains("return userId()"),
                 "Should return userId as aggregate ID");
     }
@@ -127,6 +127,12 @@ public class CryptoTradingCodeGenTest {
                 "Should have AggregateIdentifier on id field");
         assertTrue(content.contains("@NotNull String userId"),
                 "Should have userId field");
+        assertTrue(content.contains("@PIIData @NotNull String firstName"),
+                "Should have PIIData annotation on firstName field");
+        assertTrue(content.contains("@PIIData @NotNull String lastName"),
+                "Should have PIIData annotation on lastName field");
+        assertTrue(content.contains("@PIIData @NotNull String email"),
+                "Should have PIIData annotation on email field");
         assertTrue(content.contains("return userId()"),
                 "Should return userId as aggregate ID");
     }

@@ -28,6 +28,7 @@ import java.util.List;
  * @param type               the field type (String, Boolean, Decimal, Long, Int, etc.)
  * @param optional           whether the field is optional (nullable)
  * @param idAttribute        whether this field is the aggregate identifier
+ * @param piiData            whether this field contains PII data requiring GDPR protection
  * @param cardinality        Single or List
  * @param subfields          nested fields for Custom types
  * @param technicalAttribute whether this is a technical attribute (not business relevant)
@@ -39,6 +40,7 @@ public record Field(
         String type,
         Boolean optional,
         Boolean idAttribute,
+        Boolean piiData,
         String cardinality,
         List<Field> subfields,
         Boolean technicalAttribute,
@@ -55,6 +57,13 @@ public record Field(
      */
     public boolean isIdAttribute() {
         return idAttribute != null && idAttribute;
+    }
+
+    /**
+     * Returns true if this field contains PII data requiring GDPR protection.
+     */
+    public boolean isPiiData() {
+        return piiData != null && piiData;
     }
 
     /**
