@@ -67,8 +67,15 @@ public final class AkcesCodeGenerator {
             """;
 
     private final JsonMapper jsonMapper;
+    private final String basePackage;
 
-    public AkcesCodeGenerator() {
+    /**
+     * Creates a new code generator with the given base package.
+     *
+     * @param basePackage the base Java package for generated code (e.g., "com.example.aggregates")
+     */
+    public AkcesCodeGenerator(String basePackage) {
+        this.basePackage = Objects.requireNonNull(basePackage, "basePackage must not be null");
         this.jsonMapper = JsonMapper.builder()
                 .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
                 .build();
@@ -110,7 +117,7 @@ public final class AkcesCodeGenerator {
                     : null;
 
             files.addAll(generateAggregate(
-                    definition.packageName(),
+                    basePackage,
                     aggregateName,
                     config,
                     slices));
@@ -303,7 +310,7 @@ public final class AkcesCodeGenerator {
         sb.append("    }\n");
         sb.append("}\n");
 
-        String relativePath = aggregateLower + "/commands/" + className + ".java";
+        String relativePath = commandsPackage.replace('.', '/') + "/" + className + ".java";
         return new GeneratedFile(relativePath, sb.toString());
     }
 
@@ -378,7 +385,7 @@ public final class AkcesCodeGenerator {
         sb.append("    }\n");
         sb.append("}\n");
 
-        String relativePath = aggregateLower + "/events/" + className + ".java";
+        String relativePath = eventsPackage.replace('.', '/') + "/" + className + ".java";
         return new GeneratedFile(relativePath, sb.toString());
     }
 
@@ -453,7 +460,7 @@ public final class AkcesCodeGenerator {
         sb.append("    }\n");
         sb.append("}\n");
 
-        String relativePath = aggregateLower + "/" + className + ".java";
+        String relativePath = aggregatePackage.replace('.', '/') + "/" + className + ".java";
         return new GeneratedFile(relativePath, sb.toString());
     }
 
@@ -574,7 +581,7 @@ public final class AkcesCodeGenerator {
 
         sb.append("}\n");
 
-        String relativePath = aggregateLower + "/" + aggregateName + ".java";
+        String relativePath = aggregatePackage.replace('.', '/') + "/" + aggregateName + ".java";
         return new GeneratedFile(relativePath, sb.toString());
     }
 

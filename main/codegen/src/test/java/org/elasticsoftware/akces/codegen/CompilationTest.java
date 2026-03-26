@@ -42,7 +42,7 @@ public class CompilationTest {
     private static final Path GENERATED_SOURCES_DIR = Path.of("target", "generated-test-sources", "akces-codegen");
     private static final Path TEST_CLASSES_DIR = Path.of("target", "test-classes");
 
-    private final AkcesCodeGenerator generator = new AkcesCodeGenerator();
+    private final AkcesCodeGenerator generator = new AkcesCodeGenerator("com.example.aggregates");
 
     @Test
     public void testAccountGeneratedCodeCompiles() throws Exception {

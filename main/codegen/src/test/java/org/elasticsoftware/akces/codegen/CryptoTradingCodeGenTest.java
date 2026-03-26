@@ -34,7 +34,7 @@ import static org.testng.Assert.*;
  */
 public class CryptoTradingCodeGenTest {
 
-    private final AkcesCodeGenerator generator = new AkcesCodeGenerator();
+    private final AkcesCodeGenerator generator = new AkcesCodeGenerator("com.example.aggregates");
 
     // --- Account Aggregate Tests ---
 
@@ -61,13 +61,13 @@ public class CryptoTradingCodeGenTest {
                 .collect(Collectors.toMap(GeneratedFile::relativePath, f -> f));
 
         // Verify expected files are generated
-        assertTrue(fileMap.containsKey("account/commands/CreateAccountCommand.java"),
+        assertTrue(fileMap.containsKey("com/example/aggregates/account/commands/CreateAccountCommand.java"),
                 "Should generate CreateAccountCommand.java");
-        assertTrue(fileMap.containsKey("account/events/AccountCreatedEvent.java"),
+        assertTrue(fileMap.containsKey("com/example/aggregates/account/events/AccountCreatedEvent.java"),
                 "Should generate AccountCreatedEvent.java");
-        assertTrue(fileMap.containsKey("account/AccountState.java"),
+        assertTrue(fileMap.containsKey("com/example/aggregates/account/AccountState.java"),
                 "Should generate AccountState.java");
-        assertTrue(fileMap.containsKey("account/Account.java"),
+        assertTrue(fileMap.containsKey("com/example/aggregates/account/Account.java"),
                 "Should generate Account.java");
 
         assertEquals(files.size(), 4, "Should generate exactly 4 files for Account aggregate");
@@ -78,7 +78,7 @@ public class CryptoTradingCodeGenTest {
         EventModelDefinition definition = loadDefinition("crypto-trading-account.json");
         List<GeneratedFile> files = generator.generate(definition);
 
-        GeneratedFile commandFile = findFile(files, "account/commands/CreateAccountCommand.java");
+        GeneratedFile commandFile = findFile(files, "com/example/aggregates/account/commands/CreateAccountCommand.java");
         assertNotNull(commandFile);
 
         String content = commandFile.content();
@@ -111,7 +111,7 @@ public class CryptoTradingCodeGenTest {
         EventModelDefinition definition = loadDefinition("crypto-trading-account.json");
         List<GeneratedFile> files = generator.generate(definition);
 
-        GeneratedFile eventFile = findFile(files, "account/events/AccountCreatedEvent.java");
+        GeneratedFile eventFile = findFile(files, "com/example/aggregates/account/events/AccountCreatedEvent.java");
         assertNotNull(eventFile);
 
         String content = eventFile.content();
@@ -136,7 +136,7 @@ public class CryptoTradingCodeGenTest {
         EventModelDefinition definition = loadDefinition("crypto-trading-account.json");
         List<GeneratedFile> files = generator.generate(definition);
 
-        GeneratedFile stateFile = findFile(files, "account/AccountState.java");
+        GeneratedFile stateFile = findFile(files, "com/example/aggregates/account/AccountState.java");
         assertNotNull(stateFile);
 
         String content = stateFile.content();
@@ -167,7 +167,7 @@ public class CryptoTradingCodeGenTest {
         EventModelDefinition definition = loadDefinition("crypto-trading-account.json");
         List<GeneratedFile> files = generator.generate(definition);
 
-        GeneratedFile aggregateFile = findFile(files, "account/Account.java");
+        GeneratedFile aggregateFile = findFile(files, "com/example/aggregates/account/Account.java");
         assertNotNull(aggregateFile);
 
         String content = aggregateFile.content();
@@ -223,31 +223,31 @@ public class CryptoTradingCodeGenTest {
                 .collect(Collectors.toMap(GeneratedFile::relativePath, f -> f));
 
         // Commands (6)
-        assertTrue(fileMap.containsKey("wallet/commands/CreateWalletCommand.java"));
-        assertTrue(fileMap.containsKey("wallet/commands/CreateBalanceCommand.java"));
-        assertTrue(fileMap.containsKey("wallet/commands/CreditWalletCommand.java"));
-        assertTrue(fileMap.containsKey("wallet/commands/DebitWalletCommand.java"));
-        assertTrue(fileMap.containsKey("wallet/commands/ReserveAmountCommand.java"));
-        assertTrue(fileMap.containsKey("wallet/commands/CancelReservationCommand.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/commands/CreateWalletCommand.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/commands/CreateBalanceCommand.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/commands/CreditWalletCommand.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/commands/DebitWalletCommand.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/commands/ReserveAmountCommand.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/commands/CancelReservationCommand.java"));
 
         // Success Events (6)
-        assertTrue(fileMap.containsKey("wallet/events/WalletCreatedEvent.java"));
-        assertTrue(fileMap.containsKey("wallet/events/BalanceCreatedEvent.java"));
-        assertTrue(fileMap.containsKey("wallet/events/WalletCreditedEvent.java"));
-        assertTrue(fileMap.containsKey("wallet/events/WalletDebitedEvent.java"));
-        assertTrue(fileMap.containsKey("wallet/events/AmountReservedEvent.java"));
-        assertTrue(fileMap.containsKey("wallet/events/ReservationCancelledEvent.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/events/WalletCreatedEvent.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/events/BalanceCreatedEvent.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/events/WalletCreditedEvent.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/events/WalletDebitedEvent.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/events/AmountReservedEvent.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/events/ReservationCancelledEvent.java"));
 
         // Error Events (5)
-        assertTrue(fileMap.containsKey("wallet/events/BalanceAlreadyExistsErrorEvent.java"));
-        assertTrue(fileMap.containsKey("wallet/events/InvalidCryptoCurrencyErrorEvent.java"));
-        assertTrue(fileMap.containsKey("wallet/events/InvalidAmountErrorEvent.java"));
-        assertTrue(fileMap.containsKey("wallet/events/InsufficientFundsErrorEvent.java"));
-        assertTrue(fileMap.containsKey("wallet/events/ReservationNotFoundErrorEvent.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/events/BalanceAlreadyExistsErrorEvent.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/events/InvalidCryptoCurrencyErrorEvent.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/events/InvalidAmountErrorEvent.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/events/InsufficientFundsErrorEvent.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/events/ReservationNotFoundErrorEvent.java"));
 
         // State + Aggregate class
-        assertTrue(fileMap.containsKey("wallet/WalletState.java"));
-        assertTrue(fileMap.containsKey("wallet/Wallet.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/WalletState.java"));
+        assertTrue(fileMap.containsKey("com/example/aggregates/wallet/Wallet.java"));
     }
 
     @Test
@@ -255,7 +255,7 @@ public class CryptoTradingCodeGenTest {
         EventModelDefinition definition = loadDefinition("crypto-trading-wallet.json");
         List<GeneratedFile> files = generator.generate(definition);
 
-        GeneratedFile file = findFile(files, "wallet/commands/CreateWalletCommand.java");
+        GeneratedFile file = findFile(files, "com/example/aggregates/wallet/commands/CreateWalletCommand.java");
         assertNotNull(file);
 
         String content = file.content();
@@ -272,7 +272,7 @@ public class CryptoTradingCodeGenTest {
         EventModelDefinition definition = loadDefinition("crypto-trading-wallet.json");
         List<GeneratedFile> files = generator.generate(definition);
 
-        GeneratedFile file = findFile(files, "wallet/commands/CreditWalletCommand.java");
+        GeneratedFile file = findFile(files, "com/example/aggregates/wallet/commands/CreditWalletCommand.java");
         assertNotNull(file);
 
         String content = file.content();
@@ -286,7 +286,7 @@ public class CryptoTradingCodeGenTest {
         EventModelDefinition definition = loadDefinition("crypto-trading-wallet.json");
         List<GeneratedFile> files = generator.generate(definition);
 
-        GeneratedFile file = findFile(files, "wallet/events/WalletCreditedEvent.java");
+        GeneratedFile file = findFile(files, "com/example/aggregates/wallet/events/WalletCreditedEvent.java");
         assertNotNull(file);
 
         String content = file.content();
@@ -302,7 +302,7 @@ public class CryptoTradingCodeGenTest {
         EventModelDefinition definition = loadDefinition("crypto-trading-wallet.json");
         List<GeneratedFile> files = generator.generate(definition);
 
-        GeneratedFile file = findFile(files, "wallet/events/InsufficientFundsErrorEvent.java");
+        GeneratedFile file = findFile(files, "com/example/aggregates/wallet/events/InsufficientFundsErrorEvent.java");
         assertNotNull(file);
 
         String content = file.content();
@@ -321,7 +321,7 @@ public class CryptoTradingCodeGenTest {
         EventModelDefinition definition = loadDefinition("crypto-trading-wallet.json");
         List<GeneratedFile> files = generator.generate(definition);
 
-        GeneratedFile file = findFile(files, "wallet/Wallet.java");
+        GeneratedFile file = findFile(files, "com/example/aggregates/wallet/Wallet.java");
         assertNotNull(file);
 
         String content = file.content();
@@ -359,7 +359,7 @@ public class CryptoTradingCodeGenTest {
         EventModelDefinition definition = loadDefinition("crypto-trading-wallet.json");
         List<GeneratedFile> files = generator.generate(definition);
 
-        GeneratedFile file = findFile(files, "wallet/WalletState.java");
+        GeneratedFile file = findFile(files, "com/example/aggregates/wallet/WalletState.java");
         assertNotNull(file);
 
         String content = file.content();
@@ -375,7 +375,7 @@ public class CryptoTradingCodeGenTest {
         EventModelDefinition definition = loadDefinition("crypto-trading-wallet.json");
         List<GeneratedFile> files = generator.generate(definition);
 
-        GeneratedFile file = findFile(files, "wallet/commands/ReserveAmountCommand.java");
+        GeneratedFile file = findFile(files, "com/example/aggregates/wallet/commands/ReserveAmountCommand.java");
         assertNotNull(file);
 
         String content = file.content();
@@ -394,7 +394,7 @@ public class CryptoTradingCodeGenTest {
         EventModelDefinition definition = loadDefinition("crypto-trading-wallet.json");
         List<GeneratedFile> files = generator.generate(definition);
 
-        GeneratedFile file = findFile(files, "wallet/events/AmountReservedEvent.java");
+        GeneratedFile file = findFile(files, "com/example/aggregates/wallet/events/AmountReservedEvent.java");
         assertNotNull(file);
 
         String content = file.content();
