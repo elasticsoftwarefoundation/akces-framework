@@ -615,6 +615,7 @@ public final class AkcesCodeGenerator {
             sb.append("@NotNull ").append(stateClassName).append(" currentState");
         }
         sb.append(") {\n");
+        sb.append("        // Command handler for aggregate: ").append(aggregateName).append("\n");
 
         // Method body - generate event construction
         if (producesEvents.size() == 1 && successEventElements.size() == 1) {
