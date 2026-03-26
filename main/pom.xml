@@ -398,6 +398,7 @@
         <module>shared</module>
         <module>query-support</module>
         <module>eventcatalog</module>
+        <module>codegen</module>
     </modules>
 
     <build>
