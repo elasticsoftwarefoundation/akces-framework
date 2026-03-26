@@ -75,7 +75,7 @@
         <!-- this is needed for surefire, needs to be kept in sync with the mockito-core version in spring-boot-dependencies -->
         <mockito.version>5.20.0</mockito.version>
         <spring.version>7.0.6</spring.version>
-        <spring-boot.version>4.0.3</spring-boot.version>
+        <spring-boot.version>4.0.4</spring-boot.version>
         <guava.version>33.5.0-jre</guava.version>
         <caffeine.version>3.2.3</caffeine.version>
     </properties>
