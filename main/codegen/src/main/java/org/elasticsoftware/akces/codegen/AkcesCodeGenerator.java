@@ -435,7 +435,7 @@ public final class AkcesCodeGenerator {
             StateField field = fields.get(i);
             sb.append("        ");
             appendStateFieldAnnotations(sb, field);
-            sb.append(mapStateFieldType(field)).append(" ").append(field.name());
+            sb.append(mapType(field.type())).append(" ").append(field.name());
             if (i < fields.size() - 1) {
                 sb.append(",\n");
             } else {
@@ -752,7 +752,7 @@ public final class AkcesCodeGenerator {
 
     private void collectStateFieldTypeImports(List<StateField> fields, Set<String> imports) {
         for (StateField field : fields) {
-            String javaType = mapStateFieldType(field);
+            String javaType = mapType(field.type());
             if (javaType.equals("BigDecimal")) {
                 imports.add("java.math.BigDecimal");
             } else if (javaType.equals("LocalDate")) {
@@ -764,7 +764,7 @@ public final class AkcesCodeGenerator {
     }
 
     /**
-     * Maps an event-modeling field type to a Java type.
+     * Maps an event-modeling field type to a Java type, handling list cardinality.
      */
     static String mapFieldType(Field field) {
         String baseType = mapType(field.type());
@@ -775,14 +775,12 @@ public final class AkcesCodeGenerator {
     }
 
     /**
-     * Maps an event-modeling state field type to a Java type.
+     * Maps an event-modeling type name to a Java type.
      */
-    static String mapStateFieldType(StateField field) {
-        return mapType(field.type());
-    }
-
-    private static String mapType(String type) {
-        if (type == null) return "Object";
+    static String mapType(String type) {
+        if (type == null) {
+            throw new IllegalArgumentException("Field type must not be null");
+        }
         return switch (type) {
             case "String", "UUID" -> "String";
             case "Boolean" -> "Boolean";
@@ -792,7 +790,8 @@ public final class AkcesCodeGenerator {
             case "Int" -> "Integer";
             case "Date" -> "LocalDate";
             case "DateTime" -> "LocalDateTime";
-            default -> "Object";
+            case "Custom" -> "Object";
+            default -> throw new IllegalArgumentException("Unknown field type: " + type);
         };
     }
 
