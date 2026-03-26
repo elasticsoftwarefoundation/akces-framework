@@ -40,6 +40,7 @@ import static org.testng.Assert.*;
 public class CompilationTest {
 
     private static final Path GENERATED_SOURCES_DIR = Path.of("target", "generated-test-sources", "akces-codegen");
+    private static final Path TEST_CLASSES_DIR = Path.of("target", "test-classes");
 
     private final AkcesCodeGenerator generator = new AkcesCodeGenerator();
 
@@ -102,6 +103,7 @@ public class CompilationTest {
 
     /**
      * Compiles the given Java source files and asserts that compilation succeeds.
+     * Compiled classes are written to {@code target/test-classes}.
      */
     private void compileAndAssert(List<Path> sourceFiles, Path outputDir) throws Exception {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
@@ -112,13 +114,12 @@ public class CompilationTest {
             // Set the classpath to include the test classpath (which has akces-api and its transitive deps)
             String classpath = System.getProperty("java.class.path");
 
-            // Create output directory for compiled classes
-            Path classOutputDir = outputDir.resolve("classes");
-            Files.createDirectories(classOutputDir);
+            // Compile into the Maven test-classes directory
+            Files.createDirectories(TEST_CLASSES_DIR);
 
             List<String> options = List.of(
                     "-classpath", classpath,
-                    "-d", classOutputDir.toString()
+                    "-d", TEST_CLASSES_DIR.toString()
             );
 
             Iterable<? extends JavaFileObject> compilationUnits = fileManager.getJavaFileObjectsFromPaths(sourceFiles);
