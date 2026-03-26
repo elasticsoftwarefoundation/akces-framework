@@ -87,7 +87,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     private final ConsumerFactory<String, AkcesControlRecord> controlRecordConsumerFactory;
     private final ProducerFactory<String, SchemaRecord> schemaProducerFactory;
     private final ConsumerFactory<String, SchemaRecord> schemaConsumerFactory;
-    private final tools.jackson.databind.ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper;
     private final AggregateRuntime aggregateRuntime;
     private final KafkaAdminOperations kafkaAdmin;
     private final Map<Integer, AggregatePartition> aggregatePartitions = new HashMap<>();
