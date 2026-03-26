@@ -34,12 +34,12 @@ import static org.testng.Assert.*;
  * Uses the Java Compiler API ({@link javax.tools.JavaCompiler}) to compile
  * the generated files with the Akces API on the classpath.
  * <p>
- * Generated sources are written to {@code target/generated-test-sources/akces-codegen}
+ * Generated sources are written to {@code target/generated-test-sources}
  * which is managed by Maven (cleaned by {@code mvn clean}).
  */
 public class CompilationTest {
 
-    private static final Path GENERATED_SOURCES_DIR = Path.of("target", "generated-test-sources", "akces-codegen");
+    private static final Path GENERATED_SOURCES_DIR = Path.of("target", "generated-test-sources");
     private static final Path TEST_CLASSES_DIR = Path.of("target", "test-classes");
 
     private final AkcesCodeGenerator generator = new AkcesCodeGenerator("com.example.aggregates");
@@ -77,7 +77,7 @@ public class CompilationTest {
 
     /**
      * Generates code from the definition, writes it to
-     * {@code target/generated-test-sources/akces-codegen},
+     * {@code target/generated-test-sources},
      * and compiles it using the Java Compiler API.
      */
     private void assertCompiles(EventModelDefinition definition, String aggregateName) throws Exception {
