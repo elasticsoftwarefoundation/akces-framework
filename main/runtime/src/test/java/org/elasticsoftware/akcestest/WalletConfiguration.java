@@ -28,7 +28,8 @@ import org.elasticsoftware.akces.schemas.storage.SchemaStorage;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.jackson2.autoconfigure.Jackson2ObjectMapperBuilderCustomizer;
+import org.springframework.boot.jackson.autoconfigure.JsonMapperBuilderCustomizer;
+import tools.jackson.databind.module.SimpleModule;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 
@@ -49,10 +50,12 @@ public class WalletConfiguration {
     }
 
     @Bean(name = "aggregateServiceJsonCustomizer")
-    public Jackson2ObjectMapperBuilderCustomizer jsonCustomizer() {
+    public JsonMapperBuilderCustomizer jsonCustomizer() {
         return builder -> {
-            builder.modulesToInstall(new AkcesGDPRModule());
-            builder.serializerByType(BigDecimal.class, new BigDecimalSerializer());
+            SimpleModule module = new SimpleModule();
+            module.addSerializer(BigDecimal.class, new BigDecimalSerializer());
+            builder.addModule(new AkcesGDPRModule());
+            builder.addModule(module);
         };
     }
 

@@ -17,12 +17,12 @@
 
 package org.elasticsoftware.akces.serialization;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.module.SimpleModule;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.module.SimpleModule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -34,14 +34,13 @@ public class BigDecimalSerializerTests {
 
     @BeforeEach
     public void setUp() {
-        objectMapper = new ObjectMapper();
-        SimpleModule module = new SimpleModule();
-        module.addSerializer(BigDecimal.class, new BigDecimalSerializer());
-        objectMapper.registerModule(module);
+        objectMapper = JsonMapper.builder()
+                .addModule(new SimpleModule().addSerializer(BigDecimal.class, new BigDecimalSerializer()))
+                .build();
     }
 
     @Test
-    public void testSerializeSimpleBigDecimal() throws IOException {
+    public void testSerializeSimpleBigDecimal() {
         BigDecimal value = new BigDecimal("123.45");
         String json = objectMapper.writeValueAsString(value);
         
@@ -49,7 +48,7 @@ public class BigDecimalSerializerTests {
     }
 
     @Test
-    public void testSerializeBigDecimalWithTrailingZeros() throws IOException {
+    public void testSerializeBigDecimalWithTrailingZeros() {
         BigDecimal value = new BigDecimal("100.00");
         String json = objectMapper.writeValueAsString(value);
         
@@ -58,7 +57,7 @@ public class BigDecimalSerializerTests {
     }
 
     @Test
-    public void testSerializeBigDecimalWithScientificNotation() throws IOException {
+    public void testSerializeBigDecimalWithScientificNotation() {
         BigDecimal value = new BigDecimal("1E+10");
         String json = objectMapper.writeValueAsString(value);
         
@@ -67,7 +66,7 @@ public class BigDecimalSerializerTests {
     }
 
     @Test
-    public void testSerializeZero() throws IOException {
+    public void testSerializeZero() {
         BigDecimal value = BigDecimal.ZERO;
         String json = objectMapper.writeValueAsString(value);
         
@@ -75,7 +74,7 @@ public class BigDecimalSerializerTests {
     }
 
     @Test
-    public void testSerializeNegativeValue() throws IOException {
+    public void testSerializeNegativeValue() {
         BigDecimal value = new BigDecimal("-999.99");
         String json = objectMapper.writeValueAsString(value);
         
@@ -83,7 +82,7 @@ public class BigDecimalSerializerTests {
     }
 
     @Test
-    public void testSerializeVeryLargeNumber() throws IOException {
+    public void testSerializeVeryLargeNumber() {
         BigDecimal value = new BigDecimal("999999999999999999.99");
         String json = objectMapper.writeValueAsString(value);
         
@@ -91,7 +90,7 @@ public class BigDecimalSerializerTests {
     }
 
     @Test
-    public void testSerializeVerySmallNumber() throws IOException {
+    public void testSerializeVerySmallNumber() {
         BigDecimal value = new BigDecimal("0.000000000001");
         String json = objectMapper.writeValueAsString(value);
         
@@ -99,7 +98,7 @@ public class BigDecimalSerializerTests {
     }
 
     @Test
-    public void testSerializeInObjectContext() throws IOException {
+    public void testSerializeInObjectContext() {
         TestObject obj = new TestObject(new BigDecimal("42.50"));
         String json = objectMapper.writeValueAsString(obj);
         

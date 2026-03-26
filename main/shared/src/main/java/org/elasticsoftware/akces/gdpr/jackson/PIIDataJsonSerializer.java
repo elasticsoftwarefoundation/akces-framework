@@ -17,20 +17,18 @@
 
 package org.elasticsoftware.akces.gdpr.jackson;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.jsonFormatVisitors.JsonFormatVisitorWrapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ValueSerializer;
+import tools.jackson.databind.jsonFormatVisitors.JsonFormatVisitorWrapper;
 import org.elasticsoftware.akces.gdpr.GDPRContext;
 import org.elasticsoftware.akces.gdpr.GDPRContextHolder;
 
-import java.io.IOException;
-
-public class PIIDataJsonSerializer extends JsonSerializer<Object> {
+public class PIIDataJsonSerializer extends ValueSerializer<Object> {
     @Override
-    public void serialize(Object value, JsonGenerator gen, SerializerProvider provider) throws IOException {
+    public void serialize(Object value, JsonGenerator gen, SerializationContext provider) throws JacksonException {
         GDPRContext gdprContext = GDPRContextHolder.getCurrentGDPRContext();
         if (gdprContext != null) {
             gen.writeString(gdprContext.encrypt((String) value));
@@ -40,7 +38,7 @@ public class PIIDataJsonSerializer extends JsonSerializer<Object> {
     }
 
     @Override
-    public void acceptJsonFormatVisitor(JsonFormatVisitorWrapper visitor, JavaType typeHint) throws JsonMappingException {
+    public void acceptJsonFormatVisitor(JsonFormatVisitorWrapper visitor, JavaType typeHint) {
         visitor.expectStringFormat(typeHint);
     }
 }

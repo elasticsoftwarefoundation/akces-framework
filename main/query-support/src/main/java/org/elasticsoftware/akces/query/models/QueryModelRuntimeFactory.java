@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.query.models;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.annotations.QueryModelInfo;
 import org.elasticsoftware.akces.query.QueryModel;
