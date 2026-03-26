@@ -20,7 +20,7 @@ package org.elasticsoftware.akces.operator.aggregate;
 import io.fabric8.kubernetes.api.model.ObjectMeta;
 import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.kubernetes.api.model.ServiceBuilder;
-import io.javaoperatorsdk.operator.ReconcilerUtils;
+import io.fabric8.kubernetes.client.utils.Serialization;
 import io.javaoperatorsdk.operator.api.config.informer.Informer;
 import io.javaoperatorsdk.operator.api.reconciler.Context;
 import io.javaoperatorsdk.operator.processing.dependent.kubernetes.CRUDKubernetesDependentResource;
@@ -38,7 +38,7 @@ public class ServiceDependentResource extends CRUDKubernetesDependentResource<Se
     protected Service desired(Aggregate aggregate, Context<Aggregate> context) {
         final ObjectMeta aggregateMetadata = aggregate.getMetadata();
         final String aggregateName = aggregateMetadata.getName();
-        return new ServiceBuilder(ReconcilerUtils.loadYaml(Service.class, getClass(), "service.yaml"))
+        return new ServiceBuilder(Serialization.unmarshal(getClass().getResourceAsStream("service.yaml"), Service.class))
                 .editMetadata()
                 .withName(aggregateName + "-service")
                 .withNamespace(aggregateMetadata.getNamespace())

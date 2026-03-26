@@ -20,7 +20,7 @@ package org.elasticsoftware.akces.operator.query;
 import io.fabric8.kubernetes.api.model.ConfigMap;
 import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
 import io.fabric8.kubernetes.api.model.ObjectMeta;
-import io.javaoperatorsdk.operator.ReconcilerUtils;
+import io.fabric8.kubernetes.client.utils.Serialization;
 import io.javaoperatorsdk.operator.api.config.informer.Informer;
 import io.javaoperatorsdk.operator.api.reconciler.Context;
 import io.javaoperatorsdk.operator.processing.dependent.kubernetes.CRUDKubernetesDependentResource;
@@ -42,7 +42,7 @@ public class ConfigMapDependentResource extends CRUDKubernetesDependentResource<
         final ObjectMeta queryServiceMetadata = queryService.getMetadata();
         final String queryServiceName = queryServiceMetadata.getName();
         final QueryServiceSpec spec = queryService.getSpec();
-        return new ConfigMapBuilder(ReconcilerUtils.loadYaml(ConfigMap.class, getClass(), "configmap.yaml"))
+        return new ConfigMapBuilder(Serialization.unmarshal(getClass().getResourceAsStream("configmap.yaml"), ConfigMap.class))
                 .editMetadata()
                 .withName(queryServiceName + "-config")
                 .withNamespace(queryServiceMetadata.getNamespace())
