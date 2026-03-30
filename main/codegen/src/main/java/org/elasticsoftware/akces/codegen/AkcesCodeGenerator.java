@@ -150,7 +150,8 @@ public final class AkcesCodeGenerator {
             Slice slice,
             List<Element> commands,
             List<Element> successEvents,
-            List<Element> errorEvents
+            List<Element> errorEvents,
+            List<Element> externalEvents
     ) {
     }
 
@@ -180,8 +181,11 @@ public final class AkcesCodeGenerator {
                 List<Element> successEvents = allEvents.stream().filter(e -> !e.isError()).toList();
                 List<Element> errorEvents = allEvents.stream().filter(Element::isError).toList();
 
+                // External events are associated with the consuming aggregate (via the slice's aggregate context)
+                List<Element> externalEvents = slice.externalEvents();
+
                 result.computeIfAbsent(aggregateName, k -> new ArrayList<>())
-                        .add(new SliceData(slice, commands, successEvents, errorEvents));
+                        .add(new SliceData(slice, commands, successEvents, errorEvents, externalEvents));
             }
         }
 

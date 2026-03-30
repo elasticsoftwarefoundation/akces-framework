@@ -18,6 +18,7 @@
 package org.elasticsoftware.akces.codegen.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 
@@ -25,12 +26,13 @@ import java.util.List;
  * Represents an event-modeling slice, which groups related commands and events
  * that form a coherent use case or business operation.
  *
- * @param id         unique identifier for the slice
- * @param title      human-readable title
- * @param sliceType  the type of slice (STATE_CHANGE, STATE_VIEW, AUTOMATION)
- * @param commands   commands in this slice
- * @param events     events in this slice
- * @param aggregates aggregate names referenced by this slice
+ * @param id             unique identifier for the slice
+ * @param title          human-readable title
+ * @param sliceType      the type of slice (STATE_CHANGE, STATE_VIEW, AUTOMATION)
+ * @param commands       commands in this slice
+ * @param events         events in this slice
+ * @param externalEvents external events from other aggregates consumed in this slice
+ * @param aggregates     aggregate names referenced by this slice
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record Slice(
@@ -39,6 +41,7 @@ public record Slice(
         String sliceType,
         List<Element> commands,
         List<Element> events,
+        @JsonProperty("external_events") List<Element> externalEvents,
         List<String> aggregates
 ) {
     public Slice {
@@ -47,6 +50,9 @@ public record Slice(
         }
         if (events == null) {
             events = List.of();
+        }
+        if (externalEvents == null) {
+            externalEvents = List.of();
         }
         if (aggregates == null) {
             aggregates = List.of();

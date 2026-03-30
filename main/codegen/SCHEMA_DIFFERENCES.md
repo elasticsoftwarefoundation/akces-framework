@@ -60,7 +60,6 @@ annotations.
 | `generateGDPRKeyOnCreate` | `boolean` | No | Whether to generate a GDPR encryption key on aggregate creation (maps to `@AggregateInfo(generateGDPRKeyOnCreate = true)`) |
 | `stateVersion` | `integer` (≥ 1) | No | The version of the aggregate state (maps to `@AggregateStateInfo(version = ...)`) |
 | `stateFields` | `Field[]` | **Yes** | The fields of the aggregate state record (reuses the standard `Field` definition) |
-| `externalEventHandlers` | `ExternalEventHandler[]` | No | Handlers for domain events from other aggregates (maps to `@EventHandler` annotation) |
 
 **Example:**
 
@@ -76,66 +75,65 @@ annotations.
       { "name": "firstName", "type": "String", "piiData": true },
       { "name": "email", "type": "String", "piiData": true }
     ]
-  },
-  "Wallet": {
-    "stateFields": [
-      { "name": "userId", "type": "String", "idAttribute": true }
-    ],
-    "externalEventHandlers": [
-      {
-        "eventName": "AccountCreated",
-        "sourceAggregate": "Account",
-        "create": true,
-        "produces": ["WalletCreated"],
-        "errors": [],
-        "fields": [
-          { "name": "userId", "type": "String", "idAttribute": true }
-        ]
-      }
-    ]
   }
 }
 ```
 
 ---
 
-## New Definition: `ExternalEventHandler`
+## Modified Definition: `Slice`
 
-Defines a handler for an external domain event from another aggregate. In the Akces Framework,
-aggregates (especially Process Managers) can react to events produced by other aggregates using the
-`@EventHandler` annotation. This definition captures that cross-aggregate event handling pattern.
+The `Slice` definition has one addition compared to the original event-modeling spec schema:
 
 | Property | Type | Required | Description |
 |---|---|---|---|
-| `eventName` | `string` | **Yes** | Name of the external domain event (e.g., `"AccountCreated"`) |
-| `sourceAggregate` | `string` | **Yes** | Name of the aggregate that produces this event (e.g., `"Account"`) |
-| `create` | `boolean` | No | Whether handling this event creates a new aggregate instance (maps to `@EventHandler(create = true)`) |
-| `produces` | `string[]` | **Yes** | Names of domain events produced by this handler (maps to `@EventHandler(produces = {...})`) |
-| `errors` | `string[]` | No | Names of error events produced by this handler (maps to `@EventHandler(errors = {...})`) |
-| `fields` | `Field[]` | No | Fields of the external event |
+| **`external_events`** *(new)* | `Element[]` | No | External events from other aggregates consumed in this slice |
 
-**Example** — Wallet aggregate reacting to Account's `AccountCreatedEvent`:
+All other `Slice` properties are unchanged from the original schema.
+
+External events use the same `Element` definition as regular events and commands. They represent
+events produced by other aggregates that are consumed by the aggregate in this slice. This is used
+for cross-aggregate event handling, particularly for process managers.
+
+**Example** — Wallet aggregate consuming Account's `AccountCreatedEvent`:
 
 ```json
 {
-  "eventName": "AccountCreated",
-  "sourceAggregate": "Account",
-  "create": true,
-  "produces": ["WalletCreated"],
-  "errors": [],
-  "fields": [
-    { "name": "userId", "type": "String", "idAttribute": true }
-  ]
-}
-```
-
-This maps to the following generated code:
-
-```java
-@EventHandler(create = true, produces = WalletCreatedEvent.class, errors = {})
-public Stream<DomainEvent> create(AccountCreatedEvent event, WalletState isNull) {
-    // TODO: implement business logic
-    return Stream.of(new WalletCreatedEvent(event.userId()));
+  "id": "create-wallet",
+  "title": "Create Wallet",
+  "sliceType": "AUTOMATION",
+  "aggregates": ["Wallet"],
+  "commands": [],
+  "events": [
+    {
+      "id": "wallet-created-evt",
+      "title": "WalletCreated",
+      "type": "EVENT",
+      "aggregate": "Wallet",
+      "createsAggregate": true,
+      "fields": [
+        { "name": "userId", "type": "String", "idAttribute": true }
+      ],
+      "dependencies": []
+    }
+  ],
+  "external_events": [
+    {
+      "id": "account-created-ext",
+      "title": "AccountCreated",
+      "type": "EVENT",
+      "aggregate": "Account",
+      "fields": [
+        { "name": "userId", "type": "String", "idAttribute": true }
+      ],
+      "dependencies": []
+    }
+  ],
+  "readmodels": [],
+  "screens": [],
+  "processors": [],
+  "tables": [],
+  "specifications": []
 }
 ```
 
@@ -164,7 +162,6 @@ marked across commands, events, and state records.
 
 The following definitions are **identical** to the original event-modeling spec schema:
 
-- **`Slice`** — Represents a vertical slice with commands, events, read models, screens, processors, tables, specifications, and actors
 - **`Element`** — Represents a command, event, read model, screen, or automation element with fields and dependencies
 - **`ScreenImage`** — A screen mockup image reference
 - **`Table`** — A data table definition with fields
@@ -181,7 +178,7 @@ The following definitions are **identical** to the original event-modeling spec 
 | Addition | Location | Purpose |
 |---|---|---|
 | `packageName` | Root property | Java package name declared in the definition |
-| `aggregateConfig` | Root property | Per-aggregate Akces configuration (indexing, GDPR, state fields, external event handlers) |
-| `AggregateConfig` | New `$defs` entry | Aggregate-level metadata: indexing, GDPR key generation, state definition, external event handlers |
-| `ExternalEventHandler` | New `$defs` entry | Handler for external domain events from other aggregates (`@EventHandler`) |
+| `aggregateConfig` | Root property | Per-aggregate Akces configuration (indexing, GDPR, state fields) |
+| `AggregateConfig` | New `$defs` entry | Aggregate-level metadata: indexing, GDPR key generation, state definition |
+| `external_events` | Added to `Slice` | External events from other aggregates consumed in a slice |
 | `piiData` | Added to `Field` | Marks command/event fields as containing PII data |

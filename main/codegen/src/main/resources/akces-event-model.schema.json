@@ -47,50 +47,9 @@
           "type": "array",
           "items": { "$ref": "#/$defs/Field" },
           "description": "The fields of the aggregate state"
-        },
-        "externalEventHandlers": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/ExternalEventHandler" },
-          "description": "Handlers for domain events from other aggregates (maps to @EventHandler annotation)"
         }
       },
       "required": ["stateFields"],
-      "additionalProperties": false
-    },
-
-    "ExternalEventHandler": {
-      "type": "object",
-      "description": "Defines a handler for an external domain event from another aggregate, mapping to the @EventHandler annotation",
-      "properties": {
-        "eventName": {
-          "type": "string",
-          "description": "Name of the external domain event (e.g., 'AccountCreated')"
-        },
-        "sourceAggregate": {
-          "type": "string",
-          "description": "Name of the aggregate that produces this event"
-        },
-        "create": {
-          "type": "boolean",
-          "description": "Whether handling this event creates a new aggregate instance"
-        },
-        "produces": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Names of domain events produced by this handler"
-        },
-        "errors": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Names of error events produced by this handler"
-        },
-        "fields": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/Field" },
-          "description": "Fields of the external event"
-        }
-      },
-      "required": ["eventName", "sourceAggregate", "produces"],
       "additionalProperties": false
     },
 
@@ -114,6 +73,10 @@
           "items": { "$ref": "#/$defs/Element" }
         },
         "events": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Element" }
+        },
+        "external_events": {
           "type": "array",
           "items": { "$ref": "#/$defs/Element" }
         },
