@@ -60,6 +60,7 @@ annotations.
 | `generateGDPRKeyOnCreate` | `boolean` | No | Whether to generate a GDPR encryption key on aggregate creation (maps to `@AggregateInfo(generateGDPRKeyOnCreate = true)`) |
 | `stateVersion` | `integer` (≥ 1) | No | The version of the aggregate state (maps to `@AggregateStateInfo(version = ...)`) |
 | `stateFields` | `StateField[]` | **Yes** | The fields of the aggregate state record |
+| `externalEventHandlers` | `ExternalEventHandler[]` | No | Handlers for domain events from other aggregates (maps to `@EventHandler` annotation) |
 
 **Example:**
 
@@ -74,6 +75,23 @@ annotations.
       { "name": "userId", "type": "String", "idAttribute": true },
       { "name": "firstName", "type": "String", "piiData": true },
       { "name": "email", "type": "String", "piiData": true }
+    ]
+  },
+  "Wallet": {
+    "stateFields": [
+      { "name": "userId", "type": "String", "idAttribute": true }
+    ],
+    "externalEventHandlers": [
+      {
+        "eventName": "AccountCreated",
+        "sourceAggregate": "Account",
+        "create": true,
+        "produces": ["WalletCreated"],
+        "errors": [],
+        "fields": [
+          { "name": "userId", "type": "String", "idAttribute": true }
+        ]
+      }
     ]
   }
 }
@@ -93,6 +111,48 @@ identifier designation.
 | `idAttribute` | `boolean` | No | Whether this field is the aggregate identifier (maps to `@AggregateIdentifier`) |
 | `piiData` | `boolean` | No | Whether this field contains PII data (maps to `@PIIData` annotation) |
 | `optional` | `boolean` | No | Whether the field is optional/nullable (maps to `@Nullable` instead of `@NotNull`) |
+
+---
+
+## New Definition: `ExternalEventHandler`
+
+Defines a handler for an external domain event from another aggregate. In the Akces Framework,
+aggregates (especially Process Managers) can react to events produced by other aggregates using the
+`@EventHandler` annotation. This definition captures that cross-aggregate event handling pattern.
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `eventName` | `string` | **Yes** | Name of the external domain event (e.g., `"AccountCreated"`) |
+| `sourceAggregate` | `string` | **Yes** | Name of the aggregate that produces this event (e.g., `"Account"`) |
+| `create` | `boolean` | No | Whether handling this event creates a new aggregate instance (maps to `@EventHandler(create = true)`) |
+| `produces` | `string[]` | **Yes** | Names of domain events produced by this handler (maps to `@EventHandler(produces = {...})`) |
+| `errors` | `string[]` | No | Names of error events produced by this handler (maps to `@EventHandler(errors = {...})`) |
+| `fields` | `Field[]` | No | Fields of the external event |
+
+**Example** — Wallet aggregate reacting to Account's `AccountCreatedEvent`:
+
+```json
+{
+  "eventName": "AccountCreated",
+  "sourceAggregate": "Account",
+  "create": true,
+  "produces": ["WalletCreated"],
+  "errors": [],
+  "fields": [
+    { "name": "userId", "type": "String", "idAttribute": true }
+  ]
+}
+```
+
+This maps to the following generated code:
+
+```java
+@EventHandler(create = true, produces = WalletCreatedEvent.class, errors = {})
+public Stream<DomainEvent> create(AccountCreatedEvent event, WalletState isNull) {
+    // TODO: implement business logic
+    return Stream.of(new WalletCreatedEvent(event.userId()));
+}
+```
 
 ---
 
@@ -136,7 +196,8 @@ The following definitions are **identical** to the original event-modeling spec 
 | Addition | Location | Purpose |
 |---|---|---|
 | `packageName` | Root property | Java package name declared in the definition |
-| `aggregateConfig` | Root property | Per-aggregate Akces configuration (indexing, GDPR, state fields) |
-| `AggregateConfig` | New `$defs` entry | Aggregate-level metadata: indexing, GDPR key generation, state definition |
+| `aggregateConfig` | Root property | Per-aggregate Akces configuration (indexing, GDPR, state fields, external event handlers) |
+| `AggregateConfig` | New `$defs` entry | Aggregate-level metadata: indexing, GDPR key generation, state definition, external event handlers |
+| `ExternalEventHandler` | New `$defs` entry | Handler for external domain events from other aggregates (`@EventHandler`) |
 | `StateField` | New `$defs` entry | State record field with PII and identifier markers |
 | `piiData` | Added to `Field` | Marks command/event fields as containing PII data |

@@ -234,6 +234,153 @@ public class SchemaValidationTest {
     }
 
     @Test
+    public void testExternalEventHandlerAccepted() {
+        JSONObject handler = new JSONObject()
+                .put("eventName", "AccountCreated")
+                .put("sourceAggregate", "Account")
+                .put("create", true)
+                .put("produces", new org.json.JSONArray().put("WalletCreated"))
+                .put("errors", new org.json.JSONArray())
+                .put("fields", new org.json.JSONArray().put(
+                        new JSONObject().put("name", "userId").put("type", "String").put("idAttribute", true)));
+
+        JSONObject stateField = new JSONObject()
+                .put("name", "userId")
+                .put("type", "String")
+                .put("idAttribute", true);
+
+        JSONObject aggregateConfig = new JSONObject()
+                .put("stateFields", new org.json.JSONArray().put(stateField))
+                .put("externalEventHandlers", new org.json.JSONArray().put(handler));
+
+        JSONObject json = new JSONObject()
+                .put("packageName", "com.example")
+                .put("aggregateConfig", new JSONObject().put("Wallet", aggregateConfig))
+                .put("slices", new org.json.JSONArray());
+
+        schema.validate(json);
+    }
+
+    @Test
+    public void testExternalEventHandlerMinimalAccepted() {
+        JSONObject handler = new JSONObject()
+                .put("eventName", "AmountReserved")
+                .put("sourceAggregate", "Wallet")
+                .put("produces", new org.json.JSONArray().put("BuyOrderPlaced").put("SellOrderPlaced"));
+
+        JSONObject stateField = new JSONObject()
+                .put("name", "userId")
+                .put("type", "String");
+
+        JSONObject aggregateConfig = new JSONObject()
+                .put("stateFields", new org.json.JSONArray().put(stateField))
+                .put("externalEventHandlers", new org.json.JSONArray().put(handler));
+
+        JSONObject json = new JSONObject()
+                .put("packageName", "com.example")
+                .put("aggregateConfig", new JSONObject().put("OrderProcessManager", aggregateConfig))
+                .put("slices", new org.json.JSONArray());
+
+        schema.validate(json);
+    }
+
+    @Test
+    public void testExternalEventHandlerMissingRequiredEventName() {
+        JSONObject handler = new JSONObject()
+                .put("sourceAggregate", "Account")
+                .put("produces", new org.json.JSONArray().put("WalletCreated"));
+
+        JSONObject stateField = new JSONObject()
+                .put("name", "id")
+                .put("type", "String");
+
+        JSONObject aggregateConfig = new JSONObject()
+                .put("stateFields", new org.json.JSONArray().put(stateField))
+                .put("externalEventHandlers", new org.json.JSONArray().put(handler));
+
+        JSONObject json = new JSONObject()
+                .put("packageName", "com.example")
+                .put("aggregateConfig", new JSONObject().put("Test", aggregateConfig))
+                .put("slices", new org.json.JSONArray());
+
+        ValidationException ex = expectThrows(ValidationException.class, () -> schema.validate(json));
+        assertTrue(ex.getAllMessages().stream().anyMatch(m -> m.contains("eventName")),
+                "Should report missing eventName: " + ex.getAllMessages());
+    }
+
+    @Test
+    public void testExternalEventHandlerMissingRequiredSourceAggregate() {
+        JSONObject handler = new JSONObject()
+                .put("eventName", "AccountCreated")
+                .put("produces", new org.json.JSONArray().put("WalletCreated"));
+
+        JSONObject stateField = new JSONObject()
+                .put("name", "id")
+                .put("type", "String");
+
+        JSONObject aggregateConfig = new JSONObject()
+                .put("stateFields", new org.json.JSONArray().put(stateField))
+                .put("externalEventHandlers", new org.json.JSONArray().put(handler));
+
+        JSONObject json = new JSONObject()
+                .put("packageName", "com.example")
+                .put("aggregateConfig", new JSONObject().put("Test", aggregateConfig))
+                .put("slices", new org.json.JSONArray());
+
+        ValidationException ex = expectThrows(ValidationException.class, () -> schema.validate(json));
+        assertTrue(ex.getAllMessages().stream().anyMatch(m -> m.contains("sourceAggregate")),
+                "Should report missing sourceAggregate: " + ex.getAllMessages());
+    }
+
+    @Test
+    public void testExternalEventHandlerMissingRequiredProduces() {
+        JSONObject handler = new JSONObject()
+                .put("eventName", "AccountCreated")
+                .put("sourceAggregate", "Account");
+
+        JSONObject stateField = new JSONObject()
+                .put("name", "id")
+                .put("type", "String");
+
+        JSONObject aggregateConfig = new JSONObject()
+                .put("stateFields", new org.json.JSONArray().put(stateField))
+                .put("externalEventHandlers", new org.json.JSONArray().put(handler));
+
+        JSONObject json = new JSONObject()
+                .put("packageName", "com.example")
+                .put("aggregateConfig", new JSONObject().put("Test", aggregateConfig))
+                .put("slices", new org.json.JSONArray());
+
+        ValidationException ex = expectThrows(ValidationException.class, () -> schema.validate(json));
+        assertTrue(ex.getAllMessages().stream().anyMatch(m -> m.contains("produces")),
+                "Should report missing produces: " + ex.getAllMessages());
+    }
+
+    @Test
+    public void testExternalEventHandlerAdditionalPropertiesRejected() {
+        JSONObject handler = new JSONObject()
+                .put("eventName", "AccountCreated")
+                .put("sourceAggregate", "Account")
+                .put("produces", new org.json.JSONArray().put("WalletCreated"))
+                .put("unknownProp", "value");
+
+        JSONObject stateField = new JSONObject()
+                .put("name", "id")
+                .put("type", "String");
+
+        JSONObject aggregateConfig = new JSONObject()
+                .put("stateFields", new org.json.JSONArray().put(stateField))
+                .put("externalEventHandlers", new org.json.JSONArray().put(handler));
+
+        JSONObject json = new JSONObject()
+                .put("packageName", "com.example")
+                .put("aggregateConfig", new JSONObject().put("Test", aggregateConfig))
+                .put("slices", new org.json.JSONArray());
+
+        assertThrows(ValidationException.class, () -> schema.validate(json));
+    }
+
+    @Test
     public void testInvalidElementTypeRejected() {
         JSONObject element = new JSONObject()
                 .put("id", "test-cmd")
