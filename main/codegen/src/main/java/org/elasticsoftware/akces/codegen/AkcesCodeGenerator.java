@@ -248,7 +248,6 @@ public final class AkcesCodeGenerator {
     private GeneratedFile generateCommandRecord(String aggregatePackage, Element command) {
         String className = command.title() + "Command";
         String commandsPackage = aggregatePackage + ".commands";
-        String aggregateLower = aggregatePackage.substring(aggregatePackage.lastIndexOf('.') + 1);
 
         StringBuilder sb = new StringBuilder();
         sb.append(LICENSE_HEADER).append("\n");
@@ -323,7 +322,6 @@ public final class AkcesCodeGenerator {
     private GeneratedFile generateEventRecord(String aggregatePackage, Element event, boolean isError) {
         String className = event.title() + "Event";
         String eventsPackage = aggregatePackage + ".events";
-        String aggregateLower = aggregatePackage.substring(aggregatePackage.lastIndexOf('.') + 1);
 
         StringBuilder sb = new StringBuilder();
         sb.append(LICENSE_HEADER).append("\n");
@@ -401,7 +399,6 @@ public final class AkcesCodeGenerator {
 
     private GeneratedFile generateStateRecord(String aggregatePackage, String aggregateName, AggregateConfig config) {
         String className = aggregateName + "State";
-        String aggregateLower = aggregatePackage.substring(aggregatePackage.lastIndexOf('.') + 1);
 
         StringBuilder sb = new StringBuilder();
         sb.append(LICENSE_HEADER).append("\n");
