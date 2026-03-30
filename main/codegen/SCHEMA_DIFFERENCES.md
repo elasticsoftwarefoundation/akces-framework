@@ -59,7 +59,7 @@ annotations.
 | `indexName` | `string` | No | The index name (maps to `@AggregateInfo(indexName = "...")`) |
 | `generateGDPRKeyOnCreate` | `boolean` | No | Whether to generate a GDPR encryption key on aggregate creation (maps to `@AggregateInfo(generateGDPRKeyOnCreate = true)`) |
 | `stateVersion` | `integer` (≥ 1) | No | The version of the aggregate state (maps to `@AggregateStateInfo(version = ...)`) |
-| `stateFields` | `StateField[]` | **Yes** | The fields of the aggregate state record |
+| `stateFields` | `Field[]` | **Yes** | The fields of the aggregate state record (reuses the standard `Field` definition) |
 | `externalEventHandlers` | `ExternalEventHandler[]` | No | Handlers for domain events from other aggregates (maps to `@EventHandler` annotation) |
 
 **Example:**
@@ -96,21 +96,6 @@ annotations.
   }
 }
 ```
-
----
-
-## New Definition: `StateField`
-
-Defines a field in the aggregate state record with Akces-specific metadata for PII marking and
-identifier designation.
-
-| Property | Type | Required | Description |
-|---|---|---|---|
-| `name` | `string` | **Yes** | The field name |
-| `type` | `string` (enum) | **Yes** | The field type — same enum as `Field.type`: `String`, `Boolean`, `Double`, `Decimal`, `Long`, `Custom`, `Date`, `DateTime`, `UUID`, `Int` |
-| `idAttribute` | `boolean` | No | Whether this field is the aggregate identifier (maps to `@AggregateIdentifier`) |
-| `piiData` | `boolean` | No | Whether this field contains PII data (maps to `@PIIData` annotation) |
-| `optional` | `boolean` | No | Whether the field is optional/nullable (maps to `@Nullable` instead of `@NotNull`) |
 
 ---
 
@@ -199,5 +184,4 @@ The following definitions are **identical** to the original event-modeling spec 
 | `aggregateConfig` | Root property | Per-aggregate Akces configuration (indexing, GDPR, state fields, external event handlers) |
 | `AggregateConfig` | New `$defs` entry | Aggregate-level metadata: indexing, GDPR key generation, state definition, external event handlers |
 | `ExternalEventHandler` | New `$defs` entry | Handler for external domain events from other aggregates (`@EventHandler`) |
-| `StateField` | New `$defs` entry | State record field with PII and identifier markers |
 | `piiData` | Added to `Field` | Marks command/event fields as containing PII data |

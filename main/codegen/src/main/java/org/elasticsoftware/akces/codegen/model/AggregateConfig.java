@@ -36,7 +36,7 @@ public record AggregateConfig(
         String indexName,
         boolean generateGDPRKeyOnCreate,
         int stateVersion,
-        List<StateField> stateFields
+        List<Field> stateFields
 ) {
     public AggregateConfig {
         if (stateVersion <= 0) {

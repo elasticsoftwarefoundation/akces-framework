@@ -412,14 +412,14 @@ public final class AkcesCodeGenerator {
         imports.add("org.elasticsoftware.akces.aggregate.AggregateState");
         imports.add("org.elasticsoftware.akces.annotations.AggregateStateInfo");
 
-        boolean hasIdAttribute = config.stateFields().stream().anyMatch(StateField::idAttribute);
+        boolean hasIdAttribute = config.stateFields().stream().anyMatch(Field::isIdAttribute);
         if (hasIdAttribute) {
             imports.add("org.elasticsoftware.akces.annotations.AggregateIdentifier");
         }
 
-        boolean hasRequired = config.stateFields().stream().anyMatch(f -> !f.optional());
-        boolean hasOptional = config.stateFields().stream().anyMatch(StateField::optional);
-        boolean hasPii = config.stateFields().stream().anyMatch(StateField::piiData);
+        boolean hasRequired = config.stateFields().stream().anyMatch(f -> !f.isOptional());
+        boolean hasOptional = config.stateFields().stream().anyMatch(Field::isOptional);
+        boolean hasPii = config.stateFields().stream().anyMatch(Field::isPiiData);
 
         if (hasRequired) {
             imports.add("jakarta.validation.constraints.NotNull");
@@ -431,7 +431,7 @@ public final class AkcesCodeGenerator {
             imports.add("org.elasticsoftware.akces.annotations.PIIData");
         }
 
-        collectStateFieldTypeImports(config.stateFields(), imports);
+        collectFieldTypeImports(config.stateFields(), imports);
 
         for (String imp : imports) {
             sb.append("import ").append(imp).append(";\n");
@@ -445,11 +445,11 @@ public final class AkcesCodeGenerator {
         // Record declaration
         sb.append("public record ").append(className).append("(\n");
 
-        List<StateField> fields = config.stateFields();
+        List<Field> fields = config.stateFields();
         for (int i = 0; i < fields.size(); i++) {
-            StateField field = fields.get(i);
+            Field field = fields.get(i);
             sb.append("        ");
-            appendStateFieldAnnotations(sb, field);
+            appendFieldAnnotations(sb, field);
             sb.append(mapType(field.type())).append(" ").append(field.name());
             if (i < fields.size() - 1) {
                 sb.append(",\n");
@@ -461,7 +461,7 @@ public final class AkcesCodeGenerator {
         sb.append(") implements AggregateState {\n");
 
         // getAggregateId method
-        String idFieldName = findStateIdFieldName(fields);
+        String idFieldName = findIdFieldName(fields);
         sb.append("    @Override\n");
         sb.append("    public String getAggregateId() {\n");
         sb.append("        return ").append(idFieldName).append("();\n");
@@ -744,7 +744,7 @@ public final class AkcesCodeGenerator {
     }
 
     private String generateStateConstructorArgsFromEvent(AggregateConfig config, Element event) {
-        List<StateField> stateFields = config.stateFields();
+        List<Field> stateFields = config.stateFields();
         Set<String> eventFieldNames = event.fields().stream()
                 .map(Field::name)
                 .collect(Collectors.toSet());
@@ -774,20 +774,6 @@ public final class AkcesCodeGenerator {
         }
     }
 
-    private void appendStateFieldAnnotations(StringBuilder sb, StateField field) {
-        if (field.idAttribute()) {
-            sb.append("@AggregateIdentifier ");
-        }
-        if (field.piiData()) {
-            sb.append("@PIIData ");
-        }
-        if (field.optional()) {
-            sb.append("@Nullable ");
-        } else {
-            sb.append("@NotNull ");
-        }
-    }
-
     private void collectFieldTypeImports(List<Field> fields, Set<String> imports) {
         for (Field field : fields) {
             String javaType = mapFieldType(field);
@@ -803,19 +789,6 @@ public final class AkcesCodeGenerator {
             }
             if (!field.subfields().isEmpty()) {
                 collectFieldTypeImports(field.subfields(), imports);
-            }
-        }
-    }
-
-    private void collectStateFieldTypeImports(List<StateField> fields, Set<String> imports) {
-        for (StateField field : fields) {
-            String javaType = mapType(field.type());
-            if (javaType.equals("BigDecimal")) {
-                imports.add("java.math.BigDecimal");
-            } else if (javaType.equals("LocalDate")) {
-                imports.add("java.time.LocalDate");
-            } else if (javaType.equals("LocalDateTime")) {
-                imports.add("java.time.LocalDateTime");
             }
         }
     }
@@ -856,14 +829,6 @@ public final class AkcesCodeGenerator {
         return fields.stream()
                 .filter(Field::isIdAttribute)
                 .map(Field::name)
-                .findFirst()
-                .orElse(fields.isEmpty() ? "id" : fields.getFirst().name());
-    }
-
-    private String findStateIdFieldName(List<StateField> fields) {
-        return fields.stream()
-                .filter(StateField::idAttribute)
-                .map(StateField::name)
                 .findFirst()
                 .orElse(fields.isEmpty() ? "id" : fields.getFirst().name());
     }

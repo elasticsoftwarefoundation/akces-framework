@@ -45,7 +45,7 @@
         },
         "stateFields": {
           "type": "array",
-          "items": { "$ref": "#/$defs/StateField" },
+          "items": { "$ref": "#/$defs/Field" },
           "description": "The fields of the aggregate state"
         },
         "externalEventHandlers": {
@@ -91,47 +91,6 @@
         }
       },
       "required": ["eventName", "sourceAggregate", "produces"],
-      "additionalProperties": false
-    },
-
-    "StateField": {
-      "type": "object",
-      "description": "A field in the aggregate state definition with Akces-specific metadata",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "The field name"
-        },
-        "type": {
-          "type": "string",
-          "enum": [
-            "String",
-            "Boolean",
-            "Double",
-            "Decimal",
-            "Long",
-            "Custom",
-            "Date",
-            "DateTime",
-            "UUID",
-            "Int"
-          ],
-          "description": "The field type (using event-modeling type names)"
-        },
-        "idAttribute": {
-          "type": "boolean",
-          "description": "Whether this field is the aggregate identifier"
-        },
-        "piiData": {
-          "type": "boolean",
-          "description": "Whether this field contains PII data requiring GDPR protection"
-        },
-        "optional": {
-          "type": "boolean",
-          "description": "Whether the field is optional (nullable)"
-        }
-      },
-      "required": ["name", "type"],
       "additionalProperties": false
     },
 
