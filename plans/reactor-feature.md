@@ -270,15 +270,17 @@ public enum ReactorPartitionState {
 
 Similar to `DatabaseModelPartition` but implements `CommandBus`:
 - Implements `Runnable`, `AutoCloseable`, and `CommandBus` (same pattern as `AggregatePartition`)
-- Creates a **transactional producer** on startup via `producerFactory.createProducer(transactionalId)` where the transactionalId is `{reactorName}Reactor-partition-{id}-{hostname}`
+- **Each `ReactorPartition` owns both a Kafka `Consumer` and a Transactional `Producer`**:
+  - The **Consumer** polls events from the assigned partition of the domain event topic
+  - The **Transactional Producer** is created on startup via `producerFactory.createProducer(transactionalId)` where the transactionalId is `{reactorName}Reactor-partition-{id}-{hostname}`. This single producer instance is used for **both** offset commits (`sendOffsetsToTransaction`) and command sending (`CommandBus.send`)
 - Processes events **one at a time** (not in batches)
 - After each event processing (success or failure handling), commits via a **Kafka transaction**:
   1. `producer.beginTransaction()`
-  2. If `onFailure` was called and the implementor used the `CommandBus`, the command `ProducerRecord`s are already queued in the producer within this transaction
+  2. If `onSuccess` or `onFailure` was called and the implementor used the `CommandBus`, the command `ProducerRecord`s are already queued in the producer within this transaction
   3. `producer.sendOffsetsToTransaction(Map<TopicPartition, OffsetAndMetadata>, consumer.groupMetadata())` 
   4. `producer.commitTransaction()`
 - On transaction failure: `producer.abortTransaction()` and rollback the consumer position
-- The `CommandBus.send(Command)` implementation (for failure hook command sending):
+- **Custom `CommandBus` implementation** (not delegating to `AkcesClient`) — the `CommandBus.send(Command)` method uses the **same** transactional producer that manages offset commits, ensuring commands and offsets are always in the same transaction:
   1. Resolves command type via `AkcesRegistry.resolveType(commandClass)`
   2. Resolves target topic via `AkcesRegistry.resolveTopic(commandType)`
   3. Resolves partition via `AkcesRegistry.resolvePartition(aggregateId)`
