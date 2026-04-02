@@ -222,8 +222,11 @@ public interface ReactorRuntime {
 
 ```java
 public enum ReactorResult {
+    /** Event handler completed successfully */
     SUCCESS,
+    /** All retries exhausted, event is considered failed */
     FAILURE,
+    /** Handler failed but retries remain; backoff is pending, event will be redelivered on next poll */
     RETRY_PENDING
 }
 ```
