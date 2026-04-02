@@ -30,21 +30,22 @@ Since there is no database to store offsets in (unlike `DatabaseModel` which sto
 - Each `ReactorPartition` creates a **transactional producer** via `CustomKafkaProducerFactory.createProducer(transactionalId)`, which calls `initTransactions()` on the producer
 - After a successful API call (or after failure handling), the offset is committed **within a Kafka transaction**:
   1. `producer.beginTransaction()`
-  2. If the failure hook returned a `Command`, the command is sent via `producer.send()` (within the same transaction)
+  2. If `onFailure` sends commands via the `CommandBus`, the corresponding records are produced via `producer.send()` (within the same transaction)
   3. `producer.sendOffsetsToTransaction(offsets, consumer.groupMetadata())` — this atomically commits the consumer offset
   4. `producer.commitTransaction()`
 - If the transaction fails, `producer.abortTransaction()` is called and the consumer is rolled back
 - On restart, consumption resumes from the last transactionally committed offset
 
-This approach guarantees exactly-once semantics: the offset commit and any failure command are either both committed or both rolled back. The `consumer.commitSync()` approach was rejected as it is not reliable enough — it can succeed while subsequent processing fails, or fail silently in edge cases.
+With this approach, Kafka guarantees atomicity between the offset commit and any failure command sent in the same transaction: they are either both committed or both rolled back. However, the external API invocation itself is not part of the Kafka transaction, so end-to-end behavior remains **at-least-once** with respect to external side effects (e.g., commit/epoch errors or restarts can cause the same event to be reprocessed and the API to be called again). Reactor implementations MUST therefore ensure idempotency of external calls or introduce a deduplication mechanism (for example, an outbox-style design backed by a durable store that is consulted before invoking the external API). The `consumer.commitSync()` approach was rejected as it is not reliable enough — it can succeed while subsequent processing fails, or fail silently in edge cases.
 
 ### 3. Retry Strategy: Linear Incremental Backoff
 
 - Maximum **5 retries** (configurable via annotation, default = 5)
 - **Linear incremental backoff**: retry delays of 1s, 2s, 3s, 4s, 5s (base interval configurable, default = 1 second)
 - Formula: `delay = attempt * baseInterval` where attempt is 1-based
-- Retries happen in-process (blocking the partition thread for that event) using `Thread.sleep()` to keep it simple and predictable
-- During retry backoff, the partition thread is effectively paused, which is acceptable since each partition has its own thread
+- Retries happen in-process on the **Reactor partition** but **do not block the Kafka consumer poll loop** (no `Thread.sleep()` in the consumer thread)
+- The implementation tracks per-event retry state and schedules the next attempt time; the consumer keeps polling regularly (within `max.poll.interval.ms`) and only invokes the handler when the backoff delay has elapsed, or temporarily pauses/resumes partitions while still calling `poll`
+- This design avoids exceeding `max.poll.interval.ms` and prevents unnecessary consumer rebalances during backoff
 
 ### 4. Failure Hook: Command Sending on Exhausted Retries
 
@@ -156,8 +157,9 @@ public interface ReactorRuntime {
     
     /**
      * Process a single domain event record. Handles retry logic internally.
-     * Returns true if the event was processed successfully (either on first try or after retries),
-     * false if all retries were exhausted.
+     * Returns {@link ReactorResult#SUCCESS} if the event was processed successfully
+     * (either on first try or after retries), or {@link ReactorResult#FAILURE} if
+     * all retries were exhausted and the event is considered failed.
      */
     ReactorResult apply(DomainEventRecord eventRecord, 
                         Function<String, GDPRContext> gdprContextSupplier) throws IOException;
@@ -295,7 +297,7 @@ Similar to `DatabaseModelBeanFactoryPostProcessor` but:
 - Creates `ReactorEventHandlerFunctionAdapter` bean definitions
 - Creates `ReactorRuntimeFactory` bean definition
 - Creates `AkcesReactorController` bean definition with additional **transactional** producer factory reference
-- The method signature validation allows `void` return type with a single `DomainEvent` parameter and must declare `throws Exception` (unlike DatabaseModel handlers which don't throw)
+- The method signature validation requires a `void` return type with a single `DomainEvent` parameter but does not enforce any particular `throws` clause (handlers may declare specific checked exceptions, multiple exceptions, or none)
 
 #### 15. `ReactorImplementationPresentCondition`
 *File: `main/query-support/src/main/java/org/elasticsoftware/akces/query/reactor/ReactorImplementationPresentCondition.java`*
