@@ -20,16 +20,23 @@ Unlike the `DatabaseModel` which processes events in a batch within a single dat
 - Offsets must only be committed after a successful API call (or after failure handling)
 - Retry logic applies to individual events, not batches
 
-The `ReactorPartition` will poll events from Kafka and process each `DomainEventRecord` sequentially within a partition. The Kafka consumer offset is committed per-event after successful processing or after failure handling.
+The `ReactorPartition` will poll events from Kafka and process each `DomainEventRecord` sequentially within a partition. After each successful event processing (or failure handling), the Kafka offset is committed atomically via a Kafka transaction.
 
-### 2. Offset Management: Kafka Consumer Offset Commit
+### 2. Offset Management: Kafka Transactional Producer
 
-Since there is no database to store offsets in (unlike `DatabaseModel` which stores offsets in a `partition_offsets` table), the Reactor will use **Kafka consumer manual offset commit** (`consumer.commitSync()`). This means:
+Since there is no database to store offsets in (unlike `DatabaseModel` which stores offsets in a `partition_offsets` table), the Reactor will use **Kafka transactions** to commit offsets. This follows the same pattern used by `AggregatePartition` in the runtime module, which is more reliable than `consumer.commitSync()`. The flow is:
 
 - Auto-commit is disabled (already the default in the framework)
-- After a successful API call, the offset is committed to Kafka
-- After all retries fail AND the failure handler completes, the offset is also committed (to avoid reprocessing the same failing event forever)
-- On restart, consumption resumes from the last committed offset
+- Each `ReactorPartition` creates a **transactional producer** via `CustomKafkaProducerFactory.createProducer(transactionalId)`, which calls `initTransactions()` on the producer
+- After a successful API call (or after failure handling), the offset is committed **within a Kafka transaction**:
+  1. `producer.beginTransaction()`
+  2. If the failure hook returned a `Command`, the command is sent via `producer.send()` (within the same transaction)
+  3. `producer.sendOffsetsToTransaction(offsets, consumer.groupMetadata())` — this atomically commits the consumer offset
+  4. `producer.commitTransaction()`
+- If the transaction fails, `producer.abortTransaction()` is called and the consumer is rolled back
+- On restart, consumption resumes from the last transactionally committed offset
+
+This approach guarantees exactly-once semantics: the offset commit and any failure command are either both committed or both rolled back. The `consumer.commitSync()` approach was rejected as it is not reliable enough — it can succeed while subsequent processing fails, or fail silently in edge cases.
 
 ### 3. Retry Strategy: Linear Incremental Backoff
 
@@ -41,14 +48,15 @@ Since there is no database to store offsets in (unlike `DatabaseModel` which sto
 
 ### 4. Failure Hook: Command Sending on Exhausted Retries
 
-When all retries are exhausted, the framework calls a failure handler method on the Reactor implementation. This method:
+When all retries are exhausted, the framework calls the `onFailure` method on the Reactor implementation. This method:
 
-- Receives the original event and the last exception
-- Returns an `Optional<Command>` — if present, the framework sends this command to the appropriate aggregate via the Kafka producer
-- If `Optional.empty()` is returned, no command is sent (the event is simply skipped)
+- Receives the original event, the last exception, and a `CommandBus`
+- The implementor can call `commandBus.send(command)` to send one or more commands back to aggregates
+- If the implementor does nothing, no commands are sent (the event is simply skipped)
 - The offset is committed regardless (to avoid infinite retry loops)
+- Both the offset commit and any failure commands are committed atomically within a single Kafka transaction
 
-To support sending commands, the Reactor needs access to a Kafka producer and the `AkcesRegistry` for command routing (similar to how `ProcessManager` sends commands).
+The `CommandBus` is the existing framework interface (`org.elasticsoftware.akces.commands.CommandBus`), backed by the `ReactorPartition`. Commands sent via the `CommandBus` during `onFailure` are queued in the Kafka producer and committed as part of the same transaction as the offset commit.
 
 ### 5. GDPR / PII Data Support
 
@@ -96,17 +104,20 @@ public @interface ReactorEventHandler {
 public interface Reactor {
     /**
      * Called when all retries are exhausted for an event handler invocation.
-     * The implementor can return a Command to send back to an aggregate to signal failure.
+     * The implementor can use the provided CommandBus to send a command back
+     * to an aggregate to signal failure.
      *
      * @param event the event that failed to be processed
      * @param exception the last exception that was thrown
-     * @return an Optional containing a Command to send, or empty if no command should be sent
+     * @param commandBus the CommandBus to use for sending failure commands
      */
-    default Optional<Command> onFailure(DomainEvent event, Exception exception) {
-        return Optional.empty();
+    default void onFailure(DomainEvent event, Exception exception, CommandBus commandBus) {
+        // default: do nothing
     }
 }
 ```
+
+Note: the `onFailure` method receives a `CommandBus` parameter which is the existing framework interface (`org.elasticsoftware.akces.commands.CommandBus`). Internally, this is backed by the `ReactorPartition` which implements `CommandBus` and sends commands via the transactional Kafka producer. This is similar to how `AggregatePartition` implements `CommandBus` for the `EventHandlerFunction.getCommandBus()` pattern used by Process Managers.
 
 #### 4. `ReactorEventHandlerFunction` Functional Interface
 *File: `main/api/src/main/java/org/elasticsoftware/akces/query/ReactorEventHandlerFunction.java`*
@@ -152,10 +163,10 @@ public interface ReactorRuntime {
                         Function<String, GDPRContext> gdprContextSupplier) throws IOException;
     
     /**
-     * Called when all retries are exhausted. Delegates to the Reactor.onFailure() method.
-     * Returns an Optional<Command> that should be sent to an aggregate.
+     * Called when all retries are exhausted. Delegates to the Reactor.onFailure() method,
+     * passing the CommandBus so the implementor can send failure commands.
      */
-    Optional<Command> handleFailure(DomainEvent event, Exception exception);
+    void handleFailure(DomainEvent event, Exception exception, CommandBus commandBus);
     
     void validateDomainEventSchemas(SchemaRegistry schemaRegistry);
     
@@ -185,7 +196,7 @@ public enum ReactorResult {
 Similar to `KafkaDatabaseModelRuntime` but:
 - Processes events individually (not in batches)
 - `accept()` calls throw exceptions on failure (triggering retry)
-- `handleFailure()` delegates to `Reactor.onFailure()`
+- `handleFailure()` delegates to `Reactor.onFailure()`, passing a `CommandBus`
 - Implements the retry with backoff logic
 - Uses a Builder pattern like `KafkaDatabaseModelRuntime`
 
@@ -212,18 +223,28 @@ public enum ReactorPartitionState {
 #### 9. `ReactorPartition` Class
 *File: `main/query-support/src/main/java/org/elasticsoftware/akces/query/reactor/ReactorPartition.java`*
 
-Similar to `DatabaseModelPartition` but:
+Similar to `DatabaseModelPartition` but implements `CommandBus`:
+- Implements `Runnable`, `AutoCloseable`, and `CommandBus` (same pattern as `AggregatePartition`)
+- Creates a **transactional producer** on startup via `producerFactory.createProducer(transactionalId)` where the transactionalId is `{reactorName}Reactor-partition-{id}-{hostname}`
 - Processes events **one at a time** (not in batches)
-- After each successful event processing, commits the Kafka offset synchronously
-- After failure handling (all retries exhausted + failure hook called), also commits the offset
-- Needs a Kafka producer for sending failure commands
-- Uses `consumer.commitSync(Map<TopicPartition, OffsetAndMetadata>)` for per-event offset commit
+- After each event processing (success or failure handling), commits via a **Kafka transaction**:
+  1. `producer.beginTransaction()`
+  2. If `onFailure` was called and the implementor used the `CommandBus`, the command `ProducerRecord`s are already queued in the producer within this transaction
+  3. `producer.sendOffsetsToTransaction(Map<TopicPartition, OffsetAndMetadata>, consumer.groupMetadata())` 
+  4. `producer.commitTransaction()`
+- On transaction failure: `producer.abortTransaction()` and rollback the consumer position
+- The `CommandBus.send(Command)` implementation (for failure hook command sending):
+  1. Resolves command type via `AkcesRegistry.resolveType(commandClass)`
+  2. Resolves target topic via `AkcesRegistry.resolveTopic(commandType)`
+  3. Resolves partition via `AkcesRegistry.resolvePartition(aggregateId)`
+  4. Serializes the command and sends via `KafkaSender.send(producer, producerRecord)` — within the active transaction
+- Uses `ReactorPartitionCommandBus` (extending `CommandBusHolder`) to register itself on the partition thread, similar to `AggregatePartitionCommandBus`
 
 Key differences from `DatabaseModelPartition`:
 - The `processRecords` method iterates over records one by one
 - For each record, it calls `runtime.apply()` which handles retries internally
-- If result is `FAILURE`, it calls `runtime.handleFailure()` and if a Command is returned, sends it via the Kafka producer
-- After processing (or failure handling) of each record, commits the offset
+- If result is `FAILURE`, it calls `runtime.handleFailure(event, exception, this)` where `this` is the `CommandBus` — the implementor can call `commandBus.send(command)` which queues the command in the current transaction
+- After processing (or failure handling) of each record, commits the offset in a Kafka transaction
 
 #### 10. `AkcesReactorControllerState` Enum
 *File: `main/query-support/src/main/java/org/elasticsoftware/akces/query/reactor/AkcesReactorControllerState.java`*
@@ -244,9 +265,10 @@ public enum AkcesReactorControllerState {
 
 Similar to `AkcesDatabaseModelController` but:
 - Manages `ReactorPartition` instances instead of `DatabaseModelPartition`
-- Needs a Kafka producer factory (for sending failure commands) in addition to consumer factories
+- Needs a Kafka **transactional** producer factory (`CustomKafkaProducerFactory`) for both offset commits and failure command sending
 - Constructor takes: consumer factories, producer factory, objectMapper, gdprContextRepositoryFactory, reactorRuntime
-- Producer is needed to send commands back to aggregates on failure
+- The producer factory is passed to each `ReactorPartition` which creates its own transactional producer
+- Additionally implements `resolveTopic(Class<? extends Command>)`, `resolveTopic(CommandType<?>)`, `resolveType(Class<? extends Command>)`, and `resolvePartition(String)` on the `AkcesRegistry` (unlike `AkcesDatabaseModelController` which throws `UnsupportedOperationException` for these) — needed for command routing in the failure hook
 
 #### 12. `ReactorRuntimeFactory`
 *File: `main/query-support/src/main/java/org/elasticsoftware/akces/query/reactor/ReactorRuntimeFactory.java`*
@@ -272,8 +294,8 @@ Similar to `DatabaseModelBeanFactoryPostProcessor` but:
 - Scans for `@ReactorEventHandler` annotated methods
 - Creates `ReactorEventHandlerFunctionAdapter` bean definitions
 - Creates `ReactorRuntimeFactory` bean definition
-- Creates `AkcesReactorController` bean definition with additional producer factory reference
-- The method signature validation allows `void` return type with a single `DomainEvent` parameter (same as DatabaseModel)
+- Creates `AkcesReactorController` bean definition with additional **transactional** producer factory reference
+- The method signature validation allows `void` return type with a single `DomainEvent` parameter and must declare `throws Exception` (unlike DatabaseModel handlers which don't throw)
 
 #### 15. `ReactorImplementationPresentCondition`
 *File: `main/query-support/src/main/java/org/elasticsoftware/akces/query/reactor/ReactorImplementationPresentCondition.java`*
@@ -285,14 +307,17 @@ Same pattern as `DatabaseModelImplementationPresentCondition` but checks for `@R
 
 Similar to `AkcesDatabaseModelAutoConfiguration` but:
 - Registers reactor-specific beans
-- Includes a producer factory bean (for sending failure commands)
+- Includes a **transactional** producer factory bean (`CustomKafkaProducerFactory<String, ProtocolRecord>`) — used for both offset commits via Kafka transactions and failure command sending
 - Uses `@Conditional(ReactorImplementationPresentCondition.class)` for conditional activation
 - References a new properties file `akces-reactor.properties`
 
 #### 17. `akces-reactor.properties`
 *File: `main/query-support/src/main/resources/akces-reactor.properties`*
 
-Same Kafka consumer properties as `akces-databasemodel.properties` (auto-commit disabled, read_committed isolation, etc.).
+Same Kafka consumer properties as `akces-databasemodel.properties` (auto-commit disabled, read_committed isolation, etc.). Additionally, the producer properties must include:
+- `enable.idempotence=true` (required for transactional producers)
+- `acks=all` (required for transactional producers)
+- `isolation.level=read_committed` (on the consumer side, already set)
 
 #### 18. Auto-configuration Registration
 
@@ -311,8 +336,10 @@ org.elasticsoftware.akces.query.reactor.AkcesReactorAutoConfiguration
    a. Resolve event type and handler
    b. Set GDPR context if needed
    c. Call handler.accept(event)  → External API call succeeds
-   d. Commit Kafka offset for this record
-   e. Clear GDPR context
+   d. producer.beginTransaction()
+   e. producer.sendOffsetsToTransaction(offset+1, consumer.groupMetadata())
+   f. producer.commitTransaction()
+   g. Clear GDPR context
 ```
 
 ### Retry Path (Transient Failure)
@@ -325,8 +352,10 @@ org.elasticsoftware.akces.query.reactor.AkcesReactorAutoConfiguration
    c. Call handler.accept(event) → throws Exception
    d. Retry 1: wait 1s, call handler.accept(event) → throws Exception
    e. Retry 2: wait 2s, call handler.accept(event) → succeeds
-   f. Commit Kafka offset for this record
-   g. Clear GDPR context
+   f. producer.beginTransaction()
+   g. producer.sendOffsetsToTransaction(offset+1, consumer.groupMetadata())
+   h. producer.commitTransaction()
+   i. Clear GDPR context
 ```
 
 ### Failure Path (All Retries Exhausted)
@@ -338,29 +367,34 @@ org.elasticsoftware.akces.query.reactor.AkcesReactorAutoConfiguration
    b. Set GDPR context if needed
    c. Call handler.accept(event) → throws Exception
    d. Retry 1-5: all fail with incremental backoff
-   e. Call reactor.onFailure(event, lastException)
-   f. If Command returned: send command to Kafka via producer
-   g. Commit Kafka offset for this record (to avoid infinite retry)
-   h. Clear GDPR context
+   e. producer.beginTransaction()
+   f. Call reactor.onFailure(event, lastException, commandBus)
+      → implementor may call commandBus.send(command) which queues 
+        the command ProducerRecord within the active transaction
+   g. producer.sendOffsetsToTransaction(offset+1, consumer.groupMetadata())
+   h. producer.commitTransaction()
+      → atomically commits: consumer offset + any failure commands
+   i. Clear GDPR context
 ```
 
 ## Command Sending on Failure
 
-When the `Reactor.onFailure()` method returns a `Command`, the framework needs to:
+When the `Reactor.onFailure()` method is called, the implementor receives a `CommandBus` parameter and can call `commandBus.send(command)` to send a failure command. The `CommandBus` is implemented by the `ReactorPartition` (same pattern as `AggregatePartition`):
 
-1. Serialize the command using the `ObjectMapper`
-2. Resolve the target topic using `AkcesRegistry.resolveTopic(commandClass)`
-3. Resolve the partition using `AkcesRegistry.resolvePartition(aggregateId)`
-4. Send the command record to Kafka using the producer
+1. `CommandBus.send(command)` resolves the command type via `AkcesRegistry.resolveType(commandClass)`
+2. Resolves the target topic via `AkcesRegistry.resolveTopic(commandType)`
+3. Resolves the partition via `AkcesRegistry.resolvePartition(aggregateId)`
+4. Serializes the command to a `CommandRecord`
+5. Sends via `KafkaSender.send(producer, producerRecord)` — within the active Kafka transaction
+
+Since `onFailure` is called between `producer.beginTransaction()` and `producer.commitTransaction()`, any commands sent via the `CommandBus` are part of the same transaction as the offset commit. This guarantees atomicity: either both the offset and the failure command are committed, or neither is.
 
 This requires the `AkcesReactorController` to:
 - Implement `AkcesRegistry` (it already needs to for event topic resolution, same as `AkcesDatabaseModelController`)
-- Additionally implement `resolveTopic(Class<? extends Command>)` and `resolvePartition(String)` methods (unlike `AkcesDatabaseModelController` which throws `UnsupportedOperationException` for these)
-- Have access to a Kafka producer
+- Additionally implement `resolveTopic(Class<? extends Command>)`, `resolveTopic(CommandType<?>)`, `resolveType(Class<? extends Command>)`, and `resolvePartition(String)` methods (unlike `AkcesDatabaseModelController` which throws `UnsupportedOperationException` for these)
+- Read `AggregateServiceRecord` data from `Akces-Control` topic (which contains information about which commands each aggregate service accepts, their topics, and partition counts)
 
-The command sending logic can be implemented in the `ReactorPartition` which receives the `AkcesRegistry` and uses a producer to send the command.
-
-For the `AkcesReactorController` to resolve command topics, it needs to know the `AggregateServiceRecord` data (which it already reads from the `Akces-Control` topic). The `AggregateServiceRecord` contains information about which commands each aggregate service accepts and their corresponding topics.
+Additionally, a `ReactorPartitionCommandBus` class (extending `CommandBusHolder`) is needed to register the `ReactorPartition` as the `CommandBus` on the partition thread, following the same pattern as `AggregatePartitionCommandBus`.
 
 ## Implementation Order
 
@@ -377,9 +411,10 @@ For the `AkcesReactorController` to resolve command topics, it needs to know the
 
 ### Phase 3: Partition and Controller
 8. Create `ReactorPartitionState` enum
-9. Create `ReactorPartition` (with per-event offset commit and command sending)
-10. Create `AkcesReactorControllerState` enum
-11. Create `AkcesReactorController` (with producer support)
+9. Create `ReactorPartitionCommandBus` (extending `CommandBusHolder`)
+10. Create `ReactorPartition` (with Kafka transactions, CommandBus impl, and command sending)
+11. Create `AkcesReactorControllerState` enum
+12. Create `AkcesReactorController` (with transactional producer factory support)
 
 ### Phase 4: Spring Integration
 12. Create `ReactorEventHandlerFunctionAdapter`
@@ -419,6 +454,7 @@ For the `AkcesReactorController` to resolve command topics, it needs to know the
 | `reactor/AkcesReactorAutoConfiguration.java` | Spring auto-configuration |
 | `reactor/beans/ReactorBeanFactoryPostProcessor.java` | Bean registration |
 | `reactor/beans/ReactorEventHandlerFunctionAdapter.java` | Method handle adapter |
+| `reactor/ReactorPartitionCommandBus.java` | ThreadLocal CommandBus registration (like `AggregatePartitionCommandBus`) |
 
 ### Modified files:
 | File | Change |
@@ -454,29 +490,30 @@ public class NotificationReactor implements Reactor {
     }
     
     @Override
-    public Optional<Command> onFailure(DomainEvent event, Exception exception) {
-        // Send a command back to signal the failure
+    public void onFailure(DomainEvent event, Exception exception, CommandBus commandBus) {
+        // Send a command back to signal the failure via the CommandBus
         if (event instanceof AccountCreatedEvent ace) {
-            return Optional.of(new MarkNotificationFailedCommand(
+            commandBus.send(new MarkNotificationFailedCommand(
                 ace.userId(), 
                 "Welcome notification failed: " + exception.getMessage()
             ));
         }
-        return Optional.empty();
     }
 }
 ```
 
-## Open Questions for Architect
+## Resolved Design Decisions (from Architect Review)
 
-1. **Retry configuration scope**: Should `maxRetries` and `retryBackoffBaseMs` be per-Reactor (on `@ReactorInfo`) or per-handler (on `@ReactorEventHandler`)? The current plan puts them on `@ReactorInfo` for simplicity. Per-handler would give more flexibility but adds complexity.
+1. **Retry configuration scope**: Per-Reactor (on `@ReactorInfo`). The `maxRetries` and `retryBackoffBaseMs` are set on the reactor class level, not per-handler. This keeps it simple.
 
-2. **Dead Letter Topic**: Should we also support writing failed events to a dead letter topic (DLT) in addition to/instead of the command-sending failure hook? This is a common Kafka pattern and could be added later.
+2. **Dead Letter Topic**: No. After 5 retry attempts (or the configured `maxRetries`), the `onFailure` method is called. The implementor decides what to do (send a command, log, etc.). No DLT support.
 
-3. **Concurrency**: The current design uses one thread per partition (same as `DatabaseModelPartition`). Should we consider async/non-blocking API calls with a configurable concurrency level per partition? This would be more complex but could improve throughput for high-latency API calls.
+3. **Concurrency**: No async. One thread per partition, sequential processing. Simple and predictable.
 
-4. **Circuit Breaker**: Should we integrate a circuit breaker pattern (e.g., using Resilience4j) to avoid overwhelming a failing external API? This could be a future enhancement.
+4. **Circuit Breaker**: Not in scope for the initial implementation. Could be added as a future enhancement using **Spring Cloud Circuit Breaker** (with Resilience4j as the backing implementation). Spring does not have a built-in circuit breaker — Spring Cloud Circuit Breaker is an abstraction layer, and Resilience4j is the recommended implementation.
 
-5. **Metrics/Observability**: Should we add Micrometer metrics for retry counts, success/failure rates, and backoff times? This would be valuable for monitoring in production.
+5. **Metrics/Observability**: OK — Micrometer metrics will be added for retry counts, success/failure rates, and backoff times. (Can be done as a follow-up task.)
 
-6. **Command serialization**: The `AkcesReactorController` needs to serialize commands and resolve topics. Should we reuse the `AkcesClient` module for this, or implement command sending directly? The plan currently proposes direct implementation to avoid a circular dependency (query-support should not depend on client), but reusing serialization utilities from `akces-shared` is fine.
+6. **Command sending on failure**: Expose the existing `CommandBus` interface (`org.elasticsoftware.akces.commands.CommandBus`) to the `onFailure` method. Internally backed by the `ReactorPartition` which implements `CommandBus` and sends commands within the Kafka transaction. This follows the same pattern as `AggregatePartition` implements `CommandBus` for process managers.
+
+7. **Offset management**: Use **Kafka transactions** (transactional producer with `beginTransaction()`, `sendOffsetsToTransaction()`, `commitTransaction()`) instead of `consumer.commitSync()`. This is more reliable and guarantees exactly-once semantics. Follows the same pattern used by `AggregatePartition` in the runtime module.
