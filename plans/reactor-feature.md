@@ -7,7 +7,8 @@ The **Reactor** is a new component in the `query-support` module that is similar
 1. **External API invocation** triggered by domain events from Kafka
 2. **Kafka offset management** — offsets are committed only after a successful API call
 3. **Retry with incremental backoff** — maximum 5 retries with incremental (linear) backoff
-4. **Failure hook** — when all retries are exhausted, the implementor can send a command back to an aggregate to signal the failure
+4. **Success hook** — after a successful API call, the implementor can send a command back to an aggregate to signal success
+5. **Failure hook** — when all retries are exhausted, the implementor can send a command back to an aggregate to signal the failure
 
 ## Architectural Decisions
 
@@ -38,13 +39,18 @@ Since there is no database to store offsets in (unlike `DatabaseModel` which sto
 
 With this approach, Kafka guarantees atomicity between the offset commit and any failure command sent in the same transaction: they are either both committed or both rolled back. However, the external API invocation itself is not part of the Kafka transaction, so end-to-end behavior remains **at-least-once** with respect to external side effects (e.g., commit/epoch errors or restarts can cause the same event to be reprocessed and the API to be called again). Reactor implementations MUST therefore ensure idempotency of external calls or introduce a deduplication mechanism (for example, an outbox-style design backed by a durable store that is consulted before invoking the external API). The `consumer.commitSync()` approach was rejected as it is not reliable enough — it can succeed while subsequent processing fails, or fail silently in edge cases.
 
-### 3. Retry Strategy: Linear Incremental Backoff
+### 3. Retry Strategy: Non-Blocking Poll-Loop Integrated Backoff
 
 - Maximum **5 retries** (configurable via annotation, default = 5)
 - **Linear incremental backoff**: retry delays of 1s, 2s, 3s, 4s, 5s (base interval configurable, default = 1 second)
 - Formula: `delay = attempt * baseInterval` where attempt is 1-based
-- Retries happen in-process on the **Reactor partition** but **do not block the Kafka consumer poll loop** (no `Thread.sleep()` in the consumer thread)
-- The implementation tracks per-event retry state and schedules the next attempt time; the consumer keeps polling regularly (within `max.poll.interval.ms`) and only invokes the handler when the backoff delay has elapsed, or temporarily pauses/resumes partitions while still calling `poll`
+- Retries are **non-blocking** and integrated with the Kafka consumer poll loop:
+  1. On first failure: the current Kafka transaction is **rolled back** (offset not committed), the retry count (attempt 1) and next-attempt timestamp are stored **in memory**
+  2. Control is returned to the poll loop immediately — the consumer keeps polling within `max.poll.interval.ms` to avoid rebalances
+  3. On the next poll, the same event is redelivered (since the offset was not committed). The partition checks the in-memory retry state: if the backoff period has not elapsed, the partition is **paused** (`consumer.pause()`) and the event is skipped; once the backoff elapses, the partition is **resumed** (`consumer.resume()`) and the handler is invoked again
+  4. If the handler succeeds on any retry: the event is processed as SUCCESS, offset is committed in a transaction
+  5. If all retries are exhausted: the event is processed as FAILURE, `onFailure` is called, offset is committed in a transaction
+- **In-memory retry state only**: retry counts and timestamps are kept in a `Map<TopicPartition, RetryState>` within the `ReactorPartition`. On process restart, retry state is lost — the event will be redelivered from the last committed offset and retry count resets to 0. This is acceptable because the external API call should be idempotent anyway.
 - This design avoids exceeding `max.poll.interval.ms` and prevents unnecessary consumer rebalances during backoff
 
 ### 4. Failure Hook: Command Sending on Exhausted Retries
@@ -59,7 +65,18 @@ When all retries are exhausted, the framework calls the `onFailure` method on th
 
 The `CommandBus` is the existing framework interface (`org.elasticsoftware.akces.commands.CommandBus`), backed by the `ReactorPartition`. Commands sent via the `CommandBus` during `onFailure` are queued in the Kafka producer and committed as part of the same transaction as the offset commit.
 
-### 5. GDPR / PII Data Support
+### 5. Success Hook: Command Sending on Successful Processing
+
+After a successful API call, the framework calls the `onSuccess` method on the Reactor implementation. This method:
+
+- Receives the processed event and a `CommandBus`
+- The implementor can call `commandBus.send(command)` to send one or more success commands back to aggregates (e.g., "notification was sent successfully")
+- If the implementor does nothing, no commands are sent (just the offset is committed)
+- Both the offset commit and any success commands are committed atomically within a single Kafka transaction
+
+This is symmetric with `onFailure`: both hooks run inside the Kafka transaction, and both provide access to the `CommandBus`. This allows the Reactor to provide full lifecycle feedback to aggregates — signaling both successful completions and failures of external API calls.
+
+### 6. GDPR / PII Data Support
 
 Like the `DatabaseModel`, the Reactor supports PII data handling via the GDPR context. If any of the handled events contain `@PIIData` fields, the GDPR keys are loaded and the `GDPRContext` is set before invoking the event handler.
 
@@ -104,6 +121,18 @@ public @interface ReactorEventHandler {
 ```java
 public interface Reactor {
     /**
+     * Called after a successful event handler invocation.
+     * The implementor can use the provided CommandBus to send a command back
+     * to an aggregate to signal success (e.g., "notification sent").
+     *
+     * @param event the event that was successfully processed
+     * @param commandBus the CommandBus to use for sending success commands
+     */
+    default void onSuccess(DomainEvent event, CommandBus commandBus) {
+        // default: do nothing
+    }
+
+    /**
      * Called when all retries are exhausted for an event handler invocation.
      * The implementor can use the provided CommandBus to send a command back
      * to an aggregate to signal failure.
@@ -118,7 +147,7 @@ public interface Reactor {
 }
 ```
 
-Note: the `onFailure` method receives a `CommandBus` parameter which is the existing framework interface (`org.elasticsoftware.akces.commands.CommandBus`). Internally, this is backed by the `ReactorPartition` which implements `CommandBus` and sends commands via the transactional Kafka producer. This is similar to how `AggregatePartition` implements `CommandBus` for the `EventHandlerFunction.getCommandBus()` pattern used by Process Managers.
+Note: both `onSuccess` and `onFailure` receive a `CommandBus` parameter which is the existing framework interface (`org.elasticsoftware.akces.commands.CommandBus`). Internally, this is backed by the `ReactorPartition` which implements `CommandBus` and sends commands via the transactional Kafka producer. This is similar to how `AggregatePartition` implements `CommandBus` for the `EventHandlerFunction.getCommandBus()` pattern used by Process Managers.
 
 #### 4. `ReactorEventHandlerFunction` Functional Interface
 *File: `main/api/src/main/java/org/elasticsoftware/akces/query/ReactorEventHandlerFunction.java`*
@@ -165,6 +194,12 @@ public interface ReactorRuntime {
                         Function<String, GDPRContext> gdprContextSupplier) throws IOException;
     
     /**
+     * Called after successful event processing. Delegates to the Reactor.onSuccess() method,
+     * passing the CommandBus so the implementor can send success commands.
+     */
+    void handleSuccess(DomainEvent event, CommandBus commandBus);
+    
+    /**
      * Called when all retries are exhausted. Delegates to the Reactor.onFailure() method,
      * passing the CommandBus so the implementor can send failure commands.
      */
@@ -188,7 +223,8 @@ public interface ReactorRuntime {
 ```java
 public enum ReactorResult {
     SUCCESS,
-    FAILURE
+    FAILURE,
+    RETRY_PENDING
 }
 ```
 
@@ -198,17 +234,21 @@ public enum ReactorResult {
 Similar to `KafkaDatabaseModelRuntime` but:
 - Processes events individually (not in batches)
 - `accept()` calls throw exceptions on failure (triggering retry)
+- `handleSuccess()` delegates to `Reactor.onSuccess()`, passing a `CommandBus`
 - `handleFailure()` delegates to `Reactor.onFailure()`, passing a `CommandBus`
 - Implements the retry with backoff logic
 - Uses a Builder pattern like `KafkaDatabaseModelRuntime`
 
 The `apply` method:
 1. Resolves the event type and handler
-2. Materializes the event from the `DomainEventRecord`
-3. Attempts to call the handler
-4. On exception: retries up to `maxRetries` times with incremental backoff (`attempt * retryBackoffBaseMs`)
-5. If successful: returns `ReactorResult.SUCCESS`
-6. If all retries exhausted: calls `handleFailure()` and returns `ReactorResult.FAILURE`
+2. Checks if this event has in-memory retry state (from a previous failed attempt)
+   - If backoff period has not elapsed: returns `ReactorResult.RETRY_PENDING` (caller should pause partition)
+   - If backoff period has elapsed: proceeds to step 3
+3. Materializes the event from the `DomainEventRecord`
+4. Attempts to call the handler
+5. On exception: increments retry count in memory, records next-attempt timestamp; returns `ReactorResult.RETRY_PENDING`
+6. If successful: clears retry state, returns `ReactorResult.SUCCESS`
+7. If all retries exhausted: clears retry state, returns `ReactorResult.FAILURE`
 
 #### 8. `ReactorPartitionState` Enum
 *File: `main/query-support/src/main/java/org/elasticsoftware/akces/query/reactor/ReactorPartitionState.java`*
@@ -245,6 +285,7 @@ Similar to `DatabaseModelPartition` but implements `CommandBus`:
 Key differences from `DatabaseModelPartition`:
 - The `processRecords` method iterates over records one by one
 - For each record, it calls `runtime.apply()` which handles retries internally
+- If result is `SUCCESS`, it calls `runtime.handleSuccess(event, this)` where `this` is the `CommandBus` — the implementor can call `commandBus.send(command)` to signal success back to an aggregate
 - If result is `FAILURE`, it calls `runtime.handleFailure(event, exception, this)` where `this` is the `CommandBus` — the implementor can call `commandBus.send(command)` which queues the command in the current transaction
 - After processing (or failure handling) of each record, commits the offset in a Kafka transaction
 
@@ -339,22 +380,42 @@ org.elasticsoftware.akces.query.reactor.AkcesReactorAutoConfiguration
    b. Set GDPR context if needed
    c. Call handler.accept(event)  → External API call succeeds
    d. producer.beginTransaction()
-   e. producer.sendOffsetsToTransaction(offset+1, consumer.groupMetadata())
-   f. producer.commitTransaction()
-   g. Clear GDPR context
+   e. Call reactor.onSuccess(event, commandBus)
+      → implementor may call commandBus.send(command) to signal success
+   f. producer.sendOffsetsToTransaction(offset+1, consumer.groupMetadata())
+   g. producer.commitTransaction()
+      → atomically commits: consumer offset + any success commands
+   h. Clear GDPR context
 ```
 
-### Retry Path (Transient Failure)
+### Retry Path (Transient Failure → Eventually Succeeds)
 
 ```
+Poll N:
 1. Kafka Consumer polls event records
-2. For each DomainEventRecord:
+2. For DomainEventRecord X:
    a. Resolve event type and handler
    b. Set GDPR context if needed
    c. Call handler.accept(event) → throws Exception
-   d. Retry 1: wait 1s, call handler.accept(event) → throws Exception
-   e. Retry 2: wait 2s, call handler.accept(event) → succeeds
-   f. producer.beginTransaction()
+   d. Store retry state in memory: attempt=1, nextAttemptAt=now+1s
+   e. Do NOT commit offset (transaction is rolled back / not started)
+   f. Pause the partition
+   g. Clear GDPR context
+
+Poll N+1 (within 1s):
+1. Kafka Consumer polls (partition is paused, no records for this partition)
+2. Check if backoff has elapsed → not yet → continue polling
+
+Poll N+2 (after 1s):
+1. Resume the partition
+2. Kafka Consumer polls → same event X is redelivered
+3. For DomainEventRecord X:
+   a. Check retry state: attempt=1, backoff elapsed → proceed
+   b. Set GDPR context if needed
+   c. Call handler.accept(event) → succeeds
+   d. Clear retry state
+   e. producer.beginTransaction()
+   f. Call reactor.onSuccess(event, commandBus)
    g. producer.sendOffsetsToTransaction(offset+1, consumer.groupMetadata())
    h. producer.commitTransaction()
    i. Clear GDPR context
@@ -363,25 +424,26 @@ org.elasticsoftware.akces.query.reactor.AkcesReactorAutoConfiguration
 ### Failure Path (All Retries Exhausted)
 
 ```
-1. Kafka Consumer polls event records
-2. For each DomainEventRecord:
-   a. Resolve event type and handler
-   b. Set GDPR context if needed
-   c. Call handler.accept(event) → throws Exception
-   d. Retry 1-5: all fail with incremental backoff
-   e. producer.beginTransaction()
-   f. Call reactor.onFailure(event, lastException, commandBus)
-      → implementor may call commandBus.send(command) which queues 
-        the command ProducerRecord within the active transaction
-   g. producer.sendOffsetsToTransaction(offset+1, consumer.groupMetadata())
-   h. producer.commitTransaction()
-      → atomically commits: consumer offset + any failure commands
-   i. Clear GDPR context
+Polls 1 through 6 (initial attempt + 5 retries):
+- Each poll: handler fails, retry state incremented, transaction rolled back
+- Backoff between attempts: 1s, 2s, 3s, 4s, 5s
+- Partition paused/resumed between attempts
+
+Poll 7 (after 5th retry fails):
+1. Retry state: attempt=5 (max reached), event marked as exhausted
+2. producer.beginTransaction()
+3. Call reactor.onFailure(event, lastException, commandBus)
+   → implementor may call commandBus.send(command) to signal failure
+4. producer.sendOffsetsToTransaction(offset+1, consumer.groupMetadata())
+5. producer.commitTransaction()
+   → atomically commits: consumer offset + any failure commands
+6. Clear retry state for this event
+7. Clear GDPR context
 ```
 
-## Command Sending on Failure
+## Command Sending on Success and Failure
 
-When the `Reactor.onFailure()` method is called, the implementor receives a `CommandBus` parameter and can call `commandBus.send(command)` to send a failure command. The `CommandBus` is implemented by the `ReactorPartition` (same pattern as `AggregatePartition`):
+Both `Reactor.onSuccess()` and `Reactor.onFailure()` receive a `CommandBus` parameter and can call `commandBus.send(command)` to send commands to aggregates. The `CommandBus` is implemented by the `ReactorPartition` (same pattern as `AggregatePartition`):
 
 1. `CommandBus.send(command)` resolves the command type via `AkcesRegistry.resolveType(commandClass)`
 2. Resolves the target topic via `AkcesRegistry.resolveTopic(commandType)`
@@ -389,7 +451,7 @@ When the `Reactor.onFailure()` method is called, the implementor receives a `Com
 4. Serializes the command to a `CommandRecord`
 5. Sends via `KafkaSender.send(producer, producerRecord)` — within the active Kafka transaction
 
-Since `onFailure` is called between `producer.beginTransaction()` and `producer.commitTransaction()`, any commands sent via the `CommandBus` are part of the same transaction as the offset commit. This guarantees atomicity: either both the offset and the failure command are committed, or neither is.
+Since both hooks are called between `producer.beginTransaction()` and `producer.commitTransaction()`, any commands sent via the `CommandBus` are part of the same transaction as the offset commit. This guarantees atomicity: either both the offset and the command(s) are committed, or neither is.
 
 This requires the `AkcesReactorController` to:
 - Implement `AkcesRegistry` (it already needs to for event topic resolution, same as `AkcesDatabaseModelController`)
@@ -492,6 +554,14 @@ public class NotificationReactor implements Reactor {
     }
     
     @Override
+    public void onSuccess(DomainEvent event, CommandBus commandBus) {
+        // Send a command back to signal the success via the CommandBus
+        if (event instanceof AccountCreatedEvent ace) {
+            commandBus.send(new MarkNotificationSentCommand(ace.userId()));
+        }
+    }
+    
+    @Override
     public void onFailure(DomainEvent event, Exception exception, CommandBus commandBus) {
         // Send a command back to signal the failure via the CommandBus
         if (event instanceof AccountCreatedEvent ace) {
@@ -516,6 +586,59 @@ public class NotificationReactor implements Reactor {
 
 5. **Metrics/Observability**: OK — Micrometer metrics will be added for retry counts, success/failure rates, and backoff times. (Can be done as a follow-up task.)
 
-6. **Command sending on failure**: Expose the existing `CommandBus` interface (`org.elasticsoftware.akces.commands.CommandBus`) to the `onFailure` method. Internally backed by the `ReactorPartition` which implements `CommandBus` and sends commands within the Kafka transaction. This follows the same pattern as `AggregatePartition` implements `CommandBus` for process managers.
+6. **Command sending on success and failure**: Expose the existing `CommandBus` interface (`org.elasticsoftware.akces.commands.CommandBus`) to both `onSuccess` and `onFailure` methods. Internally backed by the `ReactorPartition` which implements `CommandBus` and sends commands within the Kafka transaction. This follows the same pattern as `AggregatePartition` implements `CommandBus` for process managers.
 
 7. **Offset management**: Use **Kafka transactions** (transactional producer with `beginTransaction()`, `sendOffsetsToTransaction()`, `commitTransaction()`) instead of `consumer.commitSync()`. This is more reliable and guarantees exactly-once semantics. Follows the same pattern used by `AggregatePartition` in the runtime module.
+
+8. **Retry mechanism**: Non-blocking, poll-loop integrated. On failure, the Kafka transaction is rolled back (offset not committed), retry state is stored in memory, and control returns to the poll loop. The event is redelivered on the next poll. The partition is paused/resumed to implement backoff. Retry state is in-memory only; on process restart, retry count resets to 0 (acceptable since external calls must be idempotent).
+
+## Producer Sharing Analysis: AkcesClient vs ReactorPartition
+
+The architect requested an exploration of whether the same Kafka `Producer` instance can be shared between `AkcesClient` and `ReactorPartition`.
+
+### Current AkcesClient Producer Architecture
+
+The `AkcesClientController` (in `main/client`) runs on its own thread and manages its own lifecycle:
+
+1. **Producer creation**: `producerFactory.createProducer(HostUtils.getHostName() + "-AkcesClientController")` — creates a transactional producer with a unique transaction ID
+2. **Command flow**: Commands are submitted via a `BlockingQueue<CommandRequest>` (`commandQueue`). The controller's thread polls this queue and sends commands in batches within Kafka transactions:
+   ```
+   producer.beginTransaction()
+   for each command: KafkaSender.send(producer, record)
+   producer.commitTransaction()
+   ```
+3. **Thread ownership**: The producer is exclusively used by the `AkcesClientController` thread — Kafka transactional producers are **not thread-safe**
+
+### Why Sharing the Same Producer Instance Is Not Possible
+
+Kafka transactional producers have strict threading constraints:
+
+1. **Transaction state is per-producer**: A `Producer` can have at most one active transaction at a time. If `ReactorPartition` and `AkcesClient` shared the same producer, they would need to coordinate transaction boundaries — one cannot call `beginTransaction()` while the other has an active transaction.
+
+2. **Thread safety**: The Kafka `Producer` API is not designed for concurrent use within transactions. While `producer.send()` is thread-safe in isolation, transaction operations (`beginTransaction()`, `commitTransaction()`, `abortTransaction()`, `sendOffsetsToTransaction()`) are not safe to interleave from different threads.
+
+3. **Transaction scope**: The `ReactorPartition` needs the offset commit (`sendOffsetsToTransaction`) and any success/failure commands to be in the **same** transaction. If commands were routed through `AkcesClient`'s queue, they would end up in a different transaction on a different thread — breaking atomicity.
+
+### Recommended Approach: Shared ProducerFactory, Separate Producer Instances
+
+The `ReactorPartition` should use the **same `ProducerFactory`** (and thus the same Kafka cluster configuration) as `AkcesClient`, but create its **own `Producer` instance** with a unique transaction ID. This is the same pattern used by `AggregatePartition`:
+
+| Component | Producer Instance | Transaction ID | Thread |
+|-----------|------------------|----------------|--------|
+| `AkcesClientController` | Dedicated producer | `{hostname}-AkcesClientController` | AkcesClient thread |
+| `AggregatePartition` | Per-partition producer | `{aggregate}Aggregate-partition-{id}-{hostname}` | Partition thread |
+| `ReactorPartition` | Per-partition producer | `{reactor}Reactor-partition-{id}-{hostname}` | Partition thread |
+
+All three use `CustomKafkaProducerFactory` to create producers, sharing the same Kafka cluster configuration. The command-sending logic in `ReactorPartition.send(Command)` mirrors `AggregatePartition.send(Command)` — it resolves the command type, topic, and partition via `AkcesRegistry` and sends directly via its own producer within its own transaction.
+
+### Potential AkcesClient Concern
+
+The architect noted this "may be an issue with the current AkcesClient implementation." The potential issue is that **AkcesClient's command-sending logic is tightly coupled to its internal thread and producer**:
+
+- The `AkcesClient` exposes a public API (`send(tenantId, command)`) that puts commands on an internal queue
+- The internal `AkcesClientController` thread picks up commands and sends them via its own producer
+- There is no way to externally inject commands into an already-active transaction on a different producer
+
+For the Reactor's `CommandBus`, we need commands to be sent within the **ReactorPartition's transaction**, not the AkcesClient's transaction. This means the `ReactorPartition` must implement `CommandBus` directly (using its own producer), rather than delegating to `AkcesClient`. The command serialization and routing logic (`resolveType`, `resolveTopic`, `resolvePartition`) can be shared via `AkcesRegistry`, but the actual `producer.send()` must happen on the ReactorPartition's own producer within its active transaction.
+
+This is consistent with how `AggregatePartition` implements `CommandBus` — it sends commands directly via its own transactional producer, not through `AkcesClient`.
