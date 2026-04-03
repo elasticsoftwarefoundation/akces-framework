@@ -39,6 +39,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 public class KafkaReflectorRuntime implements ReflectorRuntime {
@@ -72,7 +73,7 @@ public class KafkaReflectorRuntime implements ReflectorRuntime {
     private final boolean shouldHandlePIIData;
 
     /** Per-partition retry state; at most one pending retry per partition at any time. */
-    private final Map<TopicPartition, RetryState> retryStates = new HashMap<>();
+    private final Map<TopicPartition, RetryState> retryStates = new ConcurrentHashMap<>();
 
     /** Holds the deserialized event from the most recent {@link #apply} call that produced a terminal result. */
     private DomainEvent lastEvent;
@@ -132,10 +133,13 @@ public class KafkaReflectorRuntime implements ReflectorRuntime {
             return ReflectorResult.SUCCESS;
         }
 
+        // Capture the current time once for consistent time-based decisions in this invocation
+        final Instant now = Instant.now();
+
         // Check whether there is an existing in-memory retry state for this partition
         RetryState retryState = retryStates.get(topicPartition);
         if (retryState != null) {
-            if (Instant.now().isBefore(retryState.nextAttemptAt())) {
+            if (now.isBefore(retryState.nextAttemptAt())) {
                 // Backoff period has not elapsed yet — tell the caller to keep the partition paused
                 logger.debug("Retry backoff not elapsed for partition {} (attempt {}/{}); returning RETRY_PENDING",
                         topicPartition, retryState.attempt(), maxRetries);
@@ -145,6 +149,9 @@ public class KafkaReflectorRuntime implements ReflectorRuntime {
             logger.debug("Retry backoff elapsed for partition {} (attempt {}/{}); retrying handler",
                     topicPartition, retryState.attempt(), maxRetries);
         }
+
+        // The current attempt number is 1-based: 1 = first try, 2 = first retry, etc.
+        int attempt = (retryState != null) ? retryState.attempt() + 1 : 1;
 
         // Materialize the event
         DomainEvent event;
@@ -158,7 +165,6 @@ public class KafkaReflectorRuntime implements ReflectorRuntime {
         }
 
         // Attempt to invoke the handler
-        int currentAttempt = (retryState != null) ? retryState.attempt() : 0;
         try {
             if (domainEventType.piiData()) {
                 GDPRContextHolder.setCurrentGDPRContext(gdprContextSupplier.apply(eventRecord.aggregateId()));
@@ -168,12 +174,11 @@ public class KafkaReflectorRuntime implements ReflectorRuntime {
             retryStates.remove(topicPartition);
             lastEvent = event;
             lastResult = result;
-            logger.debug("Handler succeeded for event '{}' on partition {} (attempt {})",
-                    eventRecord.name(), topicPartition, currentAttempt + 1);
+            logger.debug("Handler succeeded for event '{}' on partition {} (attempt {}/{})",
+                    eventRecord.name(), topicPartition, attempt, maxRetries + 1);
             return ReflectorResult.SUCCESS;
         } catch (Exception e) {
-            int nextAttempt = currentAttempt + 1;
-            if (nextAttempt > maxRetries) {
+            if (attempt > maxRetries) {
                 // All retries exhausted
                 retryStates.remove(topicPartition);
                 lastEvent = event;
@@ -182,12 +187,12 @@ public class KafkaReflectorRuntime implements ReflectorRuntime {
                         maxRetries, eventRecord.name(), topicPartition, e);
                 return ReflectorResult.FAILURE;
             }
-            // Schedule the next retry
-            long backoffMs = (long) nextAttempt * retryBackoffBaseMs;
-            Instant nextAttemptAt = Instant.now().plusMillis(backoffMs);
-            retryStates.put(topicPartition, new RetryState(nextAttempt, nextAttemptAt, e, eventRecord));
+            // Schedule the next retry using linear backoff: delay = attempt * baseIntervalMs
+            long backoffMs = (long) attempt * retryBackoffBaseMs;
+            Instant nextAttemptAt = now.plusMillis(backoffMs);
+            retryStates.put(topicPartition, new RetryState(attempt, nextAttemptAt, e, eventRecord));
             logger.warn("Handler failed for event '{}' on partition {} (attempt {}/{}); next retry in {} ms",
-                    eventRecord.name(), topicPartition, nextAttempt, maxRetries, backoffMs, e);
+                    eventRecord.name(), topicPartition, attempt, maxRetries + 1, backoffMs, e);
             return ReflectorResult.RETRY_PENDING;
         } finally {
             GDPRContextHolder.resetCurrentGDPRContext();
