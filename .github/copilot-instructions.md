@@ -6,8 +6,8 @@ The Akces Framework is a sophisticated CQRS (Command Query Responsibility Segreg
 
 **Key Technologies:**
 - Java 25+
-- Apache Kafka 3.x (KRaft mode)
-- Spring Boot 3.x
+- Apache Kafka 4.x (KRaft mode)
+- Spring Boot 4.x
 - Maven for build management
 - RocksDB for state management
 - Confluent Schema Registry for schema management
