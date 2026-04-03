@@ -164,7 +164,9 @@ public class KafkaReflectorRuntime implements ReflectorRuntime {
             GDPRContextHolder.resetCurrentGDPRContext();
         }
 
-        // Attempt to invoke the handler
+        // Attempt to invoke the handler.
+        // totalAttempts = 1 initial attempt + maxRetries retries
+        final int totalAttempts = maxRetries + 1;
         try {
             if (domainEventType.piiData()) {
                 GDPRContextHolder.setCurrentGDPRContext(gdprContextSupplier.apply(eventRecord.aggregateId()));
@@ -175,11 +177,11 @@ public class KafkaReflectorRuntime implements ReflectorRuntime {
             lastEvent = event;
             lastResult = result;
             logger.debug("Handler succeeded for event '{}' on partition {} (attempt {}/{})",
-                    eventRecord.name(), topicPartition, attempt, maxRetries + 1);
+                    eventRecord.name(), topicPartition, attempt, totalAttempts);
             return ReflectorResult.SUCCESS;
         } catch (Exception e) {
-            if (attempt > maxRetries) {
-                // All retries exhausted
+            if (attempt >= totalAttempts) {
+                // All attempts exhausted (1 initial + maxRetries retries)
                 retryStates.remove(topicPartition);
                 lastEvent = event;
                 lastException = e;
@@ -192,7 +194,7 @@ public class KafkaReflectorRuntime implements ReflectorRuntime {
             Instant nextAttemptAt = now.plusMillis(backoffMs);
             retryStates.put(topicPartition, new RetryState(attempt, nextAttemptAt, e, eventRecord));
             logger.warn("Handler failed for event '{}' on partition {} (attempt {}/{}); next retry in {} ms",
-                    eventRecord.name(), topicPartition, attempt, maxRetries + 1, backoffMs, e);
+                    eventRecord.name(), topicPartition, attempt, totalAttempts, backoffMs, e);
             return ReflectorResult.RETRY_PENDING;
         } finally {
             GDPRContextHolder.resetCurrentGDPRContext();
