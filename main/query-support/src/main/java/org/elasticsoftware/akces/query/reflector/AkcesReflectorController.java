@@ -145,7 +145,7 @@ public class AkcesReflectorController extends Thread
             try {
                 controlConsumer.close(Duration.ofSeconds(5));
             } catch (InterruptException e) {
-                // ignore
+                Thread.currentThread().interrupt();
             } catch (KafkaException e) {
                 logger.error("Error closing controlConsumer", e);
             }
@@ -163,8 +163,10 @@ public class AkcesReflectorController extends Thread
         if (processState == RUNNING) {
             try {
                 processControlRecords();
-            } catch (WakeupException | InterruptException e) {
+            } catch (WakeupException e) {
                 // ignore
+            } catch (InterruptException e) {
+                Thread.currentThread().interrupt();
             } catch (KafkaException e) {
                 logger.error("Unrecoverable exception in AkcesReflectorController", e);
                 processState = SHUTTING_DOWN;
@@ -199,8 +201,10 @@ public class AkcesReflectorController extends Thread
                         }
                         consumerRecords = controlConsumer.poll(Duration.ofMillis(100));
                     }
-                } catch (WakeupException | InterruptException e) {
+                } catch (WakeupException e) {
                     // ignore
+                } catch (InterruptException e) {
+                    Thread.currentThread().interrupt();
                 } catch (KafkaException e) {
                     logger.error("Unrecoverable exception in AkcesReflectorController", e);
                     processState = SHUTTING_DOWN;
@@ -275,7 +279,7 @@ public class AkcesReflectorController extends Thread
                 logger.warn("AkcesReflectorController did not shutdown within 10 seconds");
             }
         } catch (InterruptedException e) {
-            // ignore
+            Thread.currentThread().interrupt();
         }
     }
 

@@ -146,7 +146,7 @@ public class ReflectorPartition implements Runnable, AutoCloseable, CommandBus {
                 consumer.close(Duration.ofSeconds(5));
                 producer.close(Duration.ofSeconds(5));
             } catch (InterruptException e) {
-                // ignore
+                Thread.currentThread().interrupt();
             } catch (KafkaException e) {
                 logger.error("Error closing consumer/producer", e);
             }
@@ -172,7 +172,7 @@ public class ReflectorPartition implements Runnable, AutoCloseable, CommandBus {
                 logger.warn("ReflectorPartition={} did not shutdown within 10 seconds", id);
             }
         } catch (InterruptedException e) {
-            // ignore
+            Thread.currentThread().interrupt();
         }
     }
 
