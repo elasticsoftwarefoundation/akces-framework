@@ -69,8 +69,8 @@ The `CommandBus` is the existing framework interface (`org.elasticsoftware.akces
 
 After a successful API call, the framework calls the `onSuccess` method on the Reflector implementation. This method:
 
-- Receives the processed event and a `CommandBus`
-- The implementor can call `commandBus.send(command)` to send one or more success commands back to aggregates (e.g., "notification was sent successfully")
+- Receives the processed event, the **typed API result** (the value returned by the handler method), and a `CommandBus`
+- The implementor can use the API result to build precise Command payloads and call `commandBus.send(command)` to send one or more success commands back to aggregates (e.g., "notification was sent — here is the notification ID")
 - If the implementor does nothing, no commands are sent (just the offset is committed)
 - Both the offset commit and any success commands are committed atomically within a single Kafka transaction
 
@@ -118,17 +118,20 @@ public @interface ReflectorEventHandler {
 #### 3. `Reflector` Interface
 *File: `main/api/src/main/java/org/elasticsoftware/akces/query/Reflector.java`*
 
+`Reflector` is parameterized on `R` — the type returned by the external API call. This lets `onSuccess` receive the actual API response alongside the triggering event, enabling the implementor to build precise Command payloads from the response data.
+
 ```java
-public interface Reflector {
+public interface Reflector<R> {
     /**
      * Called after a successful event handler invocation.
      * The implementor can use the provided CommandBus to send a command back
      * to an aggregate to signal success (e.g., "notification sent").
      *
      * @param event the event that was successfully processed
+     * @param result the result returned by the external API call (typed)
      * @param commandBus the CommandBus to use for sending success commands
      */
-    default void onSuccess(DomainEvent event, CommandBus commandBus) {
+    default void onSuccess(DomainEvent event, R result, CommandBus commandBus) {
         // default: do nothing
     }
 
@@ -149,27 +152,36 @@ public interface Reflector {
 
 Note: both `onSuccess` and `onFailure` receive a `CommandBus` parameter which is the existing framework interface (`org.elasticsoftware.akces.commands.CommandBus`). Internally, this is backed by the `ReflectorPartition` which implements `CommandBus` and sends commands via the transactional Kafka producer. This is similar to how `AggregatePartition` implements `CommandBus` for the `EventHandlerFunction.getCommandBus()` pattern used by Process Managers.
 
+When `R` is `Void` (or if the implementor does not need the result in `onSuccess`), the handler method returns `null` and `onSuccess` can ignore the `result` parameter.
+
 #### 4. `ReflectorEventHandlerFunction` Functional Interface
 *File: `main/api/src/main/java/org/elasticsoftware/akces/query/ReflectorEventHandlerFunction.java`*
 
+`ReflectorEventHandlerFunction` is parameterized on both `E` (the event type) and `R` (the API result type), matching `Reflector<R>`.
+
 ```java
 @FunctionalInterface
-public interface ReflectorEventHandlerFunction<E extends DomainEvent> {
-    void accept(@Nonnull E event) throws Exception;
+public interface ReflectorEventHandlerFunction<E extends DomainEvent, R> {
+    /**
+     * Invokes the external API for the given event and returns the API result.
+     * The returned value is passed to {@link Reflector#onSuccess} on success.
+     * May return {@code null} if the result is not needed by {@code onSuccess}.
+     */
+    R accept(@Nonnull E event) throws Exception;
     
     default DomainEventType<E> getEventType() {
         throw new UnsupportedOperationException(
             "When implementing ReflectorEventHandlerFunction directly, you must override getEventType()");
     }
     
-    default Reflector getReflector() {
+    default Reflector<R> getReflector() {
         throw new UnsupportedOperationException(
             "When implementing ReflectorEventHandlerFunction directly, you must override getReflector()");
     }
 }
 ```
 
-Note: unlike `DatabaseModelEventHandlerFunction.accept()` which does not throw, `ReflectorEventHandlerFunction.accept()` throws `Exception` because the external API call may throw checked exceptions (e.g. `IOException`, `HttpTimeoutException`). This is a key design difference.
+Note: unlike `DatabaseModelEventHandlerFunction.accept()` which returns `void` and does not throw, `ReflectorEventHandlerFunction.accept()` returns `R` and throws `Exception` because the external API call may throw checked exceptions (e.g. `IOException`, `HttpTimeoutException`). This is a key design difference.
 
 ### Query-Support Module (`main/query-support`)
 
@@ -195,9 +207,13 @@ public interface ReflectorRuntime {
     
     /**
      * Called after successful event processing. Delegates to the Reflector.onSuccess() method,
-     * passing the CommandBus so the implementor can send success commands.
+     * passing the typed API result and the CommandBus so the implementor can send success commands.
+     *
+     * @param event  the event that was successfully processed
+     * @param result the value returned by the handler (the external API response); may be null
+     * @param commandBus the CommandBus to use for sending success commands
      */
-    void handleSuccess(DomainEvent event, CommandBus commandBus);
+    void handleSuccess(DomainEvent event, Object result, CommandBus commandBus);
     
     /**
      * Called when all retries are exhausted. Delegates to the Reflector.onFailure() method,
@@ -237,7 +253,7 @@ public enum ReflectorResult {
 Similar to `KafkaDatabaseModelRuntime` but:
 - Processes events individually (not in batches)
 - `accept()` calls throw exceptions on failure (triggering retry)
-- `handleSuccess()` delegates to `Reflector.onSuccess()`, passing a `CommandBus`
+- `handleSuccess()` delegates to `Reflector.onSuccess()`, passing the typed API result and a `CommandBus`
 - `handleFailure()` delegates to `Reflector.onFailure()`, passing a `CommandBus`
 - Implements the retry with backoff logic
 - Uses a Builder pattern like `KafkaDatabaseModelRuntime`
@@ -250,8 +266,10 @@ The `apply` method:
 3. Materializes the event from the `DomainEventRecord`
 4. Attempts to call the handler
 5. On exception: increments retry count in memory, records next-attempt timestamp; returns `ReflectorResult.RETRY_PENDING`
-6. If successful: clears retry state, returns `ReflectorResult.SUCCESS`
-7. If all retries exhausted: clears retry state, returns `ReflectorResult.FAILURE`
+6. If successful: clears retry state, stores the returned API result (accessible via `getLastResult()`), returns `ReflectorResult.SUCCESS`
+7. If all retries exhausted: clears retry state, stores the last exception (accessible via `getLastException()`), returns `ReflectorResult.FAILURE`
+
+The API result returned by `accept()` is held in a per-call field (`lastResult`) so that `ReflectorPartition` can pass it to `runtime.handleSuccess(event, result, commandBus)` immediately after `apply()` returns `SUCCESS`.
 
 #### 8. `ReflectorPartitionState` Enum
 *File: `main/query-support/src/main/java/org/elasticsoftware/akces/query/reflector/ReflectorPartitionState.java`*
@@ -290,7 +308,7 @@ Similar to `DatabaseModelPartition` but implements `CommandBus`:
 Key differences from `DatabaseModelPartition`:
 - The `processRecords` method iterates over records one by one
 - For each record, it calls `runtime.apply()` which handles retries internally
-- If result is `SUCCESS`, it calls `runtime.handleSuccess(event, this)` where `this` is the `CommandBus` — the implementor can call `commandBus.send(command)` to signal success back to an aggregate
+- If result is `SUCCESS`, it calls `runtime.handleSuccess(event, runtime.getLastResult(), this)` where `this` is the `CommandBus` — the implementor can use the typed API result from `getLastResult()` together with the event to build precise Command payloads and send them via `commandBus.send(command)` to signal success back to an aggregate
 - If result is `FAILURE`, it calls `runtime.handleFailure(event, exception, this)` where `this` is the `CommandBus` — the implementor can call `commandBus.send(command)` which queues the command in the current transaction
 - After processing (or failure handling) of each record, commits the offset in a Kafka transaction
 
@@ -330,9 +348,9 @@ Factory bean similar to `DatabaseModelRuntimeFactory`:
 *File: `main/query-support/src/main/java/org/elasticsoftware/akces/query/reflector/beans/ReflectorEventHandlerFunctionAdapter.java`*
 
 Similar to `DatabaseModelEventHandlerFunctionAdapter` but:
-- Implements `ReflectorEventHandlerFunction<E>` instead of `DatabaseModelEventHandlerFunction<E>`
-- The `accept()` method propagates exceptions (does not catch them)
-- References `Reflector` instead of `DatabaseModel`
+- Implements `ReflectorEventHandlerFunction<E, R>` instead of `DatabaseModelEventHandlerFunction<E>`
+- The `accept()` method returns the value from the handler method (the API result) and propagates exceptions (does not catch them)
+- References `Reflector<R>` instead of `DatabaseModel`
 
 #### 14. `ReflectorBeanFactoryPostProcessor`
 *File: `main/query-support/src/main/java/org/elasticsoftware/akces/query/reflector/beans/ReflectorBeanFactoryPostProcessor.java`*
@@ -343,7 +361,7 @@ Similar to `DatabaseModelBeanFactoryPostProcessor` but:
 - Creates `ReflectorEventHandlerFunctionAdapter` bean definitions
 - Creates `ReflectorRuntimeFactory` bean definition
 - Creates `AkcesReflectorController` bean definition with additional **transactional** producer factory reference
-- The method signature validation requires a `void` return type with a single `DomainEvent` parameter but does not enforce any particular `throws` clause (handlers may declare specific checked exceptions, multiple exceptions, or none)
+- The method signature validation requires a single `DomainEvent` parameter, a non-`void` return type (the API result type `R`), and does not enforce any particular `throws` clause (handlers may declare specific checked exceptions, multiple exceptions, or none). The return type is used to infer `R` for the `ReflectorEventHandlerFunctionAdapter`.
 
 #### 15. `ReflectorImplementationPresentCondition`
 *File: `main/query-support/src/main/java/org/elasticsoftware/akces/query/reflector/ReflectorImplementationPresentCondition.java`*
@@ -383,10 +401,10 @@ org.elasticsoftware.akces.query.reflector.AkcesReflectorAutoConfiguration
 2. For each DomainEventRecord:
    a. Resolve event type and handler
    b. Set GDPR context if needed
-   c. Call handler.accept(event)  → External API call succeeds
+   c. Call `result = handler.accept(event)`  → External API call succeeds, `result` holds the API response
    d. producer.beginTransaction()
-   e. Call reflector.onSuccess(event, commandBus)
-      → implementor may call commandBus.send(command) to signal success
+   e. Call reflector.onSuccess(event, result, commandBus)
+      → implementor may use `result` (the typed API response) to build Command payloads and call commandBus.send(command)
    f. producer.sendOffsetsToTransaction(offset+1, consumer.groupMetadata())
    g. producer.commitTransaction()
       → atomically commits: consumer offset + any success commands
@@ -417,10 +435,10 @@ Poll N+2 (after 1s):
 3. For DomainEventRecord X:
    a. Check retry state: attempt=1, backoff elapsed → proceed
    b. Set GDPR context if needed
-   c. Call handler.accept(event) → succeeds
+   c. Call `result = handler.accept(event)` → succeeds, result holds the API response
    d. Clear retry state
    e. producer.beginTransaction()
-   f. Call reflector.onSuccess(event, commandBus)
+   f. Call reflector.onSuccess(event, result, commandBus)
    g. producer.sendOffsetsToTransaction(offset+1, consumer.groupMetadata())
    h. producer.commitTransaction()
    i. Clear GDPR context
@@ -448,7 +466,7 @@ Poll 7 (after 5th retry fails):
 
 ## Command Sending on Success and Failure
 
-Both `Reflector.onSuccess()` and `Reflector.onFailure()` receive a `CommandBus` parameter and can call `commandBus.send(command)` to send commands to aggregates. The `CommandBus` is implemented by the `ReflectorPartition` (same pattern as `AggregatePartition`):
+Both `Reflector.onSuccess()` and `Reflector.onFailure()` receive a `CommandBus` parameter and can call `commandBus.send(command)` to send commands to aggregates. `onSuccess` additionally receives `result` — the typed value returned by the handler (the external API response) — enabling the implementor to build precise Command payloads from the API response data. The `CommandBus` is implemented by the `ReflectorPartition` (same pattern as `AggregatePartition`):
 
 1. `CommandBus.send(command)` resolves the command type via `AkcesRegistry.resolveType(commandClass)`
 2. Resolves the target topic via `AkcesRegistry.resolveTopic(commandType)`
@@ -538,8 +556,11 @@ Additionally, a `ReflectorPartitionCommandBus` class (extending `CommandBusHolde
 ## Usage Example
 
 ```java
+// NotificationResult carries the typed response from the external API
+public record NotificationResult(String notificationId, String status) {}
+
 @ReflectorInfo(value = "NotificationReflector", version = 1, schemaName = "Accounts")
-public class NotificationReflector implements Reflector {
+public class NotificationReflector implements Reflector<NotificationResult> {
     
     private final NotificationApiClient apiClient;
     
@@ -548,21 +569,25 @@ public class NotificationReflector implements Reflector {
     }
     
     @ReflectorEventHandler
-    public void handle(AccountCreatedEvent event) throws Exception {
-        // This calls an external API - may throw on failure
-        apiClient.sendWelcomeNotification(event.userId(), event.email());
+    public NotificationResult handle(AccountCreatedEvent event) throws Exception {
+        // Calls an external API and returns the typed response; may throw on failure
+        return apiClient.sendWelcomeNotification(event.userId(), event.email());
     }
     
     @ReflectorEventHandler
-    public void handle(OrderConfirmedEvent event) throws Exception {
-        apiClient.sendOrderConfirmation(event.orderId());
+    public NotificationResult handle(OrderConfirmedEvent event) throws Exception {
+        return apiClient.sendOrderConfirmation(event.orderId());
     }
     
     @Override
-    public void onSuccess(DomainEvent event, CommandBus commandBus) {
-        // Send a command back to signal the success via the CommandBus
+    public void onSuccess(DomainEvent event, NotificationResult result, CommandBus commandBus) {
+        // Use the typed API result to build a precise Command payload
         if (event instanceof AccountCreatedEvent ace) {
-            commandBus.send(new MarkNotificationSentCommand(ace.userId()));
+            commandBus.send(new MarkNotificationSentCommand(
+                ace.userId(),
+                result.notificationId(),  // from the API response
+                result.status()
+            ));
         }
     }
     
@@ -579,6 +604,8 @@ public class NotificationReflector implements Reflector {
 }
 ```
 
+If the API result is not needed in `onSuccess`, the handler may return `null` (or use `Void` as the type parameter and return `null`). The `onSuccess` default implementation discards `result` unless overridden.
+
 ## Resolved Design Decisions (from Architect Review)
 
 1. **Retry configuration scope**: Per-Reflector (on `@ReflectorInfo`). The `maxRetries` and `retryBackoffBaseMs` are set on the reflector class level, not per-handler. This keeps it simple.
@@ -593,9 +620,11 @@ public class NotificationReflector implements Reflector {
 
 6. **Command sending on success and failure**: Expose the existing `CommandBus` interface (`org.elasticsoftware.akces.commands.CommandBus`) to both `onSuccess` and `onFailure` methods. Internally backed by the `ReflectorPartition` which implements `CommandBus` and sends commands within the Kafka transaction. This follows the same pattern as `AggregatePartition` implements `CommandBus` for process managers.
 
-7. **Offset management**: Use **Kafka transactions** (transactional producer with `beginTransaction()`, `sendOffsetsToTransaction()`, `commitTransaction()`) instead of `consumer.commitSync()`. This is more reliable and guarantees exactly-once semantics. Follows the same pattern used by `AggregatePartition` in the runtime module.
+7. **Typed API result in `onSuccess`**: The `Reflector` interface is parameterized on `R` (the API result type). The `@ReflectorEventHandler` method returns `R` instead of `void`. On success, the framework passes the returned value directly to `onSuccess(event, result, commandBus)`, allowing the implementor to build precise Command payloads from the API response without storing it in fields. If no result is needed, `R` can be `Void` and the handler returns `null`.
 
-8. **Retry mechanism**: Non-blocking, poll-loop integrated. On failure, the Kafka transaction is rolled back (offset not committed), retry state is stored in memory, and control returns to the poll loop. The event is redelivered on the next poll. The partition is paused/resumed to implement backoff. Retry state is in-memory only; on process restart, retry count resets to 0 (acceptable since external calls must be idempotent).
+8. **Offset management**: Use **Kafka transactions** (transactional producer with `beginTransaction()`, `sendOffsetsToTransaction()`, `commitTransaction()`) instead of `consumer.commitSync()`. This is more reliable and guarantees exactly-once semantics. Follows the same pattern used by `AggregatePartition` in the runtime module.
+
+9. **Retry mechanism**: Non-blocking, poll-loop integrated. On failure, the Kafka transaction is rolled back (offset not committed), retry state is stored in memory, and control returns to the poll loop. The event is redelivered on the next poll. The partition is paused/resumed to implement backoff. Retry state is in-memory only; on process restart, retry count resets to 0 (acceptable since external calls must be idempotent).
 
 ## Producer Sharing Analysis: AkcesClient vs ReflectorPartition
 
