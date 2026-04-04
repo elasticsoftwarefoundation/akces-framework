@@ -112,11 +112,22 @@ public class ReflectorIntegrationTest {
         assertNotNull(akcesClientController);
         assertNotNull(reflectorController);
 
+        long timeoutNanos = TimeUnit.SECONDS.toNanos(30);
+        long deadline = System.nanoTime() + timeoutNanos;
+
         while (!walletController.isRunning() ||
                !accountController.isRunning() ||
                !orderProcessManagerController.isRunning() ||
                !akcesClientController.isRunning() ||
                !reflectorController.isRunning()) {
+            if (System.nanoTime() >= deadline) {
+                fail("Timed out waiting for controllers to reach RUNNING state within 30 seconds. "
+                     + "walletController=" + walletController.isRunning()
+                     + ", accountController=" + accountController.isRunning()
+                     + ", orderProcessManagerController=" + orderProcessManagerController.isRunning()
+                     + ", akcesClientController=" + akcesClientController.isRunning()
+                     + ", reflectorController=" + reflectorController.isRunning());
+            }
             Thread.onSpinWait();
         }
 
