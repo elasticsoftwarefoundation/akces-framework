@@ -335,8 +335,13 @@ public class ReflectorPartition implements Runnable, AutoCloseable, CommandBus {
                         id, runtime.getName(), domainEventRecord.name(), topicPartition, attempt, backoffMs);
             }
             case SUCCESS -> {
-                retryAttempts.remove(topicPartition);
-                pausedUntil.remove(topicPartition);
+                // Only clear retry state when a handler actually ran (lastEvent non-null).
+                // If lastEvent is null, the event had no handler and was silently skipped;
+                // the partition may still be paused for a pending retry on a prior record.
+                if (runtime.getLastEvent() != null) {
+                    retryAttempts.remove(topicPartition);
+                    pausedUntil.remove(topicPartition);
+                }
                 commitEventWithTransaction(
                         domainEventRecord, topicPartition, offset,
                         true, runtime.getLastEvent(), runtime.getLastResult(), null);
@@ -361,10 +366,12 @@ public class ReflectorPartition implements Runnable, AutoCloseable, CommandBus {
         try {
             producer.beginTransaction();
             try {
-                if (success) {
-                    runtime.handleSuccess(event, result, this);
-                } else {
-                    runtime.handleFailure(event, exception, this);
+                if (event != null) {
+                    if (success) {
+                        runtime.handleSuccess(event, result, this);
+                    } else {
+                        runtime.handleFailure(event, exception, this);
+                    }
                 }
                 producer.sendOffsetsToTransaction(
                         Map.of(topicPartition, new OffsetAndMetadata(offset + 1)),
