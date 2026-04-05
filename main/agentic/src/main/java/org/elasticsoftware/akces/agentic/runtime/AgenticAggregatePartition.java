@@ -92,6 +92,12 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
     /** The fixed partition index used by all agentic aggregate partitions. */
     static final int AGENTIC_PARTITION = 0;
 
+    /** Maximum time (in seconds) to wait for the partition to complete shutdown. */
+    private static final int SHUTDOWN_TIMEOUT_SECONDS = 10;
+
+    /** Maximum time (in seconds) to wait for the Kafka producer to close. */
+    private static final int PRODUCER_CLOSE_TIMEOUT_SECONDS = 5;
+
     private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
     private final AggregateRuntime runtime;
@@ -185,7 +191,7 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
     public void close() throws InterruptedException {
         processState = SHUTTING_DOWN;
         try {
-            if (shutdownLatch.await(10, TimeUnit.SECONDS)) {
+            if (shutdownLatch.await(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 logger.info("AgenticAggregatePartition for {}Aggregate has been shutdown",
                         runtime.getName());
             } else {
@@ -357,6 +363,11 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
     private void enforceMemorySlidingWindow(String aggregateId, String tenantId,
                                             String correlationId, long generation) {
         Deque<String> deque = memoryDeques.get(aggregateId);
+        // This method is called AFTER trackMemoryEvent has already added the new memoryId to the
+        // deque.  At this point deque.size() = N+1 where N was the previous count.
+        // Invariant: after this method returns the deque will contain at most maxMemories entries.
+        //   • size <= maxMemories  →  already within limit, no eviction needed
+        //   • size == maxMemories + 1  →  one entry over limit, evict the oldest
         if (deque == null || deque.size() <= maxMemories) {
             return;
         }
@@ -479,7 +490,7 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
         }
         try {
             if (producer != null) {
-                producer.close(Duration.ofSeconds(5));
+                producer.close(Duration.ofSeconds(PRODUCER_CLOSE_TIMEOUT_SECONDS));
             }
         } catch (KafkaException e) {
             logger.error("Error closing Kafka producer for AgenticAggregatePartition of {}Aggregate",

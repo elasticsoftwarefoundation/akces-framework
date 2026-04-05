@@ -85,6 +85,9 @@ public class AgenticAggregateRuntime extends Thread implements AkcesRegistry, Au
 
     private static final Logger logger = LoggerFactory.getLogger(AgenticAggregateRuntime.class);
 
+    /** Maximum time in seconds to wait for graceful shutdown completion. */
+    private static final int SHUTDOWN_TIMEOUT_SECONDS = 30;
+
     /** Built-in command types provided by the agentic framework. */
     @SuppressWarnings("unchecked")
     private static final List<CommandType<?>> BUILTIN_COMMAND_TYPES = List.of(
@@ -362,7 +365,7 @@ public class AgenticAggregateRuntime extends Thread implements AkcesRegistry, Au
         shutdownLatch.countDown();
         // Wait for run() to actually finish
         try {
-            if (!doneLatch.await(30, TimeUnit.SECONDS)) {
+            if (!doneLatch.await(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 logger.warn("AgenticAggregateRuntime for {}Aggregate did not shutdown within 30 seconds",
                         aggregateRuntime.getName());
             }
