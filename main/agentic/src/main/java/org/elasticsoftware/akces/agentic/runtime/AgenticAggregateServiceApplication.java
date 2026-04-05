@@ -20,7 +20,7 @@ package org.elasticsoftware.akces.agentic.runtime;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.elasticsoftware.akces.beans.AggregateBeanFactoryPostProcessor;
+import org.elasticsoftware.akces.agentic.beans.AgenticAggregateBeanFactoryPostProcessor;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.gdpr.jackson.AkcesGDPRModule;
 import org.elasticsoftware.akces.kafka.CustomKafkaConsumerFactory;
@@ -94,14 +94,14 @@ public class AgenticAggregateServiceApplication {
     }
 
     /**
-     * Registers the {@link AggregateBeanFactoryPostProcessor} that discovers and wires
+     * Registers the {@link AgenticAggregateBeanFactoryPostProcessor} that discovers and wires
      * aggregate beans annotated with {@link org.elasticsoftware.akces.annotations.AgenticAggregateInfo}.
      *
-     * @return the aggregate bean factory post-processor
+     * @return the agentic aggregate bean factory post-processor
      */
     @Bean(name = "agenticServiceBeanFactoryPostProcessor")
-    public static AggregateBeanFactoryPostProcessor aggregateBeanFactoryPostProcessor() {
-        return new AggregateBeanFactoryPostProcessor();
+    public static AgenticAggregateBeanFactoryPostProcessor aggregateBeanFactoryPostProcessor() {
+        return new AgenticAggregateBeanFactoryPostProcessor();
     }
 
     /**
