@@ -535,8 +535,84 @@ spec:
 1. Add `akces-agentic` to BOM (`bom/pom.xml`)
 2. Add module to parent POM (`main/pom.xml`)
 3. Update EventCatalog annotation processor for `@AgenticAggregateInfo`
-4. Write integration tests
-5. Update framework documentation
+4. Update framework documentation
+
+### Phase 5: Testing
+**Scope**: Comprehensive unit and integration tests for all new components
+
+#### 5.1 Unit Tests (`main/api`)
+
+Test the new API types in isolation (no Spring context, no Kafka):
+
+| Test Class | What to Verify |
+|-----------|---------------|
+| `AgenticAggregateInfoTest` | Annotation defaults (`maxMemories = 100`), absence of `generateGDPRKeyOnCreate` property, required `value()` and `stateClass()` attributes |
+| `AgenticAggregateMemoryTest` | Record construction, equality, serialization to/from JSON |
+| `MemoryAwareStateTest` | Interface contract — verify `getMemories()` returns correct list; test default implementations on `AgenticAggregate.getMemories(S state)` for both `MemoryAwareState` and non-`MemoryAwareState` states |
+| `MemoryStoredEventTest` | JSON schema generation, `@DomainEventInfo` annotation presence, `@AggregateIdentifier` on `agenticAggregateId` field |
+| `MemoryRevokedEventTest` | Same as above for revocation event |
+
+#### 5.2 Unit Tests (`main/agentic`)
+
+Test the agentic module components with mocked dependencies (Mockito):
+
+| Test Class | What to Verify |
+|-----------|---------------|
+| `AgenticAggregatePartitionTest` | Single-partition assignment (always partition 0), no rebalance listener registered, consumer poll loop behavior, FIFO command ordering |
+| `MemorySlidingWindowTest` | Memory eviction when limit (100) is reached — oldest memory evicted first; `ForgetMemoryCommand` removes specific memory by ID; boundary conditions (0 memories, exactly at limit, over limit) |
+| `MemoryEventSourcingTest` | State reconstruction from `MemoryStoredEvent` / `MemoryRevokedEvent` sequences; verify `getMemories()` returns correct state after replay |
+| `AgenticAggregateRuntimeTest` | Kafka consumer configuration (`max.poll.interval.ms`, heartbeat settings), schema registration for built-in events and commands, `AggregateServiceRecord` includes built-in command types in `supportedCommands` |
+| `KafkaKeepaliveStrategyTest` | Consumer stays alive during long-running agent operations; verify heartbeat thread keeps session alive; test poll-without-commit fallback behavior |
+
+#### 5.3 Unit Tests (`services/operator`)
+
+Test operator CRD and reconciliation with mocked Kubernetes context (following existing `@EnableMockOperator` pattern):
+
+| Test Class | What to Verify |
+|-----------|---------------|
+| `AgenticAggregateReconcilerTest` | Reconciler creates Kafka topics with exactly 1 partition for Commands, DomainEvents, and AggregateState; StatefulSet created with exactly 1 replica; sidecar containers from `spec.sidecars` are added to Pod template |
+| `AgenticAggregateCRDTest` | CRD YAML generation via Fabric8 CRD Generator; `shortNames: [aag]`; spec fields validated (image, applicationName, sidecars) |
+| `AgenticAggregateTopicCreationTest` | `KafkaTopicUtils` extension creates topics with correct partition count (1), correct cleanup policies (delete for Commands/DomainEvents, compact for AggregateState) |
+| `SidecarSpecTest` | Sidecar container configuration: env vars from Kubernetes Secrets, port mappings, resource limits, optional readiness/liveness probes |
+
+#### 5.4 Integration Tests (`main/agentic`)
+
+Full end-to-end tests using TestContainers (Kafka with KRaft mode), following the existing `RuntimeTests` pattern:
+
+| Test Class | What to Verify |
+|-----------|---------------|
+| `AgenticAggregateRuntimeIntegrationTest` | **Full lifecycle test**: (1) Start AgenticAggregate with TestContainers Kafka, (2) Verify 1-partition topic creation, (3) Send a domain command → verify event emission on DomainEvents topic, (4) Verify state persisted on AggregateState topic, (5) Verify `AggregateServiceRecord` published to `Akces-Control` with built-in commands |
+| `MemorySystemIntegrationTest` | **Memory lifecycle**: (1) Send `StoreMemoryCommand` → verify `MemoryStoredEvent` emitted, (2) Verify memory appears in aggregate state, (3) Store 100+ memories → verify oldest evicted (sliding window), (4) Send `ForgetMemoryCommand` → verify `MemoryRevokedEvent` emitted, (5) Verify state reconstruction after replay |
+| `CommandRoutingIntegrationTest` | **Built-in command routing**: (1) Verify `StoreMemoryCommand` routed using `agenticAggregateId` as key, (2) Verify `AkcesRegistry.resolveTopic` returns correct topic, (3) Verify `AkcesRegistry.resolvePartition` returns 0 for any aggregate ID (single partition) |
+| `ExternalEventHandlingIntegrationTest` | **External DomainEvent consumption**: (1) Create external aggregate with N partitions, (2) Emit events across multiple partitions, (3) Verify AgenticAggregate consumer receives events from all partitions via `@EventHandler` (no `@EventBridgeHandler`) |
+| `SchemaRegistrationIntegrationTest` | **Schema management**: (1) Verify JSON schemas registered for `MemoryStoredEvent`, `MemoryRevokedEvent`, `StoreMemoryCommand`, `ForgetMemoryCommand`, (2) Verify schema backward compatibility validation, (3) Verify built-in event schemas coexist with user-defined event schemas |
+
+#### 5.5 Integration Tests (`services/operator`)
+
+Operator integration tests using `@EnableMockOperator` with Kafka TestContainers:
+
+| Test Class | What to Verify |
+|-----------|---------------|
+| `AgenticAggregateOperatorIntegrationTest` | (1) Create `AgenticAggregate` CR → verify reconciler creates StatefulSet (1 replica), ConfigMap, Service, (2) Verify Kafka topics created with 1 partition, (3) Update CR (e.g., change image) → verify StatefulSet updated, (4) Verify health/readiness endpoints return UP |
+
+#### 5.6 Test Infrastructure Requirements
+
+| Component | Implementation |
+|-----------|---------------|
+| **TestContainers** | Kafka (`confluentinc/cp-kafka` with KRaft mode), shared `Network` for multi-container tests |
+| **Test Configuration** | `AgenticAggregateTestConfiguration` Spring config class with `@ComponentScan` for test aggregates |
+| **Test Fixtures** | Sample `AgenticAggregate` implementation with `MemoryAwareState`, test commands, and test events for integration tests |
+| **Test Utilities** | Extend existing `TestUtils` with `prepareAgenticAggregateKafka(String bootstrapServers)` for 1-partition topic setup and `prepareAgenticAggregateServiceRecords(String bootstrapServers)` for control topic setup |
+| **Assertion Libraries** | JUnit 5, AssertJ (`assertThat` fluent assertions), Mockito for mocks |
+| **Test Properties** | `test-application.yaml` with agentic-specific Kafka consumer config (`max.poll.interval.ms`, heartbeat settings) |
+
+#### 5.7 Test Execution
+
+- All unit tests run with `mvn test` in their respective module directories
+- Integration tests require Docker (TestContainers) and run with `mvn verify`
+- Operator tests require CRD YAML files generated in Phase 3
+- Tests should follow `@TestMethodOrder(MethodOrderer.OrderAnnotation.class)` for integration tests that have sequential dependencies
+- Use `@DirtiesContext` on integration tests to prevent Spring context pollution between test classes
 
 ## New Dependencies
 
