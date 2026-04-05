@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ""
+data:
+  application.properties: |
+    # Spring application properties
+    spring.application.name=${SPRING_APPLICATION_NAME}
+    spring.kafka.enabled=true
+    spring.kafka.bootstrap-servers=akces-kafka-bootstrap.kafka:9092
+    spring.kafka.consumer.properties.session.timeout.ms=45000
+    management.endpoint.health.probes.enabled=true
+    management.health.livenessState.enabled=true
+    management.health.readinessState.enabled=true
+    server.shutdown=graceful
+    spring.mvc.problemdetails.enabled=true
+    akces.schemaregistry.url=http://akces-schema-registry.kafka:8081
+    akces.rocksdb.baseDir=/var/lib/akces-data
+    akces.aggregate.schemas.forceRegister=${ENABLE_SCHEMA_OVERWRITES}
+    spring.ai.mcp.client.enabled=true
+  logback.xml: |
+    <configuration>
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <layout class="ch.qos.logback.classic.PatternLayout">
+                <Pattern>
+                    %d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n
+                </Pattern>
+            </layout>
+        </appender>
+        
+        <logger name="org.apache.kafka" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+        
+        <logger name="org.apache.kafka.clients.producer" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+        
+        <logger name="org.apache.kafka.clients.consumer" level="warn" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+        
+        <logger name="org.apache.kafka.clients.NetworkClient" level="error" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+        
+        <logger name="org.apache.kafka.clients.producer.internals.Sender" level="error" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+        
+        <root level="info">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </configuration>

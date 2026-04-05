@@ -35,6 +35,29 @@ public class KafkaTopicUtils {
         );
     }
 
+    /**
+     * Creates the Kafka topics for an AgenticAggregate.
+     *
+     * <p>All topics are always created with exactly 1 partition because AgenticAggregates are
+     * singletons — there is never more than one active consumer per topic. The three topics
+     * created are:
+     * <ul>
+     *   <li>{@code <agenticAggregateName>-Commands}</li>
+     *   <li>{@code <agenticAggregateName>-DomainEvents}</li>
+     *   <li>{@code <agenticAggregateName>-AggregateState} (log-compacted)</li>
+     * </ul>
+     *
+     * @param agenticAggregateName the name of the AgenticAggregate (used as the topic name prefix)
+     * @return an immutable list of the three {@link NewTopic} descriptors to create
+     */
+    public static List<NewTopic> createAgenticAggregateTopics(String agenticAggregateName) {
+        return List.of(
+                createTopic(agenticAggregateName + COMMANDS_SUFFIX, 1),
+                createTopic(agenticAggregateName + DOMAINEVENTS_SUFFIX, 1),
+                createCompactedTopic(agenticAggregateName + AGGREGRATESTATE_SUFFIX, 1)
+        );
+    }
+
     public static NewTopic createTopic(String name, int numPartitions) {
         return createTopic(name, numPartitions, -1L);
     }

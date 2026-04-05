@@ -24,6 +24,9 @@ import io.javaoperatorsdk.operator.api.reconciler.UpdateControl;
 import io.javaoperatorsdk.operator.springboot.starter.test.EnableMockOperator;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.TopicDescription;
+import org.elasticsoftware.akces.operator.agentic.AgenticAggregateReconciler;
+import org.elasticsoftware.akces.operator.agentic.AgenticAggregateResource;
+import org.elasticsoftware.akces.operator.agentic.AgenticAggregateSpec;
 import org.elasticsoftware.akces.operator.aggregate.Aggregate;
 import org.elasticsoftware.akces.operator.aggregate.AggregateReconciler;
 import org.elasticsoftware.akces.operator.aggregate.AggregateSpec;
@@ -65,7 +68,10 @@ import static org.springframework.boot.test.context.SpringBootTest.UseMainMethod
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, useMainMethod = WHEN_AVAILABLE)
 @AutoConfigureTestRestTemplate
 @ContextConfiguration(initializers = AkcesOperatorApplicationTests.KafkaInitializer.class)
-@EnableMockOperator(crdPaths = {"classpath:META-INF/fabric8/aggregates.akces.elasticsoftwarefoundation.org-v1.yml"})
+@EnableMockOperator(crdPaths = {
+        "classpath:META-INF/fabric8/aggregates.akces.elasticsoftwarefoundation.org-v1.yml",
+        "classpath:META-INF/fabric8/agenticaggregates.akces.elasticsoftwarefoundation.org-v1.yml"
+})
 @Testcontainers
 @DirtiesContext
 class AkcesOperatorApplicationTests {
@@ -95,6 +101,9 @@ class AkcesOperatorApplicationTests {
 
     @Autowired
     private QueryServiceReconciler queryServiceReconciler;
+
+    @Autowired
+    private AgenticAggregateReconciler agenticAggregateReconciler;
 
     @Autowired
     private KafkaAdmin kafkaAdmin;
@@ -183,6 +192,36 @@ class AkcesOperatorApplicationTests {
         Context<QueryService> mockContext = mock(Context.class);
         when(mockContext.getSecondaryResource(StatefulSet.class)).thenReturn(Optional.empty());
         UpdateControl<QueryService> updateControl = queryServiceReconciler.reconcile(queryService, mockContext);
+
+        assertThat(updateControl.isNoUpdate()).isTrue();
+        assertThat(updateControl.getResource().isPresent()).isFalse();
+    }
+
+    @Test
+    void testAgenticAggregateReconciliation() throws Exception {
+        AgenticAggregateResource agenticAggregate = new AgenticAggregateResource();
+        agenticAggregate.setMetadata(new ObjectMetaBuilder()
+                .withName("test-agentic-aggregate")
+                .withNamespace("akces")
+                .build());
+        agenticAggregate.setSpec(new AgenticAggregateSpec());
+        agenticAggregate.getSpec().setImage("test-image");
+        agenticAggregate.getSpec().setApplicationName("Test Agentic Aggregate Service");
+
+        Context<AgenticAggregateResource> mockContext = mock(Context.class);
+        when(mockContext.getSecondaryResource(StatefulSet.class)).thenReturn(Optional.empty());
+        UpdateControl<AgenticAggregateResource> updateControl =
+                agenticAggregateReconciler.reconcile(agenticAggregate, mockContext);
+
+        Map<String, TopicDescription> reconciledTopics = kafkaAdmin.describeTopics(
+                "test-agentic-aggregate-Commands",
+                "test-agentic-aggregate-DomainEvents",
+                "test-agentic-aggregate-AggregateState");
+
+        assertThat(reconciledTopics).hasSize(3);
+        assertThat(reconciledTopics.get("test-agentic-aggregate-Commands").partitions().size()).isEqualTo(1);
+        assertThat(reconciledTopics.get("test-agentic-aggregate-DomainEvents").partitions().size()).isEqualTo(1);
+        assertThat(reconciledTopics.get("test-agentic-aggregate-AggregateState").partitions().size()).isEqualTo(1);
 
         assertThat(updateControl.isNoUpdate()).isTrue();
         assertThat(updateControl.getResource().isPresent()).isFalse();

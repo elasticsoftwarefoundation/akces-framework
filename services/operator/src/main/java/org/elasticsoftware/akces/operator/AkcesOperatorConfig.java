@@ -18,6 +18,7 @@
 package org.elasticsoftware.akces.operator;
 
 import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.elasticsoftware.akces.operator.agentic.AgenticAggregateReconciler;
 import org.elasticsoftware.akces.operator.aggregate.AggregateReconciler;
 import org.elasticsoftware.akces.operator.command.CommandServiceReconciler;
 import org.elasticsoftware.akces.operator.query.QueryServiceReconciler;
@@ -49,5 +50,16 @@ public class AkcesOperatorConfig {
     @Bean
     public QueryServiceReconciler queryServiceReconciler() {
         return new QueryServiceReconciler();
+    }
+
+    /**
+     * Creates the {@link AgenticAggregateReconciler} bean.
+     *
+     * @param kafkaAdmin the {@link KafkaAdmin} used for Kafka topic management
+     * @return the reconciler instance
+     */
+    @Bean
+    public AgenticAggregateReconciler agenticAggregateReconciler(KafkaAdmin kafkaAdmin) {
+        return new AgenticAggregateReconciler(kafkaAdmin);
     }
 }
