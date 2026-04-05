@@ -201,9 +201,12 @@ main/agentic/
     ├── AgenticAggregate.java              # Interface
     ├── AgenticAggregateState.java         # State interface with memory support
     ├── AgenticAggregateMemory.java        # Memory record
+    ├── commands/
+    │   ├── StoreMemoryCommand.java        # Built-in command
+    │   └── ForgetMemoryCommand.java       # Built-in command
     ├── events/
-    │   ├── MemoryStoredEvent.java
-    │   └── MemoryRevokedEvent.java
+    │   ├── MemoryStoredEvent.java         # Built-in event
+    │   └── MemoryRevokedEvent.java        # Built-in event
     ├── annotations/
     │   └── AgenticAggregateInfo.java
     └── runtime/
@@ -429,17 +432,16 @@ Similar to the existing `AggregateReconciler` but:
 
 #### 11. Kafka Topic Creation
 
-`KafkaTopicUtils` is extended with a new method:
+`KafkaTopicUtils` is extended with a new method that follows the existing utility pattern and returns the `NewTopic` definitions to create:
 
 ```java
-public static void createAgenticAggregateTopics(
-    KafkaAdmin kafkaAdmin,
-    String agenticAggregateName
-) {
+public static List<NewTopic> createAgenticAggregateTopics(String agenticAggregateName) {
     // Always creates topics with exactly 1 partition
-    createTopic(kafkaAdmin, agenticAggregateName + "-Commands", 1);
-    createTopic(kafkaAdmin, agenticAggregateName + "-DomainEvents", 1);
-    createCompactedTopic(kafkaAdmin, agenticAggregateName + "-AggregateState", 1);
+    return List.of(
+        createTopic(agenticAggregateName + COMMANDS_SUFFIX, 1),
+        createTopic(agenticAggregateName + DOMAINEVENTS_SUFFIX, 1),
+        createCompactedTopic(agenticAggregateName + AGGREGRATESTATE_SUFFIX, 1)
+    );
 }
 ```
 
@@ -479,7 +481,7 @@ spec:
           env:
             - name: JAVA_TOOL_OPTIONS
               value: "-XX:+UseZGC"
-            - name: VIRTUAL_THREADS_COUNT
+            - name: BPL_JVM_THREAD_COUNT
               value: "100"
         # Sidecar containers are dynamically added from spec.sidecars
       volumes:
@@ -506,17 +508,18 @@ spec:
 2. Create `AgenticAggregate` interface (extends `Aggregate`)
 3. Create `MemoryAwareState` interface
 4. Create `AgenticAggregateMemory` record
-5. Create built-in memory domain events (`MemoryStoredEvent`, `MemoryRevokedEvent`)
 
 ### Phase 2: Agentic Module
 **Scope**: New `main/agentic` Maven module
 
 1. Create `main/agentic/pom.xml` with Spring AI and Embabel dependencies
-2. Implement `AgenticAggregatePartition` (simplified single-partition variant)
-3. Implement `AgenticAggregateRuntime` (agent loop integration)
-4. Implement `AgenticAggregateServiceApplication` (Spring Boot entry point)
-5. Implement memory injection into Embabel agent context
-6. Configure Spring AI MCP client auto-configuration
+2. Implement built-in memory domain events (`MemoryStoredEvent`, `MemoryRevokedEvent`) — owned by the agentic module, not `main/api`
+3. Implement built-in memory commands (`StoreMemoryCommand`, `ForgetMemoryCommand`) — owned by the agentic module
+4. Implement `AgenticAggregatePartition` (simplified single-partition variant)
+5. Implement `AgenticAggregateRuntime` (agent loop integration)
+6. Implement `AgenticAggregateServiceApplication` (Spring Boot entry point)
+7. Implement memory injection into Embabel agent context
+8. Configure Spring AI MCP client auto-configuration
 
 ### Phase 3: Operator Support
 **Scope**: New CRD and reconciler in `services/operator`
