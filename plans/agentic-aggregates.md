@@ -103,7 +103,13 @@ The aggregate state includes a `List<AgenticAggregateMemory>` (or indexed `Map<S
 - Pruned via `@EventSourcingHandler` for `MemoryRevokedEvent`
 - Injected into the Embabel agent's context at the start of each command processing cycle
 
-**Rationale**: By modeling memories as domain events, they benefit from the same durability, replay, and audit guarantees as all other Akces events. The agent can learn over time, and its learned knowledge is fully reconstructable from the event log.
+#### Memory Capacity and Sliding Window
+
+The memory system enforces a **sliding window** with a configurable maximum number of memories (default: **100**). When the limit is reached, the oldest memory is automatically evicted (a `MemoryRevokedEvent` is emitted with reason "sliding window eviction") before the new `MemoryStoredEvent` is stored. This ensures bounded memory growth while retaining the most recent and relevant facts.
+
+The `forget` function is exposed as a built-in command (`ForgetMemoryCommand`) that allows explicit memory removal by `memoryId`. Additionally, the sliding window eviction is handled automatically by the framework during `MemoryStoredEvent` processing.
+
+**Rationale**: By modeling memories as domain events, they benefit from the same durability, replay, and audit guarantees as all other Akces events. The agent can learn over time, and its learned knowledge is fully reconstructable from the event log. The sliding window ensures the state doesn't grow unboundedly.
 
 ### 4. MCP Server Integration: Sidecar Pattern
 
@@ -176,13 +182,13 @@ The AgenticAggregate runtime is a simplified variant of the normal `AggregatePar
 
 - **No consumer rebalance listener** — always owns partition 0
 - **No Murmur3 hash routing** — all commands go to the single partition
-- **Extended `max.poll.interval.ms`** — set to a much higher value (e.g., 5 minutes) to accommodate long-running agent loops
+- **No agent timeout** — agent loops can run as long as needed; no configurable timeout for now
 - **No parallel partition executor** — single `AggregatePartition` instance runs directly
 
 The runtime extends the existing `AggregatePartition` concept but with these key modifications:
 - The poll loop accommodates long-running command processing
-- Kafka consumer is paused while the agent loop is executing (to avoid session timeout)
-- Heartbeat thread keeps the consumer session alive during long agent operations
+- **Kafka keepalive strategy**: The Kafka consumer's background heartbeat thread operates independently of polling and keeps the consumer session alive during long agent operations. If the heartbeat approach proves insufficient, a fallback strategy is to keep polling on a regular interval without committing the offset (ensuring the consumer stays within `max.poll.interval.ms` while the agent loop is still executing)
+- **All commands processed in order** — no command prioritization; commands are processed strictly in FIFO order from the single partition
 
 ### 6. New Maven Module: `main/agentic`
 
@@ -208,8 +214,55 @@ main/agentic/
 
 **Dependencies** (in addition to `akces-api` and `akces-runtime`):
 - `org.springframework.ai:spring-ai-starter-mcp-client` — MCP client for tool integration
-- `com.embabel:embabel-agent-spring-boot-starter` — Embabel agent framework
-- `org.springframework.ai:spring-ai-starter-model-openai` (or other LLM provider starters)
+- `com.embabel:embabel-agent-spring-boot-starter` — Embabel agent framework (via `embabel-agent-dependencies` BOM)
+- `org.springframework.ai:spring-ai-starter-model-openai` — OpenAI LLM provider (conditional on API key)
+- `org.springframework.ai:spring-ai-starter-model-anthropic` — Anthropic LLM provider (conditional on API key)
+- `org.springframework.ai:spring-ai-starter-model-google-genai` — Google Gemini LLM provider (conditional on API key)
+
+All LLM provider starters are **optional** and auto-configured conditionally based on the presence of their respective API keys in the environment (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_AI_GEMINI_API_KEY`). At least one LLM provider must be configured for the agent loop to function.
+
+### 7. Command Routing for Built-in Commands
+
+The AgenticAggregate introduces **built-in commands** (e.g., `StoreMemoryCommand`, `ForgetMemoryCommand`) that are part of the framework rather than user-defined. These built-in commands use the `agenticAggregateId` as the routing key (aggregate ID).
+
+The existing `AkcesRegistry` interface (`resolveTopic` and `resolvePartition` methods) must support routing these built-in commands:
+
+- **`resolveType`**: Must recognize built-in command classes (annotated with `@CommandInfo`) and resolve them to the correct `CommandType` for the AgenticAggregate
+- **`resolveTopic`**: Must resolve built-in command types to the AgenticAggregate's command topic (`{AgenticAggregateName}-Commands`)
+- **`resolvePartition`**: For AgenticAggregate commands, always returns partition `0` (since there is only one partition). The `agenticAggregateId` is still passed through the standard Murmur3 hash but the modulo always yields 0 with a single partition
+
+The `AggregateServiceRecord` published to the `Akces-Control` topic by the AgenticAggregate must include the built-in command types in its `supportedCommands` list, so that other services (including the `AkcesClient`) can discover and route these commands correctly.
+
+```java
+// Built-in commands for the AgenticAggregate
+@CommandInfo(type = "StoreMemory", version = 1)
+public record StoreMemoryCommand(
+    @AggregateIdentifier String agenticAggregateId,
+    String subject,
+    String fact,
+    String citations,
+    String reason
+) implements Command {
+    @Override
+    public String getAggregateId() { return agenticAggregateId; }
+}
+
+@CommandInfo(type = "ForgetMemory", version = 1)
+public record ForgetMemoryCommand(
+    @AggregateIdentifier String agenticAggregateId,
+    String memoryId,
+    String reason
+) implements Command {
+    @Override
+    public String getAggregateId() { return agenticAggregateId; }
+}
+```
+
+### 8. External DomainEvent Handling
+
+Unlike normal aggregates which use `@EventBridgeHandler` to react to external domain events on specific partitions, the AgenticAggregate is a singleton and therefore listens to **all partitions** of external DomainEvent topics. The `@EventBridgeHandler` annotation is **not needed** for AgenticAggregates.
+
+Instead, the AgenticAggregate uses the standard `@EventHandler` annotation, and the runtime subscribes the single consumer to all partitions of the external DomainEvent topics. This is simpler than the normal aggregate's event bridge mechanism because there is no partition-to-partition mapping required.
 
 ## Component Design
 
@@ -227,10 +280,11 @@ public @interface AgenticAggregateInfo {
 
     Class<? extends AggregateState> stateClass();
 
-    boolean generateGDPRKeyOnCreate() default false;
-
     String description() default "";
 
+    int maxMemories() default 100;
+
+    // No generateGDPRKeyOnCreate — memories can be purged, no PIIData support for now
     // No indexed/indexName — agentic aggregates are singletons, not indexed
     // No partition configuration — always 1 partition
 }
@@ -292,9 +346,9 @@ The module provides built-in domain events for the memory system. These are auto
 Extends the concept of `AggregatePartition` with:
 
 - **Agent context injection**: Before each command processing, the current memories are loaded from state and injected into the Embabel agent's context
-- **Extended poll interval**: Configures Kafka consumer with higher `max.poll.interval.ms` (default: 300000ms / 5 minutes)
-- **Consumer pause/resume**: Pauses the consumer while the agent loop executes, resumes after completion
-- **Heartbeat management**: Keeps consumer session alive during long-running operations via the consumer's background heartbeat thread (which operates independently of polling)
+- **Kafka keepalive**: Uses the consumer's background heartbeat thread to keep the session alive during long-running agent operations; fallback strategy is to keep polling without committing offsets
+- **Sequential processing**: All commands are processed strictly in FIFO order, no prioritization
+- **Memory sliding window**: Automatically evicts oldest memories when `maxMemories` limit (default: 100) is reached
 
 #### 7. `AgenticAggregateServiceApplication`
 
@@ -490,31 +544,40 @@ The following new dependencies are required for the `main/agentic` module:
 
 | Dependency | Version | Purpose |
 |-----------|---------|---------|
-| `org.springframework.ai:spring-ai-bom` | 1.1.x | Spring AI BOM for MCP and LLM support |
+| `org.springframework.ai:spring-ai-bom` | 2.0.0-M4 | Spring AI BOM for MCP and LLM support (compatible with Spring Boot 4) |
 | `org.springframework.ai:spring-ai-starter-mcp-client` | (from BOM) | MCP client for connecting to sidecar MCP servers |
-| `org.springframework.ai:spring-ai-starter-model-openai` | (from BOM) | Default LLM provider (configurable) |
-| `com.embabel:embabel-agent-spring-boot-starter` | 0.1.x | Embabel agent framework for GOAP planning |
+| `org.springframework.ai:spring-ai-starter-model-openai` | (from BOM) | OpenAI LLM provider (conditional on `OPENAI_API_KEY`) |
+| `org.springframework.ai:spring-ai-starter-model-anthropic` | (from BOM) | Anthropic LLM provider (conditional on `ANTHROPIC_API_KEY`) |
+| `org.springframework.ai:spring-ai-starter-model-google-genai` | (from BOM) | Google Gemini LLM provider (conditional on `GOOGLE_AI_GEMINI_API_KEY`) |
+| `com.embabel.agent:embabel-agent-dependencies` | 0.3.5 | Embabel BOM for agent framework dependency management |
+| `com.embabel:embabel-agent-spring-boot-starter` | (from BOM) | Embabel agent framework for GOAP planning |
+
+All LLM provider starters use Spring Boot's conditional auto-configuration. They are activated only when the corresponding API key environment variable is present. At least one provider must be configured.
 
 These dependencies are **isolated** to the `main/agentic` module and do not affect the core framework modules (`api`, `runtime`, `shared`, `client`, `query-support`).
 
-## Open Questions for Architect Review
+**Version Policy**: Both Spring AI and Embabel versions should always be kept current with the latest compatible releases.
 
-1. **LLM Provider Abstraction**: Should we support multiple LLM providers out of the box (OpenAI, Anthropic, local Ollama), or start with one and add others later?
+## Resolved Design Decisions (from Architect Review)
 
-2. **Memory Capacity**: Should there be a configurable maximum number of memories per AgenticAggregate? How should memory pruning work when the limit is reached?
+The following questions were raised during planning and resolved by the architect:
 
-3. **Agent Timeout**: What should the maximum execution time for a single agent loop iteration be? This affects `max.poll.interval.ms` and the overall system's responsiveness.
+1. **LLM Provider Abstraction**: ✅ Support OpenAI, Anthropic, and Google Gemini (via `spring-ai-starter-model-google-genai`) out of the box. All providers are conditional on API keys being present — auto-configured only when the corresponding environment variable is set.
 
-4. **Command Prioritization**: Should there be a mechanism to prioritize certain commands over others in the single-partition queue? (e.g., system commands like "clear memory" vs. normal domain commands)
+2. **Memory Capacity**: ✅ Sliding window with a configurable maximum (default: **100 memories**). A `forget` function (`ForgetMemoryCommand`) allows explicit removal. When the limit is reached, the oldest memory is automatically evicted.
 
-5. **Observability**: What metrics should the AgenticAggregate expose? (e.g., LLM token usage, agent loop duration, memory count, tool invocation counts)
+3. **Agent Timeout**: ✅ No timeout for now. The Kafka heartbeat approach keeps the consumer session alive during long-running agent operations. If the heartbeat proves insufficient, the fallback is to keep polling on a regular interval without committing the offset.
 
-6. **Embabel Version Pinning**: Embabel is relatively new (0.1.x). Should we pin to a specific version or track latest? What's the risk tolerance for breaking changes?
+4. **Command Prioritization**: ✅ No prioritization. All commands are processed strictly in FIFO order from the single partition.
 
-7. **Sidecar Health Coupling**: Should the main container's readiness depend on the sidecar containers' readiness? (i.e., should the Pod be marked as ready only when both the main container and all sidecars are healthy?)
+5. **Observability**: ✅ Rely on the observability features provided by Spring AI and Embabel frameworks (built-in metrics, tracing, and logging). No custom Akces-specific metrics for now.
 
-8. **GDPR/PII for Memories**: Should memories support `@PIIData` encryption? If an agent stores PII in a memory fact, should it be encrypted at rest?
+6. **Embabel Version**: ✅ Use version 0.3.5 (via `embabel-agent-dependencies` BOM). Always keep current with latest releases.
 
-9. **Multi-Tenancy**: Should AgenticAggregates support multi-tenancy (like normal aggregates), or is the singleton model inherently single-tenant?
+7. **Sidecar Health Coupling**: ✅ No coupling for now. The main container's readiness is independent of sidecar containers' readiness.
 
-10. **Event Bridge**: Should AgenticAggregates support `@EventBridgeHandler` for reacting to events from other aggregates, or should they only process commands?
+8. **GDPR/PII for Memories**: ✅ No PIIData support for memories since memories can be purged via the sliding window and `forget` function. The `@AgenticAggregateInfo` annotation does not include `generateGDPRKeyOnCreate`.
+
+9. **Multi-Tenancy**: ⏳ Deferred. Multi-tenancy would require multiple instances which conflicts with the singleton model. However, if normal aggregates support multi-tenancy, some notion of tenancy may be needed. This is noted for future design work.
+
+10. **External DomainEvent Handling**: ✅ `@EventBridgeHandler` is not needed. Since the AgenticAggregate is a singleton, it subscribes to all partitions of external DomainEvent topics directly via `@EventHandler`. No partition-to-partition mapping is required.
