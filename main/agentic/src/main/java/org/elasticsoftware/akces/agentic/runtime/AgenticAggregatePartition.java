@@ -32,13 +32,11 @@ import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
 import org.elasticsoftware.akces.aggregate.AggregateRuntime;
 import org.elasticsoftware.akces.aggregate.IndexParams;
-import org.elasticsoftware.akces.control.AkcesRegistry;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.CommandRecord;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
 import org.elasticsoftware.akces.protocol.PayloadEncoding;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
-import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import org.elasticsoftware.akces.state.AggregateStateRepository;
 import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.util.KafkaSender;
@@ -54,7 +52,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
@@ -98,9 +95,7 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
     private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
     private final AggregateRuntime runtime;
-    private final SchemaRegistry schemaRegistry;
     private final AggregateStateRepository stateRepository;
-    private final AkcesRegistry akcesRegistry;
     private final int maxMemories;
     private final ObjectMapper objectMapper;
     private final TopicPartition commandPartition;
@@ -124,28 +119,21 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
      * @param consumerFactory        factory for creating Kafka consumers
      * @param producerFactory        factory for creating transactional Kafka producers
      * @param runtime                the aggregate runtime that processes commands and domain events
-     * @param schemaRegistry         the registry used to validate command and event schemas
      * @param stateRepositoryFactory factory for creating the aggregate-state repository
-     * @param akcesRegistry          registry used to resolve topics and partitions
      * @param maxMemories            maximum number of memories allowed before sliding-window eviction
      */
     public AgenticAggregatePartition(
             ConsumerFactory<String, ProtocolRecord> consumerFactory,
             ProducerFactory<String, ProtocolRecord> producerFactory,
             AggregateRuntime runtime,
-            SchemaRegistry schemaRegistry,
             AggregateStateRepositoryFactory stateRepositoryFactory,
-            AkcesRegistry akcesRegistry,
             int maxMemories) {
         this.consumerFactory = consumerFactory;
         this.producerFactory = producerFactory;
         this.runtime = runtime;
-        this.schemaRegistry = schemaRegistry;
         this.stateRepository = stateRepositoryFactory.create(runtime, AGENTIC_PARTITION);
-        this.akcesRegistry = akcesRegistry;
         this.maxMemories = maxMemories;
-        // Obtain the ObjectMapper from the schema registry's generator utilities; we create
-        // a plain instance here for JSON payload inspection only.
+        // Plain ObjectMapper instance used for JSON payload inspection (sliding-window tracking).
         this.objectMapper = new ObjectMapper();
         this.commandPartition = new TopicPartition(runtime.getName() + COMMANDS_SUFFIX, AGENTIC_PARTITION);
         this.domainEventPartition = new TopicPartition(runtime.getName() + DOMAINEVENTS_SUFFIX, AGENTIC_PARTITION);

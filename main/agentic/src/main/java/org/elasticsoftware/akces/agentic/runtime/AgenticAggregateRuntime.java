@@ -106,6 +106,7 @@ public class AgenticAggregateRuntime extends Thread implements AkcesRegistry, Au
     private final AgenticAggregatePartition partition;
     private final ExecutorService partitionExecutor;
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
+    private final CountDownLatch doneLatch = new CountDownLatch(1);
 
     private volatile SchemaRegistry schemaRegistry;
 
@@ -188,6 +189,7 @@ public class AgenticAggregateRuntime extends Thread implements AkcesRegistry, Au
             shutdownPartition();
         }
         logger.info("AgenticAggregateRuntime for {}Aggregate has stopped", aggregateRuntime.getName());
+        doneLatch.countDown();
     }
 
     /**
@@ -344,7 +346,11 @@ public class AgenticAggregateRuntime extends Thread implements AkcesRegistry, Au
     }
 
     /**
-     * Signals this runtime to shut down gracefully and waits up to 30 seconds.
+     * Signals this runtime to shut down gracefully and waits up to 30 seconds for completion.
+     *
+     * <p>This method counts down the {@code shutdownLatch} (waking the {@link #run()} loop)
+     * and then awaits the {@code doneLatch} (which is counted down only after {@link #run()}
+     * has finished cleaning up).
      *
      * @throws Exception if waiting is interrupted
      */
@@ -352,9 +358,11 @@ public class AgenticAggregateRuntime extends Thread implements AkcesRegistry, Au
     public void close() throws Exception {
         logger.info("Shutting down AgenticAggregateRuntime for {}Aggregate",
                 aggregateRuntime.getName());
+        // Signal the run() loop to exit
         shutdownLatch.countDown();
+        // Wait for run() to actually finish
         try {
-            if (!shutdownLatch.await(30, TimeUnit.SECONDS)) {
+            if (!doneLatch.await(30, TimeUnit.SECONDS)) {
                 logger.warn("AgenticAggregateRuntime for {}Aggregate did not shutdown within 30 seconds",
                         aggregateRuntime.getName());
             }

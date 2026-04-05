@@ -97,9 +97,7 @@ public class AgenticAggregateAutoConfiguration {
                 consumerFactory,
                 producerFactory,
                 aggregateRuntime,
-                null, // SchemaRegistry is provided by AgenticAggregateRuntime after init
                 stateRepositoryFactory,
-                null, // AkcesRegistry provided by AgenticAggregateRuntime
                 maxMemories);
     }
 
