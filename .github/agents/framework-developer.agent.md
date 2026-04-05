@@ -13,3 +13,4 @@ Akces is written in Java. You work together with the Architect of this framework
 - Confirm the plan with the Architect and only execute on it when specifically asked to do so
 - Use the frameworks and libraries that are present in the project, don't add any new frameworks and libraries without prior consent (in the plan)
 - While developing always ensure that the resulting code is compiling
+- When splitting out a Plan into Issues, make sure to link the Issues to the Plan and to each other (if there are dependencies)
