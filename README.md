@@ -20,6 +20,7 @@ Akces leverages Kafka's distributed architecture for reliable event storage and 
 - **Query Models**: Read-optimized projections of aggregate state
 - **Database Models**: Persistent storage of aggregate data optimized for queries
 - **Process Managers**: Coordinate workflows across multiple aggregates
+- **AgenticAggregates**: Singleton aggregates with a built-in sliding-window memory system, designed for AI agent workflows (see [FRAMEWORK_OVERVIEW.md](FRAMEWORK_OVERVIEW.md))
 
 ## Key Features
 
@@ -84,6 +85,9 @@ Akces is organized into several Maven modules:
 - **client**: Client library for sending commands and processing responses
 - **query-support**: Support for query models and database models
 - **eventcatalog**: Annotation processor for generating API documentation
+- **agentic**: AgenticAggregate support — singleton aggregates with AI-agent memory and MCP integration
+
+For a full architectural overview including AgenticAggregates, see [FRAMEWORK_OVERVIEW.md](FRAMEWORK_OVERVIEW.md).
 
 ## Getting Started
 

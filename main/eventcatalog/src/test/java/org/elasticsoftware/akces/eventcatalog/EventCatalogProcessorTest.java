@@ -939,4 +939,110 @@ public record ReserveAmountCommand(
     public void testSchemaWithEnumAndList() {
 
     }
+
+    @Test
+    void testProcessorWithAgenticAggregate() throws IOException {
+        // Create sample input files for an agentic aggregate
+        JavaFileObject agenticStateFile = JavaFileObjects.forSourceString(
+                "org.elasticsoftware.akcestest.agentic.assistant.AssistantState",
+                """
+                        package org.elasticsoftware.akcestest.agentic.assistant;
+
+import java.util.List;
+import org.elasticsoftware.akces.aggregate.AggregateState;
+import org.elasticsoftware.akces.aggregate.AgenticAggregateMemory;
+import org.elasticsoftware.akces.aggregate.MemoryAwareState;
+import org.elasticsoftware.akces.annotations.AggregateStateInfo;
+
+@AggregateStateInfo(type = "AssistantState", version = 1)
+public record AssistantState(
+        String agenticAggregateId,
+        List<AgenticAggregateMemory> memories
+) implements AggregateState, MemoryAwareState {
+    @Override
+    public String getAggregateId() {
+        return agenticAggregateId();
+    }
+
+    @Override
+    public List<AgenticAggregateMemory> getMemories() {
+        return memories();
+    }
+
+    @Override
+    public AssistantState withMemory(AgenticAggregateMemory memory) {
+        List<AgenticAggregateMemory> updated = new java.util.ArrayList<>(memories);
+        updated.add(memory);
+        return new AssistantState(agenticAggregateId, updated);
+    }
+
+    @Override
+    public AssistantState withoutMemory(String memoryId) {
+        List<AgenticAggregateMemory> updated = memories.stream()
+                .filter(m -> !m.memoryId().equals(memoryId))
+                .toList();
+        return new AssistantState(agenticAggregateId, updated);
+    }
+}
+                        """
+        );
+
+        JavaFileObject agenticAggregateFile = JavaFileObjects.forSourceString(
+                "org.elasticsoftware.akcestest.agentic.assistant.Assistant",
+                """
+                        package org.elasticsoftware.akcestest.agentic.assistant;
+
+import org.elasticsoftware.akces.aggregate.AgenticAggregate;
+import org.elasticsoftware.akces.annotations.AgenticAggregateInfo;
+
+@AgenticAggregateInfo(
+        value = "Assistant",
+        stateClass = AssistantState.class,
+        description = "AI Assistant AgenticAggregate",
+        maxMemories = 50)
+@SuppressWarnings("unused")
+public final class Assistant implements AgenticAggregate<AssistantState> {
+    @Override
+    public String getName() {
+        return "Assistant";
+    }
+
+    @Override
+    public Class<AssistantState> getStateClass() {
+        return AssistantState.class;
+    }
+}
+                        """
+        );
+
+        // Run the annotation processor
+        Compilation compilation = javac()
+                .withProcessors(new EventCatalogProcessor())
+                .compile(agenticStateFile, agenticAggregateFile);
+
+        // Verify successful compilation
+        assertThat(compilation).succeeded();
+
+        // Check for expected processor notes
+        assertThat(compilation).hadNoteContaining("Found agentic aggregate: Assistant");
+        assertThat(compilation).hadNoteContaining("Generated service documentation for agentic aggregate Assistant");
+
+        // Verify the service index.mdx was generated
+        assertThat(compilation).generatedFile(StandardLocation.CLASS_OUTPUT,
+                "META-INF/eventcatalog/services/Assistant/index.mdx");
+
+        // Verify the generated service file contains the built-in memory messages and Singleton type
+        var generatedFile = compilation.generatedFile(StandardLocation.CLASS_OUTPUT,
+                "META-INF/eventcatalog/services/Assistant/index.mdx");
+        Assertions.assertTrue(generatedFile.isPresent(), "Service index.mdx should be generated for agentic aggregate");
+
+        String content = generatedFile.get().getCharContent(true).toString();
+        Assertions.assertTrue(content.contains("id: Assistant"), "Service doc should include aggregate name as id");
+        Assertions.assertTrue(content.contains("type: Singleton"), "Agentic aggregate service doc should contain type: Singleton");
+        Assertions.assertTrue(content.contains("AI Assistant AgenticAggregate"), "Service doc should include description");
+        Assertions.assertTrue(content.contains("- id: StoreMemory"), "Service doc should list built-in StoreMemory command");
+        Assertions.assertTrue(content.contains("- id: ForgetMemory"), "Service doc should list built-in ForgetMemory command");
+        Assertions.assertTrue(content.contains("- id: MemoryStored"), "Service doc should list built-in MemoryStored event");
+        Assertions.assertTrue(content.contains("- id: MemoryRevoked"), "Service doc should list built-in MemoryRevoked event");
+    }
 }
