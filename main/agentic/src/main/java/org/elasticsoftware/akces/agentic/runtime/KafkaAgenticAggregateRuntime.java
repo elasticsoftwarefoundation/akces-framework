@@ -21,6 +21,7 @@ import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
+import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.commands.CommandBus;
@@ -258,5 +259,30 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                             + " does not implement MemoryAwareState");
         }
         return (AggregateState) mas.withoutMemory(event.memoryId());
+    }
+
+    /**
+     * Single-dispatch event-sourcing handler that routes {@link MemoryStoredEvent} and
+     * {@link MemoryRevokedEvent} to the appropriate typed handler.
+     *
+     * <p>Intended to be used as a method reference
+     * ({@code KafkaAgenticAggregateRuntime::handleMemoryEvent}) so that no anonymous adapter
+     * class is required at the registration site.
+     *
+     * @param event the memory domain event to apply; must be a {@code MemoryStoredEvent} or
+     *              {@code MemoryRevokedEvent}
+     * @param state the current aggregate state
+     * @return the updated aggregate state
+     * @throws IllegalArgumentException if {@code event} is not a recognised memory event type
+     */
+    public static AggregateState handleMemoryEvent(DomainEvent event, AggregateState state) {
+        if (event instanceof MemoryStoredEvent stored) {
+            return onMemoryStored(stored, state);
+        } else if (event instanceof MemoryRevokedEvent revoked) {
+            return onMemoryRevoked(revoked, state);
+        } else {
+            throw new IllegalArgumentException(
+                    "Unsupported memory event type: " + event.getClass().getName());
+        }
     }
 }

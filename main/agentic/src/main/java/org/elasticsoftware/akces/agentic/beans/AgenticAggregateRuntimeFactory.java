@@ -182,16 +182,10 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState> implements
                 "MemoryRevoked", 1, MemoryRevokedEvent.class, false, false, false, false);
 
         runtimeBuilder
-                .addEventSourcingHandler(
-                        memoryStoredType,
-                        (event, state) -> KafkaAgenticAggregateRuntime.onMemoryStored(
-                                (MemoryStoredEvent) event, state))
+                .addEventSourcingHandler(memoryStoredType, KafkaAgenticAggregateRuntime::handleMemoryEvent)
                 .addDomainEvent(memoryStoredType);
         runtimeBuilder
-                .addEventSourcingHandler(
-                        memoryRevokedType,
-                        (event, state) -> KafkaAgenticAggregateRuntime.onMemoryRevoked(
-                                (MemoryRevokedEvent) event, state))
+                .addEventSourcingHandler(memoryRevokedType, KafkaAgenticAggregateRuntime::handleMemoryEvent)
                 .addDomainEvent(memoryRevokedType);
 
         return runtimeBuilder.validateAndBuild();
