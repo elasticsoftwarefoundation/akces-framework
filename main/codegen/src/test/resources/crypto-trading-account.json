@@ -1,0 +1,67 @@
+{
+  "packageName": "org.elasticsoftware.cryptotrading.aggregates",
+  "aggregateConfig": {
+    "Account": {
+      "indexed": true,
+      "indexName": "Users",
+      "generateGDPRKeyOnCreate": true,
+      "stateVersion": 1,
+      "stateFields": [
+        { "name": "userId", "type": "String", "idAttribute": true },
+        { "name": "country", "type": "String" },
+        { "name": "firstName", "type": "String", "piiData": true },
+        { "name": "lastName", "type": "String", "piiData": true },
+        { "name": "email", "type": "String", "piiData": true }
+      ]
+    }
+  },
+  "slices": [
+    {
+      "id": "create-account",
+      "title": "Create Account",
+      "sliceType": "STATE_CHANGE",
+      "aggregates": ["Account"],
+      "commands": [
+        {
+          "id": "create-account-cmd",
+          "title": "CreateAccount",
+          "type": "COMMAND",
+          "aggregate": "Account",
+          "createsAggregate": true,
+          "description": "Create a new account",
+          "fields": [
+            { "name": "userId", "type": "String", "idAttribute": true },
+            { "name": "country", "type": "String" },
+            { "name": "firstName", "type": "String", "piiData": true },
+            { "name": "lastName", "type": "String", "piiData": true },
+            { "name": "email", "type": "String", "piiData": true }
+          ],
+          "dependencies": []
+        }
+      ],
+      "events": [
+        {
+          "id": "account-created-evt",
+          "title": "AccountCreated",
+          "type": "EVENT",
+          "aggregate": "Account",
+          "createsAggregate": true,
+          "description": "Account created",
+          "fields": [
+            { "name": "userId", "type": "String", "idAttribute": true },
+            { "name": "country", "type": "String" },
+            { "name": "firstName", "type": "String", "piiData": true },
+            { "name": "lastName", "type": "String", "piiData": true },
+            { "name": "email", "type": "String", "piiData": true }
+          ],
+          "dependencies": []
+        }
+      ],
+      "readmodels": [],
+      "screens": [],
+      "processors": [],
+      "tables": [],
+      "specifications": []
+    }
+  ]
+}

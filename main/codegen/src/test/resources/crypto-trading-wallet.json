@@ -1,0 +1,317 @@
+{
+  "packageName": "org.elasticsoftware.cryptotrading.aggregates",
+  "aggregateConfig": {
+    "Wallet": {
+      "indexed": true,
+      "indexName": "Users",
+      "generateGDPRKeyOnCreate": false,
+      "stateVersion": 1,
+      "stateFields": [
+        { "name": "id", "type": "String", "idAttribute": true },
+        { "name": "balances", "type": "Custom" }
+      ]
+    }
+  },
+  "slices": [
+    {
+      "id": "create-wallet",
+      "title": "Create Wallet",
+      "sliceType": "STATE_CHANGE",
+      "aggregates": ["Wallet"],
+      "commands": [
+        {
+          "id": "create-wallet-cmd",
+          "title": "CreateWallet",
+          "type": "COMMAND",
+          "aggregate": "Wallet",
+          "createsAggregate": true,
+          "fields": [
+            { "name": "id", "type": "String", "idAttribute": true },
+            { "name": "currency", "type": "String" }
+          ],
+          "dependencies": []
+        }
+      ],
+      "events": [
+        {
+          "id": "wallet-created-evt",
+          "title": "WalletCreated",
+          "type": "EVENT",
+          "aggregate": "Wallet",
+          "createsAggregate": true,
+          "fields": [
+            { "name": "id", "type": "String", "idAttribute": true }
+          ],
+          "dependencies": []
+        }
+      ],
+      "readmodels": [],
+      "screens": [],
+      "processors": [],
+      "tables": [],
+      "specifications": []
+    },
+    {
+      "id": "create-balance",
+      "title": "Create Balance",
+      "sliceType": "STATE_CHANGE",
+      "aggregates": ["Wallet"],
+      "commands": [
+        {
+          "id": "create-balance-cmd",
+          "title": "CreateBalance",
+          "type": "COMMAND",
+          "aggregate": "Wallet",
+          "fields": [
+            { "name": "id", "type": "String", "idAttribute": true },
+            { "name": "currency", "type": "String" }
+          ],
+          "dependencies": []
+        }
+      ],
+      "events": [
+        {
+          "id": "balance-created-evt",
+          "title": "BalanceCreated",
+          "type": "EVENT",
+          "aggregate": "Wallet",
+          "fields": [
+            { "name": "id", "type": "String", "idAttribute": true },
+            { "name": "currency", "type": "String" }
+          ],
+          "dependencies": []
+        },
+        {
+          "id": "balance-already-exists-err",
+          "title": "BalanceAlreadyExistsError",
+          "type": "EVENT",
+          "aggregate": "Wallet",
+          "tags": ["error"],
+          "fields": [
+            { "name": "walletId", "type": "String", "idAttribute": true },
+            { "name": "currency", "type": "String" }
+          ],
+          "dependencies": []
+        }
+      ],
+      "readmodels": [],
+      "screens": [],
+      "processors": [],
+      "tables": [],
+      "specifications": []
+    },
+    {
+      "id": "credit-wallet",
+      "title": "Credit Wallet",
+      "sliceType": "STATE_CHANGE",
+      "aggregates": ["Wallet"],
+      "commands": [
+        {
+          "id": "credit-wallet-cmd",
+          "title": "CreditWallet",
+          "type": "COMMAND",
+          "aggregate": "Wallet",
+          "fields": [
+            { "name": "id", "type": "String", "idAttribute": true },
+            { "name": "currency", "type": "String" },
+            { "name": "amount", "type": "Decimal" }
+          ],
+          "dependencies": []
+        }
+      ],
+      "events": [
+        {
+          "id": "wallet-credited-evt",
+          "title": "WalletCredited",
+          "type": "EVENT",
+          "aggregate": "Wallet",
+          "fields": [
+            { "name": "id", "type": "String", "idAttribute": true },
+            { "name": "currency", "type": "String" },
+            { "name": "amount", "type": "Decimal" },
+            { "name": "balance", "type": "Decimal" }
+          ],
+          "dependencies": []
+        },
+        {
+          "id": "invalid-crypto-currency-err",
+          "title": "InvalidCryptoCurrencyError",
+          "type": "EVENT",
+          "aggregate": "Wallet",
+          "tags": ["error"],
+          "fields": [
+            { "name": "walletId", "type": "String", "idAttribute": true },
+            { "name": "cryptoCurrency", "type": "String" },
+            { "name": "referenceId", "type": "String", "optional": true }
+          ],
+          "dependencies": []
+        },
+        {
+          "id": "invalid-amount-err",
+          "title": "InvalidAmountError",
+          "type": "EVENT",
+          "aggregate": "Wallet",
+          "tags": ["error"],
+          "fields": [
+            { "name": "walletId", "type": "String", "idAttribute": true },
+            { "name": "currency", "type": "String" }
+          ],
+          "dependencies": []
+        }
+      ],
+      "readmodels": [],
+      "screens": [],
+      "processors": [],
+      "tables": [],
+      "specifications": []
+    },
+    {
+      "id": "debit-wallet",
+      "title": "Debit Wallet",
+      "sliceType": "STATE_CHANGE",
+      "aggregates": ["Wallet"],
+      "commands": [
+        {
+          "id": "debit-wallet-cmd",
+          "title": "DebitWallet",
+          "type": "COMMAND",
+          "aggregate": "Wallet",
+          "fields": [
+            { "name": "id", "type": "String", "idAttribute": true },
+            { "name": "currency", "type": "String" },
+            { "name": "amount", "type": "Decimal" }
+          ],
+          "dependencies": []
+        }
+      ],
+      "events": [
+        {
+          "id": "wallet-debited-evt",
+          "title": "WalletDebited",
+          "type": "EVENT",
+          "aggregate": "Wallet",
+          "fields": [
+            { "name": "id", "type": "String", "idAttribute": true },
+            { "name": "currency", "type": "String" },
+            { "name": "amount", "type": "Decimal" },
+            { "name": "newBalance", "type": "Decimal" }
+          ],
+          "dependencies": []
+        },
+        {
+          "id": "insufficient-funds-err",
+          "title": "InsufficientFundsError",
+          "type": "EVENT",
+          "aggregate": "Wallet",
+          "tags": ["error"],
+          "fields": [
+            { "name": "walletId", "type": "String", "idAttribute": true },
+            { "name": "currency", "type": "String" },
+            { "name": "availableAmount", "type": "Decimal" },
+            { "name": "requestedAmount", "type": "Decimal" },
+            { "name": "referenceId", "type": "String", "optional": true }
+          ],
+          "dependencies": []
+        }
+      ],
+      "readmodels": [],
+      "screens": [],
+      "processors": [],
+      "tables": [],
+      "specifications": []
+    },
+    {
+      "id": "reserve-amount",
+      "title": "Reserve Amount",
+      "sliceType": "STATE_CHANGE",
+      "aggregates": ["Wallet"],
+      "commands": [
+        {
+          "id": "reserve-amount-cmd",
+          "title": "ReserveAmount",
+          "type": "COMMAND",
+          "aggregate": "Wallet",
+          "fields": [
+            { "name": "userId", "type": "String", "idAttribute": true },
+            { "name": "currency", "type": "String" },
+            { "name": "amount", "type": "Decimal" },
+            { "name": "referenceId", "type": "String" }
+          ],
+          "dependencies": []
+        }
+      ],
+      "events": [
+        {
+          "id": "amount-reserved-evt",
+          "title": "AmountReserved",
+          "type": "EVENT",
+          "aggregate": "Wallet",
+          "fields": [
+            { "name": "userId", "type": "String", "idAttribute": true },
+            { "name": "currency", "type": "String" },
+            { "name": "amount", "type": "Decimal" },
+            { "name": "referenceId", "type": "String" }
+          ],
+          "dependencies": []
+        }
+      ],
+      "readmodels": [],
+      "screens": [],
+      "processors": [],
+      "tables": [],
+      "specifications": []
+    },
+    {
+      "id": "cancel-reservation",
+      "title": "Cancel Reservation",
+      "sliceType": "STATE_CHANGE",
+      "aggregates": ["Wallet"],
+      "commands": [
+        {
+          "id": "cancel-reservation-cmd",
+          "title": "CancelReservation",
+          "type": "COMMAND",
+          "aggregate": "Wallet",
+          "fields": [
+            { "name": "userId", "type": "String", "idAttribute": true },
+            { "name": "currency", "type": "String" },
+            { "name": "referenceId", "type": "String" }
+          ],
+          "dependencies": []
+        }
+      ],
+      "events": [
+        {
+          "id": "reservation-cancelled-evt",
+          "title": "ReservationCancelled",
+          "type": "EVENT",
+          "aggregate": "Wallet",
+          "fields": [
+            { "name": "id", "type": "String", "idAttribute": true },
+            { "name": "currency", "type": "String" },
+            { "name": "referenceId", "type": "String" }
+          ],
+          "dependencies": []
+        },
+        {
+          "id": "reservation-not-found-err",
+          "title": "ReservationNotFoundError",
+          "type": "EVENT",
+          "aggregate": "Wallet",
+          "tags": ["error"],
+          "fields": [
+            { "name": "id", "type": "String", "idAttribute": true },
+            { "name": "currency", "type": "String" },
+            { "name": "referenceId", "type": "String" }
+          ],
+          "dependencies": []
+        }
+      ],
+      "readmodels": [],
+      "screens": [],
+      "processors": [],
+      "tables": [],
+      "specifications": []
+    }
+  ]
+}
