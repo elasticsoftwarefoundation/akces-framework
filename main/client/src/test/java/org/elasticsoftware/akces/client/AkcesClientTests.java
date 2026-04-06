@@ -47,6 +47,7 @@ import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.control.AggregateServiceCommandType;
 import org.elasticsoftware.akces.control.AggregateServiceDomainEventType;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
+import org.elasticsoftware.akces.control.AggregateServiceType;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.gdpr.EncryptingGDPRContext;
@@ -287,6 +288,7 @@ public class AkcesClientTests {
                     "Account",
                     "Account-Commands",
                     "Account-DomainEvents",
+                    AggregateServiceType.STANDARD,
                     List.of(new AggregateServiceCommandType("CreateAccount", 1, true, "commands.CreateAccount")),
                     List.of(new AggregateServiceDomainEventType("AccountCreated", 1, true, false, "domainevents.AccountCreated")),
                     List.of());

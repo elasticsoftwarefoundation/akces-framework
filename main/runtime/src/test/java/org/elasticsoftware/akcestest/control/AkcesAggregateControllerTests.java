@@ -22,6 +22,7 @@ import tools.jackson.databind.json.JsonMapper;
 import org.elasticsoftware.akces.control.AggregateServiceCommandType;
 import org.elasticsoftware.akces.control.AggregateServiceDomainEventType;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
+import org.elasticsoftware.akces.control.AggregateServiceType;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.serialization.AkcesControlRecordSerde;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,7 @@ public class AkcesAggregateControllerTests {
                 "Account",
                 "Account-Commands",
                 "Account-DomainEvents",
+                AggregateServiceType.STANDARD,
                 List.of(new AggregateServiceCommandType("CreateAccount", 1, true, "commands.CreateAccount")),
                 List.of(new AggregateServiceDomainEventType("AccountCreated", 1, true, false, "domainevents.AccountCreated")),
                 Collections.emptyList());
@@ -72,6 +74,8 @@ public class AkcesAggregateControllerTests {
         assertInstanceOf(AggregateServiceRecord.class, deserialized);
         assertEquals("Account", ((AggregateServiceRecord) deserialized).aggregateName());
         assertEquals("Account-Commands", ((AggregateServiceRecord) deserialized).commandTopic());
+        // Legacy JSON without "type" field must still deserialize with STANDARD as effective type
+        assertEquals(AggregateServiceType.STANDARD, ((AggregateServiceRecord) deserialized).effectiveType());
     }
 
     @Test
@@ -81,6 +85,7 @@ public class AkcesAggregateControllerTests {
                 "Account",
                 "Account-Commands",
                 "Account-DomainEvents",
+                AggregateServiceType.STANDARD,
                 List.of(new AggregateServiceCommandType("CreateAccount", 1, true, "commands.CreateAccount")),
                 List.of(new AggregateServiceDomainEventType("AccountCreated", 1, true, false, "domainevents.AccountCreated")),
                 Collections.emptyList());

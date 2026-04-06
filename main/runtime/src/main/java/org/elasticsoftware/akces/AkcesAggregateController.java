@@ -456,6 +456,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                     aggregateRuntime.getName(),
                     aggregateRuntime.getName() + COMMANDS_SUFFIX,
                     aggregateRuntime.getName() + DOMAINEVENTS_SUFFIX,
+                    AggregateServiceType.STANDARD,
                     aggregateRuntime.getLocalCommandTypes().stream()
                             .map(commandType ->
                                     new AggregateServiceCommandType(
