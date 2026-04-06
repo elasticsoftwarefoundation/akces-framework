@@ -670,7 +670,7 @@ public class EventCatalogProcessor extends AbstractProcessor {
             String aggregateName = agenticInfo.value().isEmpty() ?
                     aggregateType.getSimpleName().toString() : agenticInfo.value();
 
-            // get the AgenticAggregateInfo annotation mirror to read stateClass
+            // Get the AgenticAggregateInfo annotation mirror to read stateClass.
             AnnotationMirror agenticInfoMirror = getAnnotationMirror(aggregateType, AgenticAggregateInfo.class.getCanonicalName());
             TypeElement stateClass = getClassFromAnnotation(requireNonNull(agenticInfoMirror), "stateClass");
             AggregateStateInfo stateInfo = requireNonNull(stateClass).getAnnotation(AggregateStateInfo.class);
