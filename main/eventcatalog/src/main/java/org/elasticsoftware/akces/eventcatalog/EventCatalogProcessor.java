@@ -39,6 +39,7 @@ import static java.util.Objects.requireNonNull;
         "org.elasticsoftware.akces.annotations.CommandInfo",
         "org.elasticsoftware.akces.annotations.DomainEventInfo",
         "org.elasticsoftware.akces.annotations.AggregateInfo",
+        "org.elasticsoftware.akces.annotations.AgenticAggregateInfo",
         "org.elasticsoftware.akces.annotations.CommandHandler",
         "org.elasticsoftware.akces.annotations.EventHandler"
 })
@@ -54,6 +55,7 @@ public class EventCatalogProcessor extends AbstractProcessor {
     private final Map<CommandInfo, TypeElement> commandCache = new HashMap<>();
     private final Map<DomainEventInfo, TypeElement> eventCache = new HashMap<>();
     private final Map<AggregateInfo, TypeElement> aggregateCache = new HashMap<>();
+    private final Map<AgenticAggregateInfo, TypeElement> agenticAggregateCache = new HashMap<>();
     private final Map<CommandHandler, Element> commandHandlerCache = new HashMap<>();
     private final Map<EventHandler, Element> eventHandlerCache = new HashMap<>();
     // Maps to store the relationships between aggregates and handlers
@@ -64,6 +66,11 @@ public class EventCatalogProcessor extends AbstractProcessor {
     Map<AggregateInfo, Set<TypeElement>> aggregateErrorEvents = new HashMap<>();
     Map<AggregateInfo, Set<TypeElement>> aggregateHandledCommands = new HashMap<>();
     Map<AggregateInfo, Set<TypeElement>> aggregateHandledEvents = new HashMap<>();
+    // Maps to store produced events and error events for each agentic aggregate
+    Map<AgenticAggregateInfo, Set<TypeElement>> agenticProducedEvents = new HashMap<>();
+    Map<AgenticAggregateInfo, Set<TypeElement>> agenticErrorEvents = new HashMap<>();
+    Map<AgenticAggregateInfo, Set<TypeElement>> agenticHandledCommands = new HashMap<>();
+    Map<AgenticAggregateInfo, Set<TypeElement>> agenticHandledEvents = new HashMap<>();
     // Create reverse lookup maps to find annotation details
     Map<TypeElement, AnnotationMirror> commandAnnotations = new HashMap<>();
     Map<TypeElement, AnnotationMirror> eventAnnotations = new HashMap<>();
@@ -84,6 +91,8 @@ public class EventCatalogProcessor extends AbstractProcessor {
                 processDomainEventInfoAnnotations(roundEnv);
             } else if (AggregateInfo.class.getCanonicalName().equals(annotationName)) {
                 processAggregateInfoAnnotations(roundEnv);
+            } else if (AgenticAggregateInfo.class.getCanonicalName().equals(annotationName)) {
+                processAgenticAggregateInfoAnnotations(roundEnv);
             } else if (CommandHandler.class.getCanonicalName().equals(annotationName)) {
                 processCommandHandlerAnnotations(roundEnv);
             } else if (EventHandler.class.getCanonicalName().equals(annotationName)) {
@@ -180,6 +189,32 @@ public class EventCatalogProcessor extends AbstractProcessor {
         }
     }
 
+    /**
+     * Scans all classes annotated with {@link AgenticAggregateInfo} and adds them to the
+     * {@code agenticAggregateCache} for subsequent documentation generation.
+     *
+     * @param roundEnv the annotation processing environment for the current round
+     */
+    private void processAgenticAggregateInfoAnnotations(RoundEnvironment roundEnv) {
+        Set<? extends Element> agenticElements = roundEnv.getElementsAnnotatedWith(
+                processingEnv.getElementUtils().getTypeElement(AgenticAggregateInfo.class.getCanonicalName())
+        );
+
+        for (Element element : agenticElements) {
+            if (element.getKind() == ElementKind.CLASS) {
+                TypeElement typeElement = (TypeElement) element;
+                AgenticAggregateInfo agenticInfo = typeElement.getAnnotation(AgenticAggregateInfo.class);
+                String id = agenticInfo.value().isEmpty() ? typeElement.getSimpleName().toString() : agenticInfo.value();
+                agenticAggregateCache.put(agenticInfo, typeElement);
+
+                processingEnv.getMessager().printMessage(
+                        Diagnostic.Kind.NOTE,
+                        "Found agentic aggregate: " + id + " at " + typeElement.getQualifiedName()
+                );
+            }
+        }
+    }
+
     private void processCommandHandlerAnnotations(RoundEnvironment roundEnv) {
         Set<? extends Element> handlerElements = roundEnv.getElementsAnnotatedWith(
                 processingEnv.getElementUtils().getTypeElement(CommandHandler.class.getCanonicalName())
@@ -225,6 +260,12 @@ public class EventCatalogProcessor extends AbstractProcessor {
             typeToAggregate.put(entry.getValue(), entry.getKey());
         }
 
+        // Create a map of TypeElement to AgenticAggregateInfo for quick lookup
+        Map<TypeElement, AgenticAggregateInfo> typeToAgenticAggregate = new HashMap<>();
+        for (Map.Entry<AgenticAggregateInfo, TypeElement> entry : agenticAggregateCache.entrySet()) {
+            typeToAgenticAggregate.put(entry.getValue(), entry.getKey());
+        }
+
         // Match command handlers to aggregates
         for (Map.Entry<CommandHandler, Element> entry : commandHandlerCache.entrySet()) {
             CommandHandler handler = entry.getKey();
@@ -246,6 +287,15 @@ public class EventCatalogProcessor extends AbstractProcessor {
                             "Matched command handler " + methodElement + " to aggregate " +
                                     enclosingType.getQualifiedName()
                     );
+                } else {
+                    AgenticAggregateInfo agenticInfo = typeToAgenticAggregate.get(enclosingType);
+                    if (agenticInfo != null) {
+                        processingEnv.getMessager().printMessage(
+                                Diagnostic.Kind.NOTE,
+                                "Matched command handler " + methodElement + " to agentic aggregate " +
+                                        enclosingType.getQualifiedName()
+                        );
+                    }
                 }
             }
         }
@@ -271,6 +321,15 @@ public class EventCatalogProcessor extends AbstractProcessor {
                             "Matched event handler " + methodElement + " to aggregate " +
                                     enclosingType.getQualifiedName()
                     );
+                } else {
+                    AgenticAggregateInfo agenticInfo = typeToAgenticAggregate.get(enclosingType);
+                    if (agenticInfo != null) {
+                        processingEnv.getMessager().printMessage(
+                                Diagnostic.Kind.NOTE,
+                                "Matched event handler " + methodElement + " to agentic aggregate " +
+                                        enclosingType.getQualifiedName()
+                        );
+                    }
                 }
             }
         }
@@ -598,6 +657,68 @@ public class EventCatalogProcessor extends AbstractProcessor {
             processingEnv.getMessager().printMessage(
                     Diagnostic.Kind.NOTE,
                     "Generated service documentation for " + aggregateName
+            );
+
+            writeToEventCatalog(servicePath, "index.mdx", serviceDoc);
+        }
+
+        // For each agentic aggregate, create service documentation marked as Singleton
+        for (Map.Entry<AgenticAggregateInfo, TypeElement> entry : agenticAggregateCache.entrySet()) {
+            AgenticAggregateInfo agenticInfo = entry.getKey();
+            TypeElement aggregateType = entry.getValue();
+
+            String aggregateName = agenticInfo.value().isEmpty() ?
+                    aggregateType.getSimpleName().toString() : agenticInfo.value();
+
+            // Get the AgenticAggregateInfo annotation mirror to read stateClass.
+            AnnotationMirror agenticInfoMirror = getAnnotationMirror(aggregateType, AgenticAggregateInfo.class.getCanonicalName());
+            TypeElement stateClass = getClassFromAnnotation(requireNonNull(agenticInfoMirror), "stateClass");
+            AggregateStateInfo stateInfo = requireNonNull(stateClass).getAnnotation(AggregateStateInfo.class);
+
+            // Built-in memory commands that every agentic aggregate receives
+            List<ServiceTemplateGenerator.Message> builtInReceives = List.of(
+                    new ServiceTemplateGenerator.Message("StoreMemory", "1.0.0"),
+                    new ServiceTemplateGenerator.Message("ForgetMemory", "1.0.0")
+            );
+
+            // Built-in memory events that every agentic aggregate produces
+            List<ServiceTemplateGenerator.Message> builtInSends = List.of(
+                    new ServiceTemplateGenerator.Message("MemoryStored", "1.0.0"),
+                    new ServiceTemplateGenerator.Message("MemoryRevoked", "1.0.0")
+            );
+
+            String servicePath = "META-INF/eventcatalog/services/" + aggregateName;
+            String serviceDoc = ServiceTemplateGenerator.generate(new ServiceTemplateGenerator.ServiceMetadata(
+                    aggregateName,
+                    stateInfo.version() + ".0.0",
+                    aggregateName,
+                    agenticInfo.description().isBlank() ? aggregateName + " AgenticAggregate" : agenticInfo.description(),
+                    "Singleton",
+                    owners,
+                    Stream.concat(
+                            builtInReceives.stream(),
+                            agenticHandledCommands.getOrDefault(agenticInfo, Collections.emptySet()).stream()
+                                    .map(typeElement -> typeElement.getAnnotation(CommandInfo.class))
+                                    .filter(Objects::nonNull)
+                                    .map(annotation -> new ServiceTemplateGenerator.Message(
+                                            annotation.type(),
+                                            annotation.version() + ".0.0"))
+                    ).toList(),
+                    Stream.concat(
+                            builtInSends.stream(),
+                            agenticProducedEvents.getOrDefault(agenticInfo, Collections.emptySet()).stream()
+                                    .map(typeElement -> typeElement.getAnnotation(DomainEventInfo.class))
+                                    .filter(Objects::nonNull)
+                                    .map(annotation -> new ServiceTemplateGenerator.Message(
+                                            annotation.type(),
+                                            annotation.version() + ".0.0"))
+                    ).toList(),
+                    "Java",
+                    repositoryBaseUrl + aggregateType.getQualifiedName().toString().replace('.', '/') + ".java"));
+
+            processingEnv.getMessager().printMessage(
+                    Diagnostic.Kind.NOTE,
+                    "Generated service documentation for agentic aggregate " + aggregateName
             );
 
             writeToEventCatalog(servicePath, "index.mdx", serviceDoc);
