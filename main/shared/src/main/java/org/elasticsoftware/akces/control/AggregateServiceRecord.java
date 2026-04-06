@@ -19,12 +19,39 @@ package org.elasticsoftware.akces.control;
 
 import java.util.List;
 
+/**
+ * Describes an aggregate service registered on the {@code Akces-Control} topic.
+ *
+ * <p>The optional {@link #type()} field discriminates between standard and agentic
+ * aggregate services. It defaults to {@link AggregateServiceType#STANDARD} for records
+ * that pre-date the introduction of this field (see {@link #effectiveType()}).
+ *
+ * @param aggregateName    the logical name of the aggregate
+ * @param commandTopic     the Kafka topic to which commands for this aggregate are sent
+ * @param domainEventTopic the Kafka topic on which this aggregate publishes domain events
+ * @param type             the service type; may be {@code null} for legacy records
+ * @param supportedCommands the command types supported by this service
+ * @param producedEvents    the domain-event types produced by this service
+ * @param consumedEvents    the external domain-event types consumed by this service
+ */
 public record AggregateServiceRecord(
         String aggregateName,
         String commandTopic,
         String domainEventTopic,
+        AggregateServiceType type,
         List<AggregateServiceCommandType> supportedCommands,
         List<AggregateServiceDomainEventType> producedEvents,
         List<AggregateServiceDomainEventType> consumedEvents
 ) implements AkcesControlRecord {
+
+    /**
+     * Returns the effective service type, defaulting to {@link AggregateServiceType#STANDARD}
+     * when the field is absent in legacy records (deserialized from JSON without a {@code type}
+     * property).
+     *
+     * @return the service type, never {@code null}
+     */
+    public AggregateServiceType effectiveType() {
+        return type != null ? type : AggregateServiceType.STANDARD;
+    }
 }

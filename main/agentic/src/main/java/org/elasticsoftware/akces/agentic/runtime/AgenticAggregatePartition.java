@@ -25,6 +25,7 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.KafkaException;
+import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.WakeupException;
@@ -170,10 +171,21 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
             this.producer = producerFactory.createProducer(
                     runtime.getName() + "AgenticAggregate-partition-" + AGENTIC_PARTITION);
 
-            // Resolve external event topic partitions from the registry
+            // Resolve external event topic partitions from the registry.
+            // Since agentic aggregates are singletons, subscribe to ALL partitions of each
+            // external topic so that no events are missed regardless of which partition they
+            // were produced on.
             externalDomainEventTypes.forEach(domainEventType -> {
                 String topic = ackesRegistry.resolveTopic(domainEventType);
-                externalEventPartitions.add(new TopicPartition(topic, AGENTIC_PARTITION));
+                List<PartitionInfo> partitionInfos = consumer.partitionsFor(topic);
+                if (partitionInfos == null || partitionInfos.isEmpty()) {
+                    logger.warn("No partition info found for external topic '{}'; skipping subscription", topic);
+                } else {
+                    partitionInfos.forEach(pi ->
+                            externalEventPartitions.add(new TopicPartition(topic, pi.partition())));
+                    logger.info("Subscribing to {} partition(s) of external topic '{}'",
+                            partitionInfos.size(), topic);
+                }
             });
 
             // Hard-assign all partitions — no consumer group rebalancing needed

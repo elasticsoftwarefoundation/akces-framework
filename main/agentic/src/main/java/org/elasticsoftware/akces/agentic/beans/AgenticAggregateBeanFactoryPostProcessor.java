@@ -156,6 +156,8 @@ public class AgenticAggregateBeanFactoryPostProcessor
             if (beanFactory.containsBeanDefinition("agenticServiceConsumerFactory") &&
                     beanFactory.containsBeanDefinition("agenticServiceProducerFactory") &&
                     beanFactory.containsBeanDefinition("agenticServiceControlProducerFactory") &&
+                    beanFactory.containsBeanDefinition("agenticServiceControlConsumerFactory") &&
+                    beanFactory.containsBeanDefinition("agenticServiceKafkaAdmin") &&
                     beanFactory.containsBeanDefinition("agenticServiceSchemaConsumerFactory") &&
                     beanFactory.containsBeanDefinition("agenticServiceSchemaProducerFactory") &&
                     beanFactory.containsBeanDefinition("agenticServiceAggregateStateRepositoryFactory")) {
@@ -176,6 +178,8 @@ public class AgenticAggregateBeanFactoryPostProcessor
                                 .addConstructorArgReference("agenticServiceSchemaConsumerFactory")
                                 .addConstructorArgReference("agenticServiceSchemaProducerFactory")
                                 .addConstructorArgReference("agenticServiceControlProducerFactory")
+                                .addConstructorArgReference("agenticServiceControlConsumerFactory")
+                                .addConstructorArgReference("agenticServiceKafkaAdmin")
                                 .addConstructorArgReference(beanName + "AggregateRuntimeFactory")
                                 .addConstructorArgReference("agenticServiceConsumerFactory")
                                 .addConstructorArgReference("agenticServiceProducerFactory")

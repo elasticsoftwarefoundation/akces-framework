@@ -18,8 +18,13 @@
 package org.elasticsoftware.akces.agentic.runtime;
 
 import jakarta.annotation.Nonnull;
+import org.apache.kafka.clients.admin.TopicDescription;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.TopicPartition;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
 import org.elasticsoftware.akces.agentic.commands.ForgetMemoryCommand;
 import org.elasticsoftware.akces.agentic.commands.StoreMemoryCommand;
@@ -30,6 +35,7 @@ import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.control.AggregateServiceCommandType;
 import org.elasticsoftware.akces.control.AggregateServiceDomainEventType;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
+import org.elasticsoftware.akces.control.AggregateServiceType;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.control.AkcesRegistry;
 import org.elasticsoftware.akces.commands.Command;
@@ -51,14 +57,20 @@ import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.core.env.Environment;
 import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.kafka.core.KafkaAdminOperations;
 import org.springframework.kafka.core.ProducerFactory;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsoftware.akces.kafka.PartitionUtils.COMMANDS_SUFFIX;
 import static org.elasticsoftware.akces.kafka.PartitionUtils.DOMAINEVENTS_SUFFIX;
@@ -104,6 +116,9 @@ public class AkcesAgenticAggregateController extends Thread
     /** Maximum time in seconds to wait for graceful shutdown completion. */
     private static final int SHUTDOWN_TIMEOUT_SECONDS = 30;
 
+    /** Poll timeout (ms) used when reading the {@code Akces-Control} topic during initialisation. */
+    private static final long CONTROL_TOPIC_POLL_TIMEOUT_MS = 100L;
+
     /** Built-in command types provided by the agentic framework. */
     @SuppressWarnings("unchecked")
     private static final List<CommandType<?>> BUILTIN_COMMAND_TYPES = List.of(
@@ -121,6 +136,8 @@ public class AkcesAgenticAggregateController extends Thread
     private final ConsumerFactory<String, SchemaRecord> schemaConsumerFactory;
     private final ProducerFactory<String, SchemaRecord> schemaProducerFactory;
     private final ProducerFactory<String, AkcesControlRecord> controlProducerFactory;
+    private final ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory;
+    private final KafkaAdminOperations kafkaAdmin;
     private final AgenticAggregateRuntime aggregateRuntime;
     private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
@@ -129,6 +146,7 @@ public class AkcesAgenticAggregateController extends Thread
     private final ExecutorService partitionExecutor;
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
     private final CountDownLatch doneLatch = new CountDownLatch(1);
+    private final Map<String, AggregateServiceRecord> aggregateServices = new ConcurrentHashMap<>();
 
     /** The partition instance created in {@link #run()}; {@code null} until then. */
     private volatile AgenticAggregatePartition partition;
@@ -150,6 +168,8 @@ public class AkcesAgenticAggregateController extends Thread
      * @param schemaConsumerFactory  factory for creating the Kafka schema consumer
      * @param schemaProducerFactory  factory for creating the Kafka schema producer
      * @param controlProducerFactory factory for publishing to the {@code Akces-Control} topic
+     * @param controlConsumerFactory factory for consuming from the {@code Akces-Control} topic
+     * @param kafkaAdmin             Kafka admin operations for topic introspection
      * @param aggregateRuntime       the underlying agentic aggregate runtime that handles commands
      * @param consumerFactory        factory for creating the Kafka protocol consumer
      * @param producerFactory        factory for creating the Kafka protocol producer
@@ -160,6 +180,8 @@ public class AkcesAgenticAggregateController extends Thread
             ConsumerFactory<String, SchemaRecord> schemaConsumerFactory,
             ProducerFactory<String, SchemaRecord> schemaProducerFactory,
             ProducerFactory<String, AkcesControlRecord> controlProducerFactory,
+            ConsumerFactory<String, AkcesControlRecord> controlConsumerFactory,
+            KafkaAdminOperations kafkaAdmin,
             AgenticAggregateRuntime aggregateRuntime,
             ConsumerFactory<String, ProtocolRecord> consumerFactory,
             ProducerFactory<String, ProtocolRecord> producerFactory,
@@ -169,6 +191,8 @@ public class AkcesAgenticAggregateController extends Thread
         this.schemaConsumerFactory = schemaConsumerFactory;
         this.schemaProducerFactory = schemaProducerFactory;
         this.controlProducerFactory = controlProducerFactory;
+        this.controlConsumerFactory = controlConsumerFactory;
+        this.kafkaAdmin = kafkaAdmin;
         this.aggregateRuntime = aggregateRuntime;
         this.consumerFactory = consumerFactory;
         this.producerFactory = producerFactory;
@@ -184,6 +208,8 @@ public class AkcesAgenticAggregateController extends Thread
      * <ol>
      *   <li>Initialises {@link SchemaStorage} and {@link SchemaRegistry}.</li>
      *   <li>Registers all built-in and aggregate-specific schemas.</li>
+     *   <li>Reads existing {@link AggregateServiceRecord}s from the {@code Akces-Control} topic
+     *       to enable external event topic resolution.</li>
      *   <li>Publishes the {@link AggregateServiceRecord} to {@code Akces-Control}.</li>
      *   <li>Creates and starts the {@link AgenticAggregatePartition} on a dedicated thread.</li>
      *   <li>Waits until {@link #close()} is called.</li>
@@ -211,6 +237,9 @@ public class AkcesAgenticAggregateController extends Thread
 
             // Register aggregate-specific command and event schemas
             registerAggregateSchemas();
+
+            // Load existing aggregate service records so external event topics can be resolved
+            loadAggregateServicesFromControlTopic();
 
             // Publish the service record so clients can discover this aggregate
             publishControlRecord();
@@ -326,6 +355,65 @@ public class AkcesAgenticAggregateController extends Thread
     }
 
     /**
+     * Reads all existing {@link AggregateServiceRecord}s from the {@code Akces-Control} topic
+     * so that external aggregate topics can be resolved when setting up external event
+     * subscriptions.
+     *
+     * <p>Uses a one-shot consumer: seeks to the beginning of all partitions, reads until
+     * the end offsets reached at the time of the call, then closes the consumer. This mirrors
+     * the pattern used by {@link org.elasticsoftware.akces.AkcesAggregateController} during
+     * its initialisation phase.
+     */
+    private void loadAggregateServicesFromControlTopic() {
+        String groupId = aggregateRuntime.getName() + "-Agentic-ControlReader";
+        String clientId = aggregateRuntime.getName() + "-" + HostUtils.getHostName() + "-ControlReader";
+        try (Consumer<String, AkcesControlRecord> controlConsumer =
+                     controlConsumerFactory.createConsumer(groupId, clientId, null)) {
+
+            // Use Kafka admin to discover all Akces-Control partitions
+            Map<String, TopicDescription> descriptions = kafkaAdmin.describeTopics("Akces-Control");
+            TopicDescription controlDesc = descriptions.get("Akces-Control");
+            if (controlDesc == null) {
+                logger.warn("Akces-Control topic not found; no external aggregate services loaded");
+                return;
+            }
+            List<TopicPartition> allPartitions = controlDesc.partitions().stream()
+                    .map(p -> new TopicPartition("Akces-Control", p.partition()))
+                    .toList();
+
+            controlConsumer.assign(allPartitions);
+            controlConsumer.seekToBeginning(allPartitions);
+            Map<TopicPartition, Long> endOffsets = controlConsumer.endOffsets(allPartitions);
+
+            // Track which partitions still have records to read
+            Set<TopicPartition> remaining = allPartitions.stream()
+                    .filter(tp -> endOffsets.getOrDefault(tp, 0L) > 0L)
+                    .collect(Collectors.toSet());
+
+            while (!remaining.isEmpty()) {
+                ConsumerRecords<String, AkcesControlRecord> records =
+                        controlConsumer.poll(Duration.ofMillis(CONTROL_TOPIC_POLL_TIMEOUT_MS));
+                for (ConsumerRecord<String, AkcesControlRecord> record : records) {
+                    if (record.value() instanceof AggregateServiceRecord serviceRecord) {
+                        aggregateServices.put(record.key(), serviceRecord);
+                    }
+                }
+                // Remove partitions that have been fully consumed
+                remaining.removeIf(tp -> {
+                    long endOffset = endOffsets.getOrDefault(tp, 0L);
+                    long current = controlConsumer.position(tp);
+                    return current >= endOffset;
+                });
+            }
+            logger.info("Loaded {} aggregate service records from Akces-Control",
+                    aggregateServices.size());
+        } catch (Exception e) {
+            logger.warn("Failed to load aggregate service records from Akces-Control; " +
+                    "external event subscriptions may not work correctly", e);
+        }
+    }
+
+    /**
      * Publishes an {@link AggregateServiceRecord} to the {@code Akces-Control} topic so that
      * clients can discover this service.
      *
@@ -364,6 +452,7 @@ public class AkcesAgenticAggregateController extends Thread
                     aggregateRuntime.getName(),
                     aggregateRuntime.getName() + COMMANDS_SUFFIX,
                     aggregateRuntime.getName() + DOMAINEVENTS_SUFFIX,
+                    AggregateServiceType.AGENTIC,
                     allCommands,
                     allEvents,
                     List.of() // Agentic aggregates do not consume external events by default
@@ -528,14 +617,28 @@ public class AkcesAgenticAggregateController extends Thread
     }
 
     /**
-     * Resolves the domain-event topic for the given {@link DomainEventType}.
+     * Resolves the domain-event topic for the given {@link DomainEventType} by looking up the
+     * registered {@link AggregateServiceRecord}s loaded from the {@code Akces-Control} topic.
      *
-     * @param externalDomainEventType the domain event type
-     * @return the domain-event topic name
+     * <p>If no matching record is found, falls back to this aggregate's own domain-event topic
+     * and logs a warning.
+     *
+     * @param externalDomainEventType the domain event type to resolve
+     * @return the domain-event topic name for the aggregate that produces this event type
      */
     @Override
     @Nonnull
     public String resolveTopic(@Nonnull DomainEventType<?> externalDomainEventType) {
+        List<AggregateServiceRecord> services = aggregateServices.values().stream()
+                .filter(s -> s.producedEvents().stream().anyMatch(
+                        e -> e.typeName().equals(externalDomainEventType.typeName())
+                                && e.version() == externalDomainEventType.version()))
+                .toList();
+        if (!services.isEmpty()) {
+            return services.getFirst().domainEventTopic();
+        }
+        logger.warn("Cannot resolve domain event topic for type '{}' version {}; falling back to own topic",
+                externalDomainEventType.typeName(), externalDomainEventType.version());
         return aggregateRuntime.getName() + DOMAINEVENTS_SUFFIX;
     }
 
