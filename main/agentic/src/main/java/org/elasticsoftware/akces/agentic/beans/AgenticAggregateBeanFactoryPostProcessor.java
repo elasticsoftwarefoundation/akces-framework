@@ -17,8 +17,7 @@
 
 package org.elasticsoftware.akces.agentic.beans;
 
-import org.elasticsoftware.akces.agentic.runtime.AgenticAggregatePartition;
-import org.elasticsoftware.akces.agentic.runtime.AgenticAggregateRuntime;
+import org.elasticsoftware.akces.agentic.runtime.AgenticAggregateRuntimeLifecycle;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.aggregate.AgenticAggregate;
 import org.elasticsoftware.akces.annotations.*;
@@ -151,7 +150,7 @@ public class AgenticAggregateBeanFactoryPostProcessor
                             .addConstructorArgReference(beanName)
                             .getBeanDefinition());
 
-            // Conditionally register partition and runtime beans when agentic Kafka factories are present
+            // Conditionally register the lifecycle runtime bean when agentic Kafka factories are present
             if (beanFactory.containsBeanDefinition("agenticServiceConsumerFactory") &&
                     beanFactory.containsBeanDefinition("agenticServiceProducerFactory") &&
                     beanFactory.containsBeanDefinition("agenticServiceControlProducerFactory") &&
@@ -168,25 +167,18 @@ public class AgenticAggregateBeanFactoryPostProcessor
                     throw new ApplicationContextException("Unable to load class for bean " + beanName, e);
                 }
 
-                // AgenticAggregatePartition
-                String partitionBeanName = beanName + "AgenticPartition";
-                bdr.registerBeanDefinition(partitionBeanName,
-                        BeanDefinitionBuilder.genericBeanDefinition(AgenticAggregatePartition.class)
-                                .addConstructorArgReference("agenticServiceConsumerFactory")
-                                .addConstructorArgReference("agenticServiceProducerFactory")
-                                .addConstructorArgReference(beanName + "AggregateRuntimeFactory")
-                                .addConstructorArgReference("agenticServiceAggregateStateRepositoryFactory")
-                                .addConstructorArgValue(agenticInfo.maxMemories())
-                                .getBeanDefinition());
-
-                // AgenticAggregateRuntime (Thread — started via init method, closed via destroy method)
+                // AgenticAggregateRuntimeLifecycle (Thread — started via init method, closed via destroy method)
+                // The partition is created internally by the lifecycle, so no separate partition bean is needed.
                 bdr.registerBeanDefinition(beanName + "AgenticRuntime",
-                        BeanDefinitionBuilder.genericBeanDefinition(AgenticAggregateRuntime.class)
+                        BeanDefinitionBuilder.genericBeanDefinition(AgenticAggregateRuntimeLifecycle.class)
                                 .addConstructorArgReference("agenticServiceSchemaConsumerFactory")
                                 .addConstructorArgReference("agenticServiceSchemaProducerFactory")
                                 .addConstructorArgReference("agenticServiceControlProducerFactory")
                                 .addConstructorArgReference(beanName + "AggregateRuntimeFactory")
-                                .addConstructorArgReference(partitionBeanName)
+                                .addConstructorArgReference("agenticServiceConsumerFactory")
+                                .addConstructorArgReference("agenticServiceProducerFactory")
+                                .addConstructorArgReference("agenticServiceAggregateStateRepositoryFactory")
+                                .addConstructorArgValue(agenticInfo.maxMemories())
                                 .setInitMethodName("start")
                                 .setDestroyMethodName("close")
                                 .getBeanDefinition());

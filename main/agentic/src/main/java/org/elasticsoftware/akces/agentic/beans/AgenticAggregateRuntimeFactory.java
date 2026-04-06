@@ -17,6 +17,8 @@
 
 package org.elasticsoftware.akces.agentic.beans;
 
+import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
+import org.elasticsoftware.akces.agentic.runtime.KafkaAgenticAggregateRuntime;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.aggregate.AgenticAggregate;
 import org.elasticsoftware.akces.annotations.AgenticAggregateInfo;
@@ -29,7 +31,7 @@ import org.springframework.context.ApplicationContextAware;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Spring {@link FactoryBean} that creates a {@link AggregateRuntime} for an
+ * Spring {@link FactoryBean} that creates a {@link AgenticAggregateRuntime} for an
  * {@link org.elasticsoftware.akces.aggregate.AgenticAggregate} annotated with
  * {@link AgenticAggregateInfo}.
  *
@@ -38,9 +40,12 @@ import tools.jackson.databind.ObjectMapper;
  * the agentic module: agentic aggregates are never GDPR-keyed, never indexed, and
  * never have PII-annotated state.</p>
  *
+ * <p>Produces a {@link KafkaAgenticAggregateRuntime} wrapping the internally built
+ * {@link KafkaAggregateRuntime}, adding memory-aware operations.</p>
+ *
  * @param <S> the aggregate state type
  */
-public class AgenticAggregateRuntimeFactory<S extends AggregateState> implements FactoryBean<AggregateRuntime>, ApplicationContextAware {
+public class AgenticAggregateRuntimeFactory<S extends AggregateState> implements FactoryBean<AgenticAggregateRuntime>, ApplicationContextAware {
 
     private ApplicationContext applicationContext;
     private final ObjectMapper objectMapper;
@@ -63,13 +68,19 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState> implements
     }
 
     @Override
-    public AggregateRuntime getObject() {
-        return createRuntime(aggregate);
+    public AgenticAggregateRuntime getObject() {
+        AgenticAggregateInfo agenticInfo = aggregate.getClass().getAnnotation(AgenticAggregateInfo.class);
+        if (agenticInfo == null) {
+            throw new IllegalStateException(
+                    "Class implementing AgenticAggregate must be annotated with @AgenticAggregateInfo");
+        }
+        KafkaAggregateRuntime kafkaRuntime = createRuntime(aggregate);
+        return new KafkaAgenticAggregateRuntime(kafkaRuntime, objectMapper, agenticInfo.stateClass());
     }
 
     @Override
     public Class<?> getObjectType() {
-        return AggregateRuntime.class;
+        return AgenticAggregateRuntime.class;
     }
 
     @SuppressWarnings("unchecked")

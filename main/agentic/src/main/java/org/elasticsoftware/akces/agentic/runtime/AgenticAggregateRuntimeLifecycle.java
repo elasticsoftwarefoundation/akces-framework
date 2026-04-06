@@ -20,11 +20,11 @@ package org.elasticsoftware.akces.agentic.runtime;
 import jakarta.annotation.Nonnull;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
 import org.elasticsoftware.akces.agentic.commands.ForgetMemoryCommand;
 import org.elasticsoftware.akces.agentic.commands.StoreMemoryCommand;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
-import org.elasticsoftware.akces.aggregate.AggregateRuntime;
 import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.control.AggregateServiceCommandType;
@@ -33,12 +33,14 @@ import org.elasticsoftware.akces.control.AggregateServiceRecord;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.control.AkcesRegistry;
 import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.protocol.SchemaRecord;
 import org.elasticsoftware.akces.schemas.IncompatibleSchemaException;
 import org.elasticsoftware.akces.schemas.KafkaSchemaRegistry;
 import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import org.elasticsoftware.akces.schemas.storage.KafkaTopicSchemaStorage;
 import org.elasticsoftware.akces.schemas.storage.SchemaStorage;
+import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.util.HostUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,20 +68,24 @@ import static org.elasticsoftware.akces.kafka.PartitionUtils.DOMAINEVENTS_SUFFIX
  *       ({@link StoreMemoryCommand}, {@link ForgetMemoryCommand}) and events
  *       ({@link MemoryStoredEvent}, {@link MemoryRevokedEvent}).</li>
  *   <li>Register and validate schemas for all commands and events declared by the
- *       wrapped {@link AggregateRuntime}.</li>
+ *       wrapped {@link AgenticAggregateRuntime}.</li>
  *   <li>Publish an {@link AggregateServiceRecord} to the {@code Akces-Control} topic so
  *       that clients can discover the service and its supported command types.</li>
  *   <li>Create and start the associated {@link AgenticAggregatePartition}.</li>
  * </ol>
  *
  * <p>This class implements {@link AkcesRegistry} so that the partition can resolve
- * topics and partitions without any external registry.  Because agentic aggregates
+ * topics and partitions without any external registry. Because agentic aggregates
  * are always single-partition services, {@link #resolvePartition(String)} always
  * returns {@code 0}.
+ *
+ * <p>Unlike the previous design, this class is responsible for creating the
+ * {@link AgenticAggregatePartition} internally during {@link #run()}, removing the
+ * need for the partition to be registered as a separate Spring bean.
  */
-public class AgenticAggregateRuntime extends Thread implements AkcesRegistry, AutoCloseable {
+public class AgenticAggregateRuntimeLifecycle extends Thread implements AkcesRegistry, AutoCloseable {
 
-    private static final Logger logger = LoggerFactory.getLogger(AgenticAggregateRuntime.class);
+    private static final Logger logger = LoggerFactory.getLogger(AgenticAggregateRuntimeLifecycle.class);
 
     /** Maximum time in seconds to wait for graceful shutdown completion. */
     private static final int SHUTDOWN_TIMEOUT_SECONDS = 30;
@@ -101,35 +107,50 @@ public class AgenticAggregateRuntime extends Thread implements AkcesRegistry, Au
     private final ConsumerFactory<String, SchemaRecord> schemaConsumerFactory;
     private final ProducerFactory<String, SchemaRecord> schemaProducerFactory;
     private final ProducerFactory<String, AkcesControlRecord> controlProducerFactory;
-    private final AggregateRuntime aggregateRuntime;
-    private final AgenticAggregatePartition partition;
+    private final AgenticAggregateRuntime aggregateRuntime;
+    private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
+    private final ProducerFactory<String, ProtocolRecord> producerFactory;
+    private final AggregateStateRepositoryFactory stateRepositoryFactory;
+    private final int maxMemories;
     private final ExecutorService partitionExecutor;
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
     private final CountDownLatch doneLatch = new CountDownLatch(1);
 
+    /** The partition instance created in {@link #run()}; {@code null} until then. */
+    private volatile AgenticAggregatePartition partition;
+
     private volatile SchemaRegistry schemaRegistry;
 
     /**
-     * Creates a new {@code AgenticAggregateRuntime}.
+     * Creates a new {@code AgenticAggregateRuntimeLifecycle}.
      *
      * @param schemaConsumerFactory  factory for creating the Kafka schema consumer
      * @param schemaProducerFactory  factory for creating the Kafka schema producer
      * @param controlProducerFactory factory for publishing to the {@code Akces-Control} topic
-     * @param aggregateRuntime       the underlying aggregate runtime that handles commands
-     * @param partition              the agentic partition that processes command records
+     * @param aggregateRuntime       the underlying agentic aggregate runtime that handles commands
+     * @param consumerFactory        factory for creating the Kafka protocol consumer
+     * @param producerFactory        factory for creating the Kafka protocol producer
+     * @param stateRepositoryFactory factory for creating the aggregate-state repository
+     * @param maxMemories            maximum number of memories per aggregate before sliding-window eviction
      */
-    public AgenticAggregateRuntime(
+    public AgenticAggregateRuntimeLifecycle(
             ConsumerFactory<String, SchemaRecord> schemaConsumerFactory,
             ProducerFactory<String, SchemaRecord> schemaProducerFactory,
             ProducerFactory<String, AkcesControlRecord> controlProducerFactory,
-            AggregateRuntime aggregateRuntime,
-            AgenticAggregatePartition partition) {
-        super(aggregateRuntime.getName() + "-AgenticAggregateRuntime");
+            AgenticAggregateRuntime aggregateRuntime,
+            ConsumerFactory<String, ProtocolRecord> consumerFactory,
+            ProducerFactory<String, ProtocolRecord> producerFactory,
+            AggregateStateRepositoryFactory stateRepositoryFactory,
+            int maxMemories) {
+        super(aggregateRuntime.getName() + "-AgenticAggregateRuntimeLifecycle");
         this.schemaConsumerFactory = schemaConsumerFactory;
         this.schemaProducerFactory = schemaProducerFactory;
         this.controlProducerFactory = controlProducerFactory;
         this.aggregateRuntime = aggregateRuntime;
-        this.partition = partition;
+        this.consumerFactory = consumerFactory;
+        this.producerFactory = producerFactory;
+        this.stateRepositoryFactory = stateRepositoryFactory;
+        this.maxMemories = maxMemories;
         this.partitionExecutor = Executors.newSingleThreadExecutor(
                 r -> new Thread(r, aggregateRuntime.getName() + "-AgenticPartitionThread"));
     }
@@ -141,13 +162,13 @@ public class AgenticAggregateRuntime extends Thread implements AkcesRegistry, Au
      *   <li>Initialises {@link SchemaStorage} and {@link SchemaRegistry}.</li>
      *   <li>Registers all built-in and aggregate-specific schemas.</li>
      *   <li>Publishes the {@link AggregateServiceRecord} to {@code Akces-Control}.</li>
-     *   <li>Starts the {@link AgenticAggregatePartition} on a dedicated thread.</li>
+     *   <li>Creates and starts the {@link AgenticAggregatePartition} on a dedicated thread.</li>
      *   <li>Waits until {@link #close()} is called.</li>
      * </ol>
      */
     @Override
     public void run() {
-        logger.info("Starting AgenticAggregateRuntime for {}Aggregate", aggregateRuntime.getName());
+        logger.info("Starting AgenticAggregateRuntimeLifecycle for {}Aggregate", aggregateRuntime.getName());
         try {
             // Initialise schema storage and registry
             SchemaStorage schemaStorage = new KafkaTopicSchemaStorage(
@@ -169,25 +190,35 @@ public class AgenticAggregateRuntime extends Thread implements AkcesRegistry, Au
             // Publish the service record so clients can discover this aggregate
             publishControlRecord();
 
-            // Start partition processing
+            // Create and start the partition — this is the agentic equivalent of the
+            // standard KafkaAggregateRuntime submitting a KafkaAggregatePartition.
+            AgenticAggregatePartition localPartition = new AgenticAggregatePartition(
+                    consumerFactory,
+                    producerFactory,
+                    aggregateRuntime,
+                    stateRepositoryFactory,
+                    maxMemories,
+                    aggregateRuntime.getExternalDomainEventTypes(),
+                    this);
+            this.partition = localPartition;
             logger.info("Starting AgenticAggregatePartition for {}Aggregate",
                     aggregateRuntime.getName());
-            partitionExecutor.submit(partition);
+            partitionExecutor.submit(localPartition);
 
             // Wait until shutdown is signalled
             shutdownLatch.await();
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            logger.warn("AgenticAggregateRuntime for {}Aggregate was interrupted",
+            logger.warn("AgenticAggregateRuntimeLifecycle for {}Aggregate was interrupted",
                     aggregateRuntime.getName());
         } catch (Exception e) {
-            logger.error("Fatal error in AgenticAggregateRuntime for {}Aggregate — shutting down",
+            logger.error("Fatal error in AgenticAggregateRuntimeLifecycle for {}Aggregate — shutting down",
                     aggregateRuntime.getName(), e);
         } finally {
             shutdownPartition();
         }
-        logger.info("AgenticAggregateRuntime for {}Aggregate has stopped", aggregateRuntime.getName());
+        logger.info("AgenticAggregateRuntimeLifecycle for {}Aggregate has stopped", aggregateRuntime.getName());
         doneLatch.countDown();
     }
 
@@ -241,7 +272,7 @@ public class AgenticAggregateRuntime extends Thread implements AkcesRegistry, Au
 
     /**
      * Registers schemas for all command and domain-event types produced by the underlying
-     * {@link AggregateRuntime}.
+     * {@link AgenticAggregateRuntime}.
      */
     private void registerAggregateSchemas() {
         logger.info("Registering aggregate schemas for {}Aggregate", aggregateRuntime.getName());
@@ -328,10 +359,13 @@ public class AgenticAggregateRuntime extends Thread implements AkcesRegistry, Au
      * then shuts down the executor.
      */
     private void shutdownPartition() {
-        try {
-            partition.close();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        AgenticAggregatePartition localPartition = this.partition;
+        if (localPartition != null) {
+            try {
+                localPartition.close();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
         partitionExecutor.shutdown();
         try {
@@ -355,15 +389,15 @@ public class AgenticAggregateRuntime extends Thread implements AkcesRegistry, Au
      */
     @Override
     public void close() throws Exception {
-        logger.info("Shutting down AgenticAggregateRuntime for {}Aggregate",
+        logger.info("Shutting down AgenticAggregateRuntimeLifecycle for {}Aggregate",
                 aggregateRuntime.getName());
         // Signal the run() loop to exit
         shutdownLatch.countDown();
         // Wait for run() to actually finish
         try {
             if (!doneLatch.await(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                logger.warn("AgenticAggregateRuntime for {}Aggregate did not shutdown within 30 seconds",
-                        aggregateRuntime.getName());
+                logger.warn("AgenticAggregateRuntimeLifecycle for {}Aggregate did not shutdown within {} seconds",
+                        aggregateRuntime.getName(), SHUTDOWN_TIMEOUT_SECONDS);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -378,8 +412,8 @@ public class AgenticAggregateRuntime extends Thread implements AkcesRegistry, Au
      * Resolves the {@link CommandType} for the given command class.
      *
      * <p>Built-in agentic commands ({@link StoreMemoryCommand}, {@link ForgetMemoryCommand})
-     * are returned directly.  All other commands are resolved from the underlying
-     * {@link AggregateRuntime}'s local command types.
+     * are returned directly. All other commands are resolved from the underlying
+     * {@link AgenticAggregateRuntime}'s local command types.
      *
      * @param commandClass the command class to resolve
      * @return the corresponding {@link CommandType}
@@ -487,9 +521,10 @@ public class AgenticAggregateRuntime extends Thread implements AkcesRegistry, Au
     /**
      * Returns {@code true} if the underlying partition is actively processing commands.
      *
-     * @return {@code true} when the partition is in the PROCESSING state
+     * @return {@code true} when the partition has been created and is in the PROCESSING state
      */
     public boolean isRunning() {
-        return partition.isProcessing();
+        AgenticAggregatePartition localPartition = this.partition;
+        return localPartition != null && localPartition.isProcessing();
     }
 }

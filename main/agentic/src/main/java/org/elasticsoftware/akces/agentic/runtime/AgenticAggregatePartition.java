@@ -28,10 +28,14 @@ import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.WakeupException;
-import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
-import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
-import org.elasticsoftware.akces.aggregate.AggregateRuntime;
+import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
+import org.elasticsoftware.akces.agentic.commands.ForgetMemoryCommand;
+import org.elasticsoftware.akces.aggregate.AgenticAggregateMemory;
+import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.aggregate.IndexParams;
+import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftware.akces.commands.CommandBus;
+import org.elasticsoftware.akces.control.AkcesRegistry;
 import org.elasticsoftware.akces.kafka.PartitionUtils;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.CommandRecord;
@@ -46,18 +50,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.ProducerFactory;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -78,16 +80,19 @@ import static org.elasticsoftware.akces.kafka.PartitionUtils.DOMAINEVENTS_SUFFIX
  *   <li>Always hard-assigns <strong>partition 0</strong> — no Kafka consumer-group rebalancing
  *       is needed because every agentic aggregate runs as a single-partition service.</li>
  *   <li>Processes commands in strict FIFO order; there is no prioritisation queue.</li>
- *   <li>Enforces a <em>sliding-window</em> memory capacity: whenever a
- *       {@link MemoryStoredEvent} would push the number of stored memories above
- *       {@code maxMemories}, a {@link MemoryRevokedEvent} is emitted automatically
- *       (within the same Kafka transaction) to evict the oldest entry.</li>
+ *   <li>Enforces a <em>sliding-window</em> memory capacity: whenever the number of stored
+ *       memories exceeds {@code maxMemories} after a command is processed, a
+ *       {@code ForgetMemoryCommand} is issued through the normal aggregate command path to
+ *       evict the oldest entry. Memory state is derived directly from the loaded aggregate
+ *       state, avoiding any separate in-memory deque reconstruction after restarts.</li>
+ *   <li>Supports external domain-event subscriptions analogous to
+ *       {@link org.elasticsoftware.akces.kafka.AggregatePartition}.</li>
  * </ul>
  *
  * <p>Actual command and event-sourcing logic is fully delegated to the supplied
- * {@link AggregateRuntime}.
+ * {@link AgenticAggregateRuntime}.
  */
-public class AgenticAggregatePartition implements Runnable, AutoCloseable {
+public class AgenticAggregatePartition implements Runnable, AutoCloseable, CommandBus {
 
     private static final Logger logger = LoggerFactory.getLogger(AgenticAggregatePartition.class);
 
@@ -102,20 +107,16 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
 
     private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
-    private final AggregateRuntime runtime;
+    private final AgenticAggregateRuntime runtime;
     private final AggregateStateRepository stateRepository;
     private final int maxMemories;
-    private final ObjectMapper objectMapper;
+    private final Collection<DomainEventType<?>> externalDomainEventTypes;
+    private final AkcesRegistry ackesRegistry;
     private final TopicPartition commandPartition;
     private final TopicPartition domainEventPartition;
     private final TopicPartition statePartition;
+    private final Set<TopicPartition> externalEventPartitions = new HashSet<>();
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
-
-    /**
-     * Per-aggregate in-memory deque used for sliding-window eviction.
-     * Key: aggregateId; Value: ordered list of memoryIds (oldest first).
-     */
-    private final Map<String, Deque<String>> memoryDeques = new HashMap<>();
 
     private Consumer<String, ProtocolRecord> consumer;
     private Producer<String, ProtocolRecord> producer;
@@ -126,23 +127,27 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
      *
      * @param consumerFactory        factory for creating Kafka consumers
      * @param producerFactory        factory for creating transactional Kafka producers
-     * @param runtime                the aggregate runtime that processes commands and domain events
+     * @param runtime                the agentic aggregate runtime that processes commands and domain events
      * @param stateRepositoryFactory factory for creating the aggregate-state repository
      * @param maxMemories            maximum number of memories allowed before sliding-window eviction
+     * @param externalDomainEventTypes the collection of external domain event types to subscribe to
+     * @param ackesRegistry          registry for resolving command types, topics, and partitions
      */
     public AgenticAggregatePartition(
             ConsumerFactory<String, ProtocolRecord> consumerFactory,
             ProducerFactory<String, ProtocolRecord> producerFactory,
-            AggregateRuntime runtime,
+            AgenticAggregateRuntime runtime,
             AggregateStateRepositoryFactory stateRepositoryFactory,
-            int maxMemories) {
+            int maxMemories,
+            Collection<DomainEventType<?>> externalDomainEventTypes,
+            AkcesRegistry ackesRegistry) {
         this.consumerFactory = consumerFactory;
         this.producerFactory = producerFactory;
         this.runtime = runtime;
         this.stateRepository = stateRepositoryFactory.create(runtime, AGENTIC_PARTITION);
         this.maxMemories = maxMemories;
-        // Plain ObjectMapper instance used for JSON payload inspection (sliding-window tracking).
-        this.objectMapper = new ObjectMapper();
+        this.externalDomainEventTypes = externalDomainEventTypes;
+        this.ackesRegistry = ackesRegistry;
         this.commandPartition = new TopicPartition(runtime.getName() + COMMANDS_SUFFIX, AGENTIC_PARTITION);
         this.domainEventPartition = new TopicPartition(runtime.getName() + DOMAINEVENTS_SUFFIX, AGENTIC_PARTITION);
         this.statePartition = new TopicPartition(runtime.getName() + AGGREGRATESTATE_SUFFIX, AGENTIC_PARTITION);
@@ -150,9 +155,9 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
     }
 
     /**
-     * Main processing loop.  Creates and hard-assigns a Kafka consumer to partition 0
-     * of the command, domain-event, and aggregate-state topics, then polls for records
-     * in FIFO order until the partition is closed.
+     * Main processing loop. Creates and hard-assigns a Kafka consumer to partition 0
+     * of the command, domain-event, state, and any external domain-event topics, then
+     * polls for records in FIFO order until the partition is closed.
      */
     @Override
     public void run() {
@@ -164,8 +169,18 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
                     null);
             this.producer = producerFactory.createProducer(
                     runtime.getName() + "AgenticAggregate-partition-" + AGENTIC_PARTITION);
-            // Hard-assign partition 0 only — no consumer group rebalancing needed
-            consumer.assign(List.of(commandPartition, domainEventPartition, statePartition));
+
+            // Resolve external event topic partitions from the registry
+            externalDomainEventTypes.forEach(domainEventType -> {
+                String topic = ackesRegistry.resolveTopic(domainEventType);
+                externalEventPartitions.add(new TopicPartition(topic, AGENTIC_PARTITION));
+            });
+
+            // Hard-assign all partitions — no consumer group rebalancing needed
+            List<TopicPartition> allPartitions = new ArrayList<>(
+                    List.of(commandPartition, domainEventPartition, statePartition));
+            allPartitions.addAll(externalEventPartitions);
+            consumer.assign(allPartitions);
             logger.info("AgenticAggregatePartition for {}Aggregate assigned partitions {}",
                     runtime.getName(), consumer.assignment());
 
@@ -206,6 +221,32 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
     }
 
     /**
+     * Dispatches a {@link Command} produced by an external-event handler onto the correct
+     * Kafka command topic. This is the {@link CommandBus} implementation used within
+     * external-event processing.
+     *
+     * @param command the command to send
+     */
+    @Override
+    public void send(Command command) {
+        var commandType = ackesRegistry.resolveType(command.getClass());
+        if (commandType != null) {
+            String topic = ackesRegistry.resolveTopic(commandType);
+            CommandRecord commandRecord = new CommandRecord(
+                    null,
+                    commandType.typeName(),
+                    commandType.version(),
+                    runtime.serialize(command),
+                    PayloadEncoding.JSON,
+                    command.getAggregateId(),
+                    null,
+                    null); // no response routing for system-originated commands
+            Integer partition = ackesRegistry.resolvePartition(command.getAggregateId());
+            KafkaSender.send(producer, new ProducerRecord<>(topic, partition, commandRecord.id(), commandRecord));
+        }
+    }
+
+    /**
      * Single iteration of the main poll loop, dispatched according to the current
      * {@link org.elasticsoftware.akces.kafka.AggregatePartitionState}.
      */
@@ -219,13 +260,16 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
             } else if (processState == LOADING_STATE) {
                 ConsumerRecords<String, ProtocolRecord> stateRecords = consumer.poll(Duration.ofMillis(10));
                 stateRepository.process(stateRecords.records(statePartition));
-                // Also initialise the memory deques from the events topic while loading
-                stateRecords.records(domainEventPartition).forEach(this::trackMemoryEventDuringLoad);
                 long endOffset = consumer.endOffsets(List.of(statePartition))
                         .getOrDefault(statePartition, 0L);
                 if (stateRecords.isEmpty() && endOffset <= consumer.position(statePartition)) {
-                    // Done loading state — resume command topic and switch to PROCESSING
-                    consumer.resume(List.of(commandPartition, domainEventPartition));
+                    // Done loading state — resume all non-state partitions and switch to PROCESSING.
+                    // Memory state is derived directly from the loaded aggregate state records,
+                    // so no separate memory-deque initialisation is needed here.
+                    List<TopicPartition> toResume = new ArrayList<>(
+                            List.of(commandPartition, domainEventPartition));
+                    toResume.addAll(externalEventPartitions);
+                    consumer.resume(toResume);
                     processState = PROCESSING;
                     logger.info("AgenticAggregatePartition for {}Aggregate finished loading state, " +
                             "switching to PROCESSING", runtime.getName());
@@ -245,8 +289,11 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
                             runtime.getName());
                     processState = PROCESSING;
                 } else {
-                    // Pause command/event topics while loading state
-                    consumer.pause(List.of(commandPartition, domainEventPartition));
+                    // Pause command/event/external topics while loading state
+                    List<TopicPartition> toPause = new ArrayList<>(
+                            List.of(commandPartition, domainEventPartition));
+                    toPause.addAll(externalEventPartitions);
+                    consumer.pause(toPause);
                     processState = LOADING_STATE;
                 }
             }
@@ -262,8 +309,9 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
     /**
      * Processes a batch of consumer records inside a single Kafka transaction.
      *
-     * <p>Commands are dispatched to the {@link AggregateRuntime} in FIFO order.
-     * After each {@link MemoryStoredEvent} the sliding-window eviction check is performed.
+     * <p>External domain events are processed before commands (consistent with
+     * {@link org.elasticsoftware.akces.kafka.AggregatePartition}).
+     * After each command, the sliding-window eviction check is performed.
      *
      * @param allRecords the polled consumer records
      */
@@ -272,13 +320,20 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
             producer.beginTransaction();
             Map<TopicPartition, Long> offsets = new HashMap<>();
 
+            // Process external domain events first
+            externalEventPartitions.forEach(externalPartition ->
+                    allRecords.records(externalPartition).forEach(record -> {
+                        handleExternalEvent((DomainEventRecord) record.value());
+                        offsets.put(externalPartition, record.offset());
+                    }));
+
             // Process commands (FIFO)
             allRecords.records(commandPartition).forEach(record -> {
                 handleCommand((CommandRecord) record.value());
                 offsets.put(commandPartition, record.offset());
             });
 
-            // Track domain-event offsets (we already sent the records from handleCommand)
+            // Track domain-event offsets (records already produced from handleCommand)
             allRecords.records(domainEventPartition)
                     .forEach(r -> offsets.put(domainEventPartition, r.offset()));
 
@@ -312,33 +367,20 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
     }
 
     /**
-     * Handles a single command record by delegating to the {@link AggregateRuntime},
-     * wrapping the record consumer to:
-     * <ul>
-     *   <li>collect produced {@link DomainEventRecord}s for a {@link CommandResponseRecord}
-     *       when {@code replyToTopicPartition} is set (mirrors
-     *       {@link org.elasticsoftware.akces.kafka.AggregatePartition});</li>
-     *   <li>intercept {@link MemoryStoredEvent}s and enforce the sliding-window eviction
-     *       policy.</li>
-     * </ul>
+     * Handles a single command record by delegating to the {@link AgenticAggregateRuntime},
+     * then enforcing the sliding-window memory eviction policy. A
+     * {@link CommandResponseRecord} is sent when {@code replyToTopicPartition} is set.
      *
      * @param commandRecord the incoming command record to process
      */
     private void handleCommand(CommandRecord commandRecord) {
         final List<DomainEventRecord> responseRecords =
                 commandRecord.replyToTopicPartition() != null ? new ArrayList<>() : null;
-        final List<DomainEventRecord> memoryStoredEvents = new ArrayList<>();
 
         java.util.function.Consumer<ProtocolRecord> interceptingConsumer = pr -> {
             send(pr);
-            if (pr instanceof DomainEventRecord der) {
-                trackMemoryEvent(der);
-                if ("MemoryStored".equals(der.name())) {
-                    memoryStoredEvents.add(der);
-                }
-                if (responseRecords != null) {
-                    responseRecords.add(der);
-                }
+            if (pr instanceof DomainEventRecord der && responseRecords != null) {
+                responseRecords.add(der);
             }
         };
 
@@ -350,11 +392,10 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
                     this::index,
                     () -> stateRepository.get(commandRecord.aggregateId()));
 
-            // After command processing, apply sliding-window eviction for each new memory
-            for (DomainEventRecord storedEvent : memoryStoredEvents) {
-                enforceMemorySlidingWindow(storedEvent.aggregateId(), storedEvent.tenantId(),
-                        storedEvent.correlationId(), storedEvent.generation());
-            }
+            // Enforce sliding-window memory limit after every command.
+            // This is a no-op when the count is within the allowed window.
+            enforceMemorySlidingWindow(commandRecord.aggregateId(),
+                    commandRecord.tenantId(), commandRecord.correlationId());
 
             // Send a response so that AkcesClient.send() can complete its CompletionStage
             if (responseRecords != null) {
@@ -379,98 +420,81 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
     }
 
     /**
-     * Enforces the sliding-window memory limit for the given aggregate.
+     * Handles an external domain event record by delegating to the
+     * {@link AgenticAggregateRuntime}.
      *
-     * <p>If the number of tracked memories for the aggregate meets or exceeds
-     * {@code maxMemories}, a {@link MemoryRevokedEvent} is emitted for the oldest
-     * entry to bring the count back within the allowed window.
+     * @param eventRecord the external domain event record to process
+     */
+    private void handleExternalEvent(DomainEventRecord eventRecord) {
+        try {
+            logger.trace("Handling DomainEventRecord with type {} as External Event", eventRecord.name());
+            runtime.handleExternalDomainEventRecord(
+                    eventRecord,
+                    this::send,
+                    this::index,
+                    () -> stateRepository.get(eventRecord.aggregateId()),
+                    this);
+        } catch (IOException e) {
+            logger.error("Error handling external event {}", eventRecord.name(), e);
+        }
+    }
+
+    /**
+     * Enforces the sliding-window memory limit for the given aggregate by querying the
+     * current state directly.
+     *
+     * <p>If the number of memories in the loaded state exceeds {@code maxMemories}, a
+     * {@link ForgetMemoryCommand} is issued through the normal aggregate command path for
+     * each excess entry (oldest first) until the count is within the allowed window.
+     * This avoids rebuilding a separate in-memory deque after restarts.
+     *
+     * <p>A safety bound of {@code maxMemories + 1} iterations guards against a pathological
+     * case where eviction commands fail to reduce the memory count (e.g., the ForgetMemory
+     * handler is not registered), preventing an infinite loop.
      *
      * @param aggregateId   the aggregate whose memory count should be checked
      * @param tenantId      tenant identifier propagated from the triggering command
      * @param correlationId correlation identifier propagated from the triggering command
-     * @param generation    generation counter of the originating domain event
      */
     private void enforceMemorySlidingWindow(String aggregateId, String tenantId,
-                                            String correlationId, long generation) {
-        Deque<String> deque = memoryDeques.get(aggregateId);
-        // This method is called AFTER trackMemoryEvent has already added the new memoryId to the
-        // deque.  At this point deque.size() = N+1 where N was the previous count.
-        // Invariant: after this method returns the deque will contain at most maxMemories entries.
-        //   • size <= maxMemories  →  already within limit, no eviction needed
-        //   • size == maxMemories + 1  →  one entry over limit, evict the oldest
-        if (deque == null || deque.size() <= maxMemories) {
-            return;
-        }
-        // Evict the oldest memory (front of deque)
-        String oldestMemoryId = deque.pollFirst();
-        if (oldestMemoryId == null) {
-            return;
-        }
-        logger.debug("Sliding-window eviction: revoking memory {} for aggregate {}",
-                oldestMemoryId, aggregateId);
+                                            String correlationId) {
         try {
-            MemoryRevokedEvent evictionEvent = new MemoryRevokedEvent(
-                    aggregateId,
-                    oldestMemoryId,
-                    "sliding window eviction",
-                    Instant.now());
-            byte[] payload = objectMapper.writeValueAsBytes(evictionEvent);
-            DomainEventRecord evictionRecord = new DomainEventRecord(
-                    tenantId,
-                    "MemoryRevoked",
-                    1,
-                    payload,
-                    PayloadEncoding.JSON,
-                    aggregateId,
-                    correlationId,
-                    generation + 1);
-            send(evictionRecord);
-        } catch (tools.jackson.core.JacksonException e) {
-            logger.error("Failed to serialize MemoryRevokedEvent for aggregate {} memory {}",
-                    aggregateId, oldestMemoryId, e);
-        }
-    }
-
-    /**
-     * Tracks a domain event record to maintain the in-memory deque for sliding-window eviction.
-     *
-     * <p>Called during normal PROCESSING mode for each emitted domain event.
-     *
-     * @param der the domain event record to inspect
-     */
-    private void trackMemoryEvent(DomainEventRecord der) {
-        try {
-            if ("MemoryStored".equals(der.name())) {
-                JsonNode tree = objectMapper.readTree(der.payload());
-                JsonNode memoryIdNode = tree.get("memoryId");
-                if (memoryIdNode != null && !memoryIdNode.isNull()) {
-                    memoryDeques.computeIfAbsent(der.aggregateId(), id -> new ArrayDeque<>())
-                            .addLast(memoryIdNode.stringValue());
+            // Safety bound: evict at most 2 * (maxMemories + 1) times to prevent an infinite loop
+            // if the ForgetMemory handler does not actually reduce the memory count.
+            int maxEvictions = 2 * (maxMemories + 1);
+            for (int evictions = 0; evictions < maxEvictions; evictions++) {
+                AggregateStateRecord stateRecord = stateRepository.get(aggregateId);
+                List<AgenticAggregateMemory> memories = runtime.getMemories(stateRecord);
+                if (memories.size() <= maxMemories) {
+                    return;
                 }
-            } else if ("MemoryRevoked".equals(der.name())) {
-                JsonNode tree = objectMapper.readTree(der.payload());
-                JsonNode memoryIdNode = tree.get("memoryId");
-                if (memoryIdNode != null && !memoryIdNode.isNull()) {
-                    Deque<String> deque = memoryDeques.get(der.aggregateId());
-                    if (deque != null) {
-                        deque.remove(memoryIdNode.stringValue());
-                    }
-                }
+                // Evict the oldest memory (first in the list, ordered by storedAt)
+                AgenticAggregateMemory oldest = memories.get(0);
+                logger.debug("Sliding-window eviction: revoking memory {} for aggregate {}",
+                        oldest.memoryId(), aggregateId);
+                ForgetMemoryCommand forgetCmd = new ForgetMemoryCommand(
+                        aggregateId, oldest.memoryId(), "sliding window eviction");
+                CommandRecord evictionCommandRecord = new CommandRecord(
+                        tenantId,
+                        "ForgetMemory",
+                        1,
+                        runtime.serialize(forgetCmd),
+                        PayloadEncoding.JSON,
+                        aggregateId,
+                        correlationId,
+                        null); // no reply-to for system eviction commands
+                runtime.handleCommandRecord(
+                        evictionCommandRecord,
+                        this::send,
+                        this::index,
+                        () -> stateRepository.get(aggregateId));
             }
-        } catch (tools.jackson.core.JacksonException e) {
-            logger.warn("Failed to parse memory event payload for deque tracking: {}", der.name(), e);
-        }
-    }
-
-    /**
-     * Variant of {@link #trackMemoryEvent(DomainEventRecord)} used during the state-loading
-     * phase to initialise the in-memory deques from the historical event log.
-     *
-     * @param record the consumer record wrapping the domain event
-     */
-    private void trackMemoryEventDuringLoad(ConsumerRecord<String, ProtocolRecord> record) {
-        if (record.value() instanceof DomainEventRecord der) {
-            trackMemoryEvent(der);
+            logger.warn("Sliding-window eviction for aggregate {} did not converge within {} iterations; " +
+                    "check that the ForgetMemory command handler is correctly registered",
+                    aggregateId, maxEvictions);
+        } catch (IOException e) {
+            logger.error("Error during sliding-window memory eviction for aggregate {}",
+                    aggregateId, e);
         }
     }
 
