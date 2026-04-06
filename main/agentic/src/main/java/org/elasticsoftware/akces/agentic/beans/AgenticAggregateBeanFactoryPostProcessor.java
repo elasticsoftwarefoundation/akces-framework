@@ -17,7 +17,8 @@
 
 package org.elasticsoftware.akces.agentic.beans;
 
-import org.elasticsoftware.akces.agentic.runtime.AgenticAggregateRuntimeLifecycle;
+import org.elasticsoftware.akces.agentic.runtime.AkcesAgenticAggregateController;
+import org.elasticsoftware.akces.agentic.runtime.AgenticAggregatePartition;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.aggregate.AgenticAggregate;
 import org.elasticsoftware.akces.annotations.*;
@@ -68,8 +69,9 @@ import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnot
  *       external topics via the standard {@link EventHandler} mechanism.</li>
  *   <li>Registers {@link AgenticAggregateRuntimeFactory} instead of
  *       {@link org.elasticsoftware.akces.kafka.AggregateRuntimeFactory}.</li>
- *   <li>Registers {@link AgenticAggregatePartition} and {@link AgenticAggregateRuntime}
- *       beans when the agentic Kafka factory beans are available.</li>
+ *   <li>Registers an {@link AkcesAgenticAggregateController} bean (which internally creates
+ *       and manages the {@link AgenticAggregatePartition}) when the agentic Kafka factory
+ *       beans are available.</li>
  * </ul>
  */
 public class AgenticAggregateBeanFactoryPostProcessor
@@ -167,10 +169,10 @@ public class AgenticAggregateBeanFactoryPostProcessor
                     throw new ApplicationContextException("Unable to load class for bean " + beanName, e);
                 }
 
-                // AgenticAggregateRuntimeLifecycle (Thread — started via init method, closed via destroy method)
-                // The partition is created internally by the lifecycle, so no separate partition bean is needed.
+                // AkcesAgenticAggregateController (Thread — started via init method, closed via destroy method)
+                // The partition is created internally by the controller, so no separate partition bean is needed.
                 bdr.registerBeanDefinition(beanName + "AgenticRuntime",
-                        BeanDefinitionBuilder.genericBeanDefinition(AgenticAggregateRuntimeLifecycle.class)
+                        BeanDefinitionBuilder.genericBeanDefinition(AkcesAgenticAggregateController.class)
                                 .addConstructorArgReference("agenticServiceSchemaConsumerFactory")
                                 .addConstructorArgReference("agenticServiceSchemaProducerFactory")
                                 .addConstructorArgReference("agenticServiceControlProducerFactory")

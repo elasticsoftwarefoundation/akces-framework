@@ -44,6 +44,12 @@ import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.util.HostUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.availability.AvailabilityChangeEvent;
+import org.springframework.boot.availability.LivenessState;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+import org.springframework.context.EnvironmentAware;
+import org.springframework.core.env.Environment;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.ProducerFactory;
 
@@ -82,10 +88,18 @@ import static org.elasticsoftware.akces.kafka.PartitionUtils.DOMAINEVENTS_SUFFIX
  * <p>Unlike the previous design, this class is responsible for creating the
  * {@link AgenticAggregatePartition} internally during {@link #run()}, removing the
  * need for the partition to be registered as a separate Spring bean.
+ *
+ * <p>Implements {@link ApplicationContextAware} and {@link EnvironmentAware} so that
+ * Spring injects the application context and environment at startup. When the partition
+ * stops (normally or due to a fatal error), this controller publishes an
+ * {@link AvailabilityChangeEvent} with {@link LivenessState#BROKEN} to signal a liveness
+ * check failure, consistent with the behaviour of
+ * {@link org.elasticsoftware.akces.AkcesAggregateController}.
  */
-public class AgenticAggregateRuntimeLifecycle extends Thread implements AkcesRegistry, AutoCloseable {
+public class AkcesAgenticAggregateController extends Thread
+        implements AutoCloseable, AkcesRegistry, ApplicationContextAware, EnvironmentAware {
 
-    private static final Logger logger = LoggerFactory.getLogger(AgenticAggregateRuntimeLifecycle.class);
+    private static final Logger logger = LoggerFactory.getLogger(AkcesAgenticAggregateController.class);
 
     /** Maximum time in seconds to wait for graceful shutdown completion. */
     private static final int SHUTDOWN_TIMEOUT_SECONDS = 30;
@@ -121,8 +135,17 @@ public class AgenticAggregateRuntimeLifecycle extends Thread implements AkcesReg
 
     private volatile SchemaRegistry schemaRegistry;
 
+    /** Spring {@link ApplicationContext} injected by {@link #setApplicationContext(ApplicationContext)}. */
+    private ApplicationContext applicationContext;
+
+    /** Spring {@link Environment} injected by {@link #setEnvironment(Environment)}.
+     *  Retained for Spring Boot health-check semantics consistency with
+     *  {@link org.elasticsoftware.akces.AkcesAggregateController}; available for
+     *  subclasses or future extensions that may need environment properties. */
+    private Environment environment;
+
     /**
-     * Creates a new {@code AgenticAggregateRuntimeLifecycle}.
+     * Creates a new {@code AkcesAgenticAggregateController}.
      *
      * @param schemaConsumerFactory  factory for creating the Kafka schema consumer
      * @param schemaProducerFactory  factory for creating the Kafka schema producer
@@ -133,7 +156,7 @@ public class AgenticAggregateRuntimeLifecycle extends Thread implements AkcesReg
      * @param stateRepositoryFactory factory for creating the aggregate-state repository
      * @param maxMemories            maximum number of memories per aggregate before sliding-window eviction
      */
-    public AgenticAggregateRuntimeLifecycle(
+    public AkcesAgenticAggregateController(
             ConsumerFactory<String, SchemaRecord> schemaConsumerFactory,
             ProducerFactory<String, SchemaRecord> schemaProducerFactory,
             ProducerFactory<String, AkcesControlRecord> controlProducerFactory,
@@ -142,7 +165,7 @@ public class AgenticAggregateRuntimeLifecycle extends Thread implements AkcesReg
             ProducerFactory<String, ProtocolRecord> producerFactory,
             AggregateStateRepositoryFactory stateRepositoryFactory,
             int maxMemories) {
-        super(aggregateRuntime.getName() + "-AgenticAggregateRuntimeLifecycle");
+        super(aggregateRuntime.getName() + "-AkcesAgenticController");
         this.schemaConsumerFactory = schemaConsumerFactory;
         this.schemaProducerFactory = schemaProducerFactory;
         this.controlProducerFactory = controlProducerFactory;
@@ -164,11 +187,13 @@ public class AgenticAggregateRuntimeLifecycle extends Thread implements AkcesReg
      *   <li>Publishes the {@link AggregateServiceRecord} to {@code Akces-Control}.</li>
      *   <li>Creates and starts the {@link AgenticAggregatePartition} on a dedicated thread.</li>
      *   <li>Waits until {@link #close()} is called.</li>
+     *   <li>After shutdown, publishes {@link AvailabilityChangeEvent} with
+     *       {@link LivenessState#BROKEN} to signal liveness failure.</li>
      * </ol>
      */
     @Override
     public void run() {
-        logger.info("Starting AgenticAggregateRuntimeLifecycle for {}Aggregate", aggregateRuntime.getName());
+        logger.info("Starting AkcesAgenticAggregateController for {}Aggregate", aggregateRuntime.getName());
         try {
             // Initialise schema storage and registry
             SchemaStorage schemaStorage = new KafkaTopicSchemaStorage(
@@ -210,15 +235,19 @@ public class AgenticAggregateRuntimeLifecycle extends Thread implements AkcesReg
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            logger.warn("AgenticAggregateRuntimeLifecycle for {}Aggregate was interrupted",
+            logger.warn("AkcesAgenticAggregateController for {}Aggregate was interrupted",
                     aggregateRuntime.getName());
         } catch (Exception e) {
-            logger.error("Fatal error in AgenticAggregateRuntimeLifecycle for {}Aggregate — shutting down",
+            logger.error("Fatal error in AkcesAgenticAggregateController for {}Aggregate — shutting down",
                     aggregateRuntime.getName(), e);
         } finally {
             shutdownPartition();
+            // Signal liveness failure so health checks report BROKEN
+            if (applicationContext != null) {
+                applicationContext.publishEvent(new AvailabilityChangeEvent<>(this, LivenessState.BROKEN));
+            }
         }
-        logger.info("AgenticAggregateRuntimeLifecycle for {}Aggregate has stopped", aggregateRuntime.getName());
+        logger.info("AkcesAgenticAggregateController for {}Aggregate has stopped", aggregateRuntime.getName());
         doneLatch.countDown();
     }
 
@@ -379,7 +408,7 @@ public class AgenticAggregateRuntimeLifecycle extends Thread implements AkcesReg
     }
 
     /**
-     * Signals this runtime to shut down gracefully and waits up to 30 seconds for completion.
+     * Signals this controller to shut down gracefully and waits up to 30 seconds for completion.
      *
      * <p>This method counts down the {@code shutdownLatch} (waking the {@link #run()} loop)
      * and then awaits the {@code doneLatch} (which is counted down only after {@link #run()}
@@ -389,19 +418,45 @@ public class AgenticAggregateRuntimeLifecycle extends Thread implements AkcesReg
      */
     @Override
     public void close() throws Exception {
-        logger.info("Shutting down AgenticAggregateRuntimeLifecycle for {}Aggregate",
+        logger.info("Shutting down AkcesAgenticAggregateController for {}Aggregate",
                 aggregateRuntime.getName());
         // Signal the run() loop to exit
         shutdownLatch.countDown();
         // Wait for run() to actually finish
         try {
             if (!doneLatch.await(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                logger.warn("AgenticAggregateRuntimeLifecycle for {}Aggregate did not shutdown within {} seconds",
+                logger.warn("AkcesAgenticAggregateController for {}Aggregate did not shutdown within {} seconds",
                         aggregateRuntime.getName(), SHUTDOWN_TIMEOUT_SECONDS);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Called by Spring to inject the {@link ApplicationContext}. The context is used to
+     * publish {@link AvailabilityChangeEvent} with {@link LivenessState#BROKEN} when this
+     * controller stops.
+     *
+     * @param ctx the Spring application context
+     */
+    @Override
+    public void setApplicationContext(ApplicationContext ctx) {
+        this.applicationContext = ctx;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Called by Spring to inject the {@link Environment}.
+     *
+     * @param env the Spring environment
+     */
+    @Override
+    public void setEnvironment(Environment env) {
+        this.environment = env;
     }
 
     // -------------------------------------------------------------------------
