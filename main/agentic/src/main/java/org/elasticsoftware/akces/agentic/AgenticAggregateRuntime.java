@@ -17,8 +17,11 @@
 
 package org.elasticsoftware.akces.agentic;
 
+import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
+import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
 import org.elasticsoftware.akces.aggregate.AgenticAggregateMemory;
 import org.elasticsoftware.akces.aggregate.AggregateRuntime;
+import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.aggregate.MemoryAwareState;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 
@@ -37,7 +40,11 @@ import java.util.List;
  * in-memory deque that must be rebuilt from the event log after restarts.
  */
 public interface AgenticAggregateRuntime extends AggregateRuntime {
+    DomainEventType<MemoryStoredEvent> MEMORY_STORED_TYPE = new DomainEventType<>(
+            "MemoryStored", 1, MemoryStoredEvent.class, false, false, false, false);
 
+    DomainEventType<MemoryRevokedEvent> MEMORY_REVOKED_TYPE = new DomainEventType<>(
+            "MemoryRevoked", 1, MemoryRevokedEvent.class, false, false, false, false);
     /**
      * Returns the memories from the given aggregate state record.
      *

@@ -18,8 +18,6 @@
 package org.elasticsoftware.akces.agentic.beans;
 
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
-import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
-import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
 import org.elasticsoftware.akces.agentic.runtime.KafkaAgenticAggregateRuntime;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.aggregate.AgenticAggregate;
@@ -31,6 +29,9 @@ import org.springframework.beans.factory.FactoryBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import tools.jackson.databind.ObjectMapper;
+
+import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.MEMORY_REVOKED_TYPE;
+import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.MEMORY_STORED_TYPE;
 
 /**
  * Spring {@link FactoryBean} that creates a {@link AgenticAggregateRuntime} for an
@@ -176,17 +177,12 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState> implements
         // Register built-in event-sourcing handlers for memory management.
         // These handle the framework-owned MemoryStored and MemoryRevoked events,
         // which every AgenticAggregate state must process via MemoryAwareState.
-        DomainEventType<MemoryStoredEvent> memoryStoredType = new DomainEventType<>(
-                "MemoryStored", 1, MemoryStoredEvent.class, false, false, false, false);
-        DomainEventType<MemoryRevokedEvent> memoryRevokedType = new DomainEventType<>(
-                "MemoryRevoked", 1, MemoryRevokedEvent.class, false, false, false, false);
-
         runtimeBuilder
-                .addEventSourcingHandler(memoryStoredType, KafkaAgenticAggregateRuntime::handleMemoryEvent)
-                .addDomainEvent(memoryStoredType);
+                .addEventSourcingHandler(MEMORY_STORED_TYPE, KafkaAgenticAggregateRuntime::handleMemoryEvent)
+                .addDomainEvent(MEMORY_STORED_TYPE);
         runtimeBuilder
-                .addEventSourcingHandler(memoryRevokedType, KafkaAgenticAggregateRuntime::handleMemoryEvent)
-                .addDomainEvent(memoryRevokedType);
+                .addEventSourcingHandler(MEMORY_REVOKED_TYPE, KafkaAgenticAggregateRuntime::handleMemoryEvent)
+                .addDomainEvent(MEMORY_REVOKED_TYPE);
 
         return runtimeBuilder.validateAndBuild();
     }

@@ -129,8 +129,8 @@ public class AkcesAgenticAggregateController extends Thread
     /** Built-in domain-event types provided by the agentic framework. */
     @SuppressWarnings("unchecked")
     private static final List<DomainEventType<?>> BUILTIN_EVENT_TYPES = List.of(
-            new DomainEventType<>("MemoryStored", 1, MemoryStoredEvent.class, false, false, false, false),
-            new DomainEventType<>("MemoryRevoked", 1, MemoryRevokedEvent.class, false, false, false, false)
+            AgenticAggregateRuntime.MEMORY_STORED_TYPE,
+            AgenticAggregateRuntime.MEMORY_REVOKED_TYPE
     );
 
     private final ConsumerFactory<String, SchemaRecord> schemaConsumerFactory;
