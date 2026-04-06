@@ -70,6 +70,12 @@ public class StatefulSetDependentResource extends CRUDKubernetesDependentResourc
      *   <li>Configures the primary container image, name, args, environment variables, and
      *       resource requirements.</li>
      *   <li>Points the {@code config-volume} ConfigMap mount at the correct ConfigMap name.</li>
+     *   <li>Sets the PVC storage class from {@link AgenticAggregateSpec#getStorageClassName()}
+     *       (passes {@code null} when not set, letting Kubernetes use the cluster default).</li>
+     *   <li>Sets the PVC size from {@link AgenticAggregateSpec#getStorageSize()} (defaults to
+     *       {@code "4Gi"} when not set).</li>
+     *   <li>Conditionally adds an image pull secret from
+     *       {@link AgenticAggregateSpec#getImagePullSecret()} when set.</li>
      *   <li>Applies additional env vars from the spec, if any.</li>
      *   <li>Appends sidecar containers from the spec, if any.</li>
      * </ol>
@@ -106,7 +112,6 @@ public class StatefulSetDependentResource extends CRUDKubernetesDependentResourc
                 .editTemplate()
                 .editMetadata().addToLabels("app", aggregateName).endMetadata()
                 .editSpec()
-                .addToImagePullSecrets(new LocalObjectReference("github-packages-cfg")) // TODO: needs to be configurable
                 .editFirstContainer()
                 .withImage(spec.getImage())
                 .withName("akces-agentic-aggregate-service")
@@ -128,15 +133,28 @@ public class StatefulSetDependentResource extends CRUDKubernetesDependentResourc
                 .endTemplate()
                 .editFirstVolumeClaimTemplate()
                 .editSpec()
-                .withStorageClassName("akces-data-hyperdisk-balanced") // TODO: get from config
+                .withStorageClassName(spec.getStorageClassName())
                 .editResources()
-                .withRequests(Map.of("storage", new Quantity("4Gi"))) // TODO: get from spec
+                .withRequests(Map.of("storage", new Quantity(spec.getStorageSize() != null ? spec.getStorageSize() : "4Gi")))
                 .endResources()
                 .endSpec()
                 .endVolumeClaimTemplate()
                 .endSpec();
 
         statefulSet = builder.build();
+
+        // Conditionally add image pull secret when configured in the spec
+        if (spec.getImagePullSecret() != null && !spec.getImagePullSecret().isBlank()) {
+            statefulSet = new StatefulSetBuilder(statefulSet)
+                    .editSpec()
+                    .editTemplate()
+                    .editSpec()
+                    .addToImagePullSecrets(new LocalObjectReference(spec.getImagePullSecret()))
+                    .endSpec()
+                    .endTemplate()
+                    .endSpec()
+                    .build();
+        }
 
         // Merge additional env vars from the spec into the primary container
         if (spec.getEnv() != null && !spec.getEnv().isEmpty()) {

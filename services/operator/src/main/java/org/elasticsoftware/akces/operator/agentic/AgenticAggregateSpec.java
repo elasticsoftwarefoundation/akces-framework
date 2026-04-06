@@ -80,6 +80,27 @@ public class AgenticAggregateSpec {
     private String applicationProperties;
 
     /**
+     * The name of the Kubernetes {@code Secret} used as an image pull secret for the pod.
+     * When {@code null}, no image pull secret is added and the cluster's default credentials
+     * (or public access) are used.
+     */
+    private String imagePullSecret;
+
+    /**
+     * The {@code storageClassName} for the PVC created by the StatefulSet's
+     * {@code volumeClaimTemplate}. When {@code null}, no storage class is set and the cluster's
+     * default {@code StorageClass} is applied automatically by Kubernetes.
+     */
+    private String storageClassName;
+
+    /**
+     * The size of the persistent volume claim (PVC) for the AgenticAggregate's data directory.
+     * Expressed as a Kubernetes quantity string (e.g. {@code "4Gi"}, {@code "10Gi"}).
+     * Defaults to {@code "4Gi"} when not set.
+     */
+    private String storageSize = "4Gi";
+
+    /**
      * Returns the container image for the AgenticAggregate service.
      *
      * @return the image string
@@ -222,5 +243,62 @@ public class AgenticAggregateSpec {
      */
     public void setApplicationProperties(String applicationProperties) {
         this.applicationProperties = applicationProperties;
+    }
+
+    /**
+     * Returns the name of the image pull secret used by the pod.
+     *
+     * @return the secret name, or {@code null} if no pull secret should be configured
+     */
+    public String getImagePullSecret() {
+        return imagePullSecret;
+    }
+
+    /**
+     * Sets the name of the image pull secret used by the pod. Set to {@code null} to rely on
+     * cluster-level credentials or public image access.
+     *
+     * @param imagePullSecret the secret name, or {@code null}
+     */
+    public void setImagePullSecret(String imagePullSecret) {
+        this.imagePullSecret = imagePullSecret;
+    }
+
+    /**
+     * Returns the storage class name for the PVC created by the StatefulSet.
+     *
+     * @return the storage class name, or {@code null} if the cluster default should be used
+     */
+    public String getStorageClassName() {
+        return storageClassName;
+    }
+
+    /**
+     * Sets the storage class name for the PVC. Set to {@code null} to use the cluster's default
+     * {@code StorageClass}.
+     *
+     * @param storageClassName the storage class name, or {@code null}
+     */
+    public void setStorageClassName(String storageClassName) {
+        this.storageClassName = storageClassName;
+    }
+
+    /**
+     * Returns the PVC storage size requested by the StatefulSet.
+     *
+     * @return the storage size as a Kubernetes quantity string (defaults to {@code "4Gi"})
+     */
+    public String getStorageSize() {
+        return storageSize;
+    }
+
+    /**
+     * Sets the PVC storage size. Use a Kubernetes quantity string (e.g. {@code "4Gi"},
+     * {@code "10Gi"}).
+     *
+     * @param storageSize the storage size string
+     */
+    public void setStorageSize(String storageSize) {
+        this.storageSize = storageSize;
     }
 }

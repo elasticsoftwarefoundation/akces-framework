@@ -91,6 +91,8 @@ spec:
                 type: "array"
               image:
                 type: "string"
+              imagePullSecret:
+                type: "string"
               resources:
                 properties:
                   claims:
@@ -351,6 +353,10 @@ spec:
                       type: "object"
                   type: "object"
                 type: "array"
+              storageClassName:
+                type: "string"
+              storageSize:
+                type: "string"
             type: "object"
           status:
             properties:
