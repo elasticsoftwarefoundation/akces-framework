@@ -77,7 +77,7 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState> implements
             throw new IllegalStateException(
                     "Class implementing AgenticAggregate must be annotated with @AgenticAggregateInfo");
         }
-        KafkaAggregateRuntime kafkaRuntime = createRuntime(aggregate);
+        KafkaAggregateRuntime kafkaRuntime = createRuntime(agenticInfo, aggregate);
         return new KafkaAgenticAggregateRuntime(kafkaRuntime, objectMapper, agenticInfo.stateClass());
     }
 
@@ -87,14 +87,10 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState> implements
     }
 
     @SuppressWarnings("unchecked")
-    private KafkaAggregateRuntime createRuntime(AgenticAggregate<S> aggregate) {
+    private KafkaAggregateRuntime createRuntime(AgenticAggregateInfo agenticInfo,
+                                                AgenticAggregate<S> aggregate) {
         KafkaAggregateRuntime.Builder runtimeBuilder = new KafkaAggregateRuntime.Builder();
 
-        AgenticAggregateInfo agenticInfo = aggregate.getClass().getAnnotation(AgenticAggregateInfo.class);
-        if (agenticInfo == null) {
-            throw new IllegalStateException(
-                    "Class implementing AgenticAggregate must be annotated with @AgenticAggregateInfo");
-        }
         AggregateStateInfo stateInfo = agenticInfo.stateClass().getAnnotation(AggregateStateInfo.class);
         if (stateInfo == null) {
             throw new IllegalStateException(
@@ -112,8 +108,7 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState> implements
                         "",      // indexName – not applicable
                         false))  // shouldHandlePIIData – not applicable
                 .setAggregateClass((Class<? extends Aggregate<?>>) aggregate.getClass())
-                .setObjectMapper(objectMapper)
-                .setGenerateGDPRKeyOnCreate(false);
+                .setObjectMapper(objectMapper);
 
         // CommandHandlerFunctions
         applicationContext.getBeansOfType(CommandHandlerFunction.class).values().stream()
