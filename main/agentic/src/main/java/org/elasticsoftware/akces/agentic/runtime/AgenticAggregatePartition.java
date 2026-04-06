@@ -21,6 +21,7 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
@@ -32,8 +33,10 @@ import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
 import org.elasticsoftware.akces.aggregate.AggregateRuntime;
 import org.elasticsoftware.akces.aggregate.IndexParams;
+import org.elasticsoftware.akces.kafka.PartitionUtils;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.CommandRecord;
+import org.elasticsoftware.akces.protocol.CommandResponseRecord;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
 import org.elasticsoftware.akces.protocol.PayloadEncoding;
 import org.elasticsoftware.akces.protocol.ProtocolRecord;
@@ -311,14 +314,21 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
 
     /**
      * Handles a single command record by delegating to the {@link AggregateRuntime},
-     * wrapping the record consumer to intercept {@link MemoryStoredEvent}s and enforce
-     * the sliding-window eviction policy.
+     * wrapping the record consumer to:
+     * <ul>
+     *   <li>collect produced {@link DomainEventRecord}s for a {@link CommandResponseRecord}
+     *       when {@code replyToTopicPartition} is set (mirrors
+     *       {@link org.elasticsoftware.akces.kafka.AggregatePartition});</li>
+     *   <li>intercept {@link MemoryStoredEvent}s and enforce the sliding-window eviction
+     *       policy.</li>
+     * </ul>
      *
      * @param commandRecord the incoming command record to process
      */
     private void handleCommand(CommandRecord commandRecord) {
-        // Track MemoryStored events emitted during this command for sliding-window check
-        List<DomainEventRecord> memoryStoredEvents = new ArrayList<>();
+        final List<DomainEventRecord> responseRecords =
+                commandRecord.replyToTopicPartition() != null ? new ArrayList<>() : null;
+        final List<DomainEventRecord> memoryStoredEvents = new ArrayList<>();
 
         java.util.function.Consumer<ProtocolRecord> interceptingConsumer = pr -> {
             send(pr);
@@ -326,6 +336,9 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
                 trackMemoryEvent(der);
                 if ("MemoryStored".equals(der.name())) {
                     memoryStoredEvents.add(der);
+                }
+                if (responseRecords != null) {
+                    responseRecords.add(der);
                 }
             }
         };
@@ -342,6 +355,24 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable {
             for (DomainEventRecord storedEvent : memoryStoredEvents) {
                 enforceMemorySlidingWindow(storedEvent.aggregateId(), storedEvent.tenantId(),
                         storedEvent.correlationId(), storedEvent.generation());
+            }
+
+            // Send a response so that AkcesClient.send() can complete its CompletionStage
+            if (responseRecords != null) {
+                CommandResponseRecord crr = new CommandResponseRecord(
+                        commandRecord.tenantId(),
+                        commandRecord.aggregateId(),
+                        commandRecord.correlationId(),
+                        commandRecord.id(),
+                        responseRecords,
+                        null); // agentic aggregates have no GDPR context
+                TopicPartition replyTo = PartitionUtils.parseReplyToTopicPartition(
+                        commandRecord.replyToTopicPartition());
+                logger.trace("Sending CommandResponseRecord with commandId {} to {}",
+                        crr.commandId(), replyTo);
+                KafkaSender.send(producer,
+                        new ProducerRecord<>(replyTo.topic(), replyTo.partition(),
+                                crr.commandId(), crr));
             }
         } catch (IOException e) {
             logger.error("Error handling command {}", commandRecord.name(), e);
