@@ -243,7 +243,8 @@ class AkcesOperatorApplicationTests {
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
                     applicationContext,
                     "spring.kafka.enabled=true",
-                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers()
+                    "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
+                    "akces.operator.agentic.replication-factor=1"
             );
         }
     }

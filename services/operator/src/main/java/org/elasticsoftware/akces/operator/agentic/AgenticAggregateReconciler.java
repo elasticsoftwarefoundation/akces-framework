@@ -61,14 +61,18 @@ public class AgenticAggregateReconciler implements Reconciler<AgenticAggregateRe
 
     private final Logger log = LoggerFactory.getLogger(getClass());
     private final KafkaAdmin kafkaAdmin;
+    private final short replicationFactor;
 
     /**
      * Creates a new {@code AgenticAggregateReconciler}.
      *
-     * @param kafkaAdmin the {@link KafkaAdmin} used to create and verify Kafka topics
+     * @param kafkaAdmin        the {@link KafkaAdmin} used to create and verify Kafka topics
+     * @param replicationFactor the Kafka replication factor for agentic aggregate topics
+     *                          (defaults to {@code 3}; set to {@code 1} in single-broker test environments)
      */
-    public AgenticAggregateReconciler(KafkaAdmin kafkaAdmin) {
+    public AgenticAggregateReconciler(KafkaAdmin kafkaAdmin, short replicationFactor) {
         this.kafkaAdmin = kafkaAdmin;
+        this.replicationFactor = replicationFactor;
     }
 
     /**
@@ -130,7 +134,9 @@ public class AgenticAggregateReconciler implements Reconciler<AgenticAggregateRe
      * Creates or verifies the Kafka topics for the named AgenticAggregate.
      *
      * <p>Topics are always created with exactly 1 partition because AgenticAggregates are
-     * singletons. The three topics created are:
+     * singletons. The replication factor is configurable via
+     * {@code akces.operator.agentic.replication-factor} (defaults to 3). The three topics
+     * created are:
      * <ul>
      *   <li>{@code <name>-Commands}</li>
      *   <li>{@code <name>-DomainEvents}</li>
@@ -141,7 +147,7 @@ public class AgenticAggregateReconciler implements Reconciler<AgenticAggregateRe
      */
     private void reconcileTopics(String agenticAggregateName) {
         log.info("Reconciling topics for AgenticAggregate: {}", agenticAggregateName);
-        List<NewTopic> topics = KafkaTopicUtils.createAgenticAggregateTopics(agenticAggregateName);
+        List<NewTopic> topics = KafkaTopicUtils.createAgenticAggregateTopics(agenticAggregateName, replicationFactor);
         kafkaAdmin.createOrModifyTopics(topics.toArray(new NewTopic[0]));
     }
 }

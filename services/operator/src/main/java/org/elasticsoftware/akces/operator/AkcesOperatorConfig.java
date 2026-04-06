@@ -55,11 +55,13 @@ public class AkcesOperatorConfig {
     /**
      * Creates the {@link AgenticAggregateReconciler} bean.
      *
-     * @param kafkaAdmin the {@link KafkaAdmin} used for Kafka topic management
+     * @param kafkaAdmin        the {@link KafkaAdmin} used for Kafka topic management
+     * @param replicationFactor the replication factor for agentic aggregate topics (defaults to 3)
      * @return the reconciler instance
      */
     @Bean
-    public AgenticAggregateReconciler agenticAggregateReconciler(KafkaAdmin kafkaAdmin) {
-        return new AgenticAggregateReconciler(kafkaAdmin);
+    public AgenticAggregateReconciler agenticAggregateReconciler(KafkaAdmin kafkaAdmin,
+            @Value("${akces.operator.agentic.replication-factor:3}") short replicationFactor) {
+        return new AgenticAggregateReconciler(kafkaAdmin, replicationFactor);
     }
 }
