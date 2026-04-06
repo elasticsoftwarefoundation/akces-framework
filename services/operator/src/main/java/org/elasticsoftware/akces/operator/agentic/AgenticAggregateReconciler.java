@@ -94,7 +94,7 @@ public class AgenticAggregateReconciler implements Reconciler<AgenticAggregateRe
             log.info("Updating status of AgenticAggregate {} in namespace {} to {} ready replicas",
                     resource.getMetadata().getName(),
                     resource.getMetadata().getNamespace(),
-                    resource.getStatus() == null ? 0 : resource.getStatus().getReadyReplicas());
+                    updated.getStatus() == null ? 0 : updated.getStatus().getReadyReplicas());
             return UpdateControl.patchStatus(updated);
         }).orElseGet(UpdateControl::noUpdate);
     }
