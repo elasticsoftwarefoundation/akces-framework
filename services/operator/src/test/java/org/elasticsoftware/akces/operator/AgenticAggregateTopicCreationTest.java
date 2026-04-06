@@ -114,7 +114,17 @@ class AgenticAggregateTopicCreationTest {
         List<NewTopic> topics = KafkaTopicUtils.createAgenticAggregateTopics("TestAgent", (short) 1);
 
         for (NewTopic topic : topics) {
-            int minIsr = Integer.parseInt(topic.configs().get("min.insync.replicas"));
+            String minIsrValue = topic.configs().get("min.insync.replicas");
+            int minIsr;
+            try {
+                minIsr = Integer.parseInt(minIsrValue);
+            } catch (NumberFormatException e) {
+                org.assertj.core.api.Assertions.fail(
+                        "min.insync.replicas for topic %s must be a valid integer, but was: %s",
+                        topic.name(),
+                        minIsrValue);
+                return;
+            }
             assertThat(minIsr)
                     .as("min.insync.replicas for %s should not exceed replication factor", topic.name())
                     .isLessThanOrEqualTo(topic.replicationFactor());
