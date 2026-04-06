@@ -18,6 +18,8 @@
 package org.elasticsoftware.akces.agentic.beans;
 
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
+import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
+import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
 import org.elasticsoftware.akces.agentic.runtime.KafkaAgenticAggregateRuntime;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.aggregate.AgenticAggregate;
@@ -170,6 +172,27 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState> implements
                         runtimeBuilder.addEventUpcastingHandler(eventType, adapter).addDomainEvent(eventType);
                     }
                 });
+
+        // Register built-in event-sourcing handlers for memory management.
+        // These handle the framework-owned MemoryStored and MemoryRevoked events,
+        // which every AgenticAggregate state must process via MemoryAwareState.
+        DomainEventType<MemoryStoredEvent> memoryStoredType = new DomainEventType<>(
+                "MemoryStored", 1, MemoryStoredEvent.class, false, false, false, false);
+        DomainEventType<MemoryRevokedEvent> memoryRevokedType = new DomainEventType<>(
+                "MemoryRevoked", 1, MemoryRevokedEvent.class, false, false, false, false);
+
+        runtimeBuilder
+                .addEventSourcingHandler(
+                        memoryStoredType,
+                        (event, state) -> KafkaAgenticAggregateRuntime.onMemoryStored(
+                                (MemoryStoredEvent) event, state))
+                .addDomainEvent(memoryStoredType);
+        runtimeBuilder
+                .addEventSourcingHandler(
+                        memoryRevokedType,
+                        (event, state) -> KafkaAgenticAggregateRuntime.onMemoryRevoked(
+                                (MemoryRevokedEvent) event, state))
+                .addDomainEvent(memoryRevokedType);
 
         return runtimeBuilder.validateAndBuild();
     }

@@ -19,6 +19,8 @@ package org.elasticsoftware.akces.agentic.runtime;
 
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
+import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
+import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.commands.CommandBus;
@@ -201,5 +203,60 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     @Override
     public boolean shouldHandlePIIData() {
         return delegate.shouldHandlePIIData();
+    }
+
+    // -------------------------------------------------------------------------
+    // Built-in EventSourcingHandler implementations for memory management
+    // -------------------------------------------------------------------------
+
+    /**
+     * Built-in event-sourcing handler for {@link MemoryStoredEvent}.
+     *
+     * <p>Appends the new memory entry described by the event to the state's memory list.
+     * The state must implement {@link MemoryAwareState}; otherwise an
+     * {@link IllegalStateException} is thrown.
+     *
+     * @param event the {@code MemoryStoredEvent} to apply
+     * @param state the current aggregate state
+     * @return a new state instance with the memory added
+     * @throws IllegalStateException if {@code state} does not implement {@link MemoryAwareState}
+     */
+    @SuppressWarnings("unchecked")
+    public static AggregateState onMemoryStored(MemoryStoredEvent event, AggregateState state) {
+        if (!(state instanceof MemoryAwareState mas)) {
+            throw new IllegalStateException(
+                    "Aggregate state " + state.getClass().getName()
+                            + " does not implement MemoryAwareState");
+        }
+        AgenticAggregateMemory memory = new AgenticAggregateMemory(
+                event.memoryId(),
+                event.subject(),
+                event.fact(),
+                event.citations(),
+                event.reason(),
+                event.storedAt());
+        return (AggregateState) mas.withMemory(memory);
+    }
+
+    /**
+     * Built-in event-sourcing handler for {@link MemoryRevokedEvent}.
+     *
+     * <p>Removes the memory entry identified by {@link MemoryRevokedEvent#memoryId()} from
+     * the state's memory list.  The state must implement {@link MemoryAwareState}; otherwise
+     * an {@link IllegalStateException} is thrown.
+     *
+     * @param event the {@code MemoryRevokedEvent} to apply
+     * @param state the current aggregate state
+     * @return a new state instance with the matching memory removed
+     * @throws IllegalStateException if {@code state} does not implement {@link MemoryAwareState}
+     */
+    @SuppressWarnings("unchecked")
+    public static AggregateState onMemoryRevoked(MemoryRevokedEvent event, AggregateState state) {
+        if (!(state instanceof MemoryAwareState mas)) {
+            throw new IllegalStateException(
+                    "Aggregate state " + state.getClass().getName()
+                            + " does not implement MemoryAwareState");
+        }
+        return (AggregateState) mas.withoutMemory(event.memoryId());
     }
 }
