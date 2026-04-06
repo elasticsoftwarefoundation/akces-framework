@@ -448,6 +448,15 @@ public class AkcesAgenticAggregateController extends Thread
                             et.typeName(), et.version(), et.create(), et.external(),
                             "domainevents." + et.typeName())));
 
+            // Consumed external events — mirrors the pattern in AkcesAggregateController so
+            // that service discovery correctly reflects the external event dependencies.
+            List<AggregateServiceDomainEventType> consumedEvents =
+                    aggregateRuntime.getExternalDomainEventTypes().stream()
+                            .map(et -> new AggregateServiceDomainEventType(
+                                    et.typeName(), et.version(), et.create(), et.external(),
+                                    "domainevents." + et.typeName()))
+                            .toList();
+
             AggregateServiceRecord serviceRecord = new AggregateServiceRecord(
                     aggregateRuntime.getName(),
                     aggregateRuntime.getName() + COMMANDS_SUFFIX,
@@ -455,7 +464,7 @@ public class AkcesAgenticAggregateController extends Thread
                     AggregateServiceType.AGENTIC,
                     allCommands,
                     allEvents,
-                    List.of() // Agentic aggregates do not consume external events by default
+                    consumedEvents
             );
 
             controlProducer.beginTransaction();

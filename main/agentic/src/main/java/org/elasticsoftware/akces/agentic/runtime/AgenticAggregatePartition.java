@@ -460,7 +460,7 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
      * each excess entry (oldest first) until the count is within the allowed window.
      * This avoids rebuilding a separate in-memory deque after restarts.
      *
-     * <p>A safety bound of {@code maxMemories + 1} iterations guards against a pathological
+     * <p>A safety bound of {@code 2 * (maxMemories + 1)} iterations guards against a pathological
      * case where eviction commands fail to reduce the memory count (e.g., the ForgetMemory
      * handler is not registered), preventing an infinite loop.
      *
