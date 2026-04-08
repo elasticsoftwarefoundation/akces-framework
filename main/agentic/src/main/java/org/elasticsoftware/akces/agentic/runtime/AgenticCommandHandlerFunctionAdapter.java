@@ -151,6 +151,10 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState & Mem
         AgentProcess agentProcess =
                 agentPlatform.createAgentProcess(agent, ProcessOptions.DEFAULT, bindings);
 
+        // Tick to completion. Phase 1 runs the full agent process synchronously.
+        // Timeout configuration and incremental tick support are deferred to a later phase
+        // (see plans/agenttasks.md). The transaction timeout is controlled externally via
+        // the 'akces.agentic.transaction-timeout-ms' property on the producer factory.
         while (!agentProcess.getFinished()) {
             agentProcess.tick();
         }

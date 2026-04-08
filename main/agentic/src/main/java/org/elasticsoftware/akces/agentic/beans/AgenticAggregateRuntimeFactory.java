@@ -384,9 +384,10 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
                 commandType,
                 agentPlatform,
                 agent,
-                (List) List.of(),       // producedDomainEventTypes: empty (events registered via ESH)
+                (List) List.of(),       // producedDomainEventTypes: empty — events are registered via EventSourcingHandler adapters
                 (List) errorTypes,
-                Collections::emptyList); // aggregateServicesSupplier: wired by controller in later phase
+                // TODO: wire aggregateServicesSupplier from AkcesAgenticAggregateController (Phase 3)
+                Collections::emptyList);
 
         runtimeBuilder.addCommandHandler(commandType, adapter).addCommand(commandType);
         errorTypes.forEach(runtimeBuilder::addDomainEvent);
@@ -446,9 +447,10 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
                 eventType,
                 agentPlatform,
                 agent,
-                (List) List.of(),       // producedDomainEventTypes: empty (events registered via ESH)
+                (List) List.of(),       // producedDomainEventTypes: empty — events are registered via EventSourcingHandler adapters
                 (List) errorTypes,
-                Collections::emptyList); // aggregateServicesSupplier: wired by controller in later phase
+                // TODO: wire aggregateServicesSupplier from AkcesAgenticAggregateController (Phase 3)
+                Collections::emptyList);
 
         runtimeBuilder.addExternalEventHandler(eventType, adapter).addDomainEvent(eventType);
         errorTypes.forEach(runtimeBuilder::addDomainEvent);
