@@ -87,20 +87,22 @@ Explicit declaration via `agentProducedErrors` is consistent with how determinis
 
 ### Registration Flow for Agent Properties
 
-In `AgenticAggregateBeanFactoryPostProcessor`:
+In `AgenticAggregateBeanFactoryPostProcessor` / `AgenticAggregateRuntimeFactory`:
 
 ```
 For each class in agentHandledCommands[]:
   1. Validate it implements Command
   2. Validate it has @CommandInfo
   3. Create CommandType (create=false, since agent handles it)
-  4. Register it via runtimeBuilder (no CommandHandlerFunctionAdapter needed)
+  4. Create an AgenticCommandHandlerFunctionAdapter (see section below)
+  5. Register via runtimeBuilder.addCommandHandler(commandType, adapter)
 
 For each class in agentHandledEvents[]:
   1. Validate it implements DomainEvent
   2. Validate it has @DomainEventInfo
   3. Create DomainEventType with external=true
-  4. Register it via runtimeBuilder.addDomainEvent()
+  4. Create an AgenticEventHandlerFunctionAdapter (see section below)
+  5. Register via runtimeBuilder.addExternalEventHandler(eventType, adapter)
 
 For each class in agentProducedErrors[]:
   1. Validate it implements ErrorEvent
@@ -109,6 +111,86 @@ For each class in agentProducedErrors[]:
   4. Register it via runtimeBuilder.addDomainEvent()
   5. Register JSON schema for the error event
 ```
+
+### Agentic Handler Adapters
+
+Instead of bypassing the handler mechanism entirely for agent-handled commands/events, we create new adapter implementations that plug into the existing `CommandHandlerFunction` / `EventHandlerFunction` contracts. This allows the standard `KafkaAggregateRuntime.handleCommand()` and `handleEvent()` flows to work unchanged — the adapters route processing through the Embabel agent instead of a deterministic method.
+
+#### `AgenticCommandHandlerFunctionAdapter`
+
+A new implementation of `CommandHandlerFunction` for agent-handled commands:
+
+```java
+public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C extends Command, E extends DomainEvent>
+        implements CommandHandlerFunction<S, C, E> {
+
+    private final AgenticAggregate<S> aggregate;
+    private final CommandType<C> commandType;
+    private final AgentPlatform agentPlatform;
+    private final List<DomainEventType<E>> producedDomainEventTypes; // from @EventSourcingHandler registrations
+    private final List<DomainEventType<E>> errorEventTypes;         // from agentProducedErrors
+
+    @Override
+    public Stream<E> apply(C command, S state) {
+        // 1. Set up the Blackboard with command, state, memories, aggregate service records
+        // 2. Create/resume AgentProcess via agentPlatform
+        // 3. Call agentProcess.tick() (may need multiple calls)
+        // 4. Collect DomainEvent instances from the blackboard
+        // 5. Return them as Stream<E> — the standard handleCommand() flow applies them
+    }
+
+    @Override
+    public boolean isCreate() { return false; } // agent-handled commands don't create
+
+    @Override
+    public CommandType<C> getCommandType() { return commandType; }
+
+    // ...
+}
+```
+
+#### `AgenticEventHandlerFunctionAdapter`
+
+A new implementation of `EventHandlerFunction` for agent-handled external events:
+
+```java
+public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputEvent extends DomainEvent, E extends DomainEvent>
+        implements EventHandlerFunction<S, InputEvent, E> {
+
+    private final AgenticAggregate<S> aggregate;
+    private final DomainEventType<InputEvent> domainEventType;
+    private final AgentPlatform agentPlatform;
+    private final List<DomainEventType<E>> producedDomainEventTypes;
+    private final List<DomainEventType<E>> errorEventTypes;
+
+    @Override
+    public Stream<E> apply(InputEvent event, S state) {
+        // 1. Set up the Blackboard with event, state, memories, aggregate service records
+        // 2. Create/resume AgentProcess via agentPlatform
+        // 3. Call agentProcess.tick()
+        // 4. Collect DomainEvent instances from the blackboard
+        // 5. Return them as Stream<E>
+    }
+
+    @Override
+    public DomainEventType<InputEvent> getEventType() { return domainEventType; }
+
+    @Override
+    public boolean isCreate() { return false; }
+
+    // ...
+}
+```
+
+**Why adapters instead of bypassing**: This approach:
+- Reuses the existing `handleCommand()` / `handleEvent()` flow in `KafkaAggregateRuntime` — no need to change its `private` methods or refactor to inheritance
+- The adapter receives the materialized `Command` (or `DomainEvent`) and the current `AggregateState` already deserialized
+- The returned `Stream<DomainEvent>` is applied through the standard `processDomainEvent()` chain
+- `AgentPlatform` and other agent resources are injected at adapter construction time
+- The Blackboard setup (command/event, state, memories, aggregate service records) is done inside the adapter's `apply()` method
+- `tick()` lifecycle management happens inside the adapter
+
+**Impact on section 4.3 (Event Application Mechanism)**: With the adapter approach, the event application mechanism is greatly simplified. The adapter returns events as a `Stream<DomainEvent>`, and the standard `KafkaAggregateRuntime.handleCommand()` already iterates and calls `processDomainEvent()` for each one. **No need to make `processDomainEvent` protected or refactor to inheritance** — the existing delegation pattern works as-is.
 
 ### Usage Example
 
@@ -386,7 +468,31 @@ These are higher-level Goals/Actions/Conditions that enable an agentic aggregate
 
 **Why**: This is the core "intelligence" action — it leverages the LLM to reason about domain state and make informed decisions.
 
-### 3.6 Goal: `ProcessCommandGoal`
+### 3.6 Action: `DiscoverAggregateServicesAction`
+
+```
+@Action(description = "Discover other aggregates in the system and their supported commands", readOnly = true)
+```
+
+**What**: Exposes the `AggregateServiceRecord`s loaded from the `Akces-Control` topic to the agent, enabling it to discover what other aggregates exist in the system and what commands they accept.
+
+**Behavior**:
+1. Reads the `List<AggregateServiceRecord>` from the blackboard (populated by the agentic handler adapter before agent invocation — see "Agentic Handler Adapters" section)
+2. For each `AggregateServiceRecord`, provides:
+   - `aggregateName` — the logical name of the aggregate
+   - `commandTopic` — the Kafka topic for sending commands
+   - `domainEventTopic` — the topic where the aggregate publishes events
+   - `type` — `STANDARD` or `AGENTIC`
+   - `supportedCommands` — list of command types the aggregate accepts (with type name and version)
+   - `producedEvents` — list of domain event types the aggregate produces
+   - `consumedEvents` — list of external event types the aggregate consumes
+3. Returns a structured summary that the LLM can reason about to determine what commands can be sent to achieve a goal
+
+**Blackboard Setup**: The `AkcesAgenticAggregateController` already maintains a `Map<String, AggregateServiceRecord> aggregateServices` populated from the `Akces-Control` topic at startup. The agentic handler adapters (`AgenticCommandHandlerFunctionAdapter` / `AgenticEventHandlerFunctionAdapter`) place these records on the blackboard before invoking the agent, making them available to this action and to LLM tool calls.
+
+**Why**: An agentic aggregate needs to know what other aggregates exist in the system to coordinate with them. For example, a TradingAdvisor agent may need to discover that a `Wallet` aggregate accepts `CreditWalletCommand` and a `Portfolio` aggregate accepts `PlaceOrderCommand`. Without aggregate discovery, the agent can only work with hardcoded knowledge of the system topology. Exposing `AggregateServiceRecord`s enables dynamic, system-aware reasoning.
+
+### 3.7 Goal: `ProcessCommandGoal`
 
 ```
 Goal: "ProcessCommand"
@@ -403,7 +509,7 @@ Preconditions: isCommandProcessing
 
 **Why**: This is the top-level goal for command processing in an agentic aggregate. It replaces the deterministic `@CommandHandler` flow with an AI-assisted reasoning loop for commands declared in `agentHandledCommands`.
 
-### 3.7 Goal: `ReactToExternalEventGoal`
+### 3.8 Goal: `ReactToExternalEventGoal`
 
 ```
 Goal: "ReactToExternalEvent"
@@ -421,7 +527,7 @@ Preconditions: isExternalEvent
 
 **Why**: This is the top-level goal for handling external events declared in `agentHandledEvents`. Agentic aggregates subscribe to all partitions of external event topics, and this goal enables AI-assisted reasoning about those events.
 
-### 3.8 Goal: `ManageKnowledgeGoal`
+### 3.9 Goal: `ManageKnowledgeGoal`
 
 ```
 Goal: "ManageKnowledge"
@@ -440,22 +546,29 @@ Description: "Review, update, and optimize the aggregate's memory store"
 
 ## Phase 4: Integration with AgenticAggregatePartition
 
-### 4.1 Agent-Assisted Command Processing Hook
+### 4.1 Agent-Assisted Command Processing via Handler Adapters
 
-**What**: Modify `AgenticAggregatePartition.handleCommand()` to use Agent-First processing for commands declared in `agentHandledCommands` and standard deterministic processing for commands with `@CommandHandler` methods.
+**What**: Agent-handled commands and events are processed through the standard `KafkaAggregateRuntime` handler flow, but using `AgenticCommandHandlerFunctionAdapter` / `AgenticEventHandlerFunctionAdapter` instead of deterministic adapters.
 
-**Design: Agent-First Processing for `agentHandledCommands`**
+**Design: Adapter-Based Agent Processing**
 
 When a command arrives whose type is declared in `agentHandledCommands`:
-1. The standard `@CommandHandler` path is bypassed (no deterministic handler exists)
-2. The Embabel agent is invoked with the command, current state, and memories on the blackboard
-3. The agent produces domain events (state-changing or error events from `agentProducedErrors`) as output
+1. `KafkaAggregateRuntime.handleCommand()` looks up the registered `CommandHandlerFunction` — which is an `AgenticCommandHandlerFunctionAdapter`
+2. The adapter's `apply(command, state)` method:
+   a. Sets up the Blackboard with the command, state, memories, and aggregate service records
+   b. Creates/resumes an `AgentProcess` via the `AgentPlatform`
+   c. Calls `agentProcess.tick()` (may need multiple calls)
+   d. Collects `DomainEvent` instances from the blackboard
+   e. Returns them as `Stream<DomainEvent>`
+3. The standard `handleCommand()` flow iterates over the returned events and calls `processDomainEvent()` for each one
 4. State-changing events are applied through `@EventSourcingHandler` methods (deterministic state transitions)
 5. Error events are emitted but do NOT change state
 
-For commands with a standard `@CommandHandler` method, the existing deterministic path is used unchanged.
+For commands with a standard `@CommandHandler` method, the existing `CommandHandlerFunctionAdapter` (deterministic) path is used unchanged.
 
-For external events declared in `agentHandledEvents`, the same Agent-First flow applies but triggered by an event instead of a command.
+For external events declared in `agentHandledEvents`, the same adapter-based flow applies via `AgenticEventHandlerFunctionAdapter`.
+
+**Key advantage**: No changes needed to `KafkaAggregateRuntime` internals. The `handleCommand()` and `handleEvent()` methods already work with the `CommandHandlerFunction` / `EventHandlerFunction` interfaces — the agentic adapters are just new implementations that route through the agent instead of a deterministic method.
 
 ### 4.2 AgentProcess Result Translation
 
@@ -471,64 +584,35 @@ For external events declared in `agentHandledEvents`, the same Agent-First flow 
 
 **Note on `tick()` execution**: Use `AgentProcess.tick()` for incremental execution. If there is an active `AgentProcess`, `tick()` must be called on every poll loop iteration, even if no Kafka records are returned.
 
-### 4.3 Event Application Mechanism — Applying DomainEvents from Embabel
+### 4.3 Event Application Mechanism — Simplified by Adapter Approach
 
-**What**: After each call to `AgentProcess.tick()`, any `DomainEvent` instances produced by the Embabel runtime must be collected and applied to the aggregate state. This requires access to the `processDomainEvent` method in `KafkaAggregateRuntime`, which is currently `private`.
+**What**: The agentic handler adapters (`AgenticCommandHandlerFunctionAdapter` / `AgenticEventHandlerFunctionAdapter`) return `DomainEvent` instances as a `Stream<DomainEvent>` from their `apply()` method. The existing `KafkaAggregateRuntime.handleCommand()` and `handleEvent()` methods already iterate over this stream and call `processDomainEvent()` for each event.
 
-**Problem**: The current `KafkaAgenticAggregateRuntime` uses delegation — it holds a `KafkaAggregateRuntime` delegate and forwards all `AggregateRuntime` interface calls. However, the critical `processDomainEvent(...)` method (which handles serialization, state mutation via `@EventSourcingHandler`, state record creation, and error event emission) is `private` in `KafkaAggregateRuntime` and not accessible through the `AggregateRuntime` interface.
+**No changes needed to `KafkaAggregateRuntime`**: Because the adapter pattern plugs into the existing handler contract, the `processDomainEvent()` method does not need to be made `protected` and `KafkaAgenticAggregateRuntime` does not need to extend `KafkaAggregateRuntime`. The delegation pattern remains as-is.
 
-**Proposed Solution: Extend `KafkaAggregateRuntime` instead of delegating**
-
-Refactor `KafkaAgenticAggregateRuntime` to **extend** `KafkaAggregateRuntime` instead of wrapping it as a delegate. This gives natural access to event processing internals:
-
-1. Change `KafkaAggregateRuntime.processDomainEvent(...)` from `private` to `protected`
-2. Change `KafkaAggregateRuntime.materialize(AggregateStateRecord)` from `private` to `protected` (needed to deserialize current state)
-3. Change `KafkaAggregateRuntime.getDomainEventType(Class<?>)` from `private` to `protected` (needed for event type lookup)
-4. Refactor `KafkaAgenticAggregateRuntime` to extend `KafkaAggregateRuntime` (remove delegation pattern)
-5. Add a new `protected` method `applyAgentEvents(...)` in `KafkaAgenticAggregateRuntime` that:
-   - Takes a `List<DomainEvent>` (collected from the blackboard after `tick()`)
-   - Iterates over each event and calls `processDomainEvent(...)` for each one
-   - Handles the `AggregateStateRecord` chain (each call returns the updated state record)
-
-**Why this approach**: Inheritance gives `KafkaAgenticAggregateRuntime` direct access to the event processing pipeline without duplicating logic. The `processDomainEvent` method already handles:
-- Distinguishing state-changing events from `ErrorEvent`s
-- Looking up the correct `EventSourcingHandlerFunction` for the event type
-- Creating `AggregateStateRecord` with incremented generation
-- Creating `DomainEventRecord` with proper serialization
-- Indexing events when required
-
-Duplicating this in the agentic module would be fragile and error-prone. Making these methods `protected` is a minimal change.
-
-**Event Collection Flow** (per `tick()` call):
-
+**Event flow**:
 ```
-AgenticAggregatePartition:
-  1. Call agentProcess.tick()
-  2. Collect DomainEvent instances from the blackboard
-  3. For each DomainEvent:
-     a. Call runtime.applyAgentEvents(events, correlationId, protocolRecordConsumer, 
-        domainEventIndexer, currentStateRecord)
-     b. The method chains processDomainEvent() calls, maintaining the state record chain
-  4. The resulting ProtocolRecords (state + event records) are emitted to Kafka
+KafkaAggregateRuntime.handleCommand():
+  1. Calls adapter.apply(command, state)  // AgenticCommandHandlerFunctionAdapter
+  2. Adapter internally: sets up Blackboard, runs tick(), collects events
+  3. Returns Stream<DomainEvent>
+  4. handleCommand() iterates and calls processDomainEvent() for each event
+  5. State-changing events → @EventSourcingHandler → new state record
+  6. Error events → emitted without state change
 ```
 
-**Impact on existing code**:
-- `KafkaAggregateRuntime`: Change 3 methods from `private` to `protected` — no behavioral change for standard aggregates
-- `KafkaAgenticAggregateRuntime`: Refactor from delegation to inheritance — constructor changes, remove delegate field
-- `AgenticAggregateRuntimeFactory`: Update to construct via the new inheritance-based constructor
-- `KafkaAgenticAggregateRuntimeTest`: Update to reflect the new class hierarchy
-
-**Note**: Only make this change if it makes sense structurally. If `KafkaAggregateRuntime` is `final` or has other design constraints, an alternative would be to extract an `EventProcessor` interface or add a `processDomainEvents(List<DomainEvent>)` method to the `AggregateRuntime` interface.
+**Note on `tick()` execution**: Use `AgentProcess.tick()` for incremental execution inside the adapter's `apply()` method. If the process requires multiple `tick()` calls, the adapter handles this internally. The adapter is responsible for the full agent lifecycle within a single command/event processing cycle.
 
 ### 4.4 Agent Context Setup
 
-**What**: Define the standard set of objects placed on the `Blackboard` before agent invocation.
+**What**: Define the standard set of objects placed on the `Blackboard` before agent invocation. This is done inside the agentic handler adapters' `apply()` method.
 
-**Standard Blackboard Content**:
-- `CommandRecord` or `DomainEventRecord` — the trigger
+**Standard Blackboard Content** (set up by `AgenticCommandHandlerFunctionAdapter` / `AgenticEventHandlerFunctionAdapter`):
+- `Command` or `DomainEvent` — the materialized trigger (already deserialized by the runtime)
 - `AggregateState` — the current state (always present — the framework ensures singleton state is auto-created)
-- `List<AgenticAggregateMemory>` — current memories
+- `List<AgenticAggregateMemory>` — current memories (extracted from state via `MemoryAwareState.getMemories()`)
 - `String agenticAggregateId` — the aggregate identifier
+- `List<AggregateServiceRecord>` — all registered aggregate services from the `Akces-Control` topic, enabling the agent to discover other aggregates and their supported commands
 - `AggregateRuntime` — for type information (including registered `agentProducedErrors` types)
 - Conditions: `hasMemories`, `isCommandProcessing`/`isExternalEvent`
 
@@ -547,8 +631,9 @@ AgenticAggregatePartition:
 | `AgentPlatformInjectionTest` | Verifies `AgentPlatform` is correctly wired through factory → runtime; verifies fatal error when `AgentPlatform` is absent |
 | `AgentProcessResultTranslatorTest` | Correctly extracts events and commands from blackboard |
 | `AgentProducedErrorsRegistrationTest` | Verifies `agentProducedErrors` are registered as `DomainEventType(error=true)` |
-| `AgentHandledCommandsRegistrationTest` | Verifies `agentHandledCommands` create `CommandType` entries without handler adapters |
-| `AgentHandledEventsRegistrationTest` | Verifies `agentHandledEvents` create external `DomainEventType` entries |
+| `AgentHandledCommandsRegistrationTest` | Verifies `agentHandledCommands` create `CommandType` entries with `AgenticCommandHandlerFunctionAdapter` |
+| `AgentHandledEventsRegistrationTest` | Verifies `agentHandledEvents` create external `DomainEventType` entries with `AgenticEventHandlerFunctionAdapter` |
+| `DiscoverAggregateServicesActionTest` | Verifies `AggregateServiceRecord`s are correctly exposed on the blackboard |
 
 ### 5.2 Test Agent Implementation: `TestTradingAdvisorAgent`
 
@@ -683,7 +768,7 @@ public class TestTradingAdvisorAgentComponent {
 | `MemoryLearningIntegrationTest` | Agent stores memory via `StoreMemoryAction` → `MemoryStoredEvent` emitted and applied to state |
 | `AgentErrorEventIntegrationTest` | Agent produces `TestMarketUnavailableErrorEvent` → event emitted, state unchanged, undeclared errors logged with warning |
 | `AgentExternalEventIntegrationTest` | `TestMarketDataUpdatedEvent` → agent → `TestMarketAnalysisCompletedEvent` applied to state |
-| `EventApplicationMechanismTest` | Verifies that DomainEvents from `tick()` are correctly applied via `processDomainEvent` (state transitions, generation numbers, error event handling) |
+| `EventApplicationMechanismTest` | Verifies that DomainEvents returned by `AgenticCommandHandlerFunctionAdapter.apply()` are correctly applied via the standard `handleCommand()` → `processDomainEvent()` flow (state transitions, generation numbers, error event handling) |
 
 ---
 
@@ -696,6 +781,8 @@ public class TestTradingAdvisorAgentComponent {
 | `AkcesAgentComponent.java` | `o.e.a.agentic.agent` | `@EmbabelComponent` with reusable Actions, Conditions |
 | `AkcesAgentGoals.java` | `o.e.a.agentic.agent` | Goal definitions as static factory methods |
 | `AgentProcessResultTranslator.java` | `o.e.a.agentic.agent` | Translates `AgentProcess` results to Akces domain objects |
+| `AgenticCommandHandlerFunctionAdapter.java` | `o.e.a.agentic.runtime` | `CommandHandlerFunction` impl that routes agent-handled commands through the Embabel agent |
+| `AgenticEventHandlerFunctionAdapter.java` | `o.e.a.agentic.runtime` | `EventHandlerFunction` impl that routes agent-handled external events through the Embabel agent |
 
 ### Test Files (new)
 
@@ -717,12 +804,10 @@ public class TestTradingAdvisorAgentComponent {
 |------|---------|
 | `AgenticAggregateInfo.java` | Add `agentHandledCommands()`, `agentHandledEvents()`, `agentProducedErrors()` properties |
 | `AgenticAggregateRuntime.java` | Add `getAgentPlatform()` method |
-| `KafkaAggregateRuntime.java` | Change `processDomainEvent()`, `materialize(AggregateStateRecord)`, `getDomainEventType(Class<?>)` from `private` to `protected` |
-| `KafkaAgenticAggregateRuntime.java` | Refactor from delegation to inheritance (extends `KafkaAggregateRuntime`); add `applyAgentEvents()` method; accept and store `AgentPlatform`; implement `getAgentPlatform()` |
-| `AgenticAggregateRuntimeFactory.java` | Resolve `AgentPlatform` from `ApplicationContext`; construct via inheritance-based constructor; process `agentHandledCommands`, `agentHandledEvents`, `agentProducedErrors` from annotation |
+| `KafkaAgenticAggregateRuntime.java` | Accept and store `AgentPlatform`; implement `getAgentPlatform()` (delegation pattern unchanged) |
+| `AgenticAggregateRuntimeFactory.java` | Resolve `AgentPlatform` from `ApplicationContext`; create `AgenticCommandHandlerFunctionAdapter` / `AgenticEventHandlerFunctionAdapter` for agent-handled commands/events; process `agentHandledCommands`, `agentHandledEvents`, `agentProducedErrors` from annotation |
 | `AgenticAggregateBeanFactoryPostProcessor.java` | Read new annotation properties; register `CommandType` for `agentHandledCommands`, `DomainEventType(external=true)` for `agentHandledEvents`, `DomainEventType(error=true)` for `agentProducedErrors` |
-| `AgenticAggregatePartition.java` | Add agent context setup, event collection after `tick()`, and result translation in `handleCommand()`; distinguish agent-handled vs deterministic commands |
-| `AkcesAgenticAggregateController.java` | Populate `consumedEvents` in `AggregateServiceRecord` from `getExternalDomainEventTypes()` (including `agentHandledEvents`) |
+| `AkcesAgenticAggregateController.java` | Expose `aggregateServices` map to adapters; populate `consumedEvents` in `AggregateServiceRecord` from `getExternalDomainEventTypes()` (including `agentHandledEvents`) |
 
 ---
 
