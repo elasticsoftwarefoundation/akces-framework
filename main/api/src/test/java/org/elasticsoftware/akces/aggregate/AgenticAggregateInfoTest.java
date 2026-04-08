@@ -17,7 +17,10 @@
 
 package org.elasticsoftware.akces.aggregate;
 
-import org.elasticsoftware.akces.annotations.AgenticAggregateInfo;
+import org.elasticsoftware.akces.annotations.*;
+import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.events.ErrorEvent;
 import org.junit.jupiter.api.Test;
 import org.springframework.stereotype.Component;
 
@@ -116,5 +119,139 @@ class AgenticAggregateInfoTest {
         boolean hasStateClass = Arrays.stream(methods).anyMatch(m -> m.getName().equals("stateClass"));
         assertThat(hasValue).as("value() attribute must be present").isTrue();
         assertThat(hasStateClass).as("stateClass() attribute must be present").isTrue();
+    }
+
+    // -------------------------------------------------------------------------
+    // Test fixtures for new agentic annotation properties
+    // -------------------------------------------------------------------------
+
+    /** Stub command for agent-handled command tests. */
+    @CommandInfo(type = "TestAgentCommand", version = 1)
+    record TestAgentCommand(@AggregateIdentifier String id) implements Command {
+        @Override
+        public String getAggregateId() {
+            return id;
+        }
+    }
+
+    /** Stub external event for agent-handled event tests. */
+    @DomainEventInfo(type = "TestExternalEvent", version = 1)
+    record TestExternalEvent(@AggregateIdentifier String id) implements DomainEvent {
+        @Override
+        public String getAggregateId() {
+            return id;
+        }
+    }
+
+    /** Stub error event for agent-produced error tests. */
+    @DomainEventInfo(type = "TestAgentError", version = 1)
+    record TestAgentError(@AggregateIdentifier String id) implements ErrorEvent {
+        @Override
+        public String getAggregateId() {
+            return id;
+        }
+    }
+
+    /** Aggregate with all three new annotation properties populated. */
+    @AgenticAggregateInfo(
+            value = "FullAgentic",
+            stateClass = TestState.class,
+            agentHandledCommands = {TestAgentCommand.class},
+            agentHandledEvents = {TestExternalEvent.class},
+            agentProducedErrors = {TestAgentError.class}
+    )
+    static class FullAgenticAggregate implements AgenticAggregate<TestState> {
+        @Override
+        public Class<TestState> getStateClass() {
+            return TestState.class;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests for agentHandledCommands
+    // -------------------------------------------------------------------------
+
+    @Test
+    void agentHandledCommandsShouldDefaultToEmpty() {
+        AgenticAggregateInfo info = DefaultAgenticAggregate.class.getAnnotation(AgenticAggregateInfo.class);
+        assertThat(info).isNotNull();
+        assertThat(info.agentHandledCommands()).isEmpty();
+    }
+
+    @Test
+    void agentHandledCommandsShouldReturnConfiguredClasses() {
+        AgenticAggregateInfo info = FullAgenticAggregate.class.getAnnotation(AgenticAggregateInfo.class);
+        assertThat(info).isNotNull();
+        assertThat(info.agentHandledCommands()).containsExactly(TestAgentCommand.class);
+    }
+
+    @Test
+    void agentHandledCommandsShouldOnlyAcceptCommandImplementations() {
+        // Verify that the declared Command class actually implements Command
+        AgenticAggregateInfo info = FullAgenticAggregate.class.getAnnotation(AgenticAggregateInfo.class);
+        assertThat(info).isNotNull();
+        for (Class<?> commandClass : info.agentHandledCommands()) {
+            assertThat(Command.class.isAssignableFrom(commandClass))
+                    .as("Agent-handled command %s must implement Command", commandClass.getName())
+                    .isTrue();
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests for agentHandledEvents
+    // -------------------------------------------------------------------------
+
+    @Test
+    void agentHandledEventsShouldDefaultToEmpty() {
+        AgenticAggregateInfo info = DefaultAgenticAggregate.class.getAnnotation(AgenticAggregateInfo.class);
+        assertThat(info).isNotNull();
+        assertThat(info.agentHandledEvents()).isEmpty();
+    }
+
+    @Test
+    void agentHandledEventsShouldReturnConfiguredClasses() {
+        AgenticAggregateInfo info = FullAgenticAggregate.class.getAnnotation(AgenticAggregateInfo.class);
+        assertThat(info).isNotNull();
+        assertThat(info.agentHandledEvents()).containsExactly(TestExternalEvent.class);
+    }
+
+    @Test
+    void agentHandledEventsShouldOnlyAcceptDomainEventImplementations() {
+        AgenticAggregateInfo info = FullAgenticAggregate.class.getAnnotation(AgenticAggregateInfo.class);
+        assertThat(info).isNotNull();
+        for (Class<?> eventClass : info.agentHandledEvents()) {
+            assertThat(DomainEvent.class.isAssignableFrom(eventClass))
+                    .as("Agent-handled event %s must implement DomainEvent", eventClass.getName())
+                    .isTrue();
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests for agentProducedErrors
+    // -------------------------------------------------------------------------
+
+    @Test
+    void agentProducedErrorsShouldDefaultToEmpty() {
+        AgenticAggregateInfo info = DefaultAgenticAggregate.class.getAnnotation(AgenticAggregateInfo.class);
+        assertThat(info).isNotNull();
+        assertThat(info.agentProducedErrors()).isEmpty();
+    }
+
+    @Test
+    void agentProducedErrorsShouldReturnConfiguredClasses() {
+        AgenticAggregateInfo info = FullAgenticAggregate.class.getAnnotation(AgenticAggregateInfo.class);
+        assertThat(info).isNotNull();
+        assertThat(info.agentProducedErrors()).containsExactly(TestAgentError.class);
+    }
+
+    @Test
+    void agentProducedErrorsShouldOnlyAcceptErrorEventImplementations() {
+        AgenticAggregateInfo info = FullAgenticAggregate.class.getAnnotation(AgenticAggregateInfo.class);
+        assertThat(info).isNotNull();
+        for (Class<?> errorClass : info.agentProducedErrors()) {
+            assertThat(ErrorEvent.class.isAssignableFrom(errorClass))
+                    .as("Agent-produced error %s must implement ErrorEvent", errorClass.getName())
+                    .isTrue();
+        }
     }
 }

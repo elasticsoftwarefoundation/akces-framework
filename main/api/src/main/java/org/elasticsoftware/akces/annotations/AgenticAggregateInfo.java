@@ -18,6 +18,9 @@
 package org.elasticsoftware.akces.annotations;
 
 import org.elasticsoftware.akces.aggregate.AggregateState;
+import org.elasticsoftware.akces.commands.Command;
+import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.events.ErrorEvent;
 import org.springframework.core.annotation.AliasFor;
 import org.springframework.stereotype.Component;
 
@@ -26,6 +29,24 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+/**
+ * Marks a class as an agentic aggregate, a special type of aggregate that integrates with
+ * the Embabel AI agent framework for AI-assisted command and event processing.
+ *
+ * <p>In addition to the standard aggregate capabilities, an agentic aggregate may declare:
+ * <ul>
+ *   <li>{@link #agentHandledCommands} — commands processed entirely by the AI agent (no
+ *       {@code @CommandHandler} method required)</li>
+ *   <li>{@link #agentHandledEvents} — external domain events processed by the AI agent (no
+ *       {@code @EventHandler} method required)</li>
+ *   <li>{@link #agentProducedErrors} — error event types the AI agent may emit during
+ *       processing (registered for schema validation and service discovery)</li>
+ * </ul>
+ *
+ * <p>Every {@code AgenticAggregate} must also have at least one deterministic
+ * {@code @CommandHandler(create = true)} method so that the aggregate can be created
+ * before the AI agent handles subsequent commands.
+ */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE})
 @Component
@@ -42,4 +63,32 @@ public @interface AgenticAggregateInfo {
      * exceeds this limit the oldest entries are evicted to make room for new ones.
      */
     int maxMemories() default 100;
+
+    /**
+     * Command classes to be processed by the AI agent instead of a deterministic
+     * {@code @CommandHandler} method. Each class must implement {@link Command} and be
+     * annotated with {@code @CommandInfo}.
+     *
+     * <p>Agent-handled commands cannot create aggregate state — every agentic aggregate must
+     * have a separate deterministic {@code @CommandHandler(create = true)} method.
+     */
+    Class<? extends Command>[] agentHandledCommands() default {};
+
+    /**
+     * External domain event classes to be processed by the AI agent instead of a
+     * deterministic {@code @EventHandler} method. Each class must implement
+     * {@link DomainEvent} and be annotated with {@code @DomainEventInfo}.
+     */
+    Class<? extends DomainEvent>[] agentHandledEvents() default {};
+
+    /**
+     * Error event classes that the AI agent may produce during command or event processing.
+     * Each class must implement {@link ErrorEvent} and be annotated with
+     * {@code @DomainEventInfo}.
+     *
+     * <p>These types are registered as {@code DomainEventType(error=true)} for JSON schema
+     * validation and service discovery. At runtime, undeclared {@link ErrorEvent} instances
+     * emitted by the agent are accepted with a warning rather than rejected.
+     */
+    Class<? extends ErrorEvent>[] agentProducedErrors() default {};
 }
