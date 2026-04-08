@@ -414,12 +414,19 @@ The resulting `AggregateServiceRecord.producedEvents` would contain:
 
 ### 2.7 Goal: `LearnFromProcessGoal`
 
-**What**: A Goal that represents the objective of extracting learned facts from the current agent process and persisting them as memories. This goal is also responsible for **enforcing the memory capacity limit** defined by `@AgenticAggregateInfo.maxMemories()`.
+**What**: A Goal that represents the objective of analyzing the information from the current agent session — which is available on the Blackboard — and distilling useful memories from it. This goal is also responsible for **enforcing the memory capacity limit** defined by `@AgenticAggregateInfo.maxMemories()`.
 
 ```
 Goal: "LearnFromProcess"
-Description: "Extract and store relevant facts learned during the current agent process"
+Description: "Analyze current session information and distill useful memories"
 ```
+
+**Why a Goal and not an Action**: The memory distillation process requires **multi-step LLM reasoning**, not just data manipulation. A simple `@Action` can only perform a single operation (e.g., store a memory, recall memories). The `LearnFromProcessGoal` orchestrates a reasoning pipeline:
+1. The Blackboard contains all session information: the original command/event, the current aggregate state, any domain events produced, existing memories, and aggregate service records.
+2. The Embabel GOAP planner uses LLM reasoning to analyze this session context and determine what facts are worth remembering — this is the intelligence step that cannot be reduced to a single Action.
+3. The goal then uses Actions (`RecallMemoriesAction`, `StoreMemoryAction`, `ForgetMemoryAction`) as execution primitives to actually persist the decisions.
+
+This separation of **analysis** (LLM reasoning within the Goal) from **execution** (Actions) is a fundamental Embabel pattern: Goals define *what* to achieve, Actions define *how* to do it, and the LLM bridges the gap.
 
 **Constraints**:
 - **Maximum 3 new memories** per agent process execution. This prevents memory bloat from a single interaction.
@@ -433,7 +440,7 @@ Description: "Extract and store relevant facts learned during the current agent 
 
 **Plan**: The agent planner would compose this as:
 1. `RecallMemoriesAction` → check existing memories (to avoid duplicates and assess capacity)
-2. (LLM reasoning) → determine what new facts were learned, respecting the max-3 limit
+2. (LLM reasoning over Blackboard session context) → determine what new facts were learned, respecting the max-3 limit
 3. `StoreMemoryAction` → persist new memories (producing `MemoryStoredEvent`)
 4. `ForgetMemoryAction` → evict oldest memories if capacity exceeded, or replace outdated memories (producing `MemoryRevokedEvent`)
 
@@ -498,7 +505,7 @@ These are higher-level Goals/Actions/Conditions that enable an agentic aggregate
 3. Invokes LLM reasoning with context-specific prompts
 4. Returns analysis results on the blackboard
 
-**Why**: This is the core "intelligence" action — it leverages the LLM to reason about domain state and make informed decisions.
+**Why**: This is a framework building block — a reusable Action that can be composed into different Goals. While not strictly required for the initial integration, it provides a general-purpose "analyze state" primitive that higher-level goals and future framework extensions can build upon. Keep for now.
 
 ### 3.6 Action: `DiscoverAggregateServicesAction`
 
@@ -557,20 +564,9 @@ Preconditions: isExternalEvent
 
 **Why**: This is the top-level goal for handling external events declared in `agentHandledEvents`. Agentic aggregates subscribe to all partitions of external event topics, and this goal enables AI-assisted reasoning about those events.
 
-### 3.9 Goal: `ManageKnowledgeGoal`
+### ~~3.9 Goal: `ManageKnowledgeGoal`~~ — REMOVED
 
-```
-Goal: "ManageKnowledge"
-Description: "Review, update, and optimize the aggregate's memory store"
-```
-
-**Plan**:
-1. `RecallMemoriesAction` → load all memories
-2. (LLM reasoning) → identify outdated, duplicate, or conflicting facts
-3. `ForgetMemoryAction` → remove outdated entries
-4. `StoreMemoryAction` → store corrected/updated entries
-
-**Why**: Over time, memories accumulate and may become stale. A dedicated knowledge management goal enables periodic memory optimization.
+> **Note**: This goal has been removed. Memory management (storing, recalling, forgetting, capacity enforcement) is fully handled by `LearnFromProcessGoal` (section 2.7), which runs as a sub-goal after every command/event processing cycle. A separate knowledge management goal would duplicate this responsibility. If periodic memory optimization is needed in the future, it can be revisited as a scheduled task rather than a separate Goal.
 
 ---
 
@@ -682,7 +678,9 @@ AgenticAggregatePartition.processRecords():
 
 ## Phase 5: Testing
 
-### 5.1 Unit Tests
+### 5.1 Unit Tests (Phase 2 — Actions, Goals, Conditions)
+
+Phase 2 components (Actions, Goals, Conditions in `AkcesAgentComponent`) are tested at the **unit level only** — no Kafka, no Spring Boot context, no integration test infrastructure. These tests verify the individual building blocks in isolation using mocked Blackboard contexts.
 
 | Test Class | What to Verify |
 |-----------|---------------|
@@ -690,14 +688,21 @@ AgenticAggregatePartition.processRecords():
 | `StoreMemoryActionTest` | Produces valid `MemoryStoredEvent` from blackboard context |
 | `ForgetMemoryActionTest` | Produces valid `MemoryRevokedEvent` from blackboard context |
 | `RecallMemoriesActionTest` | Correctly filters memories by subject/keyword |
-| `AgentPlatformInjectionTest` | Verifies `AgentPlatform` is correctly wired through factory → runtime; verifies fatal error when `AgentPlatform` is absent |
 | `AgentProcessResultTranslatorTest` | Correctly extracts events and commands from blackboard |
+
+### 5.2 Unit Tests (Phase 1, Annotation Extensions)
+
+These unit tests verify the wiring and registration of agent-specific metadata.
+
+| Test Class | What to Verify |
+|-----------|---------------|
+| `AgentPlatformInjectionTest` | Verifies `AgentPlatform` is correctly wired through factory → runtime; verifies fatal error when `AgentPlatform` is absent |
 | `AgentProducedErrorsRegistrationTest` | Verifies `agentProducedErrors` are registered as `DomainEventType(error=true)` |
 | `AgentHandledCommandsRegistrationTest` | Verifies `agentHandledCommands` create `CommandType` entries with `AgenticCommandHandlerFunctionAdapter` |
 | `AgentHandledEventsRegistrationTest` | Verifies `agentHandledEvents` create external `DomainEventType` entries with `AgenticEventHandlerFunctionAdapter` |
 | `DiscoverAggregateServicesActionTest` | Verifies `AggregateServiceRecord`s are correctly exposed on the blackboard |
 
-### 5.2 Test Agent Implementation: `TestTradingAdvisorAgent`
+### 5.3 Test Agent Implementation: `TestTradingAdvisorAgent`
 
 Based on the TradingAdvisor example from the beginning of this plan, create a concrete test agent implementation in the test sources:
 
@@ -822,7 +827,9 @@ public class TestTradingAdvisorAgentComponent {
 - Testing of `agentHandledCommands`, `agentHandledEvents`, and `agentProducedErrors` registration
 - A reference implementation that documents the expected patterns for real-world agents
 
-### 5.3 Integration Tests
+### 5.4 Integration Tests (Phase 4 — Full Agent Loop)
+
+Integration tests exercise the full agent loop from command/event arrival through Embabel agent invocation to state application. These require the `TestTradingAdvisorAgent` fixtures from section 5.3.
 
 | Test Class | What to Verify |
 |-----------|---------------|
@@ -917,4 +924,6 @@ The following questions have been resolved by the Architect:
 4. **MCP Tool Scoping**: MCP tools added in the core `AgenticAggregate` are **available to all Agents**. No per-aggregate tool scoping is needed — shared tools are the default.
 
 5. **Error Event Validation at Runtime**: Accept **all `ErrorEvent`s** at runtime, even if they are not declared in `agentProducedErrors`. If an undeclared error event is emitted, **log a warning** but do not reject it. This provides flexibility while maintaining observability.
+
+6. **Transactional Boundaries**: The agent tick-to-completion loop runs inside the Kafka transaction opened by `AgenticAggregatePartition.processRecords()`. The `agenticServiceProducerFactory` must be configured with an increased `transaction.timeout.ms` (default 300000 / 5 minutes, configurable via `akces.agentic.transaction-timeout-ms`). This is an agreed design — implement as proposed in section 4.4.
 
