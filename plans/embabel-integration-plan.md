@@ -116,79 +116,50 @@ For each class in agentProducedErrors[]:
 
 Instead of bypassing the handler mechanism entirely for agent-handled commands/events, we create new adapter implementations that plug into the existing `CommandHandlerFunction` / `EventHandlerFunction` contracts. This allows the standard `KafkaAggregateRuntime.handleCommand()` and `handleEvent()` flows to work unchanged — the adapters route processing through the Embabel agent instead of a deterministic method.
 
-#### `AgentTask` Record
-
-An `AgentTask` represents a running agent process that needs further `tick()` calls. It is tracked in the aggregate state's `activeAgentTasks` list so that the Akces runtime knows which processes need to be advanced on subsequent poll loop iterations.
-
-```java
-/**
- * Represents an active agent process that requires further tick() calls to complete.
- * Stored in the agentic aggregate state to enable incremental multi-step processing.
- *
- * @param id unique identifier for this agent task (typically the AgentProcess ID)
- */
-public record AgentTask(String id) {}
-```
-
-The `activeAgentTasks` property is maintained on the agentic aggregate state (any state implementing `MemoryAwareState` for agentic aggregates). When a new agent process starts, an `AgentTask` is added; when a process reaches an end state, the task is removed. The Akces runtime uses this list to determine whether `proceed()` calls are needed on poll iterations with no incoming Kafka records.
-
-**Current implementation**: For now, `apply()` calls `AgentProcess.tick()` in a loop until the process reaches an end state, so `activeAgentTasks` will always be empty after `apply()` returns. This will change when we add true incremental tick support in a separate feature.
-
-#### `AgenticProcessHandler` Interface
-
-Both agentic adapters implement a new `AgenticProcessHandler` interface that defines the contract for running agent processes. This interface exposes a `proceed()` method for advancing active processes beyond the initial `apply()` call:
-
-```java
-public interface AgenticProcessHandler<S extends AggregateState & MemoryAwareState, E extends DomainEvent> {
-
-    /**
-     * Continue an active AgentProcess by calling tick() and collecting resulting events.
-     * Called by the Akces runtime when there is an active process that needs to advance,
-     * independent of whether new Kafka records have arrived.
-     *
-     * @param agentTask the active agent task to advance
-     * @param state the current aggregate state
-     * @return stream of domain events produced by the agent process step
-     */
-    Stream<E> proceed(AgentTask agentTask, S state);
-}
-```
-
-**Current implementation**: Since `apply()` currently calls `tick()` in a loop until the agent process reaches an end state (completed/failed), the `proceed()` method is not yet invoked by the runtime. The `activeAgentTasks` list will always be empty after `apply()` returns.
-
-**Future change**: When true incremental tick support is added, the adapter will call `tick()` only once in `apply()` and record the running task in the `activeAgentTasks` list. The Akces runtime will then call `proceed(agentTask, state)` on subsequent poll loop iterations for any active tasks, enabling true incremental multi-step processing without blocking the partition thread.
-
 #### `AgenticCommandHandlerFunctionAdapter`
 
 A new implementation of `CommandHandlerFunction` for agent-handled commands:
 
 ```java
 public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState & MemoryAwareState, C extends Command, E extends DomainEvent>
-        implements CommandHandlerFunction<S, C, E>, AgenticProcessHandler<S, E> {
+        implements CommandHandlerFunction<S, C, E> {
 
     private final AgenticAggregate<S> aggregate;
     private final CommandType<C> commandType;
     private final AgentPlatform agentPlatform;
+    private final Goal processCommandGoal;                          // "ProcessCommand" goal
     private final List<DomainEventType<E>> producedDomainEventTypes; // from @EventSourcingHandler registrations
     private final List<DomainEventType<E>> errorEventTypes;         // from agentProducedErrors
 
     @Override
     public Stream<E> apply(C command, S state) {
         // 1. Set up the Blackboard with command, state, memories, aggregate service records
-        // 2. Create AgentProcess via agentPlatform
-        // 3. Call agentProcess.tick() in a loop until end state (temporary — see Future change above)
-        // 4. Collect DomainEvent instances from the blackboard
-        // 5. Return them as Stream<E> — the standard handleCommand() flow applies them
+        Blackboard blackboard = new Blackboard();
+        blackboard.add(command);
+        blackboard.add(state);
+        blackboard.addAll(((MemoryAwareState) state).getMemories());
+        blackboard.addAll(aggregateServiceRecords);
+        blackboard.set("agenticAggregateId", state.getAggregateId());
+        blackboard.set("isCommandProcessing", true);
+        blackboard.set("isExternalEvent", false);
+        blackboard.set("hasMemories", !((MemoryAwareState) state).getMemories().isEmpty());
+
+        // 2. Create AgentProcess via agentPlatform with the ProcessCommand goal
+        AgentProcess agentProcess = agentPlatform.createAgentProcess(processCommandGoal, blackboard);
+
+        // 3. Call agentProcess.tick() in a loop until end state
+        List<E> collectedEvents = new ArrayList<>();
+        while (!agentProcess.isComplete()) {
+            agentProcess.tick();
+            collectedEvents.addAll(AgentProcessResultTranslator.collectEvents(blackboard));
+        }
+
+        // 4. Return collected DomainEvent instances as Stream<E>
+        return collectedEvents.stream();
     }
 
     @Override
-    public Stream<E> proceed(AgentTask agentTask, S state) {
-        // For future use: advance an active AgentProcess identified by agentTask with a single tick()
-        // Currently not called since apply() runs tick() to completion
-    }
-
-    @Override
-    public boolean isCreate() { return false; } // agent-handled commands don't create
+    public boolean isCreate() { return false; } // agent-handled commands cannot create — see Design Constraint below
 
     @Override
     public CommandType<C> getCommandType() { return commandType; }
@@ -203,27 +174,40 @@ A new implementation of `EventHandlerFunction` for agent-handled external events
 
 ```java
 public class AgenticEventHandlerFunctionAdapter<S extends AggregateState & MemoryAwareState, InputEvent extends DomainEvent, E extends DomainEvent>
-        implements EventHandlerFunction<S, InputEvent, E>, AgenticProcessHandler<S, E> {
+        implements EventHandlerFunction<S, InputEvent, E> {
 
     private final AgenticAggregate<S> aggregate;
     private final DomainEventType<InputEvent> domainEventType;
     private final AgentPlatform agentPlatform;
+    private final Goal reactToExternalEventGoal;                    // "ReactToExternalEvent" goal
     private final List<DomainEventType<E>> producedDomainEventTypes;
     private final List<DomainEventType<E>> errorEventTypes;
 
     @Override
     public Stream<E> apply(InputEvent event, S state) {
         // 1. Set up the Blackboard with event, state, memories, aggregate service records
-        // 2. Create AgentProcess via agentPlatform
-        // 3. Call agentProcess.tick() in a loop until end state (temporary — see Future change above)
-        // 4. Collect DomainEvent instances from the blackboard
-        // 5. Return them as Stream<E>
-    }
+        Blackboard blackboard = new Blackboard();
+        blackboard.add(event);
+        blackboard.add(state);
+        blackboard.addAll(((MemoryAwareState) state).getMemories());
+        blackboard.addAll(aggregateServiceRecords);
+        blackboard.set("agenticAggregateId", state.getAggregateId());
+        blackboard.set("isCommandProcessing", false);
+        blackboard.set("isExternalEvent", true);
+        blackboard.set("hasMemories", !((MemoryAwareState) state).getMemories().isEmpty());
 
-    @Override
-    public Stream<E> proceed(AgentTask agentTask, S state) {
-        // For future use: advance an active AgentProcess identified by agentTask with a single tick()
-        // Currently not called since apply() runs tick() to completion
+        // 2. Create AgentProcess via agentPlatform with the ReactToExternalEvent goal
+        AgentProcess agentProcess = agentPlatform.createAgentProcess(reactToExternalEventGoal, blackboard);
+
+        // 3. Call agentProcess.tick() in a loop until end state
+        List<E> collectedEvents = new ArrayList<>();
+        while (!agentProcess.isComplete()) {
+            agentProcess.tick();
+            collectedEvents.addAll(AgentProcessResultTranslator.collectEvents(blackboard));
+        }
+
+        // 4. Return collected DomainEvent instances as Stream<E>
+        return collectedEvents.stream();
     }
 
     @Override
@@ -236,6 +220,12 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState & Memor
 }
 ```
 
+**Goal selection per adapter**: Each adapter type is hardcoded to use its specific goal:
+- `AgenticCommandHandlerFunctionAdapter` → `ProcessCommandGoal` (precondition: `isCommandProcessing`)
+- `AgenticEventHandlerFunctionAdapter` → `ReactToExternalEventGoal` (precondition: `isExternalEvent`)
+
+The goals are resolved from the `AgentPlatform` at adapter construction time (in `AgenticAggregateRuntimeFactory`) and stored as final fields. This makes the goal selection deterministic — the adapter **knows** which goal to use because of its type, not because of runtime conditions.
+
 **Why adapters instead of bypassing**: This approach:
 - Reuses the existing `handleCommand()` / `handleEvent()` flow in `KafkaAggregateRuntime` — no need to change its `private` methods or refactor to inheritance
 - The adapter receives the materialized `Command` (or `DomainEvent`) and the current `AggregateState` already deserialized
@@ -243,9 +233,19 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState & Memor
 - `AgentPlatform` and other agent resources are injected at adapter construction time
 - The Blackboard setup (command/event, state, memories, aggregate service records) is done inside the adapter's `apply()` method
 - `tick()` lifecycle management happens inside the adapter
-- The `AgenticProcessHandler` interface prepares for incremental tick support via `proceed(AgentTask, state)`, with `proceedAgentTasks()` on `KafkaAggregateRuntime` driving the loop
 
 **Impact on section 4.3 (Event Application Mechanism)**: With the adapter approach, the event application mechanism is greatly simplified. The adapter returns events as a `Stream<DomainEvent>`, and the standard `KafkaAggregateRuntime.handleCommand()` already iterates and calls `processDomainEvent()` for each one. **No need to make `processDomainEvent` protected or refactor to inheritance** — the existing delegation pattern works as-is.
+
+### Design Constraint: Agent-Handled Commands Cannot Create State
+
+Agent-handled commands (declared in `agentHandledCommands`) **always return `isCreate() = false`**. Aggregate creation must use a deterministic `@CommandHandler(create = true)` method.
+
+**Rationale**:
+- Creation must be deterministic to ensure the aggregate always starts in a known, valid initial state. An LLM-based agent could produce inconsistent or invalid initial state, leaving the aggregate in an undefined condition.
+- The `AgenticCommandHandlerFunctionAdapter.apply(command, state)` receives the current state as a parameter. For create commands, this state is `null`, which the adapter cannot meaningfully pass to an agent's Blackboard.
+- This is consistent with how agentic aggregates are designed as singletons with well-defined creation events — the "intelligence" applies to subsequent command processing, not to bootstrapping.
+
+Every `AgenticAggregate` must therefore have at least one deterministic `@CommandHandler(create = true)` method.
 
 ### Usage Example
 
@@ -330,18 +330,9 @@ The resulting `AggregateServiceRecord.producedEvents` would contain:
 
 **Why**: The partition processes commands and needs access to the `AgentPlatform` to create `AgentProcess` instances. The runtime interface is the contract between the partition and the runtime.
 
-### 1.4 Expose Memories on AgentProcess Blackboard
+### ~~1.4 Expose Memories on AgentProcess Blackboard~~ — Moved to Adapter
 
-**What**: Before each command is processed through an agent, load the current aggregate memories and make them available on the agent's `Blackboard`.
-
-**Changes**:
-- In `AgenticAggregatePartition.handleCommand()`, after loading the state record:
-  1. Call `runtime.getMemories(stateRecord)` to get the current memories
-  2. Create a `ProcessOptions` with a `Blackboard` that contains the memories list
-  3. Optionally set a condition `"hasMemories"` on the blackboard based on whether memories exist
-- This enables Embabel Actions to access aggregate memories via `blackboard.objectsOfType(AgenticAggregateMemory.class)`
-
-**Why**: Memories are the learned knowledge of the agent. They must be available in the agent's execution context so that actions can use them for reasoning.
+> **Note**: This section is superseded by the adapter approach. Blackboard setup (including memories, state, aggregate service records, and conditions) is done inside the agentic handler adapters' `apply()` method — see the `AgenticCommandHandlerFunctionAdapter` and `AgenticEventHandlerFunctionAdapter` code in the "Agentic Handler Adapters" section. The adapter already has access to the state (passed as a parameter to `apply()`), so the partition does not need to set up the blackboard.
 
 ---
 
@@ -357,7 +348,7 @@ The resulting `AggregateServiceRecord.producedEvents` would contain:
 
 ### 2.2 Memory Management Action: `StoreMemoryAction`
 
-**What**: An `@Action`-annotated method that produces a `MemoryStoredEvent` directly, bypassing the internal command path. The event is applied to the state via the built-in `@EventSourcingHandler` for `MemoryStoredEvent`.
+**What**: An `@Action`-annotated method that produces a `MemoryStoredEvent` directly. The event is applied to the state via the built-in `@EventSourcingHandler` for `MemoryStoredEvent`.
 
 ```
 @Action(description = "Store a learned fact as a memory entry for the agentic aggregate")
@@ -368,8 +359,6 @@ The resulting `AggregateServiceRecord.producedEvents` would contain:
 2. Takes `subject`, `fact`, `citations`, and `reason` as inputs (from blackboard or method parameters)
 3. Creates a `MemoryStoredEvent` and returns it on the blackboard
 4. The partition collects the event and applies it through the built-in `@EventSourcingHandler` (which calls `MemoryAwareState.withMemory()`)
-
-**Note**: The internal `StoreMemoryCommand` will be removed in a later stage. Actions should produce events that are applied to the state using the built-in EventSourcingHandlers.
 
 **Why**: This is the most fundamental agent action — the ability to learn and persist knowledge across interactions. Producing events directly (rather than commands) simplifies the flow and is consistent with the event-sourcing model where actions result in domain events.
 
@@ -386,8 +375,6 @@ The resulting `AggregateServiceRecord.producedEvents` would contain:
 2. Creates a `MemoryRevokedEvent` and returns it on the blackboard
 3. The partition collects the event and applies it through the built-in `@EventSourcingHandler` (which calls `MemoryAwareState.withoutMemory()`)
 4. Enables the agent to self-manage its knowledge base
-
-**Note**: The internal `ForgetMemoryCommand` will be removed in a later stage.
 
 **Why**: Agents must be able to correct their knowledge. Outdated or incorrect facts should be removable.
 
@@ -427,16 +414,24 @@ The resulting `AggregateServiceRecord.producedEvents` would contain:
 
 ### 2.7 Goal: `LearnFromProcessGoal`
 
-**What**: A Goal that represents the objective of extracting learned facts from the current agent process and persisting them as memories.
+**What**: A Goal that represents the objective of analyzing the information from the current agent session — which is available on the Blackboard — and distilling useful memories from it. This goal is also responsible for **enforcing the memory capacity limit** defined by `@AgenticAggregateInfo.maxMemories()`.
 
 ```
 Goal: "LearnFromProcess"
-Description: "Extract and store relevant facts learned during the current agent process"
+Description: "Analyze current session information and distill useful memories"
 ```
+
+**Why a Goal and not an Action**: The memory distillation process requires **multi-step LLM reasoning**, not just data manipulation. A simple `@Action` can only perform a single operation (e.g., store a memory, recall memories). The `LearnFromProcessGoal` orchestrates a reasoning pipeline:
+1. The Blackboard contains all session information: the original command/event, the current aggregate state, any domain events produced, existing memories, and aggregate service records.
+2. The Embabel GOAP planner uses LLM reasoning to analyze this session context and determine what facts are worth remembering — this is the intelligence step that cannot be reduced to a single Action.
+3. The goal then uses Actions (`RecallMemoriesAction`, `StoreMemoryAction`, `ForgetMemoryAction`) as execution primitives to actually persist the decisions.
+
+This separation of **analysis** (LLM reasoning within the Goal) from **execution** (Actions) is a fundamental Embabel pattern: Goals define *what* to achieve, Actions define *how* to do it, and the LLM bridges the gap.
 
 **Constraints**:
 - **Maximum 3 new memories** per agent process execution. This prevents memory bloat from a single interaction.
 - **No duplicate memories**: Before storing, the agent must check existing memories and skip any fact that is already stored (same subject + substantially similar fact content).
+- **Memory capacity enforcement**: After storing new memories, if the total memory count exceeds `maxMemories`, the agent must evict the oldest entries using `ForgetMemoryAction` until the count is within the allowed limit. This replaces the previous `enforceMemorySlidingWindow()` mechanism — the agent itself is responsible for managing its memory capacity as part of the learning process.
 - **Memory field guidance** (to be included in the Goal's prompt instructions):
   - `subject`: A 1-3 word topic label (e.g., "error handling", "user preferences", "market patterns"). Used for grouping and retrieval.
   - `fact`: A clear, concise factual statement (max ~200 chars). Should be actionable and self-contained.
@@ -444,12 +439,12 @@ Description: "Extract and store relevant facts learned during the current agent 
   - `reason`: Why this fact is worth remembering — what future decisions it informs. Should be 2-3 sentences explaining the significance.
 
 **Plan**: The agent planner would compose this as:
-1. `RecallMemoriesAction` → check existing memories (to avoid duplicates)
-2. (LLM reasoning) → determine what new facts were learned, respecting the max-3 limit
+1. `RecallMemoriesAction` → check existing memories (to avoid duplicates and assess capacity)
+2. (LLM reasoning over Blackboard session context) → determine what new facts were learned, respecting the max-3 limit
 3. `StoreMemoryAction` → persist new memories (producing `MemoryStoredEvent`)
-4. Optionally `ForgetMemoryAction` → replace outdated memories (producing `MemoryRevokedEvent`)
+4. `ForgetMemoryAction` → evict oldest memories if capacity exceeded, or replace outdated memories (producing `MemoryRevokedEvent`)
 
-**Why**: This is the foundational agentic behavior — after processing any command, the agent should learn from the experience and update its knowledge base. The constraints ensure memory quality over quantity.
+**Why**: This is the foundational agentic behavior — after processing any command, the agent should learn from the experience and update its knowledge base. The constraints ensure memory quality over quantity. By moving memory capacity enforcement into the agent's learning goal, we eliminate the need for the framework-level `enforceMemorySlidingWindow()` method and the internal `StoreMemoryCommand`/`ForgetMemoryCommand` commands.
 
 ---
 
@@ -477,20 +472,9 @@ These are higher-level Goals/Actions/Conditions that enable an agentic aggregate
 
 **Why**: Complement to `isCommandProcessing`. External events often require different reasoning strategies (reactive vs. proactive).
 
-### 3.3 Action: `EmitDomainEventsAction`
+### ~~3.3 Action: `EmitDomainEventsAction`~~ — REMOVED
 
-```
-@Action(description = "Emit one or more domain events as the result of agent reasoning")
-```
-
-**What**: Takes a list of domain event objects from the agent's reasoning and packages them for emission by the partition.
-
-**Behavior**:
-1. Receives domain event objects from the blackboard (produced by prior actions or LLM reasoning)
-2. Validates them against the aggregate's registered event types (including `agentProducedErrors` error events)
-3. Returns them as a structured `AgentResult` that the partition translates into Kafka `DomainEventRecord` entries
-
-**Why**: The fundamental output of any command handler is domain events. This action bridges Embabel's action model with Akces's event emission model. The agent can emit both state-changing events (which have `@EventSourcingHandler` methods) and error events (declared via `agentProducedErrors`).
+> **Note**: This action has been removed. Domain events produced by agent actions (e.g., `@Action` methods that return `DomainEvent` instances, `StoreMemoryAction`, `ForgetMemoryAction`) are placed on the Blackboard directly. The `AgentProcessResultTranslator` collects all `DomainEvent` objects from the blackboard after each `tick()` — there is no need for an explicit "emit" action. The adapter's `apply()` method returns the collected events as `Stream<DomainEvent>`, and the standard `handleCommand()` flow applies them via `processDomainEvent()`.
 
 ### 3.4 Action: `SendCommandAction`
 
@@ -521,7 +505,7 @@ These are higher-level Goals/Actions/Conditions that enable an agentic aggregate
 3. Invokes LLM reasoning with context-specific prompts
 4. Returns analysis results on the blackboard
 
-**Why**: This is the core "intelligence" action — it leverages the LLM to reason about domain state and make informed decisions.
+**Why**: This is a framework building block — a reusable Action that can be composed into different Goals. While not strictly required for the initial integration, it provides a general-purpose "analyze state" primitive that higher-level goals and future framework extensions can build upon. Keep for now.
 
 ### 3.6 Action: `DiscoverAggregateServicesAction`
 
@@ -558,9 +542,8 @@ Preconditions: isCommandProcessing
 **Plan**:
 1. `RecallMemoriesAction` → load relevant prior knowledge
 2. `AnalyzeAggregateStateAction` → understand current state
-3. (LLM reasoning with MCP tools) → determine actions
-4. `EmitDomainEventsAction` → produce events (including error events from `agentProducedErrors` if applicable)
-5. `LearnFromProcessGoal` (sub-goal) → learn from experience
+3. (LLM reasoning with MCP tools) → determine actions and produce domain events on the blackboard (including error events from `agentProducedErrors` if applicable)
+4. `LearnFromProcessGoal` (sub-goal) → learn from experience
 
 **Why**: This is the top-level goal for command processing in an agentic aggregate. It replaces the deterministic `@CommandHandler` flow with an AI-assisted reasoning loop for commands declared in `agentHandledCommands`.
 
@@ -575,27 +558,15 @@ Preconditions: isExternalEvent
 **Plan**:
 1. `RecallMemoriesAction` → load relevant prior knowledge
 2. `AnalyzeAggregateStateAction` → understand current state
-3. (LLM reasoning) → determine appropriate response
+3. (LLM reasoning) → determine appropriate response and produce domain events on the blackboard (including error events from `agentProducedErrors`)
 4. `SendCommandAction` → send commands if needed
-5. `EmitDomainEventsAction` → produce events if needed (including error events from `agentProducedErrors`)
-6. `LearnFromProcessGoal` (sub-goal) → learn from experience
+5. `LearnFromProcessGoal` (sub-goal) → learn from experience
 
 **Why**: This is the top-level goal for handling external events declared in `agentHandledEvents`. Agentic aggregates subscribe to all partitions of external event topics, and this goal enables AI-assisted reasoning about those events.
 
-### 3.9 Goal: `ManageKnowledgeGoal`
+### ~~3.9 Goal: `ManageKnowledgeGoal`~~ — REMOVED
 
-```
-Goal: "ManageKnowledge"
-Description: "Review, update, and optimize the aggregate's memory store"
-```
-
-**Plan**:
-1. `RecallMemoriesAction` → load all memories
-2. (LLM reasoning) → identify outdated, duplicate, or conflicting facts
-3. `ForgetMemoryAction` → remove outdated entries
-4. `StoreMemoryAction` → store corrected/updated entries
-
-**Why**: Over time, memories accumulate and may become stale. A dedicated knowledge management goal enables periodic memory optimization.
+> **Note**: This goal has been removed. Memory management (storing, recalling, forgetting, capacity enforcement) is fully handled by `LearnFromProcessGoal` (section 2.7), which runs as a sub-goal after every command/event processing cycle. A separate knowledge management goal would duplicate this responsibility. If periodic memory optimization is needed in the future, it can be revisited as a scheduled task rather than a separate Goal.
 
 ---
 
@@ -608,10 +579,10 @@ Description: "Review, update, and optimize the aggregate's memory store"
 **Design: Adapter-Based Agent Processing**
 
 When a command arrives whose type is declared in `agentHandledCommands`:
-1. `KafkaAggregateRuntime.handleCommand()` looks up the registered `CommandHandlerFunction` — which is an `AgenticCommandHandlerFunctionAdapter` (also implements `AgenticProcessHandler`)
+1. `KafkaAggregateRuntime.handleCommand()` looks up the registered `CommandHandlerFunction` — which is an `AgenticCommandHandlerFunctionAdapter`
 2. The adapter's `apply(command, state)` method:
    a. Sets up the Blackboard with the command, state, memories, and aggregate service records
-   b. Creates an `AgentProcess` via the `AgentPlatform`
+   b. Creates an `AgentProcess` via `agentPlatform.createAgentProcess(processCommandGoal, blackboard)`
    c. Calls `agentProcess.tick()` in a loop until the process reaches an end state (completed/failed)
    d. Collects `DomainEvent` instances from the blackboard after each tick
    e. Returns them as `Stream<DomainEvent>`
@@ -621,11 +592,11 @@ When a command arrives whose type is declared in `agentHandledCommands`:
 
 For commands with a standard `@CommandHandler` method, the existing `CommandHandlerFunctionAdapter` (deterministic) path is used unchanged.
 
-For external events declared in `agentHandledEvents`, the same adapter-based flow applies via `AgenticEventHandlerFunctionAdapter`.
-
-**Note on tick-to-completion**: Currently, `apply()` calls `tick()` in a loop until the agent process reaches an end state. This is a temporary approach — when true incremental tick support is added, the adapter will call `tick()` only once per invocation, add an `AgentTask` to the state's `activeAgentTasks`, and the `proceedAgentTasks()` method on `KafkaAggregateRuntime` (called from `AgenticAggregatePartition` when there are no Kafka records) will call `proceed(agentTask, state)` on the handlers for each active task.
+For external events declared in `agentHandledEvents`, the same adapter-based flow applies via `AgenticEventHandlerFunctionAdapter`, which uses `agentPlatform.createAgentProcess(reactToExternalEventGoal, blackboard)`.
 
 **Key advantage**: No changes needed to `KafkaAggregateRuntime` internals. The `handleCommand()` and `handleEvent()` methods already work with the `CommandHandlerFunction` / `EventHandlerFunction` interfaces — the agentic adapters are just new implementations that route through the agent instead of a deterministic method.
+
+> **Note**: Incremental tick support (single tick per `apply()`, with active task tracking across poll iterations) is deferred to a separate plan. See [Incremental Agent Task Processing Plan](../plans/agenttasks.md).
 
 ### 4.2 AgentProcess Result Translation
 
@@ -639,7 +610,7 @@ For external events declared in `agentHandledEvents`, the same adapter-based flo
 - Create a `AgentProcessResultTranslator` utility class to handle this translation
 - Accept all `ErrorEvent` instances at runtime, even if not declared in `agentProducedErrors`. Log a warning for undeclared error events but do not reject them.
 
-**Current tick behavior**: The adapter calls `tick()` in a loop until the process reaches an end state, collecting events after each tick. All collected events are returned as a single `Stream<DomainEvent>` from `apply()`. This is temporary — when true incremental tick support is added, the `proceed(AgentTask, state)` method on `AgenticProcessHandler` will enable single-tick incremental processing, driven by `proceedAgentTasks()` on `KafkaAggregateRuntime`.
+The adapter calls `tick()` in a loop until the process reaches an end state, collecting events after each tick. All collected events are returned as a single `Stream<DomainEvent>` from `apply()`.
 
 ### 4.3 Event Application Mechanism — Simplified by Adapter Approach
 
@@ -658,31 +629,39 @@ KafkaAggregateRuntime.handleCommand():
   6. Error events → emitted without state change
 ```
 
-**Future incremental tick support**: When true incremental tick support is added, the flow will change: `apply()` will call `tick()` only once, add an `AgentTask` to the state's `activeAgentTasks`, and return. The `AgenticAggregatePartition` poll loop will call `KafkaAggregateRuntime.proceedAgentTasks()` on iterations with no incoming Kafka records. `proceedAgentTasks()` reads the current state, finds all `activeAgentTasks`, and calls `proceed(agentTask, state)` (from the `AgenticProcessHandler` interface) on each matching handler. This enables non-blocking incremental processing.
+> **Note**: Incremental tick support is deferred to a separate plan. See [Incremental Agent Task Processing Plan](../plans/agenttasks.md).
 
-### 4.3.1 `proceedAgentTasks()` — Active Task Advancement
+### 4.4 Transactional Boundaries and Timeout Configuration
 
-**What**: A new method on `KafkaAggregateRuntime` (or exposed through the delegation layer) that iterates over active `AgentTask` instances in the current state and calls `proceed(agentTask, state)` on the appropriate `AgenticProcessHandler` adapter for each one.
+**What**: The agent tick-to-completion loop runs inside the Kafka transaction that `AgenticAggregatePartition.processRecords()` opens. All events produced by the agent process — including `MemoryStoredEvent`, `MemoryRevokedEvent`, state-changing events, and error events — are part of that single transaction. This ensures atomicity: either the entire agent process result is persisted, or none of it is.
 
-**Invocation**: Called from `AgenticAggregatePartition` on poll loop iterations where no Kafka records are returned, ensuring active agent processes continue to advance even without new commands or events.
-
-**Current implementation**: Since `apply()` currently runs `tick()` to completion, the `activeAgentTasks` list is always empty, and `proceedAgentTasks()` is effectively a no-op. This will be activated when true incremental tick support is added.
-
-**Flow**:
+**Transaction lifecycle**:
 ```
-AgenticAggregatePartition.run():
-  1. Poll Kafka for records
-  2. If records found → process normally via handleCommand() / handleEvent()
-  3. If no records found → call kafkaAggregateRuntime.proceedAgentTasks()
-     a. Read current state
-     b. For each AgentTask in state.activeAgentTasks():
-        i. Find the AgenticProcessHandler adapter that created this task
-        ii. Call adapter.proceed(agentTask, state)
-        iii. Apply returned DomainEvents via processDomainEvent()
-        iv. If agent process reached end state → remove AgentTask from state
+AgenticAggregatePartition.processRecords():
+  1. producer.beginTransaction()
+  2. Process external events (if any)
+  3. Process commands:
+     a. handleCommand() → adapter.apply() → tick() loop → Stream<DomainEvent>
+     b. processDomainEvent() for each event → state records + event records written
+     c. (agent may take seconds to minutes for LLM calls, MCP tool invocations, GOAP planning)
+  4. producer.sendOffsetsToTransaction()
+  5. producer.commitTransaction()
 ```
 
-### 4.4 Agent Context Setup
+**Timeout risk**: Agent processing involves LLM calls, MCP tool invocations, and multi-step GOAP planning. This can easily exceed the default Kafka `transaction.timeout.ms` (60 seconds). If the transaction times out, the broker will abort it and all produced records are lost.
+
+**Solution**: The `ProducerFactory` instance used by `AgenticAggregatePartition` must be configured with an increased `transaction.timeout.ms`. This is a separate `ProducerFactory` bean (`agenticServiceProducerFactory`) already created by `AgenticAggregateBeanFactoryPostProcessor`, so it can have different settings from the standard aggregate producer without affecting other services.
+
+**Changes**:
+- In `AgenticAggregateServiceApplication` (or wherever `agenticServiceProducerFactory` is configured), set `transaction.timeout.ms` to a higher value appropriate for agent workloads. A recommended starting point is **300000** (5 minutes), configurable via application property `akces.agentic.transaction-timeout-ms`.
+- Document this configuration requirement so that operators know to tune it based on their expected agent execution times.
+- The adapter's `apply()` method should log a warning if the tick loop exceeds a configurable threshold (e.g., 80% of the transaction timeout) to provide early visibility into potential timeout risks.
+
+**Error handling during agent execution**:
+- If `AgentProcess.tick()` throws an exception, the adapter should catch it, log the error, and return an appropriate `ErrorEvent` (e.g., `CommandExecutionError`) so that the transaction can still commit with a meaningful error result rather than aborting silently.
+- If the Kafka transaction is aborted (e.g., due to timeout), the standard `processRecords()` catch block calls `producer.abortTransaction()` and `stateRepository.rollback()`, which discards all changes from that processing cycle. The command/event will be re-processed on the next poll iteration.
+
+### 4.5 Agent Context Setup
 
 **What**: Define the standard set of objects placed on the `Blackboard` before agent invocation. This is done inside the agentic handler adapters' `apply()` method.
 
@@ -699,7 +678,9 @@ AgenticAggregatePartition.run():
 
 ## Phase 5: Testing
 
-### 5.1 Unit Tests
+### 5.1 Unit Tests (Phase 2 — Actions, Goals, Conditions)
+
+Phase 2 components (Actions, Goals, Conditions in `AkcesAgentComponent`) are tested at the **unit level only** — no Kafka, no Spring Boot context, no integration test infrastructure. These tests verify the individual building blocks in isolation using mocked Blackboard contexts.
 
 | Test Class | What to Verify |
 |-----------|---------------|
@@ -707,14 +688,21 @@ AgenticAggregatePartition.run():
 | `StoreMemoryActionTest` | Produces valid `MemoryStoredEvent` from blackboard context |
 | `ForgetMemoryActionTest` | Produces valid `MemoryRevokedEvent` from blackboard context |
 | `RecallMemoriesActionTest` | Correctly filters memories by subject/keyword |
-| `AgentPlatformInjectionTest` | Verifies `AgentPlatform` is correctly wired through factory → runtime; verifies fatal error when `AgentPlatform` is absent |
 | `AgentProcessResultTranslatorTest` | Correctly extracts events and commands from blackboard |
+
+### 5.2 Unit Tests (Phase 1, Annotation Extensions)
+
+These unit tests verify the wiring and registration of agent-specific metadata.
+
+| Test Class | What to Verify |
+|-----------|---------------|
+| `AgentPlatformInjectionTest` | Verifies `AgentPlatform` is correctly wired through factory → runtime; verifies fatal error when `AgentPlatform` is absent |
 | `AgentProducedErrorsRegistrationTest` | Verifies `agentProducedErrors` are registered as `DomainEventType(error=true)` |
 | `AgentHandledCommandsRegistrationTest` | Verifies `agentHandledCommands` create `CommandType` entries with `AgenticCommandHandlerFunctionAdapter` |
 | `AgentHandledEventsRegistrationTest` | Verifies `agentHandledEvents` create external `DomainEventType` entries with `AgenticEventHandlerFunctionAdapter` |
 | `DiscoverAggregateServicesActionTest` | Verifies `AggregateServiceRecord`s are correctly exposed on the blackboard |
 
-### 5.2 Test Agent Implementation: `TestTradingAdvisorAgent`
+### 5.3 Test Agent Implementation: `TestTradingAdvisorAgent`
 
 Based on the TradingAdvisor example from the beginning of this plan, create a concrete test agent implementation in the test sources:
 
@@ -839,7 +827,9 @@ public class TestTradingAdvisorAgentComponent {
 - Testing of `agentHandledCommands`, `agentHandledEvents`, and `agentProducedErrors` registration
 - A reference implementation that documents the expected patterns for real-world agents
 
-### 5.3 Integration Tests
+### 5.4 Integration Tests (Phase 4 — Full Agent Loop)
+
+Integration tests exercise the full agent loop from command/event arrival through Embabel agent invocation to state application. These require the `TestTradingAdvisorAgent` fixtures from section 5.3.
 
 | Test Class | What to Verify |
 |-----------|---------------|
@@ -860,10 +850,8 @@ public class TestTradingAdvisorAgentComponent {
 | `AkcesAgentComponent.java` | `o.e.a.agentic.agent` | `@EmbabelComponent` with reusable Actions, Conditions |
 | `AkcesAgentGoals.java` | `o.e.a.agentic.agent` | Goal definitions as static factory methods |
 | `AgentProcessResultTranslator.java` | `o.e.a.agentic.agent` | Translates `AgentProcess` results to Akces domain objects |
-| `AgentTask.java` | `o.e.a.agentic` | Record with `String id` representing an active agent process; tracked in state's `activeAgentTasks` |
-| `AgenticProcessHandler.java` | `o.e.a.agentic.runtime` | Interface with `proceed(AgentTask, state)` for incremental agent process advancement; implemented by both agentic handler adapters |
-| `AgenticCommandHandlerFunctionAdapter.java` | `o.e.a.agentic.runtime` | `CommandHandlerFunction` + `AgenticProcessHandler` impl that routes agent-handled commands through the Embabel agent |
-| `AgenticEventHandlerFunctionAdapter.java` | `o.e.a.agentic.runtime` | `EventHandlerFunction` + `AgenticProcessHandler` impl that routes agent-handled external events through the Embabel agent |
+| `AgenticCommandHandlerFunctionAdapter.java` | `o.e.a.agentic.runtime` | `CommandHandlerFunction` impl that routes agent-handled commands through the Embabel agent via `ProcessCommandGoal` |
+| `AgenticEventHandlerFunctionAdapter.java` | `o.e.a.agentic.runtime` | `EventHandlerFunction` impl that routes agent-handled external events through the Embabel agent via `ReactToExternalEventGoal` |
 
 ### Test Files (new)
 
@@ -888,7 +876,16 @@ public class TestTradingAdvisorAgentComponent {
 | `KafkaAgenticAggregateRuntime.java` | Accept and store `AgentPlatform`; implement `getAgentPlatform()` (delegation pattern unchanged) |
 | `AgenticAggregateRuntimeFactory.java` | Resolve `AgentPlatform` from `ApplicationContext`; create `AgenticCommandHandlerFunctionAdapter` / `AgenticEventHandlerFunctionAdapter` for agent-handled commands/events; process `agentHandledCommands`, `agentHandledEvents`, `agentProducedErrors` from annotation |
 | `AgenticAggregateBeanFactoryPostProcessor.java` | Read new annotation properties; register `CommandType` for `agentHandledCommands`, `DomainEventType(external=true)` for `agentHandledEvents`, `DomainEventType(error=true)` for `agentProducedErrors` |
-| `AkcesAgenticAggregateController.java` | Expose `aggregateServices` map to adapters; populate `consumedEvents` in `AggregateServiceRecord` from `getExternalDomainEventTypes()` (including `agentHandledEvents`) |
+| `AkcesAgenticAggregateController.java` | Expose `aggregateServices` map to adapters; populate `consumedEvents` in `AggregateServiceRecord` from `getExternalDomainEventTypes()` (including `agentHandledEvents`); remove `StoreMemoryCommand`/`ForgetMemoryCommand` from built-in command registrations |
+| `AgenticAggregatePartition.java` | Remove `maxMemories` field, `enforceMemorySlidingWindow()` method, and `ForgetMemoryCommand` import; memory capacity enforcement is now handled by the `LearnFromProcessGoal` |
+| `AgenticAggregateServiceApplication.java` | Configure `agenticServiceProducerFactory` with increased `transaction.timeout.ms` (default 300000 / 5 minutes); expose `akces.agentic.transaction-timeout-ms` as configurable property |
+
+### Deleted Files
+
+| File | Reason |
+|------|--------|
+| `StoreMemoryCommand.java` | Memory storage is now handled entirely by `StoreMemoryAction` (Embabel `@Action`) producing `MemoryStoredEvent` directly |
+| `ForgetMemoryCommand.java` | Memory revocation is now handled entirely by `ForgetMemoryAction` (Embabel `@Action`) producing `MemoryRevokedEvent` directly |
 
 ---
 
@@ -922,9 +919,11 @@ The following questions have been resolved by the Architect:
 
 2. **Agent Scope**: Each `AgenticAggregate` gets its **own `Agent` instance** deployed to the `AgentPlatform`. When multiple `AgenticAggregate`s are deployed in a single VM instance (sharing the `AgentPlatform`), they each use their own `Agent` instance.
 
-3. **Synchronous vs. Async Agent Execution**: Use `AgentProcess.tick()` for incremental execution. **Important**: if there is an active `AgentProcess`, `tick()` must be called even if no records come back from the Kafka poll. In the future, multiple running processes per `AgenticAgent` will be supported, but this requires additional state management and is out of scope for now.
+3. **Synchronous Agent Execution**: Use `AgentProcess.tick()` in a loop until the process reaches an end state (tick-to-completion). The adapter calls `agentPlatform.createAgentProcess(goal, blackboard)` and runs the process synchronously inside the `apply()` method. Incremental tick support (single tick per invocation with active task tracking) is deferred to a [separate plan](../plans/agenttasks.md).
 
 4. **MCP Tool Scoping**: MCP tools added in the core `AgenticAggregate` are **available to all Agents**. No per-aggregate tool scoping is needed — shared tools are the default.
 
 5. **Error Event Validation at Runtime**: Accept **all `ErrorEvent`s** at runtime, even if they are not declared in `agentProducedErrors`. If an undeclared error event is emitted, **log a warning** but do not reject it. This provides flexibility while maintaining observability.
+
+6. **Transactional Boundaries**: The agent tick-to-completion loop runs inside the Kafka transaction opened by `AgenticAggregatePartition.processRecords()`. The `agenticServiceProducerFactory` must be configured with an increased `transaction.timeout.ms` (default 300000 / 5 minutes, configurable via `akces.agentic.transaction-timeout-ms`). This is an agreed design — implement as proposed in section 4.4.
 
