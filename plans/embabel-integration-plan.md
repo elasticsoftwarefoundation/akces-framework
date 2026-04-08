@@ -179,9 +179,9 @@ The resulting `AggregateServiceRecord.producedEvents` would contain:
 **Changes**:
 - In `AgenticAggregateRuntimeFactory.getObject()`, look up the `AgentPlatform` bean from `applicationContext`
 - Pass it as a constructor argument to `new KafkaAgenticAggregateRuntime(kafkaRuntime, objectMapper, stateClass, agentPlatform)`
-- Handle the case where `AgentPlatform` is not available (e.g., during unit tests without Embabel auto-configuration): fall back to a null reference with a warning log, making agent-based command processing a no-op
+- If `AgentPlatform` is not available in the `ApplicationContext`, fail fast with a fatal error — the application must not start without a configured `AgentPlatform`. This is a hard requirement for agentic aggregates.
 
-**Why**: The factory is the only place that creates `KafkaAgenticAggregateRuntime` instances. It already has access to the `ApplicationContext` via `ApplicationContextAware`.
+**Why**: The factory is the only place that creates `KafkaAgenticAggregateRuntime` instances. It already has access to the `ApplicationContext` via `ApplicationContextAware`. Since agentic aggregates fundamentally depend on the `AgentPlatform` for command processing, starting without it would lead to silent failures.
 
 ### 1.3 Update `AgenticAggregateRuntime` Interface
 
@@ -220,7 +220,7 @@ The resulting `AggregateServiceRecord.producedEvents` would contain:
 
 ### 2.2 Memory Management Action: `StoreMemoryAction`
 
-**What**: An `@Action`-annotated method that creates a `StoreMemoryCommand` from the current `AgentProcess` context and sends it to the aggregate's command bus.
+**What**: An `@Action`-annotated method that produces a `MemoryStoredEvent` directly, bypassing the internal command path. The event is applied to the state via the built-in `@EventSourcingHandler` for `MemoryStoredEvent`.
 
 ```
 @Action(description = "Store a learned fact as a memory entry for the agentic aggregate")
@@ -229,14 +229,16 @@ The resulting `AggregateServiceRecord.producedEvents` would contain:
 **Behavior**:
 1. Reads the current aggregate ID from the blackboard (set by the partition before agent invocation)
 2. Takes `subject`, `fact`, `citations`, and `reason` as inputs (from blackboard or method parameters)
-3. Creates a `StoreMemoryCommand` and returns it (the partition then handles sending it through the Kafka command path)
-4. The action result is a `StoreMemoryCommand` domain object that the partition processes after the agent completes
+3. Creates a `MemoryStoredEvent` and returns it on the blackboard
+4. The partition collects the event and applies it through the built-in `@EventSourcingHandler` (which calls `MemoryAwareState.withMemory()`)
 
-**Why**: This is the most fundamental agent action — the ability to learn and persist knowledge across interactions. It bridges the Embabel agent execution model with the Akces event-sourcing model.
+**Note**: The internal `StoreMemoryCommand` will be removed in a later stage. Actions should produce events that are applied to the state using the built-in EventSourcingHandlers.
+
+**Why**: This is the most fundamental agent action — the ability to learn and persist knowledge across interactions. Producing events directly (rather than commands) simplifies the flow and is consistent with the event-sourcing model where actions result in domain events.
 
 ### 2.3 Memory Management Action: `ForgetMemoryAction`
 
-**What**: An `@Action`-annotated method that creates a `ForgetMemoryCommand` to remove a specific memory by ID or by criteria.
+**What**: An `@Action`-annotated method that produces a `MemoryRevokedEvent` to remove a specific memory by ID or by criteria.
 
 ```
 @Action(description = "Revoke a memory entry that is no longer relevant or accurate")
@@ -244,8 +246,11 @@ The resulting `AggregateServiceRecord.producedEvents` would contain:
 
 **Behavior**:
 1. Takes `memoryId` and `reason` from the blackboard
-2. Creates a `ForgetMemoryCommand` and returns it
-3. Enables the agent to self-manage its knowledge base
+2. Creates a `MemoryRevokedEvent` and returns it on the blackboard
+3. The partition collects the event and applies it through the built-in `@EventSourcingHandler` (which calls `MemoryAwareState.withoutMemory()`)
+4. Enables the agent to self-manage its knowledge base
+
+**Note**: The internal `ForgetMemoryCommand` will be removed in a later stage.
 
 **Why**: Agents must be able to correct their knowledge. Outdated or incorrect facts should be removable.
 
@@ -279,19 +284,9 @@ The resulting `AggregateServiceRecord.producedEvents` would contain:
 
 **Why**: Some actions only make sense when the agent has prior context. For example, "recall memories" is only meaningful when memories exist.
 
-### 2.6 Condition: `HasAggregateStateCondition`
+### ~~2.6 Condition: `HasAggregateStateCondition`~~ — REMOVED
 
-**What**: A `@Condition`-annotated method that evaluates whether the aggregate has been initialized (state exists).
-
-```
-@Condition(name = "hasAggregateState")
-```
-
-**Behavior**:
-- Returns `true` if the blackboard contains a non-null aggregate state
-- Used as a precondition for actions that require the aggregate to exist
-
-**Why**: Creation commands are only valid when the aggregate does NOT exist, and mutation commands require the aggregate to exist. This enables goal planning to reason about aggregate lifecycle.
+> **Note**: This condition has been removed. The framework will ensure that for an `AgenticAggregate` the state is always created automatically (since agentic aggregates are singletons). There is no need to check for state existence as a precondition.
 
 ### 2.7 Goal: `LearnFromProcessGoal`
 
@@ -300,16 +295,24 @@ The resulting `AggregateServiceRecord.producedEvents` would contain:
 ```
 Goal: "LearnFromProcess"
 Description: "Extract and store relevant facts learned during the current agent process"
-Preconditions: hasAggregateState
 ```
 
-**Plan**: The agent planner would compose this as:
-1. `RecallMemoriesAction` → check existing memories
-2. (LLM reasoning) → determine what new facts were learned
-3. `StoreMemoryAction` → persist new memories
-4. Optionally `ForgetMemoryAction` → replace outdated memories
+**Constraints**:
+- **Maximum 3 new memories** per agent process execution. This prevents memory bloat from a single interaction.
+- **No duplicate memories**: Before storing, the agent must check existing memories and skip any fact that is already stored (same subject + substantially similar fact content).
+- **Memory field guidance** (to be included in the Goal's prompt instructions):
+  - `subject`: A 1-3 word topic label (e.g., "error handling", "user preferences", "market patterns"). Used for grouping and retrieval.
+  - `fact`: A clear, concise factual statement (max ~200 chars). Should be actionable and self-contained.
+  - `citations`: Source reference — the command/event type that triggered this learning, or relevant data points from the aggregate state.
+  - `reason`: Why this fact is worth remembering — what future decisions it informs. Should be 2-3 sentences explaining the significance.
 
-**Why**: This is the foundational agentic behavior — after processing any command, the agent should learn from the experience and update its knowledge base.
+**Plan**: The agent planner would compose this as:
+1. `RecallMemoriesAction` → check existing memories (to avoid duplicates)
+2. (LLM reasoning) → determine what new facts were learned, respecting the max-3 limit
+3. `StoreMemoryAction` → persist new memories (producing `MemoryStoredEvent`)
+4. Optionally `ForgetMemoryAction` → replace outdated memories (producing `MemoryRevokedEvent`)
+
+**Why**: This is the foundational agentic behavior — after processing any command, the agent should learn from the experience and update its knowledge base. The constraints ensure memory quality over quantity.
 
 ---
 
@@ -459,12 +462,14 @@ For external events declared in `agentHandledEvents`, the same Agent-First flow 
 **What**: Define how `AgentProcess` results (from the Embabel `Blackboard`) are translated back into Akces domain events and commands.
 
 **Changes**:
-- After `agentProcess.run()` completes, inspect the blackboard for:
+- After `agentProcess.tick()` completes (or the process reaches a terminal state), inspect the blackboard for:
   - `DomainEvent` objects → emit as domain events (both state-changing and error events)
+  - `MemoryStoredEvent` / `MemoryRevokedEvent` → apply through the built-in `@EventSourcingHandler` methods
   - `Command` objects → send through the command bus
-  - `StoreMemoryCommand` objects → process through the memory command path
 - Create a `AgentProcessResultTranslator` utility class to handle this translation
-- Validate that any emitted error events are declared in `agentProducedErrors` (or are system error events)
+- Accept all `ErrorEvent` instances at runtime, even if not declared in `agentProducedErrors`. Log a warning for undeclared error events but do not reject them.
+
+**Note on `tick()` execution**: Use `AgentProcess.tick()` for incremental execution. If there is an active `AgentProcess`, `tick()` must be called on every poll loop iteration, even if no Kafka records are returned.
 
 ### 4.3 Agent Context Setup
 
@@ -472,11 +477,11 @@ For external events declared in `agentHandledEvents`, the same Agent-First flow 
 
 **Standard Blackboard Content**:
 - `CommandRecord` or `DomainEventRecord` — the trigger
-- `AggregateState` — the current state (or null for creation)
+- `AggregateState` — the current state (always present — the framework ensures singleton state is auto-created)
 - `List<AgenticAggregateMemory>` — current memories
 - `String agenticAggregateId` — the aggregate identifier
 - `AggregateRuntime` — for type information (including registered `agentProducedErrors` types)
-- Conditions: `hasMemories`, `hasAggregateState`, `isCommandProcessing`/`isExternalEvent`
+- Conditions: `hasMemories`, `isCommandProcessing`/`isExternalEvent`
 
 ---
 
@@ -487,10 +492,10 @@ For external events declared in `agentHandledEvents`, the same Agent-First flow 
 | Test Class | What to Verify |
 |-----------|---------------|
 | `AkcesAgentComponentTest` | All Actions, Goals, and Conditions are correctly annotated and discoverable |
-| `StoreMemoryActionTest` | Creates valid `StoreMemoryCommand` from blackboard context |
-| `ForgetMemoryActionTest` | Creates valid `ForgetMemoryCommand` from blackboard context |
+| `StoreMemoryActionTest` | Produces valid `MemoryStoredEvent` from blackboard context |
+| `ForgetMemoryActionTest` | Produces valid `MemoryRevokedEvent` from blackboard context |
 | `RecallMemoriesActionTest` | Correctly filters memories by subject/keyword |
-| `AgentPlatformInjectionTest` | Verifies `AgentPlatform` is correctly wired through factory → runtime |
+| `AgentPlatformInjectionTest` | Verifies `AgentPlatform` is correctly wired through factory → runtime; verifies fatal error when `AgentPlatform` is absent |
 | `AgentProcessResultTranslatorTest` | Correctly extracts events and commands from blackboard |
 | `AgentProducedErrorsRegistrationTest` | Verifies `agentProducedErrors` are registered as `DomainEventType(error=true)` |
 | `AgentHandledCommandsRegistrationTest` | Verifies `agentHandledCommands` create `CommandType` entries without handler adapters |
@@ -501,8 +506,8 @@ For external events declared in `agentHandledEvents`, the same Agent-First flow 
 | Test Class | What to Verify |
 |-----------|---------------|
 | `EmbabelAgentLoopIntegrationTest` | Full agent invocation: command → agent → events, using mock LLM |
-| `MemoryLearningIntegrationTest` | Agent stores memory via `StoreMemoryAction` → `MemoryStoredEvent` emitted |
-| `AgentErrorEventIntegrationTest` | Agent produces error event from `agentProducedErrors` → event emitted, state unchanged |
+| `MemoryLearningIntegrationTest` | Agent stores memory via `StoreMemoryAction` → `MemoryStoredEvent` emitted and applied to state |
+| `AgentErrorEventIntegrationTest` | Agent produces error event → event emitted, state unchanged, undeclared errors logged with warning |
 
 ---
 
@@ -552,10 +557,17 @@ Phases 1 and Annotation Extensions can be developed in parallel as they are inde
 
 ---
 
-## Open Questions for Architect
+## Resolved Design Decisions
 
-1. **LLM Model Configuration**: Should the `@AgenticAggregateInfo` annotation include LLM model preferences (model name, temperature), or should this be purely configuration-based (application.yaml)?
-2. **Agent Scope**: Should each agentic aggregate get its own `Agent` instance (deployed to the `AgentPlatform`), or should the `AkcesAgentComponent`'s actions be shared across all agentic aggregates?
-3. **Synchronous vs. Async Agent Execution**: Should `agentProcess.run()` be called synchronously within the Kafka poll loop, or should we use `agentProcess.tick()` for incremental execution with periodic Kafka heartbeats?
-4. **MCP Tool Scoping**: Should MCP tools (from sidecar servers) be automatically added to the agent's tool groups, or should they be explicitly configured per agentic aggregate?
-5. **Error Event Validation at Runtime**: Should the `AgentProcessResultTranslator` strictly validate that emitted error events are in the `agentProducedErrors` set, or should it also accept system error events without explicit declaration?
+The following questions have been resolved by the Architect:
+
+1. **LLM Model Configuration**: LLM models are configured at the **Embabel level** (Embabel code/annotations or application configuration), **not** in the `@AgenticAggregateInfo` annotation. The Akces framework does not manage LLM model selection.
+
+2. **Agent Scope**: Each `AgenticAggregate` gets its **own `Agent` instance** deployed to the `AgentPlatform`. When multiple `AgenticAggregate`s are deployed in a single VM instance (sharing the `AgentPlatform`), they each use their own `Agent` instance.
+
+3. **Synchronous vs. Async Agent Execution**: Use `AgentProcess.tick()` for incremental execution. **Important**: if there is an active `AgentProcess`, `tick()` must be called even if no records come back from the Kafka poll. In the future, multiple running processes per `AgenticAgent` will be supported, but this requires additional state management and is out of scope for now.
+
+4. **MCP Tool Scoping**: MCP tools added in the core `AgenticAggregate` are **available to all Agents**. No per-aggregate tool scoping is needed — shared tools are the default.
+
+5. **Error Event Validation at Runtime**: Accept **all `ErrorEvent`s** at runtime, even if they are not declared in `agentProducedErrors`. If an undeclared error event is emitted, **log a warning** but do not reject it. This provides flexibility while maintaining observability.
+
