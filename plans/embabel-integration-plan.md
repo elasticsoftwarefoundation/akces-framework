@@ -471,7 +471,56 @@ For external events declared in `agentHandledEvents`, the same Agent-First flow 
 
 **Note on `tick()` execution**: Use `AgentProcess.tick()` for incremental execution. If there is an active `AgentProcess`, `tick()` must be called on every poll loop iteration, even if no Kafka records are returned.
 
-### 4.3 Agent Context Setup
+### 4.3 Event Application Mechanism — Applying DomainEvents from Embabel
+
+**What**: After each call to `AgentProcess.tick()`, any `DomainEvent` instances produced by the Embabel runtime must be collected and applied to the aggregate state. This requires access to the `processDomainEvent` method in `KafkaAggregateRuntime`, which is currently `private`.
+
+**Problem**: The current `KafkaAgenticAggregateRuntime` uses delegation — it holds a `KafkaAggregateRuntime` delegate and forwards all `AggregateRuntime` interface calls. However, the critical `processDomainEvent(...)` method (which handles serialization, state mutation via `@EventSourcingHandler`, state record creation, and error event emission) is `private` in `KafkaAggregateRuntime` and not accessible through the `AggregateRuntime` interface.
+
+**Proposed Solution: Extend `KafkaAggregateRuntime` instead of delegating**
+
+Refactor `KafkaAgenticAggregateRuntime` to **extend** `KafkaAggregateRuntime` instead of wrapping it as a delegate. This gives natural access to event processing internals:
+
+1. Change `KafkaAggregateRuntime.processDomainEvent(...)` from `private` to `protected`
+2. Change `KafkaAggregateRuntime.materialize(AggregateStateRecord)` from `private` to `protected` (needed to deserialize current state)
+3. Change `KafkaAggregateRuntime.getDomainEventType(Class<?>)` from `private` to `protected` (needed for event type lookup)
+4. Refactor `KafkaAgenticAggregateRuntime` to extend `KafkaAggregateRuntime` (remove delegation pattern)
+5. Add a new `protected` method `applyAgentEvents(...)` in `KafkaAgenticAggregateRuntime` that:
+   - Takes a `List<DomainEvent>` (collected from the blackboard after `tick()`)
+   - Iterates over each event and calls `processDomainEvent(...)` for each one
+   - Handles the `AggregateStateRecord` chain (each call returns the updated state record)
+
+**Why this approach**: Inheritance gives `KafkaAgenticAggregateRuntime` direct access to the event processing pipeline without duplicating logic. The `processDomainEvent` method already handles:
+- Distinguishing state-changing events from `ErrorEvent`s
+- Looking up the correct `EventSourcingHandlerFunction` for the event type
+- Creating `AggregateStateRecord` with incremented generation
+- Creating `DomainEventRecord` with proper serialization
+- Indexing events when required
+
+Duplicating this in the agentic module would be fragile and error-prone. Making these methods `protected` is a minimal change.
+
+**Event Collection Flow** (per `tick()` call):
+
+```
+AgenticAggregatePartition:
+  1. Call agentProcess.tick()
+  2. Collect DomainEvent instances from the blackboard
+  3. For each DomainEvent:
+     a. Call runtime.applyAgentEvents(events, correlationId, protocolRecordConsumer, 
+        domainEventIndexer, currentStateRecord)
+     b. The method chains processDomainEvent() calls, maintaining the state record chain
+  4. The resulting ProtocolRecords (state + event records) are emitted to Kafka
+```
+
+**Impact on existing code**:
+- `KafkaAggregateRuntime`: Change 3 methods from `private` to `protected` — no behavioral change for standard aggregates
+- `KafkaAgenticAggregateRuntime`: Refactor from delegation to inheritance — constructor changes, remove delegate field
+- `AgenticAggregateRuntimeFactory`: Update to construct via the new inheritance-based constructor
+- `KafkaAgenticAggregateRuntimeTest`: Update to reflect the new class hierarchy
+
+**Note**: Only make this change if it makes sense structurally. If `KafkaAggregateRuntime` is `final` or has other design constraints, an alternative would be to extract an `EventProcessor` interface or add a `processDomainEvents(List<DomainEvent>)` method to the `AggregateRuntime` interface.
+
+### 4.4 Agent Context Setup
 
 **What**: Define the standard set of objects placed on the `Blackboard` before agent invocation.
 
@@ -501,13 +550,140 @@ For external events declared in `agentHandledEvents`, the same Agent-First flow 
 | `AgentHandledCommandsRegistrationTest` | Verifies `agentHandledCommands` create `CommandType` entries without handler adapters |
 | `AgentHandledEventsRegistrationTest` | Verifies `agentHandledEvents` create external `DomainEventType` entries |
 
-### 5.2 Integration Tests
+### 5.2 Test Agent Implementation: `TestTradingAdvisorAgent`
+
+Based on the TradingAdvisor example from the beginning of this plan, create a concrete test agent implementation in the test sources:
+
+**Package**: `org.elasticsoftware.akces.agentic.testfixtures`
+
+#### Test Aggregate
+
+```java
+@AgenticAggregateInfo(
+    value = "TestTradingAdvisor",
+    stateClass = TestTradingAdvisorState.class,
+    agentHandledCommands = { TestAnalyzeMarketCommand.class },
+    agentHandledEvents = { TestMarketDataUpdatedEvent.class },
+    agentProducedErrors = { TestMarketUnavailableErrorEvent.class }
+)
+public class TestTradingAdvisorAggregate implements AgenticAggregate<TestTradingAdvisorState> {
+
+    @CommandHandler(create = true,
+                    produces = {TestTradingAdvisorCreatedEvent.class}, errors = {})
+    public Stream<DomainEvent> create(TestCreateTradingAdvisorCommand cmd, TestTradingAdvisorState isNull) {
+        return Stream.of(new TestTradingAdvisorCreatedEvent(cmd.id()));
+    }
+
+    @EventSourcingHandler(create = true)
+    public TestTradingAdvisorState create(TestTradingAdvisorCreatedEvent e, TestTradingAdvisorState isNull) {
+        return new TestTradingAdvisorState(e.id(), List.of(), List.of());
+    }
+
+    @EventSourcingHandler
+    public TestTradingAdvisorState apply(TestMarketAnalysisCompletedEvent e, TestTradingAdvisorState s) {
+        var analyses = new ArrayList<>(s.analyses());
+        analyses.add(e.analysis());
+        return new TestTradingAdvisorState(s.id(), s.memories(), analyses);
+    }
+}
+```
+
+#### Test State (implements MemoryAwareState)
+
+```java
+@AggregateStateInfo(type = "TestTradingAdvisorState", version = 1)
+public record TestTradingAdvisorState(
+    String id,
+    List<AgenticAggregateMemory> memories,
+    List<String> analyses
+) implements AggregateState, MemoryAwareState {
+
+    @Override
+    public String getAggregateId() { return id; }
+
+    @Override
+    public List<AgenticAggregateMemory> getMemories() { return memories; }
+
+    @Override
+    public TestTradingAdvisorState withMemory(AgenticAggregateMemory memory) {
+        var updated = new ArrayList<>(memories);
+        updated.add(memory);
+        return new TestTradingAdvisorState(id, List.copyOf(updated), analyses);
+    }
+
+    @Override
+    public TestTradingAdvisorState withoutMemory(String memoryId) {
+        return new TestTradingAdvisorState(id,
+            memories.stream().filter(m -> !m.id().equals(memoryId)).toList(),
+            analyses);
+    }
+}
+```
+
+#### Test Commands and Events
+
+| Type | Class | Notes |
+|------|-------|-------|
+| Command | `TestCreateTradingAdvisorCommand` | Deterministic creation, has `@CommandHandler` |
+| Command | `TestAnalyzeMarketCommand` | Agent-handled, declared in `agentHandledCommands` |
+| Event | `TestTradingAdvisorCreatedEvent` | From deterministic `@CommandHandler` |
+| Event | `TestMarketAnalysisCompletedEvent` | Produced by agent, has `@EventSourcingHandler` |
+| Event (external) | `TestMarketDataUpdatedEvent` | Agent-handled, declared in `agentHandledEvents` |
+| ErrorEvent | `TestMarketUnavailableErrorEvent` | Agent-produced, declared in `agentProducedErrors` |
+
+#### Test Embabel Agent Component
+
+```java
+@EmbabelComponent
+public class TestTradingAdvisorAgentComponent {
+
+    @Action(description = "Analyze market data and produce a market analysis event")
+    @AchievesGoal("ProcessCommand")
+    public TestMarketAnalysisCompletedEvent analyzeMarket(
+            TestAnalyzeMarketCommand command,
+            TestTradingAdvisorState state) {
+        // Simple deterministic logic for testing — no LLM needed
+        return new TestMarketAnalysisCompletedEvent(
+            command.id(),
+            "Analysis of " + command.market() + ": bullish trend detected");
+    }
+
+    @Action(description = "React to market data update")
+    @AchievesGoal("ReactToExternalEvent")
+    public TestMarketAnalysisCompletedEvent reactToMarketData(
+            TestMarketDataUpdatedEvent event,
+            TestTradingAdvisorState state) {
+        return new TestMarketAnalysisCompletedEvent(
+            state.id(),
+            "Reactive analysis for " + event.market());
+    }
+
+    @Action(description = "Produce an error when market is unavailable")
+    @AchievesGoal("ProcessCommand")
+    public TestMarketUnavailableErrorEvent marketUnavailable(
+            TestAnalyzeMarketCommand command) {
+        return new TestMarketUnavailableErrorEvent(
+            command.id(),
+            "Market " + command.market() + " is currently unavailable");
+    }
+}
+```
+
+**Why**: A concrete test agent implementation enables:
+- Integration tests that exercise the full agent loop (command → Embabel → events → state)
+- Validation of the event application mechanism from section 4.3
+- Testing of `agentHandledCommands`, `agentHandledEvents`, and `agentProducedErrors` registration
+- A reference implementation that documents the expected patterns for real-world agents
+
+### 5.3 Integration Tests
 
 | Test Class | What to Verify |
 |-----------|---------------|
-| `EmbabelAgentLoopIntegrationTest` | Full agent invocation: command → agent → events, using mock LLM |
+| `EmbabelAgentLoopIntegrationTest` | Full agent invocation using `TestTradingAdvisorAgent`: `TestAnalyzeMarketCommand` → agent → `TestMarketAnalysisCompletedEvent` applied to state |
 | `MemoryLearningIntegrationTest` | Agent stores memory via `StoreMemoryAction` → `MemoryStoredEvent` emitted and applied to state |
-| `AgentErrorEventIntegrationTest` | Agent produces error event → event emitted, state unchanged, undeclared errors logged with warning |
+| `AgentErrorEventIntegrationTest` | Agent produces `TestMarketUnavailableErrorEvent` → event emitted, state unchanged, undeclared errors logged with warning |
+| `AgentExternalEventIntegrationTest` | `TestMarketDataUpdatedEvent` → agent → `TestMarketAnalysisCompletedEvent` applied to state |
+| `EventApplicationMechanismTest` | Verifies that DomainEvents from `tick()` are correctly applied via `processDomainEvent` (state transitions, generation numbers, error event handling) |
 
 ---
 
@@ -521,16 +697,31 @@ For external events declared in `agentHandledEvents`, the same Agent-First flow 
 | `AkcesAgentGoals.java` | `o.e.a.agentic.agent` | Goal definitions as static factory methods |
 | `AgentProcessResultTranslator.java` | `o.e.a.agentic.agent` | Translates `AgentProcess` results to Akces domain objects |
 
+### Test Files (new)
+
+| File | Package | Purpose |
+|------|---------|---------|
+| `TestTradingAdvisorAggregate.java` | `o.e.a.agentic.testfixtures` | Test agentic aggregate with deterministic + agent-handled commands |
+| `TestTradingAdvisorState.java` | `o.e.a.agentic.testfixtures` | MemoryAwareState with analyses list |
+| `TestCreateTradingAdvisorCommand.java` | `o.e.a.agentic.testfixtures` | Deterministic creation command |
+| `TestAnalyzeMarketCommand.java` | `o.e.a.agentic.testfixtures` | Agent-handled command |
+| `TestTradingAdvisorCreatedEvent.java` | `o.e.a.agentic.testfixtures` | Creation event from `@CommandHandler` |
+| `TestMarketAnalysisCompletedEvent.java` | `o.e.a.agentic.testfixtures` | State-changing event from agent |
+| `TestMarketDataUpdatedEvent.java` | `o.e.a.agentic.testfixtures` | External event, agent-handled |
+| `TestMarketUnavailableErrorEvent.java` | `o.e.a.agentic.testfixtures` | Agent-produced error event |
+| `TestTradingAdvisorAgentComponent.java` | `o.e.a.agentic.testfixtures` | `@EmbabelComponent` with test actions for the agent |
+
 ### Modified Files
 
 | File | Changes |
 |------|---------|
 | `AgenticAggregateInfo.java` | Add `agentHandledCommands()`, `agentHandledEvents()`, `agentProducedErrors()` properties |
 | `AgenticAggregateRuntime.java` | Add `getAgentPlatform()` method |
-| `KafkaAgenticAggregateRuntime.java` | Accept and store `AgentPlatform`; implement `getAgentPlatform()` |
-| `AgenticAggregateRuntimeFactory.java` | Resolve `AgentPlatform` from `ApplicationContext`; process `agentHandledCommands`, `agentHandledEvents`, `agentProducedErrors` from annotation |
+| `KafkaAggregateRuntime.java` | Change `processDomainEvent()`, `materialize(AggregateStateRecord)`, `getDomainEventType(Class<?>)` from `private` to `protected` |
+| `KafkaAgenticAggregateRuntime.java` | Refactor from delegation to inheritance (extends `KafkaAggregateRuntime`); add `applyAgentEvents()` method; accept and store `AgentPlatform`; implement `getAgentPlatform()` |
+| `AgenticAggregateRuntimeFactory.java` | Resolve `AgentPlatform` from `ApplicationContext`; construct via inheritance-based constructor; process `agentHandledCommands`, `agentHandledEvents`, `agentProducedErrors` from annotation |
 | `AgenticAggregateBeanFactoryPostProcessor.java` | Read new annotation properties; register `CommandType` for `agentHandledCommands`, `DomainEventType(external=true)` for `agentHandledEvents`, `DomainEventType(error=true)` for `agentProducedErrors` |
-| `AgenticAggregatePartition.java` | Add agent context setup and result translation in `handleCommand()`; distinguish agent-handled vs deterministic commands |
+| `AgenticAggregatePartition.java` | Add agent context setup, event collection after `tick()`, and result translation in `handleCommand()`; distinguish agent-handled vs deterministic commands |
 | `AkcesAgenticAggregateController.java` | Populate `consumedEvents` in `AggregateServiceRecord` from `getExternalDomainEventTypes()` (including `agentHandledEvents`) |
 
 ---
