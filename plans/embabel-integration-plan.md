@@ -116,6 +116,24 @@ For each class in agentProducedErrors[]:
 
 Instead of bypassing the handler mechanism entirely for agent-handled commands/events, we create new adapter implementations that plug into the existing `CommandHandlerFunction` / `EventHandlerFunction` contracts. This allows the standard `KafkaAggregateRuntime.handleCommand()` and `handleEvent()` flows to work unchanged — the adapters route processing through the Embabel agent instead of a deterministic method.
 
+#### `AgentTask` Record
+
+An `AgentTask` represents a running agent process that needs further `tick()` calls. It is tracked in the aggregate state's `activeAgentTasks` list so that the Akces runtime knows which processes need to be advanced on subsequent poll loop iterations.
+
+```java
+/**
+ * Represents an active agent process that requires further tick() calls to complete.
+ * Stored in the agentic aggregate state to enable incremental multi-step processing.
+ *
+ * @param id unique identifier for this agent task (typically the AgentProcess ID)
+ */
+public record AgentTask(String id) {}
+```
+
+The `activeAgentTasks` property is maintained on the agentic aggregate state (any state implementing `MemoryAwareState` for agentic aggregates). When a new agent process starts, an `AgentTask` is added; when a process reaches an end state, the task is removed. The Akces runtime uses this list to determine whether `proceed()` calls are needed on poll iterations with no incoming Kafka records.
+
+**Current implementation**: For now, `apply()` calls `AgentProcess.tick()` in a loop until the process reaches an end state, so `activeAgentTasks` will always be empty after `apply()` returns. This will change when we add true incremental tick support in a separate feature.
+
 #### `AgenticProcessHandler` Interface
 
 Both agentic adapters implement a new `AgenticProcessHandler` interface that defines the contract for running agent processes. This interface exposes a `proceed()` method for advancing active processes beyond the initial `apply()` call:
@@ -128,16 +146,17 @@ public interface AgenticProcessHandler<S extends AggregateState & MemoryAwareSta
      * Called by the Akces runtime when there is an active process that needs to advance,
      * independent of whether new Kafka records have arrived.
      *
+     * @param agentTask the active agent task to advance
      * @param state the current aggregate state
      * @return stream of domain events produced by the agent process step
      */
-    Stream<E> proceed(S state);
+    Stream<E> proceed(AgentTask agentTask, S state);
 }
 ```
 
-**Current implementation**: Since there is currently no notion of `AgentTask` in the aggregate state to track running processes, the adapters call `AgentProcess.tick()` in a loop until the process reaches an end state (completed/failed). This means `apply()` blocks until the full agent process finishes.
+**Current implementation**: Since `apply()` currently calls `tick()` in a loop until the agent process reaches an end state (completed/failed), the `proceed()` method is not yet invoked by the runtime. The `activeAgentTasks` list will always be empty after `apply()` returns.
 
-**Future change**: When `AgentTask` support is added to the state (in a separate feature), the adapter will call `tick()` only once in `apply()` and record the running task in the state. The Akces runtime will then call `proceed(state)` on subsequent poll loop iterations for any active tasks, enabling true incremental multi-step processing without blocking the partition thread.
+**Future change**: When true incremental tick support is added, the adapter will call `tick()` only once in `apply()` and record the running task in the `activeAgentTasks` list. The Akces runtime will then call `proceed(agentTask, state)` on subsequent poll loop iterations for any active tasks, enabling true incremental multi-step processing without blocking the partition thread.
 
 #### `AgenticCommandHandlerFunctionAdapter`
 
@@ -163,8 +182,8 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState & Mem
     }
 
     @Override
-    public Stream<E> proceed(S state) {
-        // For future use: advance an active AgentProcess with a single tick()
+    public Stream<E> proceed(AgentTask agentTask, S state) {
+        // For future use: advance an active AgentProcess identified by agentTask with a single tick()
         // Currently not called since apply() runs tick() to completion
     }
 
@@ -202,8 +221,8 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState & Memor
     }
 
     @Override
-    public Stream<E> proceed(S state) {
-        // For future use: advance an active AgentProcess with a single tick()
+    public Stream<E> proceed(AgentTask agentTask, S state) {
+        // For future use: advance an active AgentProcess identified by agentTask with a single tick()
         // Currently not called since apply() runs tick() to completion
     }
 
@@ -224,7 +243,7 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState & Memor
 - `AgentPlatform` and other agent resources are injected at adapter construction time
 - The Blackboard setup (command/event, state, memories, aggregate service records) is done inside the adapter's `apply()` method
 - `tick()` lifecycle management happens inside the adapter
-- The `AgenticProcessHandler` interface prepares for future incremental tick support via `proceed()`
+- The `AgenticProcessHandler` interface prepares for incremental tick support via `proceed(AgentTask, state)`, with `proceedAgentTasks()` on `KafkaAggregateRuntime` driving the loop
 
 **Impact on section 4.3 (Event Application Mechanism)**: With the adapter approach, the event application mechanism is greatly simplified. The adapter returns events as a `Stream<DomainEvent>`, and the standard `KafkaAggregateRuntime.handleCommand()` already iterates and calls `processDomainEvent()` for each one. **No need to make `processDomainEvent` protected or refactor to inheritance** — the existing delegation pattern works as-is.
 
@@ -604,7 +623,7 @@ For commands with a standard `@CommandHandler` method, the existing `CommandHand
 
 For external events declared in `agentHandledEvents`, the same adapter-based flow applies via `AgenticEventHandlerFunctionAdapter`.
 
-**Note on tick-to-completion**: Currently, `apply()` calls `tick()` in a loop until the agent process reaches an end state. This is a temporary approach — when `AgentTask` support is added to the state (separate feature), the adapter will call `tick()` only once per invocation, and the `proceed(state)` method from the `AgenticProcessHandler` interface will be used for subsequent ticks on active tasks.
+**Note on tick-to-completion**: Currently, `apply()` calls `tick()` in a loop until the agent process reaches an end state. This is a temporary approach — when true incremental tick support is added, the adapter will call `tick()` only once per invocation, add an `AgentTask` to the state's `activeAgentTasks`, and the `proceedAgentTasks()` method on `KafkaAggregateRuntime` (called from `AgenticAggregatePartition` when there are no Kafka records) will call `proceed(agentTask, state)` on the handlers for each active task.
 
 **Key advantage**: No changes needed to `KafkaAggregateRuntime` internals. The `handleCommand()` and `handleEvent()` methods already work with the `CommandHandlerFunction` / `EventHandlerFunction` interfaces — the agentic adapters are just new implementations that route through the agent instead of a deterministic method.
 
@@ -620,7 +639,7 @@ For external events declared in `agentHandledEvents`, the same adapter-based flo
 - Create a `AgentProcessResultTranslator` utility class to handle this translation
 - Accept all `ErrorEvent` instances at runtime, even if not declared in `agentProducedErrors`. Log a warning for undeclared error events but do not reject them.
 
-**Current tick behavior**: The adapter calls `tick()` in a loop until the process reaches an end state, collecting events after each tick. All collected events are returned as a single `Stream<DomainEvent>` from `apply()`. This is temporary — when `AgentTask` support is added, the `proceed(state)` method on `AgenticProcessHandler` will enable single-tick incremental processing.
+**Current tick behavior**: The adapter calls `tick()` in a loop until the process reaches an end state, collecting events after each tick. All collected events are returned as a single `Stream<DomainEvent>` from `apply()`. This is temporary — when true incremental tick support is added, the `proceed(AgentTask, state)` method on `AgenticProcessHandler` will enable single-tick incremental processing, driven by `proceedAgentTasks()` on `KafkaAggregateRuntime`.
 
 ### 4.3 Event Application Mechanism — Simplified by Adapter Approach
 
@@ -639,7 +658,29 @@ KafkaAggregateRuntime.handleCommand():
   6. Error events → emitted without state change
 ```
 
-**Future incremental tick support**: When `AgentTask` support is added to the state, the flow will change: `apply()` will call `tick()` only once and return. The Akces runtime will detect active tasks via the state and call `proceed(state)` (from the `AgenticProcessHandler` interface) on subsequent poll loop iterations, even without new Kafka records. This enables non-blocking incremental processing.
+**Future incremental tick support**: When true incremental tick support is added, the flow will change: `apply()` will call `tick()` only once, add an `AgentTask` to the state's `activeAgentTasks`, and return. The `AgenticAggregatePartition` poll loop will call `KafkaAggregateRuntime.proceedAgentTasks()` on iterations with no incoming Kafka records. `proceedAgentTasks()` reads the current state, finds all `activeAgentTasks`, and calls `proceed(agentTask, state)` (from the `AgenticProcessHandler` interface) on each matching handler. This enables non-blocking incremental processing.
+
+### 4.3.1 `proceedAgentTasks()` — Active Task Advancement
+
+**What**: A new method on `KafkaAggregateRuntime` (or exposed through the delegation layer) that iterates over active `AgentTask` instances in the current state and calls `proceed(agentTask, state)` on the appropriate `AgenticProcessHandler` adapter for each one.
+
+**Invocation**: Called from `AgenticAggregatePartition` on poll loop iterations where no Kafka records are returned, ensuring active agent processes continue to advance even without new commands or events.
+
+**Current implementation**: Since `apply()` currently runs `tick()` to completion, the `activeAgentTasks` list is always empty, and `proceedAgentTasks()` is effectively a no-op. This will be activated when true incremental tick support is added.
+
+**Flow**:
+```
+AgenticAggregatePartition.run():
+  1. Poll Kafka for records
+  2. If records found → process normally via handleCommand() / handleEvent()
+  3. If no records found → call kafkaAggregateRuntime.proceedAgentTasks()
+     a. Read current state
+     b. For each AgentTask in state.activeAgentTasks():
+        i. Find the AgenticProcessHandler adapter that created this task
+        ii. Call adapter.proceed(agentTask, state)
+        iii. Apply returned DomainEvents via processDomainEvent()
+        iv. If agent process reached end state → remove AgentTask from state
+```
 
 ### 4.4 Agent Context Setup
 
@@ -819,7 +860,8 @@ public class TestTradingAdvisorAgentComponent {
 | `AkcesAgentComponent.java` | `o.e.a.agentic.agent` | `@EmbabelComponent` with reusable Actions, Conditions |
 | `AkcesAgentGoals.java` | `o.e.a.agentic.agent` | Goal definitions as static factory methods |
 | `AgentProcessResultTranslator.java` | `o.e.a.agentic.agent` | Translates `AgentProcess` results to Akces domain objects |
-| `AgenticProcessHandler.java` | `o.e.a.agentic.runtime` | Interface with `proceed(state)` for incremental agent process advancement; implemented by both agentic handler adapters |
+| `AgentTask.java` | `o.e.a.agentic` | Record with `String id` representing an active agent process; tracked in state's `activeAgentTasks` |
+| `AgenticProcessHandler.java` | `o.e.a.agentic.runtime` | Interface with `proceed(AgentTask, state)` for incremental agent process advancement; implemented by both agentic handler adapters |
 | `AgenticCommandHandlerFunctionAdapter.java` | `o.e.a.agentic.runtime` | `CommandHandlerFunction` + `AgenticProcessHandler` impl that routes agent-handled commands through the Embabel agent |
 | `AgenticEventHandlerFunctionAdapter.java` | `o.e.a.agentic.runtime` | `EventHandlerFunction` + `AgenticProcessHandler` impl that routes agent-handled external events through the Embabel agent |
 
