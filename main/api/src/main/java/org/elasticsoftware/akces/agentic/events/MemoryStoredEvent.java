@@ -33,7 +33,7 @@ import java.time.Instant;
  *
  * @param agenticAggregateId the unique identifier of the AgenticAggregate instance
  * @param memoryId           UUID uniquely identifying this memory entry
- * @param subject            a short (1–2 word) topic label for the stored memory
+ * @param subject            a short (1–3 word) topic label for the stored memory
  * @param fact               the fact that was stored (max 200 characters)
  * @param citations          the source citation for the fact
  * @param reason             the reason the memory was stored

@@ -346,37 +346,45 @@ The resulting `AggregateServiceRecord.producedEvents` would contain:
 
 **Why**: Embabel discovers Goals/Actions/Conditions by scanning `@EmbabelComponent`-annotated classes. This provides a centralized place for Akces-specific agent capabilities that are automatically registered with the `AgentPlatform`.
 
-### 2.2 Memory Management Action: `StoreMemoryAction`
+### ~~2.2 Memory Management Action: `StoreMemoryAction`~~ — MOVED TO `AgenticAggregate` INTERFACE
 
-**What**: An `@Action`-annotated method that produces a `MemoryStoredEvent` directly. The event is applied to the state via the built-in `@EventSourcingHandler` for `MemoryStoredEvent`.
+> **Note**: The `storeMemory` method has been moved from `AkcesAgentComponent` (as an `@Action`) to the `AgenticAggregate` interface (as a `@Tool`-annotated default method). This allows the LLM to call it directly during `learnFromProcess` via `withToolObject(aggregate)`.
 
-```
-@Action(description = "Store a learned fact as a memory entry for the agentic aggregate")
-```
+**What**: A `@Tool`-annotated (Spring AI `org.springframework.ai.tool.annotation.Tool`) default method on the `AgenticAggregate` interface that produces a `MemoryStoredEvent`.
 
-**Behavior**:
-1. Reads the current aggregate ID from the blackboard (set by the partition before agent invocation)
-2. Takes `subject`, `fact`, `citations`, and `reason` as inputs (from blackboard or method parameters)
-3. Creates a `MemoryStoredEvent` and returns it on the blackboard
-4. The partition collects the event and applies it through the built-in `@EventSourcingHandler` (which calls `MemoryAwareState.withMemory()`)
-
-**Why**: This is the most fundamental agent action — the ability to learn and persist knowledge across interactions. Producing events directly (rather than commands) simplifies the flow and is consistent with the event-sourcing model where actions result in domain events.
-
-### 2.3 Memory Management Action: `ForgetMemoryAction`
-
-**What**: An `@Action`-annotated method that produces a `MemoryRevokedEvent` to remove a specific memory by ID or by criteria.
-
-```
-@Action(description = "Revoke a memory entry that is no longer relevant or accurate")
+```java
+@Tool(description = "Store a learned fact as a memory entry for the agentic aggregate")
+default MemoryStoredEvent storeMemory(
+        @ToolParam(description = "The unique identifier of the agentic aggregate instance") String agenticAggregateId,
+        @ToolParam(description = "A short 1-3 word topic label for the memory") String subject,
+        @ToolParam(description = "A clear, concise factual statement (max ~200 characters)") String fact,
+        @ToolParam(description = "Source reference - the command/event type that triggered this learning") String citations,
+        @ToolParam(description = "Why this fact is worth remembering - 2-3 sentences explaining significance") String reason) { ... }
 ```
 
-**Behavior**:
-1. Takes `memoryId` and `reason` from the blackboard
-2. Creates a `MemoryRevokedEvent` and returns it on the blackboard
-3. The partition collects the event and applies it through the built-in `@EventSourcingHandler` (which calls `MemoryAwareState.withoutMemory()`)
-4. Enables the agent to self-manage its knowledge base
+**Behavior**: Creates and returns a `MemoryStoredEvent` with a random UUID and current timestamp. The event is collected from the `MemoryLearningResult` by `AgentProcessResultTranslator` and applied through the built-in `@EventSourcingHandler`.
 
-**Why**: Agents must be able to correct their knowledge. Outdated or incorrect facts should be removable.
+**Why**: By placing the method on the `AgenticAggregate` interface and annotating it with `@Tool`, the LLM can call it as a function tool during the `createObject()` call in `learnFromProcess`. This eliminates the need for a separate Embabel `@Action` and leverages Spring AI's tool-calling mechanism.
+
+### ~~2.3 Memory Management Action: `ForgetMemoryAction`~~ — MOVED TO `AgenticAggregate` INTERFACE
+
+> **Note**: The `forgetMemory` method has been moved from `AkcesAgentComponent` (as an `@Action`) to the `AgenticAggregate` interface (as a `@Tool`-annotated default method).
+
+**What**: A `@Tool`-annotated default method on the `AgenticAggregate` interface that produces a `MemoryRevokedEvent`.
+
+```java
+@Tool(description = "Revoke a memory entry that is no longer relevant or accurate")
+default MemoryRevokedEvent forgetMemory(
+        @ToolParam(description = "The unique identifier of the agentic aggregate instance") String agenticAggregateId,
+        @ToolParam(description = "The UUID of the memory entry to revoke") String memoryId,
+        @ToolParam(description = "The reason the memory is being revoked") String reason) { ... }
+```
+
+**Behavior**: Creates and returns a `MemoryRevokedEvent`. The event is collected from the `MemoryLearningResult` by `AgentProcessResultTranslator`.
+
+**Why**: Same rationale as `storeMemory` — placing the method on the aggregate interface allows the LLM to call it as a tool during the learning process.
+
+**Dependency changes**: `MemoryStoredEvent` and `MemoryRevokedEvent` have been moved from `main/agentic` to `main/api` (package `org.elasticsoftware.akces.agentic.events`) since they only depend on API-module classes and are now referenced by the `AgenticAggregate` interface. The `spring-ai-model` dependency is added to the `api` module as `<optional>true</optional>` for the `@Tool` and `@ToolParam` annotations.
 
 ### 2.4 Memory Retrieval Action: `RecallMemoriesAction`
 
@@ -418,31 +426,36 @@ The resulting `AggregateServiceRecord.producedEvents` would contain:
 
 ```
 Goal: "LearnFromProcess"
-Description: "Analyze current session information and distill useful memories"
+@AchievesGoal(description = "Learned from current session and stored and/or removed memories")
 ```
 
-**Why a Goal and not an Action**: The memory distillation process requires **multi-step LLM reasoning**, not just data manipulation. A simple `@Action` can only perform a single operation (e.g., store a memory, recall memories). The `LearnFromProcessGoal` orchestrates a reasoning pipeline:
-1. The Blackboard contains all session information: the original command/event, the current aggregate state, any domain events produced, existing memories, and aggregate service records.
-2. The Embabel GOAP planner uses LLM reasoning to analyze this session context and determine what facts are worth remembering — this is the intelligence step that cannot be reduced to a single Action.
-3. The goal then uses Actions (`RecallMemoriesAction`, `StoreMemoryAction`, `ForgetMemoryAction`) as execution primitives to actually persist the decisions.
+**Implementation**: The `learnFromProcess` method in `AkcesAgentComponent` is annotated with both `@AchievesGoal` and `@Action`. It accepts:
+1. `List<AgenticAggregateMemory> memories` — current memories from the blackboard
+2. `AgenticAggregate<?> aggregate` — the aggregate instance, passed as a tool object
+3. `OperationContext context` — the Embabel operation context for LLM access
 
-This separation of **analysis** (LLM reasoning within the Goal) from **execution** (Actions) is a fundamental Embabel pattern: Goals define *what* to achieve, Actions define *how* to do it, and the LLM bridges the gap.
+The method uses `context.ai().withDefaultLlm().withToolObject(aggregate).createObject(prompt, MemoryLearningResult.class)` to invoke LLM reasoning. The `AgenticAggregate` is passed as a tool object so the LLM can call the `@Tool`-annotated `storeMemory()` and `forgetMemory()` default methods during reasoning.
 
-**Constraints**:
+**Output**: `MemoryLearningResult` is a record containing:
+- `List<MemoryStoredEvent> memoriesStored` — events produced by LLM calling `storeMemory()` tools
+- `List<MemoryRevokedEvent> memoriesRevoked` — events produced by LLM calling `forgetMemory()` tools
+- `String summary` — human-readable summary of the learning process
+
+The `AgentProcessResultTranslator` extracts events from the `MemoryLearningResult` on the blackboard and includes them in the event stream returned by the handler adapters.
+
+**Why a Goal and not a simple Action**: The memory distillation process requires **LLM reasoning with tool use**, not just data manipulation. The LLM analyzes the session context and uses the `storeMemory` / `forgetMemory` tools to create the appropriate events.
+
+**Constraints** (encoded in the prompt passed to the LLM):
 - **Maximum 3 new memories** per agent process execution. This prevents memory bloat from a single interaction.
 - **No duplicate memories**: Before storing, the agent must check existing memories and skip any fact that is already stored (same subject + substantially similar fact content).
-- **Memory capacity enforcement**: After storing new memories, if the total memory count exceeds `maxMemories`, the agent must evict the oldest entries using `ForgetMemoryAction` until the count is within the allowed limit. This replaces the previous `enforceMemorySlidingWindow()` mechanism — the agent itself is responsible for managing its memory capacity as part of the learning process.
-- **Memory field guidance** (to be included in the Goal's prompt instructions):
-  - `subject`: A 1-3 word topic label (e.g., "error handling", "user preferences", "market patterns"). Used for grouping and retrieval.
+- **Memory capacity enforcement**: After storing new memories, if the total memory count exceeds `maxMemories`, the agent must evict the oldest entries using `forgetMemory` until the count is within the allowed limit.
+- **Memory field guidance**:
+  - `subject`: A 1-3 word topic label (e.g., "error handling", "user preferences", "market patterns").
   - `fact`: A clear, concise factual statement (max ~200 chars). Should be actionable and self-contained.
-  - `citations`: Source reference — the command/event type that triggered this learning, or relevant data points from the aggregate state.
-  - `reason`: Why this fact is worth remembering — what future decisions it informs. Should be 2-3 sentences explaining the significance.
+  - `citations`: Source reference — the command/event type that triggered this learning.
+  - `reason`: Why this fact is worth remembering — 2-3 sentences explaining significance.
 
-**Plan**: The agent planner would compose this as:
-1. `RecallMemoriesAction` → check existing memories (to avoid duplicates and assess capacity)
-2. (LLM reasoning over Blackboard session context) → determine what new facts were learned, respecting the max-3 limit
-3. `StoreMemoryAction` → persist new memories (producing `MemoryStoredEvent`)
-4. `ForgetMemoryAction` → evict oldest memories if capacity exceeded, or replace outdated memories (producing `MemoryRevokedEvent`)
+**Blackboard bindings**: The handler adapters put the `AgenticAggregate` instance on the blackboard as `"aggregate"`, enabling the `learnFromProcess` action to receive it as a parameter by type matching.
 
 **Why**: This is the foundational agentic behavior — after processing any command, the agent should learn from the experience and update its knowledge base. The constraints ensure memory quality over quantity. By moving memory capacity enforcement into the agent's learning goal, we eliminate the need for the framework-level `enforceMemorySlidingWindow()` method and the internal `StoreMemoryCommand`/`ForgetMemoryCommand` commands.
 
