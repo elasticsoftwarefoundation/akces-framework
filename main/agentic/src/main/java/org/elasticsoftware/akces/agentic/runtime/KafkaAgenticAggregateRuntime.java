@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces.agentic.runtime;
 
+import com.embabel.agent.core.AgentPlatform;
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
@@ -36,6 +37,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -52,25 +54,38 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     private final AggregateRuntime delegate;
     private final ObjectMapper objectMapper;
     private final Class<? extends AggregateState> stateClass;
+    private final AgentPlatform agentPlatform;
 
     /**
      * Creates a new {@code KafkaAgenticAggregateRuntime}.
      *
-     * @param delegate     the underlying aggregate runtime to delegate to
-     * @param objectMapper Jackson object mapper for state deserialization
-     * @param stateClass   the concrete state class used by this aggregate
+     * @param delegate      the underlying aggregate runtime to delegate to
+     * @param objectMapper  Jackson object mapper for state deserialization
+     * @param stateClass    the concrete state class used by this aggregate
+     * @param agentPlatform the Embabel {@link AgentPlatform} used for AI-assisted processing;
+     *                      must not be {@code null}
      */
     public KafkaAgenticAggregateRuntime(AggregateRuntime delegate,
                                         ObjectMapper objectMapper,
-                                        Class<? extends AggregateState> stateClass) {
-        this.delegate = delegate;
-        this.objectMapper = objectMapper;
-        this.stateClass = stateClass;
+                                        Class<? extends AggregateState> stateClass,
+                                        AgentPlatform agentPlatform) {
+        this.delegate = Objects.requireNonNull(delegate, "delegate must not be null");
+        this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
+        this.stateClass = Objects.requireNonNull(stateClass, "stateClass must not be null");
+        this.agentPlatform = Objects.requireNonNull(agentPlatform, "agentPlatform must not be null");
     }
 
     // -------------------------------------------------------------------------
     // AgenticAggregateRuntime extension
     // -------------------------------------------------------------------------
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public AgentPlatform getAgentPlatform() {
+        return agentPlatform;
+    }
 
     /**
      * {@inheritDoc}

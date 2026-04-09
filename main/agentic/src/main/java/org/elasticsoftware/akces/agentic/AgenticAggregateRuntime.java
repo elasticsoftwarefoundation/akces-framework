@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces.agentic;
 
+import com.embabel.agent.core.AgentPlatform;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
 import org.elasticsoftware.akces.aggregate.AgenticAggregateMemory;
@@ -31,13 +32,19 @@ import java.util.List;
 /**
  * Extended runtime interface for {@link org.elasticsoftware.akces.aggregate.AgenticAggregate}s.
  *
- * <p>Extends {@link AggregateRuntime} with memory-specific operations. Analogous to how
- * {@link org.elasticsoftware.akces.aggregate.AgenticAggregate} extends
+ * <p>Extends {@link AggregateRuntime} with memory-specific and agent-platform operations.
+ * Analogous to how {@link org.elasticsoftware.akces.aggregate.AgenticAggregate} extends
  * {@link org.elasticsoftware.akces.aggregate.Aggregate} to add memory awareness.
  *
- * <p>The key addition is {@link #getMemories(AggregateStateRecord)}, which allows the partition
- * to derive current memory state directly from a loaded state record — avoiding a separate
- * in-memory deque that must be rebuilt from the event log after restarts.
+ * <p>Key additions over the base interface:
+ * <ul>
+ *   <li>{@link #getMemories(AggregateStateRecord)} — derives current memory state directly
+ *       from a loaded state record, avoiding a separate in-memory deque that would need to
+ *       be rebuilt from the event log after restarts.</li>
+ *   <li>{@link #getAgentPlatform()} — exposes the Embabel {@link AgentPlatform} that the
+ *       agentic handler adapters use to create and run {@code AgentProcess} instances during
+ *       command and event processing.</li>
+ * </ul>
  */
 public interface AgenticAggregateRuntime extends AggregateRuntime {
     DomainEventType<MemoryStoredEvent> MEMORY_STORED_TYPE = new DomainEventType<>(
@@ -45,6 +52,17 @@ public interface AgenticAggregateRuntime extends AggregateRuntime {
 
     DomainEventType<MemoryRevokedEvent> MEMORY_REVOKED_TYPE = new DomainEventType<>(
             "MemoryRevoked", 1, MemoryRevokedEvent.class, false, false, false, false);
+
+    /**
+     * Returns the Embabel {@link AgentPlatform} used to create and run agent processes.
+     *
+     * <p>This platform is the entry point for GOAP-based planning, LLM reasoning, and tool use
+     * during agent-handled command and event processing.
+     *
+     * @return the {@link AgentPlatform}; never {@code null}
+     */
+    AgentPlatform getAgentPlatform();
+
     /**
      * Returns the memories from the given aggregate state record.
      *
