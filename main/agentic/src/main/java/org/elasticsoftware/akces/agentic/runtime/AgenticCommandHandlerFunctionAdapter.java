@@ -120,6 +120,7 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C ex
      *   <li>{@code "command"} — the command being processed</li>
      *   <li>{@code "state"} — the current aggregate state</li>
      *   <li>{@code "agenticAggregateId"} — the aggregate identifier</li>
+     *   <li>{@code "aggregate"} — the {@link AgenticAggregate} instance (for tool object use)</li>
      *   <li>{@code "memories"} — the list of current memories from state</li>
      *   <li>{@code "aggregateServices"} — all known aggregate service records</li>
      *   <li>{@code "isCommandProcessing"} (condition) — {@code true}</li>
@@ -142,6 +143,7 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C ex
         bindings.put("command", command);
         bindings.put("state", state);
         bindings.put("agenticAggregateId", state.getAggregateId());
+        bindings.put("aggregate", aggregate);
         List<AgenticAggregateMemory> memories = state instanceof MemoryAwareState mas
                 ? mas.getMemories()
                 : List.of();

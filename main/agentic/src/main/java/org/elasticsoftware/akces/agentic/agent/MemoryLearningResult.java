@@ -17,6 +17,11 @@
 
 package org.elasticsoftware.akces.agentic.agent;
 
+import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
+import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
+
+import java.util.List;
+
 /**
  * Result object produced by the {@link AkcesAgentComponent#learnFromProcess
  * learnFromProcess} action when the learning cycle completes.
@@ -24,16 +29,20 @@ package org.elasticsoftware.akces.agentic.agent;
  * <p>This record is the output type of the
  * {@link AkcesAgentComponent#learnFromProcess learnFromProcess} action and serves
  * as a structured summary of the memory management operations performed during a single
- * agent process execution.
+ * agent process execution. The LLM populates the event lists by calling the
+ * {@link org.elasticsoftware.akces.aggregate.AgenticAggregate#storeMemory storeMemory}
+ * and {@link org.elasticsoftware.akces.aggregate.AgenticAggregate#forgetMemory forgetMemory}
+ * {@code @Tool} methods during the learning process.
  *
- * @param memoriesStored  the number of new memories stored during this learning cycle
- * @param memoriesRevoked the number of memories revoked (evicted or replaced) during
- *                        this learning cycle
+ * @param memoriesStored  the list of {@link MemoryStoredEvent}s produced during this
+ *                        learning cycle
+ * @param memoriesRevoked the list of {@link MemoryRevokedEvent}s produced during this
+ *                        learning cycle
  * @param summary         a human-readable summary of what was learned and any capacity
  *                        management actions taken
  */
 public record MemoryLearningResult(
-        int memoriesStored,
-        int memoriesRevoked,
+        List<MemoryStoredEvent> memoriesStored,
+        List<MemoryRevokedEvent> memoriesRevoked,
         String summary
 ) {}

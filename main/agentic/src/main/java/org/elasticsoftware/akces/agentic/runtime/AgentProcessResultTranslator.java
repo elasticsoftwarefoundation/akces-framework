@@ -18,6 +18,7 @@
 package org.elasticsoftware.akces.agentic.runtime;
 
 import com.embabel.agent.core.Blackboard;
+import org.elasticsoftware.akces.agentic.agent.MemoryLearningResult;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.events.ErrorEvent;
@@ -39,6 +40,11 @@ import java.util.stream.Collectors;
  * from the blackboard. Events are marked as hidden on the blackboard after collection,
  * so subsequent calls to this method will not return the same events again — this
  * supports both tick-to-completion and future incremental-tick processing patterns.
+ *
+ * <p>In addition to direct {@link DomainEvent} objects on the blackboard, this class
+ * also extracts events from {@link MemoryLearningResult} objects, which contain lists
+ * of {@code MemoryStoredEvent} and {@code MemoryRevokedEvent} produced by the LLM
+ * calling {@code @Tool} methods on the {@code AgenticAggregate} during the learning goal.
  *
  * <p>Unknown {@link ErrorEvent} types (not declared in {@code agentProducedErrors} and
  * therefore not registered as {@link DomainEventType}s in the runtime) are logged at
@@ -62,6 +68,10 @@ public final class AgentProcessResultTranslator {
      * removes them from visible scope (via {@link Blackboard#hide(Object)}), and returns
      * the subset that can safely be passed to the runtime's {@code processDomainEvent()}
      * method.
+     *
+     * <p>This method also extracts events from any {@link MemoryLearningResult} objects
+     * on the blackboard (which contain lists of {@code MemoryStoredEvent} and
+     * {@code MemoryRevokedEvent} produced by LLM tool calls).
      *
      * <p>For every collected event:
      * <ul>
@@ -89,10 +99,27 @@ public final class AgentProcessResultTranslator {
                 .map(DomainEventType::typeClass)
                 .collect(Collectors.toSet());
 
-        List<DomainEvent> allEvents = blackboard.getObjects().stream()
+        List<DomainEvent> allEvents = new ArrayList<>();
+
+        // Collect direct DomainEvent objects from the blackboard
+        blackboard.getObjects().stream()
                 .filter(o -> o instanceof DomainEvent)
                 .map(o -> (DomainEvent) o)
-                .toList();
+                .forEach(allEvents::add);
+
+        // Extract events from MemoryLearningResult objects on the blackboard
+        blackboard.getObjects().stream()
+                .filter(o -> o instanceof MemoryLearningResult)
+                .map(o -> (MemoryLearningResult) o)
+                .forEach(mlr -> {
+                    if (mlr.memoriesStored() != null) {
+                        allEvents.addAll(mlr.memoriesStored());
+                    }
+                    if (mlr.memoriesRevoked() != null) {
+                        allEvents.addAll(mlr.memoriesRevoked());
+                    }
+                    blackboard.hide(mlr);
+                });
 
         List<DomainEvent> result = new ArrayList<>(allEvents.size());
         for (DomainEvent event : allEvents) {

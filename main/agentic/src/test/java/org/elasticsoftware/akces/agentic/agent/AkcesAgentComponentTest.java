@@ -26,6 +26,7 @@ import com.embabel.agent.api.common.OperationContext;
 import com.embabel.agent.api.common.PromptRunner;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
+import org.elasticsoftware.akces.aggregate.AgenticAggregate;
 import org.elasticsoftware.akces.aggregate.AgenticAggregateMemory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -46,16 +47,12 @@ import static org.mockito.Mockito.when;
  *
  * <p>Tests cover:
  * <ul>
- *   <li>{@link AkcesAgentComponent#storeMemory storeMemory} — produces valid
- *       {@link MemoryStoredEvent}</li>
- *   <li>{@link AkcesAgentComponent#forgetMemory forgetMemory} — produces valid
- *       {@link MemoryRevokedEvent}</li>
  *   <li>{@link AkcesAgentComponent#recallMemories recallMemories} — filters memories by
  *       subject/keyword and handles edge cases</li>
  *   <li>{@link AkcesAgentComponent#hasMemories hasMemories} — evaluates memory presence
  *       correctly</li>
  *   <li>{@link AkcesAgentComponent#learnFromProcess learnFromProcess} — goal action
- *       produces a valid result</li>
+ *       produces a valid result with tool object</li>
  *   <li>Embabel annotation presence and attributes</li>
  * </ul>
  */
@@ -83,21 +80,6 @@ class AkcesAgentComponentTest {
         }
 
         @Test
-        void storeMemoryShouldBeAnnotatedWithAction() throws NoSuchMethodException {
-            var method = AkcesAgentComponent.class.getMethod(
-                    "storeMemory", String.class, String.class, String.class,
-                    String.class, String.class);
-            assertThat(method.isAnnotationPresent(Action.class)).isTrue();
-        }
-
-        @Test
-        void forgetMemoryShouldBeAnnotatedWithAction() throws NoSuchMethodException {
-            var method = AkcesAgentComponent.class.getMethod(
-                    "forgetMemory", String.class, String.class, String.class);
-            assertThat(method.isAnnotationPresent(Action.class)).isTrue();
-        }
-
-        @Test
         void recallMemoriesShouldBeAnnotatedWithReadOnlyAction() throws NoSuchMethodException {
             var method = AkcesAgentComponent.class.getMethod(
                     "recallMemories", List.class, String.class);
@@ -116,101 +98,10 @@ class AkcesAgentComponentTest {
         void learnFromProcessShouldBeAnnotatedWithAchievesGoalAndAction()
                 throws NoSuchMethodException {
             var method = AkcesAgentComponent.class.getMethod(
-                    "learnFromProcess", List.class, OperationContext.class);
+                    "learnFromProcess", List.class, AgenticAggregate.class,
+                    OperationContext.class);
             assertThat(method.isAnnotationPresent(AchievesGoal.class)).isTrue();
             assertThat(method.isAnnotationPresent(Action.class)).isTrue();
-        }
-    }
-
-    // =========================================================================
-    // StoreMemoryAction tests
-    // =========================================================================
-
-    @Nested
-    class StoreMemoryActionTests {
-
-        @Test
-        void shouldProduceMemoryStoredEventWithCorrectFields() {
-            MemoryStoredEvent event = component.storeMemory(
-                    "agg-1", "testing", "Use JUnit 5",
-                    "build.gradle:10", "consistency");
-
-            assertThat(event.agenticAggregateId()).isEqualTo("agg-1");
-            assertThat(event.subject()).isEqualTo("testing");
-            assertThat(event.fact()).isEqualTo("Use JUnit 5");
-            assertThat(event.citations()).isEqualTo("build.gradle:10");
-            assertThat(event.reason()).isEqualTo("consistency");
-            assertThat(event.memoryId()).isNotNull().isNotBlank();
-            assertThat(event.storedAt()).isNotNull();
-        }
-
-        @Test
-        void shouldGenerateUniqueMemoryIds() {
-            MemoryStoredEvent event1 = component.storeMemory(
-                    "agg-1", "s", "f", "c", "r");
-            MemoryStoredEvent event2 = component.storeMemory(
-                    "agg-1", "s", "f", "c", "r");
-
-            assertThat(event1.memoryId()).isNotEqualTo(event2.memoryId());
-        }
-
-        @Test
-        void shouldSetStoredAtToCurrentTime() {
-            Instant before = Instant.now();
-            MemoryStoredEvent event = component.storeMemory(
-                    "agg-1", "s", "f", "c", "r");
-            Instant after = Instant.now();
-
-            assertThat(event.storedAt())
-                    .isAfterOrEqualTo(before)
-                    .isBeforeOrEqualTo(after);
-        }
-
-        @Test
-        void shouldSetCorrectAggregateId() {
-            MemoryStoredEvent event = component.storeMemory(
-                    "agg-1", "s", "f", "c", "r");
-
-            assertThat(event.getAggregateId()).isEqualTo("agg-1");
-        }
-    }
-
-    // =========================================================================
-    // ForgetMemoryAction tests
-    // =========================================================================
-
-    @Nested
-    class ForgetMemoryActionTests {
-
-        @Test
-        void shouldProduceMemoryRevokedEventWithCorrectFields() {
-            MemoryRevokedEvent event = component.forgetMemory(
-                    "agg-1", "mem-42", "no longer relevant");
-
-            assertThat(event.agenticAggregateId()).isEqualTo("agg-1");
-            assertThat(event.memoryId()).isEqualTo("mem-42");
-            assertThat(event.reason()).isEqualTo("no longer relevant");
-            assertThat(event.revokedAt()).isNotNull();
-        }
-
-        @Test
-        void shouldSetRevokedAtToCurrentTime() {
-            Instant before = Instant.now();
-            MemoryRevokedEvent event = component.forgetMemory(
-                    "agg-1", "mem-1", "eviction");
-            Instant after = Instant.now();
-
-            assertThat(event.revokedAt())
-                    .isAfterOrEqualTo(before)
-                    .isBeforeOrEqualTo(after);
-        }
-
-        @Test
-        void shouldSetCorrectAggregateId() {
-            MemoryRevokedEvent event = component.forgetMemory(
-                    "agg-1", "mem-1", "reason");
-
-            assertThat(event.getAggregateId()).isEqualTo("agg-1");
         }
     }
 
@@ -372,40 +263,52 @@ class AkcesAgentComponentTest {
     class LearnFromProcessGoalTests {
 
         @Test
-        void shouldInvokeLlmViaOperationContextAndReturnResult() {
-            var expectedResult = new MemoryLearningResult(2, 1, "Stored 2, revoked 1");
+        void shouldInvokeLlmWithToolObjectAndReturnResult() {
+            var storedEvents = List.of(
+                    new MemoryStoredEvent("agg-1", "m1", "topic", "fact", "cite", "why", Instant.now()));
+            var revokedEvents = List.<MemoryRevokedEvent>of();
+            var expectedResult = new MemoryLearningResult(storedEvents, revokedEvents, "Stored 1");
+
             OperationContext context = mock(OperationContext.class);
             Ai ai = mock(Ai.class);
             PromptRunner promptRunner = mock(PromptRunner.class);
+            PromptRunner toolRunner = mock(PromptRunner.class);
             @SuppressWarnings("unchecked")
-            PromptRunner.Creating<MemoryLearningResult> creating = mock(PromptRunner.Creating.class);
+            AgenticAggregate<?> aggregate = mock(AgenticAggregate.class);
 
             when(context.ai()).thenReturn(ai);
             when(ai.withDefaultLlm()).thenReturn(promptRunner);
-            when(promptRunner.createObject(any(String.class), eq(MemoryLearningResult.class)))
+            when(promptRunner.withToolObject(aggregate)).thenReturn(toolRunner);
+            when(toolRunner.createObject(any(String.class), eq(MemoryLearningResult.class)))
                     .thenReturn(expectedResult);
 
             List<AgenticAggregateMemory> memories = List.of(
                     new AgenticAggregateMemory("m1", "s", "f", "c", "r", Instant.now()));
 
-            MemoryLearningResult result = component.learnFromProcess(memories, context);
+            MemoryLearningResult result = component.learnFromProcess(memories, aggregate, context);
 
             assertThat(result).isSameAs(expectedResult);
+            assertThat(result.memoriesStored()).hasSize(1);
+            assertThat(result.memoriesRevoked()).isEmpty();
         }
 
         @Test
         void shouldPassMemoryCountInPrompt() {
-            var expectedResult = new MemoryLearningResult(0, 0, "Nothing to learn");
+            var expectedResult = new MemoryLearningResult(List.of(), List.of(), "Nothing to learn");
             OperationContext context = mock(OperationContext.class);
             Ai ai = mock(Ai.class);
             PromptRunner promptRunner = mock(PromptRunner.class);
+            PromptRunner toolRunner = mock(PromptRunner.class);
+            @SuppressWarnings("unchecked")
+            AgenticAggregate<?> aggregate = mock(AgenticAggregate.class);
 
             when(context.ai()).thenReturn(ai);
             when(ai.withDefaultLlm()).thenReturn(promptRunner);
-            when(promptRunner.createObject(any(String.class), eq(MemoryLearningResult.class)))
+            when(promptRunner.withToolObject(aggregate)).thenReturn(toolRunner);
+            when(toolRunner.createObject(any(String.class), eq(MemoryLearningResult.class)))
                     .thenReturn(expectedResult);
 
-            MemoryLearningResult result = component.learnFromProcess(List.of(), context);
+            MemoryLearningResult result = component.learnFromProcess(List.of(), aggregate, context);
 
             assertThat(result).isNotNull();
             assertThat(result.summary()).isEqualTo("Nothing to learn");
@@ -413,17 +316,21 @@ class AkcesAgentComponentTest {
 
         @Test
         void shouldHandleNullMemoriesGracefully() {
-            var expectedResult = new MemoryLearningResult(0, 0, "No prior memories");
+            var expectedResult = new MemoryLearningResult(List.of(), List.of(), "No prior memories");
             OperationContext context = mock(OperationContext.class);
             Ai ai = mock(Ai.class);
             PromptRunner promptRunner = mock(PromptRunner.class);
+            PromptRunner toolRunner = mock(PromptRunner.class);
+            @SuppressWarnings("unchecked")
+            AgenticAggregate<?> aggregate = mock(AgenticAggregate.class);
 
             when(context.ai()).thenReturn(ai);
             when(ai.withDefaultLlm()).thenReturn(promptRunner);
-            when(promptRunner.createObject(any(String.class), eq(MemoryLearningResult.class)))
+            when(promptRunner.withToolObject(aggregate)).thenReturn(toolRunner);
+            when(toolRunner.createObject(any(String.class), eq(MemoryLearningResult.class)))
                     .thenReturn(expectedResult);
 
-            MemoryLearningResult result = component.learnFromProcess(null, context);
+            MemoryLearningResult result = component.learnFromProcess(null, aggregate, context);
 
             assertThat(result).isNotNull();
         }
