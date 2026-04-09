@@ -63,12 +63,11 @@ import java.util.stream.Stream;
  * {@code KafkaAggregateRuntime.handleEvent()} flow unchanged, where each event is
  * applied through the registered {@code @EventSourcingHandler} methods.
  *
- * @param <S>          the aggregate state type; must implement both {@link AggregateState}
- *                     and {@link MemoryAwareState}
+ * @param <S>          the aggregate state type; must implement {@link AggregateState}
  * @param <InputEvent> the external domain event type handled by this adapter
  * @param <E>          the domain event type produced by this adapter
  */
-public class AgenticEventHandlerFunctionAdapter<S extends AggregateState & MemoryAwareState, InputEvent extends DomainEvent, E extends DomainEvent>
+public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputEvent extends DomainEvent, E extends DomainEvent>
         implements EventHandlerFunction<S, InputEvent, E> {
 
     private static final Logger logger =
@@ -151,14 +150,35 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState & Memor
         AgentProcess agentProcess =
                 agentPlatform.createAgentProcess(agent, ProcessOptions.DEFAULT, bindings);
 
-        // Tick to completion. Phase 1 runs the full agent process synchronously.
-        // Timeout configuration and incremental tick support are deferred to a later phase
-        // (see plans/agenttasks.md). The transaction timeout is controlled externally via
-        // the 'akces.agentic.transaction-timeout-ms' property on the producer factory.
-        while (!agentProcess.getFinished()) {
+        // Tick to completion with defensive limits so a stuck agent process cannot
+        // block external event handling indefinitely.
+        final long maxTicks = 10_000L;
+        final long timeoutNanos = java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
+        final long deadlineNanos = System.nanoTime() + timeoutNanos;
+        long tickCount = 0L;
+
+        while (!agentProcess.getFinished()
+                && tickCount < maxTicks
+                && System.nanoTime() < deadlineNanos) {
             agentProcess.tick();
+            tickCount++;
         }
 
+        if (!agentProcess.getFinished()) {
+            logger.error(
+                    "Agent process did not finish within safety limits for event {} on aggregate {}. " +
+                            "aggregateId={}, tickCount={}, maxTicks={}, timeoutSeconds={}, status={}",
+                    eventType.typeName(),
+                    aggregate.getClass().getSimpleName(),
+                    state.getAggregateId(),
+                    tickCount,
+                    maxTicks,
+                    java.util.concurrent.TimeUnit.NANOSECONDS.toSeconds(timeoutNanos),
+                    agentProcess.getStatus());
+            throw new IllegalStateException(
+                    "Agent process exceeded execution limits for event " + eventType.typeName()
+                            + " on aggregate " + aggregate.getClass().getSimpleName());
+        }
         logger.debug("Agent process completed with status {} for event {} on aggregate {}",
                 agentProcess.getStatus(), eventType.typeName(), aggregate.getClass().getSimpleName());
 

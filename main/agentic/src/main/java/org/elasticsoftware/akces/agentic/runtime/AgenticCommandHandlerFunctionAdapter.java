@@ -63,12 +63,11 @@ import java.util.stream.Stream;
  * {@code KafkaAggregateRuntime.handleCommand()} flow unchanged, where each event is
  * applied through the registered {@code @EventSourcingHandler} methods.
  *
- * @param <S> the aggregate state type; must implement both {@link AggregateState} and
- *            {@link MemoryAwareState}
+ * @param <S> the aggregate state type; must implement {@link AggregateState}
  * @param <C> the command type handled by this adapter
  * @param <E> the domain event type produced by this adapter
  */
-public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState & MemoryAwareState, C extends Command, E extends DomainEvent>
+public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C extends Command, E extends DomainEvent>
         implements CommandHandlerFunction<S, C, E> {
 
     private static final Logger logger =

@@ -93,18 +93,12 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
             LoggerFactory.getLogger(AgenticAggregateRuntimeFactory.class);
 
     /** System error types added to every non-create command handler (including agent-handled). */
-    private static final List<DomainEventType<?>> COMMAND_HANDLER_SYSTEM_ERRORS = List.of(
-            new DomainEventType<>("AggregateNotFoundError", 1,
-                    AggregateNotFoundErrorEvent.class, false, false, true, false),
-            new DomainEventType<>("CommandExecutionError", 1,
-                    CommandExecutionErrorEvent.class, false, false, true, false)
-    );
+    private static final List<DomainEventType<?>> COMMAND_HANDLER_SYSTEM_ERRORS =
+            AgenticAggregateBeanFactoryPostProcessor.COMMAND_HANDLER_SYSTEM_ERRORS;
 
     /** System error types added to every non-create event handler (including agent-handled). */
-    private static final List<DomainEventType<?>> EVENT_HANDLER_SYSTEM_ERRORS = List.of(
-            new DomainEventType<>("AggregateNotFoundError", 1,
-                    AggregateNotFoundErrorEvent.class, false, false, true, false)
-    );
+    private static final List<DomainEventType<?>> EVENT_HANDLER_SYSTEM_ERRORS =
+            AgenticAggregateBeanFactoryPostProcessor.EVENT_HANDLER_SYSTEM_ERRORS;
 
     private ApplicationContext applicationContext;
     private final ObjectMapper objectMapper;
