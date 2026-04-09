@@ -309,11 +309,11 @@ public class AkcesAgentComponent {
      * {@link String#regionMatches(boolean, int, String, int, int)}.
      *
      * @param text  the text to search within; may be {@code null}
-     * @param query the search term
+     * @param query the search term; must not be {@code null} or empty
      * @return {@code true} if {@code text} contains {@code query} (case-insensitive)
      */
     private static boolean containsIgnoreCase(String text, String query) {
-        if (text == null) {
+        if (text == null || query == null || query.isEmpty()) {
             return false;
         }
         int searchLength = query.length();
