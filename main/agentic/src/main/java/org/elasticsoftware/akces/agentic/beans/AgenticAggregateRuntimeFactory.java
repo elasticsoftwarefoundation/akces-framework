@@ -30,8 +30,6 @@ import org.elasticsoftware.akces.annotations.AggregateStateInfo;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.commands.Command;
-import org.elasticsoftware.akces.errors.AggregateNotFoundErrorEvent;
-import org.elasticsoftware.akces.errors.CommandExecutionErrorEvent;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.events.ErrorEvent;
 import org.elasticsoftware.akces.kafka.KafkaAggregateRuntime;

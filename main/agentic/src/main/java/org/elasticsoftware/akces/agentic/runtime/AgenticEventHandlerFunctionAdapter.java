@@ -23,7 +23,6 @@ import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.ProcessOptions;
 import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.aggregate.*;
-import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.slf4j.Logger;
