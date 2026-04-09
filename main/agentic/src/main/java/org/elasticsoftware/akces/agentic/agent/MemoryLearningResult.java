@@ -18,11 +18,11 @@
 package org.elasticsoftware.akces.agentic.agent;
 
 /**
- * Result object produced by the {@code LearnFromProcessGoal} when the learning
- * cycle completes.
+ * Result object produced by the {@link AkcesAgentComponent#learnFromProcess
+ * learnFromProcess} action when the learning cycle completes.
  *
  * <p>This record is the output type of the
- * {@link AkcesAgentComponent#learnFromProcess learnFromProcess} goal action and serves
+ * {@link AkcesAgentComponent#learnFromProcess learnFromProcess} action and serves
  * as a structured summary of the memory management operations performed during a single
  * agent process execution.
  *

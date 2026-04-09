@@ -21,6 +21,7 @@ import com.embabel.agent.api.annotation.AchievesGoal;
 import com.embabel.agent.api.annotation.Action;
 import com.embabel.agent.api.annotation.Condition;
 import com.embabel.agent.api.annotation.EmbabelComponent;
+import com.embabel.agent.api.common.OperationContext;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
 import org.elasticsoftware.akces.aggregate.AgenticAggregateMemory;
@@ -57,7 +58,8 @@ import java.util.UUID;
  * <h2>Goals</h2>
  * <ul>
  *   <li>{@link #learnFromProcess learnFromProcess} — Multi-step LLM reasoning goal that
- *       analyzes session context and distills useful memories</li>
+ *       analyzes session context and distills useful memories via
+ *       {@link OperationContext#ai()}</li>
  * </ul>
  *
  * @see MemoryStoredEvent
@@ -174,9 +176,8 @@ public class AkcesAgentComponent {
         if (query == null || query.isBlank()) {
             return List.copyOf(memories);
         }
-        String lowerQuery = query.toLowerCase();
         return memories.stream()
-                .filter(m -> matchesQuery(m, lowerQuery))
+                .filter(m -> matchesQuery(m, query))
                 .toList();
     }
 
@@ -206,24 +207,29 @@ public class AkcesAgentComponent {
 
     /**
      * Goal action that completes the learning cycle by analyzing current session
-     * information and distilling useful memories.
+     * information and distilling useful memories using LLM reasoning.
      *
      * <p>This method is annotated with both {@link AchievesGoal} and {@link Action}.
      * The {@code @AchievesGoal} annotation declares the "LearnFromProcess" goal in the
-     * Embabel GOAP planner, and the planner orchestrates a multi-step reasoning pipeline
-     * using the available actions:
+     * Embabel GOAP planner. The method uses {@link OperationContext#ai()} to invoke LLM
+     * reasoning over the current session context (command/event, aggregate state,
+     * produced events, existing memories, aggregate service records) to determine what
+     * facts are worth remembering.
+     *
+     * <p>The planner orchestrates a multi-step reasoning pipeline using the available
+     * actions:
      * <ol>
      *   <li>{@link #recallMemories recallMemories} — check existing memories to avoid
      *       duplicates and assess capacity</li>
-     *   <li>(LLM reasoning over Blackboard session context) — determine what new facts
-     *       were learned, respecting the max-3 limit</li>
+     *   <li>(LLM reasoning via {@code context.ai()}) — determine what new facts were
+     *       learned, respecting the max-3 limit</li>
      *   <li>{@link #storeMemory storeMemory} — persist new memories
      *       (producing {@link MemoryStoredEvent})</li>
      *   <li>{@link #forgetMemory forgetMemory} — evict oldest memories if capacity
      *       exceeded, or replace outdated ones (producing {@link MemoryRevokedEvent})</li>
      * </ol>
      *
-     * <p><b>Constraints enforced by the LLM planner:</b>
+     * <p><b>Constraints enforced by the LLM:</b>
      * <ul>
      *   <li>Maximum {@value #MAX_NEW_MEMORIES_PER_EXECUTION} new memories per agent
      *       process execution</li>
@@ -233,38 +239,49 @@ public class AkcesAgentComponent {
      * </ul>
      *
      * @param memories the current list of memories from the blackboard
+     * @param context  the Embabel {@link OperationContext} providing access to LLM
+     *                 capabilities via {@link OperationContext#ai()}
      * @return a {@link MemoryLearningResult} summarizing what was learned
      */
-    @AchievesGoal(description = """
-            Analyze current session information and distill useful memories.
-            
-            Constraints:
-            - Maximum 3 new memories per agent process execution (prevents memory bloat)
-            - No duplicate memories: check existing memories before storing and skip any
-              fact that is already stored (same subject + substantially similar fact content)
-            - Memory capacity enforcement: after storing new memories, if total memory count
-              exceeds maxMemories, evict oldest entries using ForgetMemoryAction until within limit
-            
-            Memory field guidance:
-            - subject: 1-3 word topic label (e.g. "error handling", "user preferences")
-            - fact: clear, concise factual statement (max ~200 chars), actionable and self-contained
-            - citations: source reference — the command/event type that triggered this learning
-            - reason: why this fact is worth remembering, 2-3 sentences explaining significance
-            
-            Plan:
-            1. RecallMemoriesAction to check existing memories (avoid duplicates, assess capacity)
-            2. Determine what new facts were learned from the session context (max 3)
-            3. StoreMemoryAction for each new memory
-            4. ForgetMemoryAction for oldest memories if capacity exceeded""")
-    @Action(description = """
-            Complete the learning process by analyzing the current agent process session
-            context and distilling useful memories. This action produces a summary of
-            the memory management operations performed. Maximum 3 new memories per execution.
-            No duplicates. Evict oldest if capacity exceeded.""")
-    public MemoryLearningResult learnFromProcess(List<AgenticAggregateMemory> memories) {
+    @AchievesGoal(description = "Learned from current session and stored and/or removed memories")
+    @Action(description = "Analyze current session and distill useful memories using LLM reasoning")
+    public MemoryLearningResult learnFromProcess(
+            List<AgenticAggregateMemory> memories,
+            OperationContext context) {
         int currentCount = (memories != null) ? memories.size() : 0;
-        return new MemoryLearningResult(0, 0,
-                "Learning process completed. Current memory count: " + currentCount);
+
+        String prompt = """
+                Analyze the current session information available on the blackboard and \
+                distill useful memories.
+                
+                Current memories: %d
+                
+                Constraints:
+                - Maximum %d new memories per agent process execution (prevents memory bloat)
+                - No duplicate memories: check existing memories before storing and skip any \
+                fact that is already stored (same subject + substantially similar fact content)
+                - Memory capacity enforcement: after storing new memories, if total memory count \
+                exceeds maxMemories, evict oldest entries using ForgetMemoryAction until within limit
+                
+                Memory field guidance:
+                - subject: 1-3 word topic label (e.g. "error handling", "user preferences")
+                - fact: clear, concise factual statement (max ~200 chars), actionable and self-contained
+                - citations: source reference — the command/event type that triggered this learning
+                - reason: why this fact is worth remembering, 2-3 sentences explaining significance
+                
+                Plan:
+                1. RecallMemoriesAction to check existing memories (avoid duplicates, assess capacity)
+                2. Determine what new facts were learned from the session context (max %d)
+                3. StoreMemoryAction for each new memory
+                4. ForgetMemoryAction for oldest memories if capacity exceeded
+                
+                Return a summary of the learning process including how many memories were stored \
+                and revoked.""".formatted(currentCount, MAX_NEW_MEMORIES_PER_EXECUTION,
+                MAX_NEW_MEMORIES_PER_EXECUTION);
+
+        return context.ai()
+                .withDefaultLlm()
+                .createObject(prompt, MemoryLearningResult.class);
     }
 
     // -------------------------------------------------------------------------
@@ -272,29 +289,40 @@ public class AkcesAgentComponent {
     // -------------------------------------------------------------------------
 
     /**
-     * Checks whether a memory entry matches a lowercase search query.
+     * Checks whether a memory entry matches a search query.
      *
-     * <p>The match is case-insensitive and checks the memory's {@code subject},
-     * {@code fact}, and {@code reason} fields.
+     * <p>The match is case-insensitive (locale-independent) and checks the memory's
+     * {@code subject}, {@code fact}, and {@code reason} fields.
      *
-     * @param memory     the memory entry to check
-     * @param lowerQuery the search query in lowercase
+     * @param memory the memory entry to check
+     * @param query  the search query
      * @return {@code true} if any of the checked fields contain the query
      */
-    private static boolean matchesQuery(AgenticAggregateMemory memory, String lowerQuery) {
-        return containsIgnoreCase(memory.subject(), lowerQuery)
-                || containsIgnoreCase(memory.fact(), lowerQuery)
-                || containsIgnoreCase(memory.reason(), lowerQuery);
+    private static boolean matchesQuery(AgenticAggregateMemory memory, String query) {
+        return containsIgnoreCase(memory.subject(), query)
+                || containsIgnoreCase(memory.fact(), query)
+                || containsIgnoreCase(memory.reason(), query);
     }
 
     /**
-     * Null-safe, case-insensitive substring check.
+     * Null-safe, locale-independent, case-insensitive substring check using
+     * {@link String#regionMatches(boolean, int, String, int, int)}.
      *
      * @param text  the text to search within; may be {@code null}
-     * @param lower the lowercase search term
-     * @return {@code true} if {@code text} contains {@code lower} (case-insensitive)
+     * @param query the search term
+     * @return {@code true} if {@code text} contains {@code query} (case-insensitive)
      */
-    private static boolean containsIgnoreCase(String text, String lower) {
-        return text != null && text.toLowerCase().contains(lower);
+    private static boolean containsIgnoreCase(String text, String query) {
+        if (text == null) {
+            return false;
+        }
+        int searchLength = query.length();
+        int maxStart = text.length() - searchLength;
+        for (int i = 0; i <= maxStart; i++) {
+            if (text.regionMatches(true, i, query, 0, searchLength)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
