@@ -154,12 +154,34 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C ex
         AgentProcess agentProcess =
                 agentPlatform.createAgentProcess(agent, ProcessOptions.DEFAULT, bindings);
 
-        // Tick to completion. Phase 1 runs the full agent process synchronously.
-        // Timeout configuration and incremental tick support are deferred to a later phase
-        // (see plans/agenttasks.md). The transaction timeout is controlled externally via
-        // the 'akces.agentic.transaction-timeout-ms' property on the producer factory.
-        while (!agentProcess.getFinished()) {
+        // Tick to completion with defensive limits so a stuck agent process cannot
+        // block command handling indefinitely.
+        final long maxTicks = 10_000L;
+        final long timeoutNanos = java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
+        final long deadlineNanos = System.nanoTime() + timeoutNanos;
+        long tickCount = 0L;
+
+        while (!agentProcess.getFinished()
+                && tickCount < maxTicks
+                && System.nanoTime() < deadlineNanos) {
             agentProcess.tick();
+            tickCount++;
+        }
+
+        if (!agentProcess.getFinished()) {
+            logger.error(
+                    "Agent process did not finish within safety limits for command {} on aggregate {}. " +
+                            "aggregateId={}, tickCount={}, maxTicks={}, timeoutSeconds={}, status={}",
+                    commandType.typeName(),
+                    aggregate.getClass().getSimpleName(),
+                    state.getAggregateId(),
+                    tickCount,
+                    maxTicks,
+                    java.util.concurrent.TimeUnit.NANOSECONDS.toSeconds(timeoutNanos),
+                    agentProcess.getStatus());
+            throw new IllegalStateException(
+                    "Agent process exceeded execution limits for command " + commandType.typeName()
+                            + " on aggregate " + aggregate.getClass().getSimpleName());
         }
 
         logger.debug("Agent process completed with status {} for command {} on aggregate {}",
