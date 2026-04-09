@@ -29,6 +29,7 @@ import org.elasticsoftware.akces.events.DomainEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -141,11 +142,14 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
         bindings.put("event", event);
         bindings.put("state", state);
         bindings.put("agenticAggregateId", state.getAggregateId());
-        bindings.put("memories", state.getMemories());
+        List<AgenticAggregateMemory> memories = state instanceof MemoryAwareState mas
+                ? mas.getMemories()
+                : List.of();
+        bindings.put("memories", memories);
         bindings.put("aggregateServices", aggregateServicesSupplier.get());
         bindings.put("isCommandProcessing", false);
         bindings.put("isExternalEvent", true);
-        bindings.put("hasMemories", !state.getMemories().isEmpty());
+        bindings.put("hasMemories", !memories.isEmpty());
 
         AgentProcess agentProcess =
                 agentPlatform.createAgentProcess(agent, ProcessOptions.DEFAULT, bindings);
@@ -183,7 +187,7 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
                 agentProcess.getStatus(), eventType.typeName(), aggregate.getClass().getSimpleName());
 
         return (Stream<E>) AgentProcessResultTranslator
-                .collectEvents(agentProcess.getBlackboard())
+                .collectEvents(agentProcess.getBlackboard(), getAllRegisteredEventTypes())
                 .stream();
     }
 
@@ -216,5 +220,19 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
     @Override
     public List<DomainEventType<E>> getErrorEventTypes() {
         return errorEventTypes;
+    }
+
+    /**
+     * Returns all domain event types this adapter may produce (both state-changing and error types).
+     * Used by {@link AgentProcessResultTranslator} to filter out unknown {@link org.elasticsoftware.akces.events.ErrorEvent}
+     * instances that are not registered with the runtime.
+     *
+     * @return combined list of produced and error domain event types
+     */
+    private List<DomainEventType<?>> getAllRegisteredEventTypes() {
+        List<DomainEventType<?>> all = new ArrayList<>(producedDomainEventTypes.size() + errorEventTypes.size());
+        all.addAll(producedDomainEventTypes);
+        all.addAll(errorEventTypes);
+        return all;
     }
 }

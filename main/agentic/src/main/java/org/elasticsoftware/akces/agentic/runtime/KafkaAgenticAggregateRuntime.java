@@ -37,6 +37,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -68,10 +69,10 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                                         ObjectMapper objectMapper,
                                         Class<? extends AggregateState> stateClass,
                                         AgentPlatform agentPlatform) {
-        this.delegate = delegate;
-        this.objectMapper = objectMapper;
-        this.stateClass = stateClass;
-        this.agentPlatform = agentPlatform;
+        this.delegate = Objects.requireNonNull(delegate, "delegate must not be null");
+        this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
+        this.stateClass = Objects.requireNonNull(stateClass, "stateClass must not be null");
+        this.agentPlatform = Objects.requireNonNull(agentPlatform, "agentPlatform must not be null");
     }
 
     // -------------------------------------------------------------------------

@@ -37,6 +37,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.mockito.Mockito.*;
 
 /**
@@ -219,6 +220,38 @@ class KafkaAgenticAggregateRuntimeTest {
     @Test
     void getAgentPlatformShouldReturnInjectedPlatform() {
         assertThat(runtime.getAgentPlatform()).isSameAs(agentPlatform);
+    }
+
+    @Test
+    void constructorShouldRejectNullDelegate() {
+        assertThatNullPointerException()
+                .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
+                        null, objectMapper, TestMemoryState.class, agentPlatform))
+                .withMessageContaining("delegate");
+    }
+
+    @Test
+    void constructorShouldRejectNullObjectMapper() {
+        assertThatNullPointerException()
+                .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
+                        delegate, null, TestMemoryState.class, agentPlatform))
+                .withMessageContaining("objectMapper");
+    }
+
+    @Test
+    void constructorShouldRejectNullStateClass() {
+        assertThatNullPointerException()
+                .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
+                        delegate, objectMapper, null, agentPlatform))
+                .withMessageContaining("stateClass");
+    }
+
+    @Test
+    void constructorShouldRejectNullAgentPlatform() {
+        assertThatNullPointerException()
+                .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
+                        delegate, objectMapper, TestMemoryState.class, null))
+                .withMessageContaining("agentPlatform");
     }
 
     // -------------------------------------------------------------------------

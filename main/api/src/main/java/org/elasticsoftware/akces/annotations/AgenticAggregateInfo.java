@@ -87,8 +87,13 @@ public @interface AgenticAggregateInfo {
      * {@code @DomainEventInfo}.
      *
      * <p>These types are registered as {@code DomainEventType(error=true)} for JSON schema
-     * validation and service discovery. At runtime, undeclared {@link ErrorEvent} instances
-     * emitted by the agent are accepted with a warning rather than rejected.
+     * validation and service discovery. Agent-produced error events that are <em>not</em>
+     * declared here are not registered with the runtime and will be silently excluded from
+     * processing — they will not be serialized to the Kafka domain-events topic. A warning
+     * is logged for each excluded event so that operators can detect the misconfiguration.
+     *
+     * <p>To ensure an error event produced by the agent is persisted and visible to
+     * downstream consumers, it must be declared here.
      */
     Class<? extends ErrorEvent>[] agentProducedErrors() default {};
 }
