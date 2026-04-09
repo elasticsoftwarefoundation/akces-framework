@@ -240,10 +240,10 @@ public class AkcesAgentComponent {
             
             Constraints:
             - Maximum 3 new memories per agent process execution (prevents memory bloat)
-            - No duplicate memories: check existing memories before storing and skip any \
-            fact that is already stored (same subject + substantially similar fact content)
-            - Memory capacity enforcement: after storing new memories, if total memory count \
-            exceeds maxMemories, evict oldest entries using ForgetMemoryAction until within limit
+            - No duplicate memories: check existing memories before storing and skip any
+              fact that is already stored (same subject + substantially similar fact content)
+            - Memory capacity enforcement: after storing new memories, if total memory count
+              exceeds maxMemories, evict oldest entries using ForgetMemoryAction until within limit
             
             Memory field guidance:
             - subject: 1-3 word topic label (e.g. "error handling", "user preferences")
@@ -257,9 +257,9 @@ public class AkcesAgentComponent {
             3. StoreMemoryAction for each new memory
             4. ForgetMemoryAction for oldest memories if capacity exceeded""")
     @Action(description = """
-            Complete the learning process by analyzing the current agent process session \
-            context and distilling useful memories. This action produces a summary of \
-            the memory management operations performed. Maximum 3 new memories per execution. \
+            Complete the learning process by analyzing the current agent process session
+            context and distilling useful memories. This action produces a summary of
+            the memory management operations performed. Maximum 3 new memories per execution.
             No duplicates. Evict oldest if capacity exceeded.""")
     public MemoryLearningResult learnFromProcess(List<AgenticAggregateMemory> memories) {
         int currentCount = (memories != null) ? memories.size() : 0;
