@@ -22,6 +22,7 @@ import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.ProcessOptions;
 import jakarta.annotation.Nonnull;
+import org.elasticsoftware.akces.agentic.embabel.DefaultAgent;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -45,11 +46,14 @@ import java.util.stream.Stream;
  * <ol>
  *   <li>Assembles a bindings {@link Map} containing the event, current aggregate state,
  *       memories, aggregate service records, and condition flags.</li>
+ *   <li>Attempts to resolve an {@link Agent} from the {@link AgentPlatform} by matching
+ *       the aggregate name against deployed agent names (exact match or
+ *       {@code {aggregateName}Agent} suffix match). If no match is found, the
+ *       {@link DefaultAgent} is used as a fallback.</li>
  *   <li>Creates an {@link AgentProcess} via
- *       {@link AgentPlatform#createAgentProcess(Agent, ProcessOptions, Map)} using the
- *       provided {@link Agent} and the assembled bindings.</li>
- *   <li>Calls {@link AgentProcess#tick()} in a loop until the process reaches an end
- *       state (completed, failed, terminated, or killed).</li>
+ *       {@link AgentPlatform#createAgentProcess(Agent, ProcessOptions, Map)} and calls
+ *       {@link AgentProcess#tick()} in a loop until the process reaches an end state
+ *       (completed, failed, terminated, or killed).</li>
  *   <li>Collects {@link DomainEvent} objects placed on the agent's blackboard via
  *       {@link AgentProcessResultTranslator#collectEvents} and returns them as a
  *       {@link Stream}.</li>
@@ -74,9 +78,9 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
             LoggerFactory.getLogger(AgenticEventHandlerFunctionAdapter.class);
 
     private final AgenticAggregate<S> aggregate;
+    private final String aggregateName;
     private final DomainEventType<InputEvent> eventType;
     private final AgentPlatform agentPlatform;
-    private final Agent agent;
     private final List<DomainEventType<E>> producedDomainEventTypes;
     private final List<DomainEventType<E>> errorEventTypes;
     private final Supplier<Collection<AggregateServiceRecord>> aggregateServicesSupplier;
@@ -85,10 +89,10 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
      * Creates a new {@code AgenticEventHandlerFunctionAdapter}.
      *
      * @param aggregate                  the owning agentic aggregate instance
+     * @param aggregateName              the aggregate name used to infer the matching
+     *                                   {@link Agent} from the {@link AgentPlatform}
      * @param eventType                  the external domain event type this adapter handles
      * @param agentPlatform              the Embabel platform used to create agent processes
-     * @param agent                      the deployed {@link Agent} for this aggregate,
-     *                                   provided by the implementing application
      * @param producedDomainEventTypes   domain event types this adapter may produce
      * @param errorEventTypes            error event types this adapter may produce
      * @param aggregateServicesSupplier  supplier of all known {@link AggregateServiceRecord}s;
@@ -96,16 +100,16 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
      */
     public AgenticEventHandlerFunctionAdapter(
             AgenticAggregate<S> aggregate,
+            String aggregateName,
             DomainEventType<InputEvent> eventType,
             AgentPlatform agentPlatform,
-            Agent agent,
             List<DomainEventType<E>> producedDomainEventTypes,
             List<DomainEventType<E>> errorEventTypes,
             Supplier<Collection<AggregateServiceRecord>> aggregateServicesSupplier) {
         this.aggregate = aggregate;
+        this.aggregateName = aggregateName;
         this.eventType = eventType;
         this.agentPlatform = agentPlatform;
-        this.agent = agent;
         this.producedDomainEventTypes = List.copyOf(producedDomainEventTypes);
         this.errorEventTypes = List.copyOf(errorEventTypes);
         this.aggregateServicesSupplier = aggregateServicesSupplier;
@@ -131,11 +135,47 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
      * @return a stream of domain events produced by the agent; may be empty
      */
     @Nonnull
+    private static Agent resolveAgentByName(AgentPlatform agentPlatform, String aggregateName) {
+        String suffixName = aggregateName + "Agent";
+        Collection<Agent> agents = agentPlatform.agents();
+        Agent suffixMatch = null;
+        Agent defaultAgentMatch = null;
+
+        for (Agent agent : agents) {
+            String agentName = agent.getName();
+            if (agentName.equals(aggregateName)) {
+                return agent;
+            }
+            if (suffixMatch == null && agentName.equals(suffixName)) {
+                suffixMatch = agent;
+            }
+            if (defaultAgentMatch == null && agentName.equals(DefaultAgent.AGENT_NAME)) {
+                defaultAgentMatch = agent;
+            }
+        }
+
+        if (suffixMatch != null) {
+            return suffixMatch;
+        }
+
+        // No name match — fall back to the DefaultAgent
+        if (defaultAgentMatch != null) {
+            logger.info("No agent found matching aggregate name '{}'; using default agent '{}'",
+                    aggregateName, defaultAgentMatch.getName());
+            return defaultAgentMatch;
+        }
+
+        throw new IllegalStateException(
+                "No DefaultAgent ('" + DefaultAgent.AGENT_NAME + "') is deployed on the AgentPlatform. "
+                        + "At least the DefaultAgent must be available to handle aggregate '"
+                        + aggregateName + "'.");
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public Stream<E> apply(@Nonnull InputEvent event, S state) {
         logger.debug("Processing agent-handled external event {} for aggregate {}",
-                eventType.typeName(), aggregate.getClass().getSimpleName());
+                eventType.typeName(), aggregateName);
 
         Map<String, Object> bindings = new LinkedHashMap<>();
         bindings.put("event", event);
@@ -150,40 +190,15 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
         bindings.put("isExternalEvent", true);
         bindings.put("hasMemories", !memories.isEmpty());
 
-        AgentProcess agentProcess =
-                agentPlatform.createAgentProcess(agent, ProcessOptions.DEFAULT, bindings);
+        Agent resolvedAgent = resolveAgentByName(agentPlatform, aggregateName);
+        logger.debug("Resolved agent '{}' for aggregate '{}'",
+                resolvedAgent.getName(), aggregateName);
+        AgentProcess agentProcess = agentPlatform.createAgentProcess(
+                resolvedAgent, ProcessOptions.DEFAULT, bindings);
+        tickToCompletion(agentProcess);
 
-        // Tick to completion with defensive limits so a stuck agent process cannot
-        // block external event handling indefinitely.
-        final long maxTicks = 10_000L;
-        final long timeoutNanos = java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
-        final long deadlineNanos = System.nanoTime() + timeoutNanos;
-        long tickCount = 0L;
-
-        while (!agentProcess.getFinished()
-                && tickCount < maxTicks
-                && System.nanoTime() < deadlineNanos) {
-            agentProcess.tick();
-            tickCount++;
-        }
-
-        if (!agentProcess.getFinished()) {
-            logger.error(
-                    "Agent process did not finish within safety limits for event {} on aggregate {}. " +
-                            "aggregateId={}, tickCount={}, maxTicks={}, timeoutSeconds={}, status={}",
-                    eventType.typeName(),
-                    aggregate.getClass().getSimpleName(),
-                    state.getAggregateId(),
-                    tickCount,
-                    maxTicks,
-                    java.util.concurrent.TimeUnit.NANOSECONDS.toSeconds(timeoutNanos),
-                    agentProcess.getStatus());
-            throw new IllegalStateException(
-                    "Agent process exceeded execution limits for event " + eventType.typeName()
-                            + " on aggregate " + aggregate.getClass().getSimpleName());
-        }
         logger.debug("Agent process completed with status {} for event {} on aggregate {}",
-                agentProcess.getStatus(), eventType.typeName(), aggregate.getClass().getSimpleName());
+                agentProcess.getStatus(), eventType.typeName(), aggregateName);
 
         return (Stream<E>) AgentProcessResultTranslator
                 .collectEvents(agentProcess.getBlackboard(), getAllRegisteredEventTypes())
@@ -233,5 +248,63 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
         all.addAll(producedDomainEventTypes);
         all.addAll(errorEventTypes);
         return all;
+    }
+
+    /**
+     * Ticks an {@link AgentProcess} to completion with defensive limits so a stuck agent
+     * process cannot block event handling indefinitely.
+     *
+     * @param agentProcess the agent process to drive to completion
+     * @throws IllegalStateException if the process does not finish within the safety limits
+     */
+    private void tickToCompletion(AgentProcess agentProcess) {
+        AgenticProcessTickHelper.tickToCompletion(
+                agentProcess,
+                logger,
+                "event",
+                eventType.typeName(),
+                aggregateName);
+    }
+}
+
+final class AgenticProcessTickHelper {
+
+    private static final long MAX_TICKS = 10_000L;
+    private static final long TIMEOUT_NANOS = java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
+
+    private AgenticProcessTickHelper() {
+    }
+
+    static void tickToCompletion(
+            AgentProcess agentProcess,
+            Logger logger,
+            String handledTypeLabel,
+            String handledTypeName,
+            String aggregateName) {
+        final long deadlineNanos = System.nanoTime() + TIMEOUT_NANOS;
+        long tickCount = 0L;
+
+        while (!agentProcess.getFinished()
+                && tickCount < MAX_TICKS
+                && System.nanoTime() < deadlineNanos) {
+            agentProcess.tick();
+            tickCount++;
+        }
+
+        if (!agentProcess.getFinished()) {
+            logger.error(
+                    "Agent process did not finish within safety limits for {} {} on aggregate {}. " +
+                            "tickCount={}, maxTicks={}, timeoutSeconds={}, status={}",
+                    handledTypeLabel,
+                    handledTypeName,
+                    aggregateName,
+                    tickCount,
+                    MAX_TICKS,
+                    java.util.concurrent.TimeUnit.NANOSECONDS.toSeconds(TIMEOUT_NANOS),
+                    agentProcess.getStatus());
+            throw new IllegalStateException(
+                    "Agent process exceeded execution limits for " + handledTypeLabel + " " + handledTypeName
+                            + " on aggregate " + aggregateName);
+        }
     }
 }
