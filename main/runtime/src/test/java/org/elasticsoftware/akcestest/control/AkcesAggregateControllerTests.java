@@ -41,9 +41,10 @@ public class AkcesAggregateControllerTests {
                 "Account-Commands",
                 "Account-DomainEvents",
                 AggregateServiceType.STANDARD,
-                List.of(new AggregateServiceCommandType("CreateAccount", 1, true, "commands.CreateAccount")),
-                List.of(new AggregateServiceDomainEventType("AccountCreated", 1, true, false, "domainevents.AccountCreated")),
-                Collections.emptyList());
+                List.of(new AggregateServiceCommandType("CreateAccount", 1, true, "commands.CreateAccount", null)),
+                List.of(new AggregateServiceDomainEventType("AccountCreated", 1, true, false, "domainevents.AccountCreated", null)),
+                Collections.emptyList(),
+                null);
         assertNotNull(record);
     }
 
@@ -86,9 +87,10 @@ public class AkcesAggregateControllerTests {
                 "Account-Commands",
                 "Account-DomainEvents",
                 AggregateServiceType.STANDARD,
-                List.of(new AggregateServiceCommandType("CreateAccount", 1, true, "commands.CreateAccount")),
-                List.of(new AggregateServiceDomainEventType("AccountCreated", 1, true, false, "domainevents.AccountCreated")),
-                Collections.emptyList());
+                List.of(new AggregateServiceCommandType("CreateAccount", 1, true, "commands.CreateAccount", null)),
+                List.of(new AggregateServiceDomainEventType("AccountCreated", 1, true, false, "domainevents.AccountCreated", null)),
+                Collections.emptyList(),
+                null);
         byte[] serialized = serde.serializer().serialize("Akces-Control", record);
         assertNotNull(serialized);
 

@@ -30,6 +30,8 @@ import org.elasticsoftware.akces.agentic.commands.ForgetMemoryCommand;
 import org.elasticsoftware.akces.agentic.commands.StoreMemoryCommand;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
+import org.elasticsoftware.akces.annotations.CommandInfo;
+import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.control.AggregateServiceCommandType;
@@ -72,6 +74,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsoftware.akces.kafka.KafkaAggregateRuntime.normalizeDescription;
 import static org.elasticsoftware.akces.kafka.PartitionUtils.COMMANDS_SUFFIX;
 import static org.elasticsoftware.akces.kafka.PartitionUtils.DOMAINEVENTS_SUFFIX;
 
@@ -431,22 +434,26 @@ public class AkcesAgenticAggregateController extends Thread
             BUILTIN_COMMAND_TYPES.forEach(ct ->
                     allCommands.add(new AggregateServiceCommandType(
                             ct.typeName(), ct.version(), ct.create(),
-                            "commands." + ct.typeName())));
+                            "commands." + ct.typeName(),
+                            normalizeDescription(ct.typeClass().getAnnotation(CommandInfo.class).description()))));
             aggregateRuntime.getLocalCommandTypes().forEach(ct ->
                     allCommands.add(new AggregateServiceCommandType(
                             ct.typeName(), ct.version(), ct.create(),
-                            "commands." + ct.typeName())));
+                            "commands." + ct.typeName(),
+                            normalizeDescription(ct.typeClass().getAnnotation(CommandInfo.class).description()))));
 
             // Combine built-in + aggregate event types
             List<AggregateServiceDomainEventType> allEvents = new ArrayList<>();
             BUILTIN_EVENT_TYPES.forEach(et ->
                     allEvents.add(new AggregateServiceDomainEventType(
                             et.typeName(), et.version(), et.create(), et.external(),
-                            "domainevents." + et.typeName())));
+                            "domainevents." + et.typeName(),
+                            normalizeDescription(et.typeClass().getAnnotation(DomainEventInfo.class).description()))));
             aggregateRuntime.getProducedDomainEventTypes().forEach(et ->
                     allEvents.add(new AggregateServiceDomainEventType(
                             et.typeName(), et.version(), et.create(), et.external(),
-                            "domainevents." + et.typeName())));
+                            "domainevents." + et.typeName(),
+                            normalizeDescription(et.typeClass().getAnnotation(DomainEventInfo.class).description()))));
 
             // Consumed external events — mirrors the pattern in AkcesAggregateController so
             // that service discovery correctly reflects the external event dependencies.
@@ -454,7 +461,8 @@ public class AkcesAgenticAggregateController extends Thread
                     aggregateRuntime.getExternalDomainEventTypes().stream()
                             .map(et -> new AggregateServiceDomainEventType(
                                     et.typeName(), et.version(), et.create(), et.external(),
-                                    "domainevents." + et.typeName()))
+                                    "domainevents." + et.typeName(),
+                                    normalizeDescription(et.typeClass().getAnnotation(DomainEventInfo.class).description())))
                             .toList();
 
             AggregateServiceRecord serviceRecord = new AggregateServiceRecord(
@@ -464,7 +472,8 @@ public class AkcesAgenticAggregateController extends Thread
                     AggregateServiceType.AGENTIC,
                     allCommands,
                     allEvents,
-                    consumedEvents
+                    consumedEvents,
+                    aggregateRuntime.getDescription()
             );
 
             controlProducer.beginTransaction();

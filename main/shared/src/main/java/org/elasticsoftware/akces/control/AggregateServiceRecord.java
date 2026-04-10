@@ -17,6 +17,8 @@
 
 package org.elasticsoftware.akces.control;
 
+import jakarta.annotation.Nullable;
+
 import java.util.List;
 
 /**
@@ -26,6 +28,11 @@ import java.util.List;
  * aggregate services. It defaults to {@link AggregateServiceType#STANDARD} for records
  * that pre-date the introduction of this field (see {@link #effectiveType()}).
  *
+ * <p>The optional {@link #description()} field provides a human-readable summary of
+ * the aggregate, sourced from the {@code @AggregateInfo} or {@code @AgenticAggregateInfo}
+ * annotation. It may be {@code null} for legacy records or when no description was
+ * specified in the annotation.
+ *
  * @param aggregateName    the logical name of the aggregate
  * @param commandTopic     the Kafka topic to which commands for this aggregate are sent
  * @param domainEventTopic the Kafka topic on which this aggregate publishes domain events
@@ -33,6 +40,7 @@ import java.util.List;
  * @param supportedCommands the command types supported by this service
  * @param producedEvents    the domain-event types produced by this service
  * @param consumedEvents    the external domain-event types consumed by this service
+ * @param description      a human-readable description of the aggregate; may be {@code null}
  */
 public record AggregateServiceRecord(
         String aggregateName,
@@ -41,7 +49,8 @@ public record AggregateServiceRecord(
         AggregateServiceType type,
         List<AggregateServiceCommandType> supportedCommands,
         List<AggregateServiceDomainEventType> producedEvents,
-        List<AggregateServiceDomainEventType> consumedEvents
+        List<AggregateServiceDomainEventType> consumedEvents,
+        @Nullable String description
 ) implements AkcesControlRecord {
 
     /**

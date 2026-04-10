@@ -20,6 +20,8 @@ package org.elasticsoftware.akces.kafka;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import org.elasticsoftware.akces.annotations.AgenticAggregateInfo;
+import org.elasticsoftware.akces.annotations.AggregateInfo;
 import org.elasticsoftware.akces.schemas.JsonSchema;
 import jakarta.annotation.Nullable;
 import org.apache.kafka.common.errors.SerializationException;
@@ -105,6 +107,31 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
     @Override
     public String getName() {
         return stateType.typeName();
+    }
+
+    @Override
+    @Nullable
+    public String getDescription() {
+        AggregateInfo aggregateInfo = aggregateClass.getAnnotation(AggregateInfo.class);
+        if (aggregateInfo != null) {
+            return normalizeDescription(aggregateInfo.description());
+        }
+        AgenticAggregateInfo agenticInfo = aggregateClass.getAnnotation(AgenticAggregateInfo.class);
+        if (agenticInfo != null) {
+            return normalizeDescription(agenticInfo.description());
+        }
+        return null;
+    }
+
+    /**
+     * Normalizes a description string by returning {@code null} for blank values.
+     *
+     * @param description the raw description from the annotation
+     * @return the description if non-blank, or {@code null}
+     */
+    @Nullable
+    public static String normalizeDescription(@Nullable String description) {
+        return description == null || description.isBlank() ? null : description;
     }
 
     @Override
