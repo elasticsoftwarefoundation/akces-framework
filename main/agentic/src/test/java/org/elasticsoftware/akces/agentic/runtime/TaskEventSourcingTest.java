@@ -86,7 +86,7 @@ class TaskEventSourcingTest {
     @Test
     void onAgentTaskAssignedShouldAppendTaskToState() {
         Instant now = Instant.parse("2026-04-10T12:00:00Z");
-        var party = new HumanRequestingParty("user-1", "Alice", "analyst");
+        var party = new HumanRequestingParty("user-1", "analyst");
         var metadata = Map.of("correlationId", "corr-123");
         var event = new AgentTaskAssignedEvent("agg-1", "proc-1", "Analyze data",
                 party, metadata, now);
@@ -108,7 +108,7 @@ class TaskEventSourcingTest {
     @Test
     void onAgentTaskAssignedShouldThrowWhenStateIsNotTaskAware() {
         var event = new AgentTaskAssignedEvent("agg-1", "proc-1", "task",
-                new HumanRequestingParty("u", "n", "r"), null, Instant.now());
+                new HumanRequestingParty("u", "r"), null, Instant.now());
         var plainState = new PlainState("agg-1");
 
         assertThatThrownBy(() -> KafkaAgenticAggregateRuntime.onAgentTaskAssigned(event, plainState))
@@ -136,24 +136,24 @@ class TaskEventSourcingTest {
     }
 
     // -------------------------------------------------------------------------
-    // handleTaskEvent dispatch tests
+    // handleBuiltInEvent dispatch tests (AgentTaskAssigned path)
     // -------------------------------------------------------------------------
 
     @Test
-    void handleTaskEventShouldDispatchAgentTaskAssignedEvent() {
+    void handleBuiltInEventShouldDispatchAgentTaskAssignedEvent() {
         Instant now = Instant.now();
-        var party = new HumanRequestingParty("user-1", "Alice", "analyst");
+        var party = new HumanRequestingParty("user-1", "analyst");
         var event = new AgentTaskAssignedEvent("agg-1", "proc-1", "task", party, null, now);
         var state = new TestTaskState("agg-1", List.of());
 
-        AggregateState result = KafkaAgenticAggregateRuntime.handleTaskEvent(event, state);
+        AggregateState result = KafkaAgenticAggregateRuntime.handleBuiltInEvent(event, state);
 
         assertThat(result).isInstanceOf(TestTaskState.class);
         assertThat(((TestTaskState) result).getAssignedTasks()).hasSize(1);
     }
 
     @Test
-    void handleTaskEventShouldThrowForUnknownEventType() {
+    void handleBuiltInEventShouldThrowForUnknownEventType() {
         var unknownEvent = new DomainEvent() {
             @Override
             public String getAggregateId() {
@@ -162,9 +162,9 @@ class TaskEventSourcingTest {
         };
         var state = new TestTaskState("agg-1", List.of());
 
-        assertThatThrownBy(() -> KafkaAgenticAggregateRuntime.handleTaskEvent(unknownEvent, state))
+        assertThatThrownBy(() -> KafkaAgenticAggregateRuntime.handleBuiltInEvent(unknownEvent, state))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Unsupported task event type");
+                .hasMessageContaining("Unsupported built-in event type");
     }
 
     // -------------------------------------------------------------------------
@@ -174,12 +174,12 @@ class TaskEventSourcingTest {
     @Test
     void shouldReconstructStateFromMultipleTaskAssignedEvents() {
         AggregateState state = new TestTaskState("agg-1", List.of());
-        var party = new HumanRequestingParty("user-1", "Alice", "analyst");
+        var party = new HumanRequestingParty("user-1", "analyst");
 
         for (int i = 1; i <= 3; i++) {
             var event = new AgentTaskAssignedEvent("agg-1", "proc-" + i, "Task " + i,
                     party, null, Instant.now().plusSeconds(i));
-            state = KafkaAgenticAggregateRuntime.handleTaskEvent(event, state);
+            state = KafkaAgenticAggregateRuntime.handleBuiltInEvent(event, state);
         }
 
         var finalState = (TestTaskState) state;

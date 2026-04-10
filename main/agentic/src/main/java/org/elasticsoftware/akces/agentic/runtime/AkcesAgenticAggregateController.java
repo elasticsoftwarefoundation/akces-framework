@@ -157,6 +157,10 @@ public class AkcesAgenticAggregateController extends Thread
      *  subclasses or future extensions that may need environment properties. */
     private Environment environment;
 
+    /** Whether to force-register built-in schemas when they are incompatible with existing ones.
+     *  Configured via the {@code akces.aggregate.schemas.forceRegister} environment property. */
+    private boolean forceRegisterOnIncompatible = false;
+
     /**
      * Creates a new {@code AkcesAgenticAggregateController}.
      *
@@ -277,6 +281,11 @@ public class AkcesAgenticAggregateController extends Thread
      * {@link org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent}),
      * the {@link org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent}, and
      * the {@link org.elasticsoftware.akces.agentic.commands.AssignTaskCommand}.
+     *
+     * <p>If a schema is incompatible with the existing registered schema, the behaviour
+     * depends on the {@code akces.aggregate.schemas.forceRegister} environment property:
+     * when {@code true}, the schema is force-registered; otherwise the incompatibility is
+     * propagated as a fatal error.
      */
     private void registerBuiltinSchemas() {
         logger.info("Registering built-in agentic schemas for {}Aggregate",
@@ -285,15 +294,20 @@ public class AkcesAgenticAggregateController extends Thread
             try {
                 aggregateRuntime.registerAndValidate(eventType, schemaRegistry);
             } catch (IncompatibleSchemaException e) {
-                logger.warn("Built-in event schema {} is incompatible — attempting force-register",
-                        eventType.typeName(), e);
-                try {
-                    aggregateRuntime.registerAndValidate(eventType, schemaRegistry, true);
-                } catch (Exception ex) {
-                    logger.error("Failed to force-register built-in event schema {}",
-                            eventType.typeName(), ex);
-                    throw new RuntimeException("Failed to register built-in event schema: "
-                            + eventType.typeName(), ex);
+                if (forceRegisterOnIncompatible) {
+                    logger.warn("Built-in event schema {} is incompatible — force-registering (forceRegister=true)",
+                            eventType.typeName(), e);
+                    try {
+                        aggregateRuntime.registerAndValidate(eventType, schemaRegistry, true);
+                    } catch (Exception ex) {
+                        logger.error("Failed to force-register built-in event schema {}",
+                                eventType.typeName(), ex);
+                        throw new RuntimeException("Failed to register built-in event schema: "
+                                + eventType.typeName(), ex);
+                    }
+                } else {
+                    throw new RuntimeException("Built-in event schema " + eventType.typeName()
+                            + " is incompatible. Set akces.aggregate.schemas.forceRegister=true to override.", e);
                 }
             } catch (Exception e) {
                 throw new RuntimeException("Failed to register built-in event schema: "
@@ -304,15 +318,20 @@ public class AkcesAgenticAggregateController extends Thread
             try {
                 aggregateRuntime.registerAndValidate(commandType, schemaRegistry);
             } catch (IncompatibleSchemaException e) {
-                logger.warn("Built-in command schema {} is incompatible — attempting force-register",
-                        commandType.typeName(), e);
-                try {
-                    aggregateRuntime.registerAndValidate(commandType, schemaRegistry, true);
-                } catch (Exception ex) {
-                    logger.error("Failed to force-register built-in command schema {}",
-                            commandType.typeName(), ex);
-                    throw new RuntimeException("Failed to register built-in command schema: "
-                            + commandType.typeName(), ex);
+                if (forceRegisterOnIncompatible) {
+                    logger.warn("Built-in command schema {} is incompatible — force-registering (forceRegister=true)",
+                            commandType.typeName(), e);
+                    try {
+                        aggregateRuntime.registerAndValidate(commandType, schemaRegistry, true);
+                    } catch (Exception ex) {
+                        logger.error("Failed to force-register built-in command schema {}",
+                                commandType.typeName(), ex);
+                        throw new RuntimeException("Failed to register built-in command schema: "
+                                + commandType.typeName(), ex);
+                    }
+                } else {
+                    throw new RuntimeException("Built-in command schema " + commandType.typeName()
+                            + " is incompatible. Set akces.aggregate.schemas.forceRegister=true to override.", e);
                 }
             } catch (Exception e) {
                 throw new RuntimeException("Failed to register built-in command schema: "
@@ -540,6 +559,7 @@ public class AkcesAgenticAggregateController extends Thread
     @Override
     public void setEnvironment(Environment env) {
         this.environment = env;
+        this.forceRegisterOnIncompatible = env.getProperty("akces.aggregate.schemas.forceRegister", Boolean.class, false);
     }
 
     // -------------------------------------------------------------------------

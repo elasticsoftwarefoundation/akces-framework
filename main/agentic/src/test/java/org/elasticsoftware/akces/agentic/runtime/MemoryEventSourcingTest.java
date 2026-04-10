@@ -38,7 +38,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * {@link MemoryRevokedEvent} sequences.
  *
  * <p>Per framework testing guidelines, the event-sourcing handler methods
- * ({@code onMemoryStored}, {@code onMemoryRevoked}, {@code handleMemoryEvent}) are
+ * ({@code onMemoryStored}, {@code onMemoryRevoked}, {@code handleBuiltInEvent}) are
  * tested through their actual invocations rather than testing the event records directly.
  */
 class MemoryEventSourcingTest {
@@ -150,35 +150,35 @@ class MemoryEventSourcingTest {
     }
 
     // -------------------------------------------------------------------------
-    // handleMemoryEvent dispatch tests
+    // handleMemoryEvent dispatch tests (via handleBuiltInEvent)
     // -------------------------------------------------------------------------
 
     @Test
-    void handleMemoryEventShouldDispatchMemoryStoredEvent() {
+    void handleBuiltInEventShouldDispatchMemoryStoredEvent() {
         Instant now = Instant.now();
         var event = new MemoryStoredEvent("agg-1", "mem-1", "sub", "fact", "cite", "reason", now);
         var state = new TestMemoryState("agg-1", List.of());
 
-        AggregateState result = KafkaAgenticAggregateRuntime.handleMemoryEvent(event, state);
+        AggregateState result = KafkaAgenticAggregateRuntime.handleBuiltInEvent(event, state);
 
         assertThat(result).isInstanceOf(TestMemoryState.class);
         assertThat(((TestMemoryState) result).getMemories()).hasSize(1);
     }
 
     @Test
-    void handleMemoryEventShouldDispatchMemoryRevokedEvent() {
+    void handleBuiltInEventShouldDispatchMemoryRevokedEvent() {
         var m1 = new AgenticAggregateMemory("m1", "s", "f", "c", "r", Instant.now());
         var state = new TestMemoryState("agg-1", List.of(m1));
 
         var event = new MemoryRevokedEvent("agg-1", "m1", "evicted", Instant.now());
-        AggregateState result = KafkaAgenticAggregateRuntime.handleMemoryEvent(event, state);
+        AggregateState result = KafkaAgenticAggregateRuntime.handleBuiltInEvent(event, state);
 
         assertThat(result).isInstanceOf(TestMemoryState.class);
         assertThat(((TestMemoryState) result).getMemories()).isEmpty();
     }
 
     @Test
-    void handleMemoryEventShouldThrowForUnknownEventType() {
+    void handleBuiltInEventShouldThrowForUnknownEventType() {
         var unknownEvent = new DomainEvent() {
             @Override
             public String getAggregateId() {
@@ -187,9 +187,9 @@ class MemoryEventSourcingTest {
         };
         var state = new TestMemoryState("agg-1", List.of());
 
-        assertThatThrownBy(() -> KafkaAgenticAggregateRuntime.handleMemoryEvent(unknownEvent, state))
+        assertThatThrownBy(() -> KafkaAgenticAggregateRuntime.handleBuiltInEvent(unknownEvent, state))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Unsupported memory event type");
+                .hasMessageContaining("Unsupported built-in event type");
     }
 
     // -------------------------------------------------------------------------
@@ -215,7 +215,7 @@ class MemoryEventSourcingTest {
 
         // Replay events to reconstruct state
         for (DomainEvent event : events) {
-            state = KafkaAgenticAggregateRuntime.handleMemoryEvent(event, state);
+            state = KafkaAgenticAggregateRuntime.handleBuiltInEvent(event, state);
         }
 
         var finalState = (TestMemoryState) state;
@@ -229,9 +229,9 @@ class MemoryEventSourcingTest {
         AggregateState state = new TestMemoryState("agg-1", List.of());
 
         // Store then immediately revoke
-        state = KafkaAgenticAggregateRuntime.handleMemoryEvent(
+        state = KafkaAgenticAggregateRuntime.handleBuiltInEvent(
                 new MemoryStoredEvent("agg-1", "m1", "s", "f", "c", "r", Instant.now()), state);
-        state = KafkaAgenticAggregateRuntime.handleMemoryEvent(
+        state = KafkaAgenticAggregateRuntime.handleBuiltInEvent(
                 new MemoryRevokedEvent("agg-1", "m1", "undo", Instant.now()), state);
 
         assertThat(((TestMemoryState) state).getMemories()).isEmpty();
@@ -242,7 +242,7 @@ class MemoryEventSourcingTest {
         AggregateState state = new TestMemoryState("agg-1", List.of());
 
         for (int i = 1; i <= 5; i++) {
-            state = KafkaAgenticAggregateRuntime.handleMemoryEvent(
+            state = KafkaAgenticAggregateRuntime.handleBuiltInEvent(
                     new MemoryStoredEvent("agg-1", "m" + i, "s" + i, "f" + i,
                             "c" + i, "r" + i, Instant.now().plusSeconds(i)),
                     state);

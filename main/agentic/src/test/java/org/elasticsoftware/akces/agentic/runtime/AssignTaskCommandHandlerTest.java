@@ -24,6 +24,7 @@ import com.embabel.agent.core.ProcessOptions;
 import org.elasticsoftware.akces.agentic.commands.AssignTaskCommand;
 import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
 import org.elasticsoftware.akces.aggregate.*;
+import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,9 +43,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
- * Unit tests for {@link AssignTaskCommandHandler}, verifying that it creates an
- * Embabel {@link AgentProcess} and emits an {@link AgentTaskAssignedEvent} with
- * the correct process ID.
+ * Unit tests for {@link KafkaAgenticAggregateRuntime#builtInCommandHandler(AgentPlatform, String)},
+ * verifying that it creates an Embabel {@link AgentProcess} and emits an
+ * {@link AgentTaskAssignedEvent} with the correct process ID.
  */
 @ExtendWith(MockitoExtension.class)
 class AssignTaskCommandHandlerTest {
@@ -57,14 +58,6 @@ class AssignTaskCommandHandlerTest {
         }
     }
 
-    /** Test AgenticAggregate. */
-    static class TestAggregate implements AgenticAggregate<TestState> {
-        @Override
-        public Class<TestState> getStateClass() {
-            return TestState.class;
-        }
-    }
-
     @Mock
     private AgentPlatform agentPlatform;
 
@@ -74,11 +67,11 @@ class AssignTaskCommandHandlerTest {
     @Mock
     private Agent agent;
 
-    private AssignTaskCommandHandler<TestState> handler;
+    private CommandHandlerFunction<AggregateState, Command, DomainEvent> handler;
 
     @BeforeEach
     void setUp() {
-        handler = new AssignTaskCommandHandler<>(new TestAggregate(), agentPlatform, "TestAggregate");
+        handler = KafkaAgenticAggregateRuntime.builtInCommandHandler(agentPlatform, "TestAggregate");
     }
 
     private void setUpAgentResolution() {
@@ -89,7 +82,7 @@ class AssignTaskCommandHandlerTest {
     @Test
     void applyShouldCreateAgentProcessAndEmitEvent() {
         setUpAgentResolution();
-        var party = new HumanRequestingParty("user-1", "Alice", "analyst");
+        var party = new HumanRequestingParty("user-1", "analyst");
         var command = new AssignTaskCommand("agg-1", "Analyze data", party, Map.of("key", "value"));
         var state = new TestState("agg-1");
 
@@ -136,7 +129,7 @@ class AssignTaskCommandHandlerTest {
     @Test
     void applyShouldHandleNullMetadata() {
         setUpAgentResolution();
-        var party = new HumanRequestingParty("user-1", "Bob", "admin");
+        var party = new HumanRequestingParty("user-1", "admin");
         var command = new AssignTaskCommand("agg-1", "Simple task", party, null);
         var state = new TestState("agg-1");
 
@@ -151,60 +144,30 @@ class AssignTaskCommandHandlerTest {
     }
 
     @Test
-    void isCreateShouldReturnFalse() {
-        assertThat(handler.isCreate()).isFalse();
-    }
-
-    @Test
-    void getCommandTypeShouldReturnAssignTaskType() {
-        assertThat(handler.getCommandType().typeName()).isEqualTo("AssignTask");
-        assertThat(handler.getCommandType().version()).isEqualTo(1);
-    }
-
-    @Test
-    void getProducedDomainEventTypesShouldContainAgentTaskAssigned() {
-        assertThat(handler.getProducedDomainEventTypes()).hasSize(1);
-        assertThat(handler.getProducedDomainEventTypes().getFirst().typeName())
-                .isEqualTo("AgentTaskAssigned");
-    }
-
-    @Test
-    void getErrorEventTypesShouldBeEmpty() {
-        assertThat(handler.getErrorEventTypes()).isEmpty();
-    }
-
-    @Test
-    void constructorShouldRejectNullAggregate() {
-        assertThatThrownBy(() -> new AssignTaskCommandHandler<>(null, agentPlatform, "TestAggregate"))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("aggregate");
-    }
-
-    @Test
-    void constructorShouldRejectNullAgentPlatform() {
-        assertThatThrownBy(() -> new AssignTaskCommandHandler<>(new TestAggregate(), null, "TestAggregate"))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("agentPlatform");
-    }
-
-    @Test
-    void constructorShouldRejectNullAggregateName() {
-        assertThatThrownBy(() -> new AssignTaskCommandHandler<>(new TestAggregate(), agentPlatform, null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("aggregateName");
-    }
-
-    @Test
     void applyShouldThrowWhenNoAgentFound() {
-        // Agent platform has no matching agents
         when(agentPlatform.agents()).thenReturn(List.of());
-        var noAgentHandler = new AssignTaskCommandHandler<>(new TestAggregate(), agentPlatform, "Unknown");
-        var party = new HumanRequestingParty("user-1", "Alice", "analyst");
+        var noAgentHandler = KafkaAgenticAggregateRuntime.builtInCommandHandler(agentPlatform, "Unknown");
+        var party = new HumanRequestingParty("user-1", "analyst");
         var command = new AssignTaskCommand("agg-1", "task", party, null);
         var state = new TestState("agg-1");
 
-        assertThatThrownBy(() -> noAgentHandler.apply(command, state))
+        assertThatThrownBy(() -> noAgentHandler.apply(command, state).toList())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("No Agent found");
+    }
+
+    @Test
+    void applyShouldThrowForUnknownCommandType() {
+        Command unknownCommand = new Command() {
+            @Override
+            public String getAggregateId() {
+                return "agg-1";
+            }
+        };
+        var state = new TestState("agg-1");
+
+        assertThatThrownBy(() -> handler.apply(unknownCommand, state).toList())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unsupported built-in command type");
     }
 }

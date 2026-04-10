@@ -21,14 +21,15 @@ package org.elasticsoftware.akces.aggregate;
  * A {@link RequestingParty} implementation representing a human user that requested
  * a task assignment.
  *
- * @param userId      the unique identifier of the human user
- * @param displayName the display name of the human user
- * @param role        the role of the human user in the system
- *                    (e.g. "administrator", "analyst", "end-user")
+ * <p>For GDPR reasons, this record does not carry any personally identifiable
+ * information beyond a system-level user identifier and role.
+ *
+ * @param userId the unique identifier of the human user
+ * @param role   the role of the human user in the system
+ *               (e.g. "administrator", "analyst", "end-user")
  */
 public record HumanRequestingParty(
         String userId,
-        String displayName,
         String role
 ) implements RequestingParty {
 }

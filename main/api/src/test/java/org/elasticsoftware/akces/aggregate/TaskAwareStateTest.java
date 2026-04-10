@@ -72,7 +72,7 @@ class TaskAwareStateTest {
     @Test
     void assignedTaskShouldPopulateAllFields() {
         Instant now = Instant.now();
-        var party = new HumanRequestingParty("user-1", "Alice", "analyst");
+        var party = new HumanRequestingParty("user-1", "analyst");
         var metadata = Map.of("correlationId", "corr-123");
 
         var task = new AssignedTask("proc-1", "Analyze data", party, metadata, now);
@@ -98,7 +98,7 @@ class TaskAwareStateTest {
     @Test
     void assignedTaskInequalityWhenProcessIdDiffers() {
         Instant now = Instant.now();
-        var party = new HumanRequestingParty("user-1", "Alice", "analyst");
+        var party = new HumanRequestingParty("user-1", "analyst");
         var a = new AssignedTask("proc-1", "task", party, null, now);
         var b = new AssignedTask("proc-2", "task", party, null, now);
 
@@ -108,7 +108,7 @@ class TaskAwareStateTest {
     @Test
     void assignedTaskShouldAllowNullMetadata() {
         Instant now = Instant.now();
-        var party = new HumanRequestingParty("user-1", "Alice", "analyst");
+        var party = new HumanRequestingParty("user-1", "analyst");
 
         var task = new AssignedTask("proc-1", "task", party, null, now);
 
@@ -129,7 +129,7 @@ class TaskAwareStateTest {
     @Test
     void withAssignedTaskShouldAppendToEnd() {
         Instant now = Instant.now();
-        var party = new HumanRequestingParty("user-1", "Alice", "analyst");
+        var party = new HumanRequestingParty("user-1", "analyst");
         var task1 = new AssignedTask("proc-1", "Task 1", party, null, now);
         var task2 = new AssignedTask("proc-2", "Task 2", party, null, now.plusSeconds(1));
 
@@ -161,7 +161,7 @@ class TaskAwareStateTest {
     @Test
     void withoutNonExistentProcessIdShouldReturnEquivalentState() {
         Instant now = Instant.now();
-        var party = new HumanRequestingParty("user-1", "Alice", "analyst");
+        var party = new HumanRequestingParty("user-1", "analyst");
         var task = new AssignedTask("proc-1", "Task 1", party, null, now);
 
         TaskAwareState state = new TestTaskState("agg-1", List.of(task));
@@ -173,7 +173,7 @@ class TaskAwareStateTest {
     @Test
     void taskRoundTripThroughTaskAwareState() {
         Instant now = Instant.now();
-        var party = new HumanRequestingParty("user-42", "Bob", "manager");
+        var party = new HumanRequestingParty("user-42", "manager");
         var metadata = Map.of("priority", "high", "deadline", "2026-05-01");
         var task = new AssignedTask("proc-42", "Urgent analysis", party, metadata, now);
 

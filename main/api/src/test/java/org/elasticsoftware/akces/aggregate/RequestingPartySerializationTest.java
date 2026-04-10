@@ -61,16 +61,15 @@ class RequestingPartySerializationTest {
 
     @Test
     void humanRequestingPartyShouldPopulateAllFields() {
-        var human = new HumanRequestingParty("user-1", "John Doe", "administrator");
+        var human = new HumanRequestingParty("user-1", "administrator");
 
         assertThat(human.userId()).isEqualTo("user-1");
-        assertThat(human.displayName()).isEqualTo("John Doe");
         assertThat(human.role()).isEqualTo("administrator");
     }
 
     @Test
     void humanRequestingPartyShouldImplementRequestingParty() {
-        var human = new HumanRequestingParty("user-1", "John Doe", "administrator");
+        var human = new HumanRequestingParty("user-1", "administrator");
 
         assertThat(human).isInstanceOf(RequestingParty.class);
         assertThat(((RequestingParty) human).role()).isEqualTo("administrator");
@@ -91,8 +90,8 @@ class RequestingPartySerializationTest {
 
     @Test
     void humanRequestingPartyEqualityShouldHold() {
-        var a = new HumanRequestingParty("id-1", "Name", "role");
-        var b = new HumanRequestingParty("id-1", "Name", "role");
+        var a = new HumanRequestingParty("id-1", "role");
+        var b = new HumanRequestingParty("id-1", "role");
 
         assertThat(a).isEqualTo(b);
         assertThat(a.hashCode()).isEqualTo(b.hashCode());
@@ -101,7 +100,7 @@ class RequestingPartySerializationTest {
     @Test
     void agentAndHumanShouldNotBeEqual() {
         var agent = new AgentRequestingParty("id-1", "Name", "role");
-        var human = new HumanRequestingParty("id-1", "Name", "role");
+        var human = new HumanRequestingParty("id-1", "role");
 
         assertThat(agent).isNotEqualTo(human);
     }
@@ -116,8 +115,8 @@ class RequestingPartySerializationTest {
 
     @Test
     void humanRequestingPartyInequalityWhenIdDiffers() {
-        var a = new HumanRequestingParty("id-1", "Name", "role");
-        var b = new HumanRequestingParty("id-2", "Name", "role");
+        var a = new HumanRequestingParty("id-1", "role");
+        var b = new HumanRequestingParty("id-2", "role");
 
         assertThat(a).isNotEqualTo(b);
     }
@@ -163,16 +162,16 @@ class RequestingPartySerializationTest {
     @Test
     void patternMatchingShouldWorkWithSwitch() {
         RequestingParty agent = new AgentRequestingParty("a-1", "TestAgent", "supervisor");
-        RequestingParty human = new HumanRequestingParty("u-1", "TestUser", "analyst");
+        RequestingParty human = new HumanRequestingParty("u-1", "analyst");
 
         assertThat(describe(agent)).isEqualTo("Agent: TestAgent (supervisor)");
-        assertThat(describe(human)).isEqualTo("Human: TestUser (analyst)");
+        assertThat(describe(human)).isEqualTo("Human: u-1 (analyst)");
     }
 
     private static String describe(RequestingParty party) {
         return switch (party) {
             case AgentRequestingParty a -> "Agent: " + a.agentName() + " (" + a.role() + ")";
-            case HumanRequestingParty h -> "Human: " + h.displayName() + " (" + h.role() + ")";
+            case HumanRequestingParty h -> "Human: " + h.userId() + " (" + h.role() + ")";
         };
     }
 }
