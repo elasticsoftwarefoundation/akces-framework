@@ -45,6 +45,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.AGENT_TASK_ASSIGNED_TYPE;
+import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.ASSIGN_TASK_COMMAND_TYPE;
 import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.MEMORY_REVOKED_TYPE;
 import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.MEMORY_STORED_TYPE;
 
@@ -267,15 +269,26 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
                     }
                 });
 
-        // Register built-in event-sourcing handlers for memory management.
-        // These handle the framework-owned MemoryStored and MemoryRevoked events,
-        // which every AgenticAggregate state must process via MemoryAwareState.
+        // Register built-in event-sourcing handlers for memory management and task assignment.
+        // These handle the framework-owned MemoryStored, MemoryRevoked, and AgentTaskAssigned
+        // events, using a unified single-dispatch handler.
         runtimeBuilder
-                .addEventSourcingHandler(MEMORY_STORED_TYPE, KafkaAgenticAggregateRuntime::handleMemoryEvent)
+                .addEventSourcingHandler(MEMORY_STORED_TYPE, KafkaAgenticAggregateRuntime::handleBuiltInEvent)
                 .addDomainEvent(MEMORY_STORED_TYPE);
         runtimeBuilder
-                .addEventSourcingHandler(MEMORY_REVOKED_TYPE, KafkaAgenticAggregateRuntime::handleMemoryEvent)
+                .addEventSourcingHandler(MEMORY_REVOKED_TYPE, KafkaAgenticAggregateRuntime::handleBuiltInEvent)
                 .addDomainEvent(MEMORY_REVOKED_TYPE);
+        runtimeBuilder
+                .addEventSourcingHandler(AGENT_TASK_ASSIGNED_TYPE, KafkaAgenticAggregateRuntime::handleBuiltInEvent)
+                .addDomainEvent(AGENT_TASK_ASSIGNED_TYPE);
+
+        // Register built-in AssignTask command handler using a single-dispatch handler on
+        // KafkaAgenticAggregateRuntime. The handler resolves the agent from the platform,
+        // creates an AgentProcess, and emits AgentTaskAssignedEvent.
+        runtimeBuilder
+                .addCommandHandler(ASSIGN_TASK_COMMAND_TYPE,
+                        KafkaAgenticAggregateRuntime.builtInCommandHandler(agentPlatform, agenticInfo.value()))
+                .addCommand(ASSIGN_TASK_COMMAND_TYPE);
 
         // Collect agent-produced error types for registration and inclusion in adapters.
         List<DomainEventType<?>> agentProducedErrorTypes =
