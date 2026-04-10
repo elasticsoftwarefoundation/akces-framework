@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.orders.commands;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
@@ -26,13 +26,13 @@ import java.math.BigDecimal;
 
 @CommandInfo(type = "FillBuyOrder", version = 1)
 public record FillBuyOrderCommand(
-        @NotNull @AggregateIdentifier String userId,
-        @NotNull String orderId,
-        @NotNull String counterpartyId,
-        @NotNull BigDecimal price,
-        @NotNull BigDecimal quantity,
-        @NotNull String baseCurrency,
-        @NotNull String quoteCurrency
+        @Nonnull @AggregateIdentifier String userId,
+        @Nonnull String orderId,
+        @Nonnull String counterpartyId,
+        @Nonnull BigDecimal price,
+        @Nonnull BigDecimal quantity,
+        @Nonnull String baseCurrency,
+        @Nonnull String quoteCurrency
 ) implements Command {
     @Override
     public String getAggregateId() {

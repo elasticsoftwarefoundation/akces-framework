@@ -18,7 +18,6 @@
 package org.elasticsoftware.akces.agentic.commands;
 
 import jakarta.annotation.Nonnull;
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.aggregate.RequestingParty;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
@@ -48,9 +47,9 @@ import java.util.Map;
 @CommandInfo(type = "AssignTask", version = 1,
         description = "Assigns a task to an agentic aggregate for AI-assisted processing")
 public record AssignTaskCommand(
-        @AggregateIdentifier @NotNull String agenticAggregateId,
-        @NotNull String taskDescription,
-        @NotNull RequestingParty requestingParty,
+        @AggregateIdentifier @Nonnull String agenticAggregateId,
+        @Nonnull String taskDescription,
+        @Nonnull RequestingParty requestingParty,
         Map<String, String> taskMetadata
 ) implements Command {
 

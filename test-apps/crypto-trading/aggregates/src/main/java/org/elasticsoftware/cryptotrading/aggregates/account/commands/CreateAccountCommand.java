@@ -17,21 +17,21 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.account.commands;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
 @CommandInfo(type = "CreateAccount", description = "Create a new account")
 public record CreateAccountCommand(
-        @AggregateIdentifier @NotNull String userId,
-        @NotNull String country,
-        @NotNull String firstName,
-        @NotNull String lastName,
-        @NotNull String email
+        @AggregateIdentifier @Nonnull String userId,
+        @Nonnull String country,
+        @Nonnull String firstName,
+        @Nonnull String lastName,
+        @Nonnull String email
 ) implements Command {
     @Override
-    @NotNull
+    @Nonnull
     public String getAggregateId() {
         return userId();
     }

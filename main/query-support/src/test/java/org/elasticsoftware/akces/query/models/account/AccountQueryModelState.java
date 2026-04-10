@@ -20,7 +20,7 @@ package org.elasticsoftware.akces.query.models.account;
 import org.elasticsoftware.akces.annotations.PIIData;
 import org.elasticsoftware.akces.annotations.QueryModelStateInfo;
 import org.elasticsoftware.akces.query.QueryModelState;
-import org.jetbrains.annotations.NotNull;
+import jakarta.annotation.Nonnull;
 
 @QueryModelStateInfo(type = "Account")
 public record AccountQueryModelState(
@@ -31,7 +31,7 @@ public record AccountQueryModelState(
         @PIIData String email
 ) implements QueryModelState {
     @Override
-    public @NotNull String getIndexKey() {
+    public @Nonnull String getIndexKey() {
         return accountId();
     }
 }

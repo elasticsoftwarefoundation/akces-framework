@@ -17,23 +17,23 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.wallet.events;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.ErrorEvent;
 
 @DomainEventInfo(type = "InvalidAmountError")
 public record InvalidAmountErrorEvent(
-        @NotNull @AggregateIdentifier String walletId,
-        @NotNull String currency,
+        @Nonnull @AggregateIdentifier String walletId,
+        @Nonnull String currency,
         String referenceId
 ) implements ErrorEvent {
-    public InvalidAmountErrorEvent(@NotNull String walletId, @NotNull String currency) {
+    public InvalidAmountErrorEvent(@Nonnull String walletId, @Nonnull String currency) {
         this(walletId, currency, null);
     }
 
     @Override
-    public @NotNull String getAggregateId() {
+    public @Nonnull String getAggregateId() {
         return walletId();
     }
 }

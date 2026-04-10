@@ -17,10 +17,10 @@
 
 package org.elasticsoftware.cryptotrading.web.dto;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.cryptotrading.aggregates.wallet.commands.CreateBalanceCommand;
 
-public record CreateBalanceInput(@NotNull String currency) {
+public record CreateBalanceInput(@Nonnull String currency) {
     public CreateBalanceCommand toCommand(String walletId) {
         return new CreateBalanceCommand(walletId, this.currency);
     }

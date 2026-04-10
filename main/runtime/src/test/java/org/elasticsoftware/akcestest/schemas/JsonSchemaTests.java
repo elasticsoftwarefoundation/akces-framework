@@ -35,7 +35,7 @@ import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
 import org.elasticsoftware.akcestest.aggregate.wallet.InvalidAmountErrorEvent;
 import org.everit.json.schema.Schema;
 import org.everit.json.schema.ValidationException;
-import org.jetbrains.annotations.NotNull;
+import jakarta.annotation.Nonnull;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -48,7 +48,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class JsonSchemaTests {
-    private static @NotNull SchemaGenerator createSchemaGenerator() {
+    private static @Nonnull SchemaGenerator createSchemaGenerator() {
         SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(
                 SchemaVersion.DRAFT_7,
                 OptionPreset.PLAIN_JSON);

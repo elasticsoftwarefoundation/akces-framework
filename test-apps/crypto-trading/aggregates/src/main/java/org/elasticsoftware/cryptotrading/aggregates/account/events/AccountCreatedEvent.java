@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.account.events;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.annotations.PIIData;
@@ -26,11 +26,11 @@ import org.elasticsoftware.akces.events.DomainEvent;
 
 @DomainEventInfo(type = "AccountCreated", description = "Account created")
 public record AccountCreatedEvent(
-        @AggregateIdentifier @NotNull String userId,
-        @NotNull String country,
-        @NotNull @PIIData String firstName,
-        @NotNull @PIIData String lastName,
-        @NotNull @PIIData String email
+        @AggregateIdentifier @Nonnull String userId,
+        @Nonnull String country,
+        @Nonnull @PIIData String firstName,
+        @Nonnull @PIIData String lastName,
+        @Nonnull @PIIData String email
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {

@@ -17,14 +17,14 @@
 
 package org.elasticsoftware.akces.client.commands;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
 @CommandInfo(type = "Unrouteable")
 public record UnroutableCommand(String id) implements Command {
     @Override
-    public @NotNull String getAggregateId() {
+    public @Nonnull String getAggregateId() {
         return id();
     }
 }

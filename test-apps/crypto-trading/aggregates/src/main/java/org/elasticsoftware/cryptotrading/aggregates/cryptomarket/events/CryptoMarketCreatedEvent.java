@@ -18,18 +18,18 @@
 package org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events;
 
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 @DomainEventInfo(type = "CryptoMarketCreated", version = 1)
 public record CryptoMarketCreatedEvent(
-        @NotNull String id,
-        @NotNull String baseCrypto,
-        @NotNull String quoteCrypto,
-        @NotNull String baseIncrement,
-        @NotNull String quoteIncrement,
-        @NotNull String defaultCounterPartyId
+        @Nonnull String id,
+        @Nonnull String baseCrypto,
+        @Nonnull String quoteCrypto,
+        @Nonnull String baseIncrement,
+        @Nonnull String quoteIncrement,
+        @Nonnull String defaultCounterPartyId
 ) implements DomainEvent {
 
     @Override

@@ -50,7 +50,6 @@ public class EventCatalogProcessorTest {
                 """
                         package org.elasticsoftware.akcestest.aggregate.account;
 
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.annotations.AggregateInfo;
 import org.elasticsoftware.akces.annotations.CommandHandler;
@@ -88,8 +87,8 @@ public final class Account implements Aggregate<AccountState> {
     }
 
     @EventSourcingHandler(create = true)
-    @NotNull
-    public AccountState create(@NotNull AccountCreatedEventV2 event, AccountState isNull) {
+    @Nonnull
+    public AccountState create(@Nonnull AccountCreatedEventV2 event, AccountState isNull) {
         return new AccountState(event.userId(), event.country(), event.firstName(), event.lastName(), event.email());
     }
 }
@@ -101,17 +100,16 @@ JavaFileObject aggregateStateFile = JavaFileObjects.forSourceString(
                 """
 package org.elasticsoftware.akcestest.aggregate.account;
 
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.annotations.AggregateStateInfo;
 import org.elasticsoftware.akces.annotations.PIIData;
 
 @AggregateStateInfo(type = "Account", version = 1)
-public record AccountState(@NotNull String userId,
-                           @NotNull String country,
-                           @NotNull @PIIData String firstName,
-                           @NotNull @PIIData String lastName,
-                           @NotNull @PIIData String email,
+public record AccountState(@Nonnull String userId,
+                           @Nonnull String country,
+                           @Nonnull @PIIData String firstName,
+                           @Nonnull @PIIData String lastName,
+                           @Nonnull @PIIData String email,
                            Boolean twoFactorEnabled) implements AggregateState {
     // Compact constructor to handle possible null values from deserialization
     public AccountState {
@@ -121,11 +119,11 @@ public record AccountState(@NotNull String userId,
     }
 
     // Default constructor with false for twoFactorEnabled
-    public AccountState(@NotNull String userId,
-                       @NotNull String country,
-                       @NotNull String firstName,
-                       @NotNull String lastName,
-                       @NotNull String email) {
+    public AccountState(@Nonnull String userId,
+                       @Nonnull String country,
+                       @Nonnull String firstName,
+                       @Nonnull String lastName,
+                       @Nonnull String email) {
         this(userId, country, firstName, lastName, email, false);
     }
 
@@ -141,7 +139,6 @@ public record AccountState(@NotNull String userId,
                 """
         package org.elasticsoftware.akcestest.aggregate.account;
 
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.annotations.PIIData;
@@ -149,14 +146,14 @@ import org.elasticsoftware.akces.commands.Command;
 
 @CommandInfo(type = "CreateAccount")
 public record CreateAccountCommand(
-        @AggregateIdentifier @NotNull String userId,
-        @NotNull String country,
-        @NotNull @PIIData String firstName,
-        @NotNull @PIIData String lastName,
-        @NotNull @PIIData String email
+        @AggregateIdentifier @Nonnull String userId,
+        @Nonnull String country,
+        @Nonnull @PIIData String firstName,
+        @Nonnull @PIIData String lastName,
+        @Nonnull @PIIData String email
 ) implements Command {
     @Override
-    @NotNull
+    @Nonnull
     public String getAggregateId() {
         return userId();
     }
@@ -168,7 +165,6 @@ public record CreateAccountCommand(
                 """
         package org.elasticsoftware.akcestest.aggregate.account;
 
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.annotations.PIIData;
@@ -177,11 +173,11 @@ import org.elasticsoftware.akces.events.DomainEvent;
 
 @DomainEventInfo(type = "AccountCreated")
 public record AccountCreatedEvent(
-        @AggregateIdentifier @NotNull String userId,
-        @NotNull String country,
-        @NotNull @PIIData String firstName,
-        @NotNull @PIIData String lastName,
-        @NotNull @PIIData String email
+        @AggregateIdentifier @Nonnull String userId,
+        @Nonnull String country,
+        @Nonnull @PIIData String firstName,
+        @Nonnull @PIIData String lastName,
+        @Nonnull @PIIData String email
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {
@@ -195,7 +191,6 @@ public record AccountCreatedEvent(
                 """
         package org.elasticsoftware.akcestest.aggregate.account;
 
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.annotations.PIIData;
@@ -204,12 +199,12 @@ import org.elasticsoftware.akces.events.DomainEvent;
 
 @DomainEventInfo(type = "AccountCreated", version = 2)
 public record AccountCreatedEventV2(
-        @AggregateIdentifier @NotNull String userId,
-        @NotNull String country,
-        @NotNull @PIIData String firstName,
-        @NotNull @PIIData String lastName,
-        @NotNull @PIIData String email,
-        @NotNull boolean twoFactorEnabled
+        @AggregateIdentifier @Nonnull String userId,
+        @Nonnull String country,
+        @Nonnull @PIIData String firstName,
+        @Nonnull @PIIData String lastName,
+        @Nonnull @PIIData String email,
+        @Nonnull boolean twoFactorEnabled
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {
@@ -279,7 +274,6 @@ public record AccountCreatedEventV2(
                 """
                                                 package org.elasticsoftware.akcestest.aggregate.account;
                         
-                        import jakarta.validation.constraints.NotNull;
                         import org.elasticsoftware.akces.aggregate.Aggregate;
                         import org.elasticsoftware.akces.annotations.AggregateInfo;
                         import org.elasticsoftware.akces.annotations.CommandHandler;
@@ -317,8 +311,8 @@ public record AccountCreatedEventV2(
                             }
                         
                             @EventSourcingHandler(create = true)
-                            @NotNull
-                            public AccountState create(@NotNull AccountCreatedEventV2 event, AccountState isNull) {
+                            @Nonnull
+                            public AccountState create(@Nonnull AccountCreatedEventV2 event, AccountState isNull) {
                                 return new AccountState(event.userId(), event.country(), event.firstName(), event.lastName(), event.email());
                             }
                         }
@@ -330,17 +324,16 @@ public record AccountCreatedEventV2(
                 """
                         package org.elasticsoftware.akcestest.aggregate.account;
                         
-                        import jakarta.validation.constraints.NotNull;
                         import org.elasticsoftware.akces.aggregate.AggregateState;
                         import org.elasticsoftware.akces.annotations.AggregateStateInfo;
                         import org.elasticsoftware.akces.annotations.PIIData;
                         
                         @AggregateStateInfo(type = "Account", version = 1)
-                        public record AccountState(@NotNull String userId,
-                                                   @NotNull String country,
-                                                   @NotNull @PIIData String firstName,
-                                                   @NotNull @PIIData String lastName,
-                                                   @NotNull @PIIData String email,
+                        public record AccountState(@Nonnull String userId,
+                                                   @Nonnull String country,
+                                                   @Nonnull @PIIData String firstName,
+                                                   @Nonnull @PIIData String lastName,
+                                                   @Nonnull @PIIData String email,
                                                    Boolean twoFactorEnabled) implements AggregateState {
                             // Compact constructor to handle possible null values from deserialization
                             public AccountState {
@@ -350,11 +343,11 @@ public record AccountCreatedEventV2(
                             }
                         
                             // Default constructor with false for twoFactorEnabled
-                            public AccountState(@NotNull String userId,
-                                               @NotNull String country,
-                                               @NotNull String firstName,
-                                               @NotNull String lastName,
-                                               @NotNull String email) {
+                            public AccountState(@Nonnull String userId,
+                                               @Nonnull String country,
+                                               @Nonnull String firstName,
+                                               @Nonnull String lastName,
+                                               @Nonnull String email) {
                                 this(userId, country, firstName, lastName, email, false);
                             }
                         
@@ -370,7 +363,6 @@ public record AccountCreatedEventV2(
                 """
                                 package org.elasticsoftware.akcestest.aggregate.account;
                         
-                        import jakarta.validation.constraints.NotNull;
                         import org.elasticsoftware.akces.annotations.AggregateIdentifier;
                         import org.elasticsoftware.akces.annotations.CommandInfo;
                         import org.elasticsoftware.akces.annotations.PIIData;
@@ -378,14 +370,14 @@ public record AccountCreatedEventV2(
                         
                         @CommandInfo(type = "CreateAccount")
                         public record CreateAccountCommand(
-                                @AggregateIdentifier @NotNull String userId,
-                                @NotNull String country,
-                                @NotNull @PIIData String firstName,
-                                @NotNull @PIIData String lastName,
-                                @NotNull @PIIData String email
+                                @AggregateIdentifier @Nonnull String userId,
+                                @Nonnull String country,
+                                @Nonnull @PIIData String firstName,
+                                @Nonnull @PIIData String lastName,
+                                @Nonnull @PIIData String email
                         ) implements Command {
                             @Override
-                            @NotNull
+                            @Nonnull
                             public String getAggregateId() {
                                 return userId();
                             }
@@ -397,7 +389,6 @@ public record AccountCreatedEventV2(
                 """
                                 package org.elasticsoftware.akcestest.aggregate.account;
                         
-                        import jakarta.validation.constraints.NotNull;
                         import org.elasticsoftware.akces.annotations.AggregateIdentifier;
                         import org.elasticsoftware.akces.annotations.DomainEventInfo;
                         import org.elasticsoftware.akces.annotations.PIIData;
@@ -406,11 +397,11 @@ public record AccountCreatedEventV2(
                         
                         @DomainEventInfo(type = "AccountCreated")
                         public record AccountCreatedEvent(
-                                @AggregateIdentifier @NotNull String userId,
-                                @NotNull String country,
-                                @NotNull @PIIData String firstName,
-                                @NotNull @PIIData String lastName,
-                                @NotNull @PIIData String email
+                                @AggregateIdentifier @Nonnull String userId,
+                                @Nonnull String country,
+                                @Nonnull @PIIData String firstName,
+                                @Nonnull @PIIData String lastName,
+                                @Nonnull @PIIData String email
                         ) implements DomainEvent {
                             @Override
                             public String getAggregateId() {
@@ -424,7 +415,6 @@ public record AccountCreatedEventV2(
                 """
                                 package org.elasticsoftware.akcestest.aggregate.account;
                         
-                        import jakarta.validation.constraints.NotNull;
                         import org.elasticsoftware.akces.annotations.AggregateIdentifier;
                         import org.elasticsoftware.akces.annotations.DomainEventInfo;
                         import org.elasticsoftware.akces.annotations.PIIData;
@@ -433,12 +423,12 @@ public record AccountCreatedEventV2(
                         
                         @DomainEventInfo(type = "AccountCreated", version = 2)
                         public record AccountCreatedEventV2(
-                                @AggregateIdentifier @NotNull String userId,
-                                @NotNull String country,
-                                @NotNull @PIIData String firstName,
-                                @NotNull @PIIData String lastName,
-                                @NotNull @PIIData String email,
-                                @NotNull boolean twoFactorEnabled
+                                @AggregateIdentifier @Nonnull String userId,
+                                @Nonnull String country,
+                                @Nonnull @PIIData String firstName,
+                                @Nonnull @PIIData String lastName,
+                                @Nonnull @PIIData String email,
+                                @Nonnull boolean twoFactorEnabled
                         ) implements DomainEvent {
                             @Override
                             public String getAggregateId() {
@@ -633,7 +623,6 @@ public class OrderProcessManager implements Aggregate<OrderProcessManagerState> 
         JavaFileObject orderProcessManagerState = JavaFileObjects.forSourceString("org.elasticsoftware.akcestest.aggregate.orders.OrderProcessManagerState", """
                 package org.elasticsoftware.akcestest.aggregate.orders;
 
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.AggregateStateInfo;
 import org.elasticsoftware.akces.processmanager.ProcessManagerState;
@@ -643,10 +632,10 @@ import java.util.List;
 
 @AggregateStateInfo(type = "OrderProcessManager", version = 1)
 public record OrderProcessManagerState(
-        @NotNull @AggregateIdentifier String userId,
+        @Nonnull @AggregateIdentifier String userId,
         List<BuyOrderProcess> runningProcesses
 ) implements ProcessManagerState<OrderProcess> {
-    public OrderProcessManagerState(@NotNull String userId) {
+    public OrderProcessManagerState(@Nonnull String userId) {
         this(userId, List.of());
     }
 
@@ -676,7 +665,6 @@ public record FxMarket(String id, String baseCurrency, String quoteCurrency) {
         JavaFileObject buyOrderCreatedEvent = JavaFileObjects.forSourceString("org.elasticsoftware.akcestest.aggregate.orders.BuyOrderCreatedEvent", """
                 package org.elasticsoftware.akcestest.aggregate.orders;
 
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -685,12 +673,12 @@ import java.math.BigDecimal;
 
 @DomainEventInfo(type = "BuyOrderCreated", version = 1)
 public record BuyOrderCreatedEvent(
-        @NotNull @AggregateIdentifier String userId,
-        @NotNull String orderId,
-        @NotNull FxMarket market,
-        @NotNull BigDecimal quantity,
-        @NotNull BigDecimal limitPrice,
-        @NotNull String clientReference
+        @Nonnull @AggregateIdentifier String userId,
+        @Nonnull String orderId,
+        @Nonnull FxMarket market,
+        @Nonnull BigDecimal quantity,
+        @Nonnull BigDecimal limitPrice,
+        @Nonnull String clientReference
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {
@@ -701,7 +689,6 @@ public record BuyOrderCreatedEvent(
         JavaFileObject buyOrderPlacedEvent = JavaFileObjects.forSourceString("org.elasticsoftware.akcestest.aggregate.orders.BuyOrderPlacedEvent", """
                 package org.elasticsoftware.akcestest.aggregate.orders;
 
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -710,11 +697,11 @@ import java.math.BigDecimal;
 
 @DomainEventInfo(type = "BuyOrderPlaced", version = 1)
 public record BuyOrderPlacedEvent(
-        @NotNull @AggregateIdentifier String userId,
-        @NotNull String orderId,
-        @NotNull FxMarket market,
-        @NotNull BigDecimal quantity,
-        @NotNull BigDecimal limitPrice
+        @Nonnull @AggregateIdentifier String userId,
+        @Nonnull String orderId,
+        @Nonnull FxMarket market,
+        @Nonnull BigDecimal quantity,
+        @Nonnull BigDecimal limitPrice
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {
@@ -725,16 +712,15 @@ public record BuyOrderPlacedEvent(
         JavaFileObject buyOrderRejectedEvent = JavaFileObjects.forSourceString("org.elasticsoftware.akcestest.aggregate.orders.BuyOrderRejectedEvent", """
                 package org.elasticsoftware.akcestest.aggregate.orders;
 
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 @DomainEventInfo(type = "BuyOrderRejected", version = 1)
 public record BuyOrderRejectedEvent(
-        @NotNull @AggregateIdentifier String userId,
-        @NotNull String orderId,
-        @NotNull String clientReference
+        @Nonnull @AggregateIdentifier String userId,
+        @Nonnull String orderId,
+        @Nonnull String clientReference
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {
@@ -746,21 +732,19 @@ public record BuyOrderRejectedEvent(
                 package org.elasticsoftware.akcestest.aggregate.wallet;
 
 import jakarta.annotation.Nullable;
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.ErrorEvent;
 
 import jakarta.annotation.Nonnull;
-import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 
 @DomainEventInfo(type = "InsufficientFundsError")
 public record InsufficientFundsErrorEvent(
-        @NotNull @AggregateIdentifier String walletId,
-        @NotNull String currency,
-        @NotNull BigDecimal availableAmount,
-        @NotNull BigDecimal requestedAmount,
+        @Nonnull @AggregateIdentifier String walletId,
+        @Nonnull String currency,
+        @Nonnull BigDecimal availableAmount,
+        @Nonnull BigDecimal requestedAmount,
         @Nullable String referenceId
 ) implements ErrorEvent {
     @Override
@@ -772,21 +756,19 @@ public record InsufficientFundsErrorEvent(
         JavaFileObject invalidCurrencyErrorEvent = JavaFileObjects.forSourceString("org.elasticsoftware.akcestest.aggregate.wallet.InvalidCurrencyErrorEvent", """
                 package org.elasticsoftware.akcestest.aggregate.wallet;
 
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.ErrorEvent;
 
 import jakarta.annotation.Nonnull;
-import jakarta.validation.constraints.NotNull;
 
 @DomainEventInfo(type = "InvalidCurrencyError")
 public record InvalidCurrencyErrorEvent(
-        @NotNull @AggregateIdentifier String walletId,
-        @NotNull String currency,
+        @Nonnull @AggregateIdentifier String walletId,
+        @Nonnull String currency,
         String referenceId
 ) implements ErrorEvent {
-    public InvalidCurrencyErrorEvent(@NotNull String walletId, @NotNull String currency) {
+    public InvalidCurrencyErrorEvent(@Nonnull String walletId, @Nonnull String currency) {
         this(walletId, currency, null);
     }
 
@@ -800,7 +782,6 @@ public record InvalidCurrencyErrorEvent(
         JavaFileObject placeBuyOrderCommand = JavaFileObjects.forSourceString("org.elasticsoftware.akcestest.aggregate.orders.PlaceBuyOrderCommand", """
                 package org.elasticsoftware.akcestest.aggregate.orders;
 
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
@@ -809,14 +790,14 @@ import java.math.BigDecimal;
 
 @CommandInfo(type = "PlaceBuyOrder", version = 1)
 public record PlaceBuyOrderCommand(
-        @NotNull @AggregateIdentifier String userId,
-        @NotNull FxMarket market,
-        @NotNull BigDecimal quantity,
-        @NotNull BigDecimal limitPrice,
-        @NotNull String clientReference
+        @Nonnull @AggregateIdentifier String userId,
+        @Nonnull FxMarket market,
+        @Nonnull BigDecimal quantity,
+        @Nonnull BigDecimal limitPrice,
+        @Nonnull String clientReference
 ) implements Command {
     @Override
-    @NotNull
+    @Nonnull
     public String getAggregateId() {
         return userId();
     }
@@ -825,13 +806,12 @@ public record PlaceBuyOrderCommand(
         JavaFileObject userOrderProcessesCreatedEvent = JavaFileObjects.forSourceString("org.elasticsoftware.akcestest.aggregate.orders.UserOrderProcessesCreatedEvent", """
                 package org.elasticsoftware.akcestest.aggregate.orders;
 
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 @DomainEventInfo(type = "UserOrderProcessesCreated", version = 1)
-public record UserOrderProcessesCreatedEvent(@NotNull @AggregateIdentifier String userId) implements DomainEvent {
+public record UserOrderProcessesCreatedEvent(@Nonnull @AggregateIdentifier String userId) implements DomainEvent {
     @Override
     public String getAggregateId() {
         return userId();
@@ -840,7 +820,6 @@ public record UserOrderProcessesCreatedEvent(@NotNull @AggregateIdentifier Strin
         JavaFileObject amountReservedEvent = JavaFileObjects.forSourceString("org.elasticsoftware.akcestest.aggregate.wallet.AmountReservedEvent", """
                 package org.elasticsoftware.akcestest.aggregate.wallet;
 
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -849,10 +828,10 @@ import java.math.BigDecimal;
 
 @DomainEventInfo(type = "AmountReserved", version = 1)
 public record AmountReservedEvent(
-        @NotNull @AggregateIdentifier String userId,
-        @NotNull String currency,
-        @NotNull BigDecimal amount,
-        @NotNull String referenceId
+        @Nonnull @AggregateIdentifier String userId,
+        @Nonnull String currency,
+        @Nonnull BigDecimal amount,
+        @Nonnull String referenceId
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {
@@ -863,7 +842,6 @@ public record AmountReservedEvent(
         JavaFileObject reserverAmountCommand = JavaFileObjects.forSourceString("org.elasticsoftware.akcestest.aggregate.wallet.ReserveAmountCommand", """
                 package org.elasticsoftware.akcestest.aggregate.wallet;
 
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
@@ -872,13 +850,13 @@ import java.math.BigDecimal;
 
 @CommandInfo(type = "ReserveAmount", version = 1)
 public record ReserveAmountCommand(
-        @NotNull @AggregateIdentifier String userId,
-        @NotNull String currency,
-        @NotNull BigDecimal amount,
-        @NotNull String referenceId
+        @Nonnull @AggregateIdentifier String userId,
+        @Nonnull String currency,
+        @Nonnull BigDecimal amount,
+        @Nonnull String referenceId
 ) implements Command {
     @Override
-    @NotNull
+    @Nonnull
     public String getAggregateId() {
         return userId();
     }

@@ -17,13 +17,13 @@
 
 package org.elasticsoftware.cryptotrading.web.dto;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.cryptotrading.aggregates.account.commands.CreateAccountCommand;
 
-public record AccountInput(@NotNull String country,
-                           @NotNull String firstName,
-                           @NotNull String lastName,
-                           @NotNull String email) {
+public record AccountInput(@Nonnull String country,
+                           @Nonnull String firstName,
+                           @Nonnull String lastName,
+                           @Nonnull String email) {
     public CreateAccountCommand toCommand(String userId) {
         return new CreateAccountCommand(userId, country(), firstName(), lastName(), email());
     }

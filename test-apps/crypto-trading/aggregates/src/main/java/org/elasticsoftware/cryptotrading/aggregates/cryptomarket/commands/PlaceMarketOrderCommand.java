@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.data.Side;
@@ -25,10 +25,10 @@ import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.data.Side;
 import java.math.BigDecimal;
 
 @CommandInfo(type = "PlaceMarketOrder", version = 1, description = "Place a market order")
-public record PlaceMarketOrderCommand(@NotNull String marketId,
-                                      @NotNull String orderId,
-                                      @NotNull String ownerId,
-                                      @NotNull Side side,
+public record PlaceMarketOrderCommand(@Nonnull String marketId,
+                                      @Nonnull String orderId,
+                                      @Nonnull String ownerId,
+                                      @Nonnull Side side,
                                       BigDecimal funds,
                                       BigDecimal size) implements Command {
     @Override

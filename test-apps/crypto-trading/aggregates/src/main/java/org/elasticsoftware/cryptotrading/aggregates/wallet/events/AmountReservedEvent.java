@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.wallet.events;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -26,10 +26,10 @@ import java.math.BigDecimal;
 
 @DomainEventInfo(type = "AmountReserved", version = 1)
 public record AmountReservedEvent(
-        @NotNull @AggregateIdentifier String userId,
-        @NotNull String currency,
-        @NotNull BigDecimal amount,
-        @NotNull String referenceId
+        @Nonnull @AggregateIdentifier String userId,
+        @Nonnull String currency,
+        @Nonnull BigDecimal amount,
+        @Nonnull String referenceId
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {

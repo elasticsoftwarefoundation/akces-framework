@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.cryptomarket;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.annotations.AggregateInfo;
 import org.elasticsoftware.akces.annotations.CommandHandler;
@@ -60,7 +60,7 @@ public class CryptoMarket implements Aggregate<CryptoMarketState> {
     }
 
     @CommandHandler(create = true, produces = CryptoMarketCreatedEvent.class, errors = {})
-    public @NotNull Stream<DomainEvent> handle(@NotNull CreateCryptoMarketCommand command, CryptoMarketState isNull) {
+    public @Nonnull Stream<DomainEvent> handle(@Nonnull CreateCryptoMarketCommand command, CryptoMarketState isNull) {
         log.info("CommandHandler: Creating crypto market for id={}, baseCurrency={}, quoteCurrency={}", 
             command.id(), command.baseCurrency(), command.quoteCurrency());
         return Stream.of(new CryptoMarketCreatedEvent(command.id(),
@@ -72,7 +72,7 @@ public class CryptoMarket implements Aggregate<CryptoMarketState> {
     }
 
     @CommandHandler(produces = {MarketOrderPlacedEvent.class, MarketOrderFilledEvent.class}, errors = {MarketOrderRejectedErrorEvent.class})
-    public @NotNull Stream<DomainEvent> handle(@NotNull PlaceMarketOrderCommand command, CryptoMarketState currentState) {
+    public @Nonnull Stream<DomainEvent> handle(@Nonnull PlaceMarketOrderCommand command, CryptoMarketState currentState) {
         log.info("CommandHandler: Placing market order for marketId={}, orderId={}, ownerId={}, side={}, funds={}, size={}", 
             command.marketId(), command.orderId(), command.ownerId(), command.side(), command.funds(), command.size());
         if (command.side().equals(Side.BUY) && command.funds() == null) {
@@ -118,7 +118,7 @@ public class CryptoMarket implements Aggregate<CryptoMarketState> {
     }
 
     @EventSourcingHandler(create = true)
-    public @NotNull CryptoMarketState apply(@NotNull CryptoMarketCreatedEvent event, CryptoMarketState isNull) {
+    public @Nonnull CryptoMarketState apply(@Nonnull CryptoMarketCreatedEvent event, CryptoMarketState isNull) {
         return new CryptoMarketState(event.id(),
                 event.baseCrypto(),
                 event.quoteCrypto(),
@@ -128,13 +128,13 @@ public class CryptoMarket implements Aggregate<CryptoMarketState> {
     }
 
     @EventSourcingHandler
-    public @NotNull CryptoMarketState apply(@NotNull MarketOrderPlacedEvent event, CryptoMarketState currentState) {
+    public @Nonnull CryptoMarketState apply(@Nonnull MarketOrderPlacedEvent event, CryptoMarketState currentState) {
         // since we immediately execute the order, we don't need to do anything here
         return currentState;
     }
 
     @EventSourcingHandler
-    public @NotNull CryptoMarketState apply(@NotNull MarketOrderFilledEvent event, CryptoMarketState currentState) {
+    public @Nonnull CryptoMarketState apply(@Nonnull MarketOrderFilledEvent event, CryptoMarketState currentState) {
         // since we immediately execute the order, we don't need to do anything here
         return currentState;
     }

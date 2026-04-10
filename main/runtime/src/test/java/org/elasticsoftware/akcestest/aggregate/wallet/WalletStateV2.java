@@ -18,7 +18,7 @@
 package org.elasticsoftware.akcestest.aggregate.wallet;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.AggregateStateInfo;
@@ -28,7 +28,7 @@ import java.util.List;
 
 @AggregateStateInfo(type = "Wallet", version = 2)
 public record WalletStateV2(
-        @AggregateIdentifier @NotNull String id,
+        @AggregateIdentifier @Nonnull String id,
         List<Balance> balances
 ) implements AggregateState {
     @Override
@@ -36,12 +36,12 @@ public record WalletStateV2(
         return id();
     }
 
-    public record Balance(@NotNull String currency,@NotNull BigDecimal amount,@NotNull List<Reservation> reservations) {
-        public Balance(@NotNull String currency) {
+    public record Balance(@Nonnull String currency,@Nonnull BigDecimal amount,@Nonnull List<Reservation> reservations) {
+        public Balance(@Nonnull String currency) {
             this(currency, BigDecimal.ZERO, List.of());
         }
 
-        public Balance(@NotNull String currency, @NotNull BigDecimal amount) {
+        public Balance(@Nonnull String currency, @Nonnull BigDecimal amount) {
             this(currency, amount, List.of());
         }
 
@@ -52,8 +52,8 @@ public record WalletStateV2(
     }
 
     public record Reservation(
-            @NotNull String referenceId,
-            @NotNull BigDecimal amount
+            @Nonnull String referenceId,
+            @Nonnull BigDecimal amount
     ) {
         public Reservation {
             // Defensive validation

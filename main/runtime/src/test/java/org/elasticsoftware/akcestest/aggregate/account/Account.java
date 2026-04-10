@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akcestest.aggregate.account;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.annotations.AggregateInfo;
 import org.elasticsoftware.akces.annotations.CommandHandler;
@@ -55,8 +55,8 @@ public final class Account implements Aggregate<AccountState> {
     }
 
     @EventSourcingHandler(create = true)
-    @NotNull
-    public AccountState create(@NotNull AccountCreatedEventV2 event, AccountState isNull) {
+    @Nonnull
+    public AccountState create(@Nonnull AccountCreatedEventV2 event, AccountState isNull) {
         return new AccountState(event.userId(), event.country(), event.firstName(), event.lastName(), event.email());
     }
 }

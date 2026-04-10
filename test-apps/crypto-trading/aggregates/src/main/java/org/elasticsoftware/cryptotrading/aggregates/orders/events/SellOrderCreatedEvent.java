@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.orders.events;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -27,11 +27,11 @@ import java.math.BigDecimal;
 
 @DomainEventInfo(type = "SellOrderCreated", version = 1)
 public record SellOrderCreatedEvent(
-        @NotNull @AggregateIdentifier String userId,
-        @NotNull String orderId,
-        @NotNull CryptoMarket market,
-        @NotNull BigDecimal quantity,
-        @NotNull String clientReference
+        @Nonnull @AggregateIdentifier String userId,
+        @Nonnull String orderId,
+        @Nonnull CryptoMarket market,
+        @Nonnull BigDecimal quantity,
+        @Nonnull String clientReference
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {

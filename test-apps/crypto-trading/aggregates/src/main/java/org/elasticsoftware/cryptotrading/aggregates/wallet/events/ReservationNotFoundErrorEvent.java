@@ -17,15 +17,15 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.wallet.events;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.ErrorEvent;
 
 @DomainEventInfo(type = "ReservationNotFoundError", version = 1)
 public record ReservationNotFoundErrorEvent(
-    @NotNull String id,
-    @NotNull String currency,
-    @NotNull String referenceId
+    @Nonnull String id,
+    @Nonnull String currency,
+    @Nonnull String referenceId
 ) implements ErrorEvent {
     @Override
     public String getAggregateId() {

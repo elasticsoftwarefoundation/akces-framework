@@ -17,11 +17,11 @@
 
 package org.elasticsoftware.akcestest.old;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.events.DomainEvent;
 
-public record BalanceCreatedEvent(@AggregateIdentifier @NotNull String id, String currency) implements DomainEvent {
+public record BalanceCreatedEvent(@AggregateIdentifier @Nonnull String id, String currency) implements DomainEvent {
     @Override
     public String getAggregateId() {
         return id();

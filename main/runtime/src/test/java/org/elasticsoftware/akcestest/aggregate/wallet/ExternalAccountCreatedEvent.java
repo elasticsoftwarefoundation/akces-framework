@@ -17,18 +17,18 @@
 
 package org.elasticsoftware.akcestest.aggregate.wallet;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 
 public record ExternalAccountCreatedEvent(
-        @AggregateIdentifier @NotNull String userId,
-        @NotNull String country,
-        @NotNull String firstName,
-        @NotNull String lastName,
-        @NotNull String email,
-        @NotNull String currency
+        @AggregateIdentifier @Nonnull String userId,
+        @Nonnull String country,
+        @Nonnull String firstName,
+        @Nonnull String lastName,
+        @Nonnull String email,
+        @Nonnull String currency
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {

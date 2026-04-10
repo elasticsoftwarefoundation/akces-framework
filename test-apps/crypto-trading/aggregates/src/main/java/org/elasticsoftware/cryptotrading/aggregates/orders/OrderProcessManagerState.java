@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.orders;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.AggregateStateInfo;
 import org.elasticsoftware.akces.processmanager.ProcessManagerState;
@@ -27,10 +27,10 @@ import java.util.List;
 
 @AggregateStateInfo(type = "OrderProcessManager", version = 1)
 public record OrderProcessManagerState(
-        @NotNull @AggregateIdentifier String userId,
+        @Nonnull @AggregateIdentifier String userId,
         List<OrderProcess> runningProcesses
 ) implements ProcessManagerState<OrderProcess> {
-    public OrderProcessManagerState(@NotNull String userId) {
+    public OrderProcessManagerState(@Nonnull String userId) {
         this(userId, List.of());
     }
 

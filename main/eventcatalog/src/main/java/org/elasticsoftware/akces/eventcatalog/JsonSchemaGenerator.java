@@ -259,6 +259,7 @@ public class JsonSchemaGenerator {
     private static boolean hasRequiredAnnotation(Element element) {
         // Check for common validation annotations
         List<String> requiredAnnotations = List.of(
+                "jakarta.annotation.Nonnull",
                 "jakarta.validation.constraints.NotNull",
                 "jakarta.validation.constraints.NotBlank",
                 "jakarta.validation.constraints.NotEmpty",

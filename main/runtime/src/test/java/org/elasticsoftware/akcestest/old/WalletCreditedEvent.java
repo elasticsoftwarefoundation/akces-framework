@@ -17,14 +17,14 @@
 
 package org.elasticsoftware.akcestest.old;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 import java.math.BigDecimal;
 
 public record WalletCreditedEvent(
-        @AggregateIdentifier @NotNull String id,
+        @AggregateIdentifier @Nonnull String id,
         String currency,
         BigDecimal amount,
         BigDecimal balance

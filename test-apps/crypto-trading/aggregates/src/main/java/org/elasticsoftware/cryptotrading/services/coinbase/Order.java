@@ -18,32 +18,32 @@
 package org.elasticsoftware.cryptotrading.services.coinbase;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 
 import java.time.ZonedDateTime;
 
 public record Order(
-        @NotNull @JsonProperty("id") String id,
+        @Nonnull @JsonProperty("id") String id,
         @JsonProperty("price") String price,
         @JsonProperty("size") String size,
-        @NotNull @JsonProperty("product_id") String productId,
+        @Nonnull @JsonProperty("product_id") String productId,
         @JsonProperty("profile_id") String profileId,
-        @NotNull @JsonProperty("side") String side,
+        @Nonnull @JsonProperty("side") String side,
         @JsonProperty("funds") String funds,
         @JsonProperty("specified_funds") String specifiedFunds,
-        @NotNull @JsonProperty("type") String type,
+        @Nonnull @JsonProperty("type") String type,
         @JsonProperty("time_in_force") String timeInForce,
         @JsonProperty("expire_time") ZonedDateTime expireTime,
-        @NotNull @JsonProperty("post_only") Boolean postOnly,
-        @NotNull @JsonProperty("created_at") ZonedDateTime createdAt,
+        @Nonnull @JsonProperty("post_only") Boolean postOnly,
+        @Nonnull @JsonProperty("created_at") ZonedDateTime createdAt,
         @JsonProperty("done_at") ZonedDateTime doneAt,
         @JsonProperty("done_reason") String doneReason,
         @JsonProperty("reject_reason") String rejectReason,
-        @NotNull @JsonProperty("fill_fees") String fillFees,
-        @NotNull @JsonProperty("filled_size") String filledSize,
+        @Nonnull @JsonProperty("fill_fees") String fillFees,
+        @Nonnull @JsonProperty("filled_size") String filledSize,
         @JsonProperty("executed_value") String executedValue,
-        @NotNull @JsonProperty("status") String status,
-        @NotNull @JsonProperty("settled") Boolean settled,
+        @Nonnull @JsonProperty("status") String status,
+        @Nonnull @JsonProperty("settled") Boolean settled,
         @JsonProperty("stop") String stop,
         @JsonProperty("stop_price") String stopPrice,
         @JsonProperty("funding_amount") String fundingAmount,

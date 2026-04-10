@@ -18,16 +18,16 @@
 package org.elasticsoftware.cryptotrading.services.coinbase;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 
 public record Ticker(
-        @NotNull @JsonProperty("trade_id") Integer tradeId,
-        @NotNull @JsonProperty("price") String price,
-        @NotNull @JsonProperty("size") String size,
-        @NotNull @JsonProperty("time") String time,
-        @NotNull @JsonProperty("bid") String bid,
-        @NotNull @JsonProperty("ask") String ask,
-        @NotNull @JsonProperty("volume") String volume,
+        @Nonnull @JsonProperty("trade_id") Integer tradeId,
+        @Nonnull @JsonProperty("price") String price,
+        @Nonnull @JsonProperty("size") String size,
+        @Nonnull @JsonProperty("time") String time,
+        @Nonnull @JsonProperty("bid") String bid,
+        @Nonnull @JsonProperty("ask") String ask,
+        @Nonnull @JsonProperty("volume") String volume,
         @JsonProperty("rfq_volume") String rfqVolume,
         @JsonProperty("conversions_volume") String conversionsVolume
 ) {
