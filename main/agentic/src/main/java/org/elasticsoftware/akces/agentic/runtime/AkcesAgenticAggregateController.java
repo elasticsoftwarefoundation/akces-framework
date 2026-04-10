@@ -28,6 +28,8 @@ import org.apache.kafka.common.TopicPartition;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
 import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
+import org.elasticsoftware.akces.annotations.CommandInfo;
+import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.control.AggregateServiceCommandType;
 import org.elasticsoftware.akces.control.AggregateServiceDomainEventType;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
