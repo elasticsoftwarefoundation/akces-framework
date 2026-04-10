@@ -289,9 +289,10 @@ public class AkcesClientTests {
                     "Account-Commands",
                     "Account-DomainEvents",
                     AggregateServiceType.STANDARD,
-                    List.of(new AggregateServiceCommandType("CreateAccount", 1, true, "commands.CreateAccount")),
-                    List.of(new AggregateServiceDomainEventType("AccountCreated", 1, true, false, "domainevents.AccountCreated")),
-                    List.of());
+                    List.of(new AggregateServiceCommandType("CreateAccount", 1, true, "commands.CreateAccount", null)),
+                    List.of(new AggregateServiceDomainEventType("AccountCreated", 1, true, false, "domainevents.AccountCreated", null)),
+                    List.of(),
+                    null);
             controlProducer.beginTransaction();
             for (int partition = 0; partition < 3; partition++) {
                 controlProducer.send(new ProducerRecord<>("Akces-Control", partition, "Account", aggregateServiceRecord));

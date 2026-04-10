@@ -18,6 +18,7 @@
 package org.elasticsoftware.akces.agentic.runtime;
 
 import com.embabel.agent.core.AgentPlatform;
+import jakarta.annotation.Nullable;
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
@@ -113,6 +114,12 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     @Override
     public String getName() {
         return delegate.getName();
+    }
+
+    @Override
+    @Nullable
+    public String getDescription() {
+        return delegate.getDescription();
     }
 
     @Override

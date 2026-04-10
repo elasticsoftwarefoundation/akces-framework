@@ -37,6 +37,7 @@ import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.aggregate.SchemaType;
 import org.elasticsoftware.akces.annotations.CommandInfo;
+import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.control.*;
 import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
@@ -75,6 +76,7 @@ import java.util.stream.IntStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsoftware.akces.AkcesControllerState.*;
 import static org.elasticsoftware.akces.gdpr.GDPRAnnotationUtils.hasPIIDataAnnotation;
+import static org.elasticsoftware.akces.kafka.KafkaAggregateRuntime.normalizeDescription;
 import static org.elasticsoftware.akces.kafka.PartitionUtils.*;
 import static org.elasticsoftware.akces.util.KafkaUtils.createCompactedTopic;
 import static org.elasticsoftware.akces.util.KafkaUtils.getIndexTopicName;
@@ -463,21 +465,25 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
                                             commandType.typeName(),
                                             commandType.version(),
                                             commandType.create(),
-                                            "commands." + commandType.typeName())).toList(),
+                                            "commands." + commandType.typeName(),
+                                            normalizeDescription(commandType.typeClass().getAnnotation(CommandInfo.class).description()))).toList(),
                     aggregateRuntime.getProducedDomainEventTypes().stream().map(domainEventType ->
                             new AggregateServiceDomainEventType(
                                     domainEventType.typeName(),
                                     domainEventType.version(),
                                     domainEventType.create(),
                                     domainEventType.external(),
-                                    "domainevents." + domainEventType.typeName())).toList(),
+                                    "domainevents." + domainEventType.typeName(),
+                                    normalizeDescription(domainEventType.typeClass().getAnnotation(DomainEventInfo.class).description()))).toList(),
                     aggregateRuntime.getExternalDomainEventTypes().stream().map(externalDomainEventType ->
                             new AggregateServiceDomainEventType(
                                     externalDomainEventType.typeName(),
                                     externalDomainEventType.version(),
                                     externalDomainEventType.create(),
                                     externalDomainEventType.external(),
-                                    "domainevents." + externalDomainEventType.typeName())).toList());
+                                    "domainevents." + externalDomainEventType.typeName(),
+                                    normalizeDescription(externalDomainEventType.typeClass().getAnnotation(DomainEventInfo.class).description()))).toList(),
+                    aggregateRuntime.getDescription());
             controlProducer.beginTransaction();
             for (int partition = 0; partition < partitions; partition++) {
                 controlProducer.send(new ProducerRecord<>("Akces-Control", partition, aggregateRuntime.getName(), aggregateServiceRecord));
