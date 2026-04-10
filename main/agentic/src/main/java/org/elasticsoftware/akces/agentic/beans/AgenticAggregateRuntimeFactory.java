@@ -17,7 +17,6 @@
 
 package org.elasticsoftware.akces.agentic.beans;
 
-import com.embabel.agent.core.Agent;
 import com.embabel.agent.core.AgentPlatform;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
 import org.elasticsoftware.akces.agentic.runtime.AgenticCommandHandlerFunctionAdapter;
@@ -158,30 +157,6 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
         }
     }
 
-    /**
-     * Resolves the {@link Agent} for this aggregate from the {@link ApplicationContext}.
-     *
-     * <p>Looks for a Spring bean of type {@link Agent} named {@code {aggregateName}Agent}.
-     * The implementing application is responsible for registering this bean. If no such
-     * bean is found, a fatal error is raised.
-     *
-     * @param aggregateName the aggregate name used to derive the agent bean name
-     * @return the resolved {@link Agent}; never {@code null}
-     * @throws IllegalStateException if no matching {@link Agent} bean is found
-     */
-    private Agent resolveAgent(String aggregateName) {
-        String agentBeanName = aggregateName + "Agent";
-        try {
-            return applicationContext.getBean(agentBeanName, Agent.class);
-        } catch (BeansException e) {
-            throw new IllegalStateException(
-                    "No Agent bean found with name '" + agentBeanName + "' for agentic aggregate '"
-                            + aggregateName + "'. "
-                            + "The implementing application must provide a Spring bean of type "
-                            + "com.embabel.agent.core.Agent named '" + agentBeanName + "'.", e);
-        }
-    }
-
     @SuppressWarnings("unchecked")
     private KafkaAggregateRuntime createRuntime(AgenticAggregateInfo agenticInfo,
                                                 AgenticAggregate<S> aggregate,
@@ -282,22 +257,17 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
                 buildAgentProducedErrorTypes(agenticInfo.agentProducedErrors());
         agentProducedErrorTypes.forEach(runtimeBuilder::addDomainEvent);
 
-        // Lazy Agent resolution: only needed when agent-handled commands or events exist.
-        boolean hasAgentHandlers = agenticInfo.agentHandledCommands().length > 0
-                || agenticInfo.agentHandledEvents().length > 0;
-        Agent agent = hasAgentHandlers ? resolveAgent(agenticInfo.value()) : null;
-
         // Process agentHandledCommands — register AgenticCommandHandlerFunctionAdapter
         for (Class<? extends Command> commandClass : agenticInfo.agentHandledCommands()) {
             processAgentHandledCommand(
-                    commandClass, aggregate, agentPlatform, agent,
+                    commandClass, aggregate, agenticInfo.value(), agentPlatform,
                     agentProducedErrorTypes, runtimeBuilder);
         }
 
         // Process agentHandledEvents — register AgenticEventHandlerFunctionAdapter
         for (Class<? extends DomainEvent> eventClass : agenticInfo.agentHandledEvents()) {
             processAgentHandledEvent(
-                    eventClass, aggregate, agentPlatform, agent,
+                    eventClass, aggregate, agenticInfo.value(), agentPlatform,
                     agentProducedErrorTypes, runtimeBuilder);
         }
 
@@ -339,8 +309,8 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
      *
      * @param commandClass           the command class to register
      * @param aggregate              the owning aggregate instance
+     * @param aggregateName          the aggregate name used for agent inference at runtime
      * @param agentPlatform          the Embabel platform
-     * @param agent                  the deployed {@link Agent} for this aggregate
      * @param agentProducedErrors    the error types the agent may produce
      * @param runtimeBuilder         the runtime builder to register with
      */
@@ -348,8 +318,8 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
     private void processAgentHandledCommand(
             Class<? extends Command> commandClass,
             AgenticAggregate<S> aggregate,
+            String aggregateName,
             AgentPlatform agentPlatform,
-            Agent agent,
             List<DomainEventType<?>> agentProducedErrors,
             KafkaAggregateRuntime.Builder runtimeBuilder) {
 
@@ -373,9 +343,9 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
 
         AgenticCommandHandlerFunctionAdapter adapter = new AgenticCommandHandlerFunctionAdapter<>(
                 (AgenticAggregate) aggregate,
+                aggregateName,
                 commandType,
                 agentPlatform,
-                agent,
                 (List) List.of(),       // producedDomainEventTypes: empty — events are registered via EventSourcingHandler adapters
                 (List) errorTypes,
                 // TODO: wire aggregateServicesSupplier from AkcesAgenticAggregateController (Phase 3)
@@ -395,8 +365,8 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
      *
      * @param eventClass          the external domain event class to register
      * @param aggregate           the owning aggregate instance
+     * @param aggregateName       the aggregate name used for agent inference at runtime
      * @param agentPlatform       the Embabel platform
-     * @param agent               the deployed {@link Agent} for this aggregate
      * @param agentProducedErrors the error types the agent may produce
      * @param runtimeBuilder      the runtime builder to register with
      */
@@ -404,8 +374,8 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
     private void processAgentHandledEvent(
             Class<? extends DomainEvent> eventClass,
             AgenticAggregate<S> aggregate,
+            String aggregateName,
             AgentPlatform agentPlatform,
-            Agent agent,
             List<DomainEventType<?>> agentProducedErrors,
             KafkaAggregateRuntime.Builder runtimeBuilder) {
 
@@ -436,9 +406,9 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
 
         AgenticEventHandlerFunctionAdapter adapter = new AgenticEventHandlerFunctionAdapter<>(
                 (AgenticAggregate) aggregate,
+                aggregateName,
                 eventType,
                 agentPlatform,
-                agent,
                 (List) List.of(),       // producedDomainEventTypes: empty — events are registered via EventSourcingHandler adapters
                 (List) errorTypes,
                 // TODO: wire aggregateServicesSupplier from AkcesAgenticAggregateController (Phase 3)
