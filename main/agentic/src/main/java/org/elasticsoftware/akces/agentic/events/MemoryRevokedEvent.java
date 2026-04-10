@@ -28,10 +28,9 @@ import java.time.Instant;
  * Domain event produced when a memory entry has been revoked (forgotten) from an
  * {@link org.elasticsoftware.akces.aggregate.AgenticAggregate}.
  *
- * <p>This event is produced either explicitly via a
- * {@link org.elasticsoftware.akces.agentic.commands.ForgetMemoryCommand}, or automatically
- * by the {@link org.elasticsoftware.akces.agentic.runtime.AgenticAggregatePartition} as part
- * of the sliding-window eviction mechanism when
+ * <p>This event is produced internally by the Embabel layer (via the agent's memory
+ * management tools) when a memory is explicitly revoked, or as part of the
+ * sliding-window eviction mechanism when
  * {@link org.elasticsoftware.akces.annotations.AgenticAggregateInfo#maxMemories()} is exceeded.
  *
  * @param agenticAggregateId the unique identifier of the AgenticAggregate instance

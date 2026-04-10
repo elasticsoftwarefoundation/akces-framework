@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces.aggregate;
 
+import jakarta.annotation.Nullable;
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.commands.CommandBus;
@@ -36,6 +37,15 @@ import java.util.function.Supplier;
 public interface AggregateRuntime {
 
     String getName();
+
+    /**
+     * Returns the human-readable description of this aggregate, as specified in
+     * the {@code @AggregateInfo} or {@code @AgenticAggregateInfo} annotation.
+     *
+     * @return the description, or {@code null} if none was specified
+     */
+    @Nullable
+    String getDescription();
 
     Class<? extends Aggregate<?>> getAggregateClass();
 
