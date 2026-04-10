@@ -20,6 +20,7 @@ package org.elasticsoftware.akces.agentic.runtime;
 import com.embabel.agent.api.common.autonomy.AgentProcessExecution;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.api.common.autonomy.GoalChoiceApprover;
+import com.embabel.agent.api.common.autonomy.ProcessExecutionException;
 import com.embabel.agent.core.Agent;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
@@ -177,7 +178,7 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C ex
                 AgentProcessExecution execution = autonomy.chooseAndAccomplishGoal(
                         GoalChoiceApprover.Companion.getAPPROVE_ALL(), agentPlatform, bindings);
                 agentProcess = execution.getAgentProcess();
-            } catch (Exception e) {
+            } catch (ProcessExecutionException e) {
                 logger.error("Autonomy fallback failed for command {} on aggregate {}",
                         commandType.typeName(), aggregateName, e);
                 throw new IllegalStateException(

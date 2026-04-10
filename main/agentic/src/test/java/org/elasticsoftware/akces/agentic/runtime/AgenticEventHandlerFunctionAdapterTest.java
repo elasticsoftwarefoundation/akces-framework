@@ -22,6 +22,7 @@ import com.embabel.agent.api.common.autonomy.AgentProcessExecution;
 import com.embabel.agent.api.common.autonomy.Autonomy;
 import com.embabel.agent.api.common.autonomy.GoalChoiceApprover;
 import com.embabel.agent.api.common.autonomy.ProcessExecutionException;
+import com.embabel.agent.api.common.autonomy.ProcessExecutionFailedException;
 import com.embabel.agent.core.Agent;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
@@ -182,9 +183,11 @@ class AgenticEventHandlerFunctionAdapterTest {
         when(agentPlatform.agents()).thenReturn(List.of());
         when(agentPlatform.getPlatformServices()).thenReturn(platformServices);
         when(platformServices.autonomy()).thenReturn(autonomy);
-        when(autonomy.chooseAndAccomplishGoal(
-                any(GoalChoiceApprover.class), eq(agentPlatform), any(Map.class)))
-                .thenThrow(new RuntimeException("Autonomy failed"));
+
+        AgentProcess failedProcess = mock(AgentProcess.class);
+        doThrow(new ProcessExecutionFailedException(failedProcess, "Autonomy failed"))
+                .when(autonomy).chooseAndAccomplishGoal(
+                        any(GoalChoiceApprover.class), eq(agentPlatform), any(Map.class));
 
         var adapter = new AgenticEventHandlerFunctionAdapter<>(
                 aggregate, "UnknownAggregate", eventType, agentPlatform,
