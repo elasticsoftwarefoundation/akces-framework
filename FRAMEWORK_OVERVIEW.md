@@ -84,7 +84,7 @@ Spring AI or Embabel-powered chatbot). It differs from a regular aggregate in th
 | Replicas | Multiple (Kafka-partitioned) | Always **1** (singleton) |
 | Partition count | Configurable | Fixed at **1** per topic |
 | State class | Any `AggregateState` | Must also implement `MemoryAwareState` |
-| Built-in commands | None | `StoreMemoryCommand`, `ForgetMemoryCommand` |
+| Built-in commands | None | None (memory commands handled by the Embabel layer) |
 | Built-in events | None | `MemoryStoredEvent`, `MemoryRevokedEvent` |
 | Memory system | N/A | Sliding-window memory (configurable capacity) |
 | External events | Via `@EventBridgeHandler` | Listens to **all** partitions directly |
@@ -151,25 +151,24 @@ public record MyAssistantState(
 }
 ```
 
-### Built-in memory commands and events
+### Built-in memory events
 
-The framework automatically handles:
+The framework automatically registers and handles the following built-in events. These are
+produced internally by the Embabel layer when the agent stores or revokes memories:
 
-| Command / Event | Type | Description |
-|-----------------|------|-------------|
-| `StoreMemoryCommand` | Command | Asks the aggregate to store a new memory entry |
-| `ForgetMemoryCommand` | Command | Asks the aggregate to remove an existing memory entry |
+| Event | Type | Description |
+|-------|------|-------------|
 | `MemoryStoredEvent` | DomainEvent | Emitted when a memory entry is stored |
-| `MemoryRevokedEvent` | DomainEvent | Emitted when a memory entry is removed (either by `ForgetMemoryCommand` or sliding-window eviction) |
+| `MemoryRevokedEvent` | DomainEvent | Emitted when a memory entry is removed (by the Embabel agent layer) |
 
-You do **not** need to implement command handlers for these; the
+You do **not** need to implement event-sourcing handlers for these; the
 `KafkaAgenticAggregateRuntime` registers them as built-ins.
 
 ### Sliding-window memory
 
 When the number of stored memories exceeds `maxMemories`, the oldest entry is automatically evicted
-and a `MemoryRevokedEvent` is emitted. This keeps memory consumption bounded while preserving the
-most recent context.
+and a `MemoryRevokedEvent` is emitted by the Embabel agent layer. This keeps memory consumption
+bounded while preserving the most recent context.
 
 ### Listening to external events
 
