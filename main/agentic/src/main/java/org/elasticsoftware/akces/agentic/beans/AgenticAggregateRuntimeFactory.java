@@ -73,10 +73,9 @@ import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.MEMORY_S
  * Embabel agent platform.</p>
  *
  * <p>When {@code agentHandledCommands} or {@code agentHandledEvents} are declared, the
- * factory looks up an {@link Agent} bean named {@code {aggregateName}Agent} from the
- * {@link ApplicationContext}. This {@link Agent} is provided by the implementing
- * application and must be registered as a Spring bean before this factory is invoked.
- * A fatal error is raised if the bean cannot be found.</p>
+ * factory creates adapter instances that resolve the matching agent at runtime from
+ * the {@link AgentPlatform} by aggregate name. No eager bean lookup is performed at
+ * startup — agent resolution is deferred to command/event processing time.</p>
  *
  * <p>Produces a {@link KafkaAgenticAggregateRuntime} wrapping the internally built
  * {@link KafkaAggregateRuntime}, adding memory-aware and agent-platform operations.</p>
