@@ -455,13 +455,6 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
                     () -> stateRepository.get(runtime.getName()),
                     this);
 
-            // Track state records produced during the tick
-            List<ConsumerRecord<String, ProtocolRecord>> stateRecords =
-                    consumer.poll(Duration.ZERO).records(statePartition).stream().toList();
-            if (!stateRecords.isEmpty()) {
-                stateRepository.process(stateRecords);
-            }
-
             producer.commitTransaction();
             stateRepository.commit();
         } catch (KafkaException e) {

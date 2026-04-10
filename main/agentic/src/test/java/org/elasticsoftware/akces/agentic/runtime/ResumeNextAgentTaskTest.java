@@ -169,8 +169,8 @@ class ResumeNextAgentTaskTest {
     @Test
     void resumeShouldRoundRobinAcrossTasks() throws IOException {
         var party = new HumanRequestingParty("user-1", "analyst");
-        var task1 = new AssignedTask("proc-1", "Task 1", party, null, Instant.now());
-        var task2 = new AssignedTask("proc-2", "Task 2", party, null, Instant.now());
+        var task1 = new AssignedTask("proc-1", "Task 1", party, Map.of(), Instant.now());
+        var task2 = new AssignedTask("proc-2", "Task 2", party, Map.of(), Instant.now());
         var state = new TaskState("agg-1", List.of(task1, task2));
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "TaskState", 1, payload,
