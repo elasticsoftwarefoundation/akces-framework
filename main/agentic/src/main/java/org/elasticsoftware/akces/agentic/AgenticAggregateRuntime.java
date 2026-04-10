@@ -18,10 +18,13 @@
 package org.elasticsoftware.akces.agentic;
 
 import com.embabel.agent.core.AgentPlatform;
+import org.elasticsoftware.akces.agentic.commands.AssignTaskCommand;
+import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
 import org.elasticsoftware.akces.aggregate.AgenticAggregateMemory;
 import org.elasticsoftware.akces.aggregate.AggregateRuntime;
+import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.aggregate.MemoryAwareState;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
@@ -47,11 +50,22 @@ import java.util.List;
  * </ul>
  */
 public interface AgenticAggregateRuntime extends AggregateRuntime {
+
+    /** Built-in domain event type for {@link MemoryStoredEvent}. */
     DomainEventType<MemoryStoredEvent> MEMORY_STORED_TYPE = new DomainEventType<>(
             "MemoryStored", 1, MemoryStoredEvent.class, false, false, false, false);
 
+    /** Built-in domain event type for {@link MemoryRevokedEvent}. */
     DomainEventType<MemoryRevokedEvent> MEMORY_REVOKED_TYPE = new DomainEventType<>(
             "MemoryRevoked", 1, MemoryRevokedEvent.class, false, false, false, false);
+
+    /** Built-in command type for {@link AssignTaskCommand}. */
+    CommandType<AssignTaskCommand> ASSIGN_TASK_COMMAND_TYPE = new CommandType<>(
+            "AssignTask", 1, AssignTaskCommand.class, false, false, false);
+
+    /** Built-in domain event type for {@link AgentTaskAssignedEvent}. */
+    DomainEventType<AgentTaskAssignedEvent> AGENT_TASK_ASSIGNED_TYPE = new DomainEventType<>(
+            "AgentTaskAssigned", 1, AgentTaskAssignedEvent.class, false, false, false, false);
 
     /**
      * Returns the Embabel {@link AgentPlatform} used to create and run agent processes.

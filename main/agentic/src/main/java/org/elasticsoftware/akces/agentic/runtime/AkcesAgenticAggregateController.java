@@ -122,7 +122,14 @@ public class AkcesAgenticAggregateController extends Thread
     @SuppressWarnings("unchecked")
     private static final List<DomainEventType<?>> BUILTIN_EVENT_TYPES = List.of(
             AgenticAggregateRuntime.MEMORY_STORED_TYPE,
-            AgenticAggregateRuntime.MEMORY_REVOKED_TYPE
+            AgenticAggregateRuntime.MEMORY_REVOKED_TYPE,
+            AgenticAggregateRuntime.AGENT_TASK_ASSIGNED_TYPE
+    );
+
+    /** Built-in command types provided by the agentic framework. */
+    @SuppressWarnings("unchecked")
+    private static final List<CommandType<?>> BUILTIN_COMMAND_TYPES = List.of(
+            AgenticAggregateRuntime.ASSIGN_TASK_COMMAND_TYPE
     );
 
     private final ConsumerFactory<String, SchemaRecord> schemaConsumerFactory;
@@ -152,6 +159,10 @@ public class AkcesAgenticAggregateController extends Thread
      *  {@link org.elasticsoftware.akces.AkcesAggregateController}; available for
      *  subclasses or future extensions that may need environment properties. */
     private Environment environment;
+
+    /** Whether to force-register built-in schemas when they are incompatible with existing ones.
+     *  Configured via the {@code akces.aggregate.schemas.forceRegister} environment property. */
+    private boolean forceRegisterOnIncompatible = false;
 
     /**
      * Creates a new {@code AkcesAgenticAggregateController}.
@@ -268,10 +279,16 @@ public class AkcesAgenticAggregateController extends Thread
     }
 
     /**
-     * Registers the built-in {@link org.elasticsoftware.akces.agentic.events.MemoryStoredEvent}
-     * and {@link org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent} schemas with the
-     * schema registry. These events are produced internally by the Embabel layer when the
-     * agent stores or revokes memories.
+     * Registers the built-in agentic schemas with the schema registry: the memory events
+     * ({@link org.elasticsoftware.akces.agentic.events.MemoryStoredEvent},
+     * {@link org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent}),
+     * the {@link org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent}, and
+     * the {@link org.elasticsoftware.akces.agentic.commands.AssignTaskCommand}.
+     *
+     * <p>If a schema is incompatible with the existing registered schema, the behaviour
+     * depends on the {@code akces.aggregate.schemas.forceRegister} environment property:
+     * when {@code true}, the schema is force-registered; otherwise the incompatibility is
+     * propagated as a fatal error.
      */
     private void registerBuiltinSchemas() {
         logger.info("Registering built-in agentic schemas for {}Aggregate",
@@ -280,19 +297,48 @@ public class AkcesAgenticAggregateController extends Thread
             try {
                 aggregateRuntime.registerAndValidate(eventType, schemaRegistry);
             } catch (IncompatibleSchemaException e) {
-                logger.warn("Built-in event schema {} is incompatible — attempting force-register",
-                        eventType.typeName(), e);
-                try {
-                    aggregateRuntime.registerAndValidate(eventType, schemaRegistry, true);
-                } catch (Exception ex) {
-                    logger.error("Failed to force-register built-in event schema {}",
-                            eventType.typeName(), ex);
-                    throw new RuntimeException("Failed to register built-in event schema: "
-                            + eventType.typeName(), ex);
+                if (forceRegisterOnIncompatible) {
+                    logger.warn("Built-in event schema {} is incompatible — force-registering (forceRegister=true)",
+                            eventType.typeName(), e);
+                    try {
+                        aggregateRuntime.registerAndValidate(eventType, schemaRegistry, true);
+                    } catch (Exception ex) {
+                        logger.error("Failed to force-register built-in event schema {}",
+                                eventType.typeName(), ex);
+                        throw new RuntimeException("Failed to register built-in event schema: "
+                                + eventType.typeName(), ex);
+                    }
+                } else {
+                    throw new RuntimeException("Built-in event schema " + eventType.typeName()
+                            + " is incompatible. Set akces.aggregate.schemas.forceRegister=true to override.", e);
                 }
             } catch (Exception e) {
                 throw new RuntimeException("Failed to register built-in event schema: "
                         + eventType.typeName(), e);
+            }
+        }
+        for (CommandType<?> commandType : BUILTIN_COMMAND_TYPES) {
+            try {
+                aggregateRuntime.registerAndValidate(commandType, schemaRegistry);
+            } catch (IncompatibleSchemaException e) {
+                if (forceRegisterOnIncompatible) {
+                    logger.warn("Built-in command schema {} is incompatible — force-registering (forceRegister=true)",
+                            commandType.typeName(), e);
+                    try {
+                        aggregateRuntime.registerAndValidate(commandType, schemaRegistry, true);
+                    } catch (Exception ex) {
+                        logger.error("Failed to force-register built-in command schema {}",
+                                commandType.typeName(), ex);
+                        throw new RuntimeException("Failed to register built-in command schema: "
+                                + commandType.typeName(), ex);
+                    }
+                } else {
+                    throw new RuntimeException("Built-in command schema " + commandType.typeName()
+                            + " is incompatible. Set akces.aggregate.schemas.forceRegister=true to override.", e);
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to register built-in command schema: "
+                        + commandType.typeName(), e);
             }
         }
     }
@@ -521,6 +567,7 @@ public class AkcesAgenticAggregateController extends Thread
     @Override
     public void setEnvironment(Environment env) {
         this.environment = env;
+        this.forceRegisterOnIncompatible = env.getProperty("akces.aggregate.schemas.forceRegister", Boolean.class, false);
     }
 
     // -------------------------------------------------------------------------
