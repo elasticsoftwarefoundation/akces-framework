@@ -17,14 +17,11 @@
 
 package org.elasticsoftware.akces.agentic.runtime;
 
-import com.embabel.agent.core.Agent;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
-import com.embabel.agent.core.ProcessOptions;
 import jakarta.annotation.Nullable;
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
-import org.elasticsoftware.akces.agentic.commands.AssignTaskCommand;
 import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
@@ -43,11 +40,8 @@ import org.slf4j.LoggerFactory;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -365,36 +359,6 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     }
 
     // -------------------------------------------------------------------------
-    // Built-in CommandHandler for task assignment
-    // -------------------------------------------------------------------------
-
-    /**
-     * Creates a {@link CommandHandlerFunction} for built-in agentic commands.
-     *
-     * <p>The returned function handles {@link AssignTaskCommand} by resolving the appropriate
-     * {@link Agent} from the {@link AgentPlatform}, creating an {@link AgentProcess},
-     * and emitting an {@link AgentTaskAssignedEvent} with the process ID.
-     *
-     * <p>This is a factory method rather than a static method reference because it needs
-     * runtime access to the {@link AgentPlatform} and aggregate name for agent resolution.
-     *
-     * @param agentPlatform the Embabel platform used to create agent processes
-     * @param aggregateName the name of the aggregate (used for agent resolution)
-     * @return a command handler function for built-in agentic commands
-     */
-    public static CommandHandlerFunction<AggregateState, Command, DomainEvent> builtInCommandHandler(
-            AgentPlatform agentPlatform, String aggregateName) {
-        return (command, state) -> {
-            if (command instanceof AssignTaskCommand assignTask) {
-                return handleAssignTask(assignTask, state, agentPlatform, aggregateName);
-            } else {
-                throw new IllegalArgumentException(
-                        "Unsupported built-in command type: " + command.getClass().getName());
-            }
-        };
-    }
-
-    // -------------------------------------------------------------------------
     // Resume agent tasks
     // -------------------------------------------------------------------------
 
@@ -447,76 +411,5 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                 AgentProcessSingleTickRunner.tick(agentProcess, delegate.getAllDomainEventTypes());
 
         delegate.processDomainEvents(tickEvents, protocolRecordConsumer, stateRecordSupplier);
-    }
-
-    /**
-     * Handles the {@link AssignTaskCommand} by resolving the agent, creating an
-     * {@link AgentProcess}, performing a single tick via
-     * {@link AgentProcessSingleTickRunner}, and emitting an {@link AgentTaskAssignedEvent}
-     * followed by any events produced during the tick.
-     */
-    private static Stream<DomainEvent> handleAssignTask(AssignTaskCommand command, AggregateState state,
-                                                         AgentPlatform agentPlatform, String aggregateName) {
-        logger.debug("Processing AssignTask command for aggregate {}, taskDescription='{}'",
-                aggregateName, command.taskDescription());
-
-        Map<String, Object> bindings = new LinkedHashMap<>();
-        bindings.put("command", command);
-        bindings.put("state", state);
-        bindings.put("agenticAggregateId", command.agenticAggregateId());
-        bindings.put("taskDescription", command.taskDescription());
-        bindings.put("requestingParty", command.requestingParty());
-        if (command.taskMetadata() != null) {
-            bindings.put("taskMetadata", command.taskMetadata());
-        }
-
-        Agent agent = resolveAgentByName(agentPlatform, aggregateName);
-
-        AgentProcess agentProcess =
-                agentPlatform.createAgentProcess(agent, ProcessOptions.DEFAULT, bindings);
-
-        String processId = agentProcess.getId();
-
-        logger.debug("Created AgentProcess with id={} for AssignTask on aggregate {}",
-                processId, aggregateName);
-
-        AgentTaskAssignedEvent event = new AgentTaskAssignedEvent(
-                command.agenticAggregateId(),
-                processId,
-                command.taskDescription(),
-                command.requestingParty(),
-                command.taskMetadata(),
-                Instant.now());
-
-        // Perform a single tick to kick-start the agent process
-        Stream<DomainEvent> tickEvents = AgentProcessSingleTickRunner.tick(agentProcess, List.of());
-
-        return Stream.concat(Stream.of(event), tickEvents);
-    }
-
-    /**
-     * Resolves the {@link Agent} for the aggregate from the platform's registered agents.
-     *
-     * <p>Looks for an agent matching either the exact aggregate name or the
-     * {@code {aggregateName}Agent} convention.
-     *
-     * @param agentPlatform the platform containing registered agents
-     * @param aggregateName the aggregate name to resolve an agent for
-     * @return the resolved {@link Agent}; never {@code null}
-     * @throws IllegalStateException if no matching agent is found
-     */
-    private static Agent resolveAgentByName(AgentPlatform agentPlatform, String aggregateName) {
-        String agentBeanName = aggregateName + "Agent";
-        for (Agent candidate : agentPlatform.agents()) {
-            String candidateName = candidate.getName();
-            if (aggregateName.equals(candidateName) || agentBeanName.equals(candidateName)) {
-                return candidate;
-            }
-        }
-        throw new IllegalStateException(
-                "No Agent found with name '" + aggregateName + "' or '" + agentBeanName
-                        + "' in the AgentPlatform for built-in command handling. "
-                        + "The implementing application must provide an Agent named '"
-                        + agentBeanName + "'.");
     }
 }

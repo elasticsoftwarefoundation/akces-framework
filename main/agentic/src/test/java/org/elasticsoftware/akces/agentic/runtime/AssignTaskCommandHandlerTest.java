@@ -23,6 +23,7 @@ import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.Blackboard;
 import com.embabel.agent.core.ProcessOptions;
 import org.elasticsoftware.akces.agentic.commands.AssignTaskCommand;
+import org.elasticsoftware.akces.agentic.embabel.DefaultAgent;
 import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.commands.Command;
@@ -33,6 +34,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -44,7 +46,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
- * Unit tests for {@link KafkaAgenticAggregateRuntime#builtInCommandHandler(AgentPlatform, String)},
+ * Unit tests for {@link AssignTaskCommandHandlerFunction},
  * verifying that it creates an Embabel {@link AgentProcess} and emits an
  * {@link AgentTaskAssignedEvent} with the correct process ID.
  */
@@ -75,7 +77,12 @@ class AssignTaskCommandHandlerTest {
 
     @BeforeEach
     void setUp() {
-        handler = KafkaAgenticAggregateRuntime.builtInCommandHandler(agentPlatform, "TestAggregate");
+        handler = new AssignTaskCommandHandlerFunction(
+                "TestAggregate",
+                agentPlatform,
+                List.of(),
+                List.of(),
+                Collections::emptyList);
     }
 
     private void setUpAgentResolution() {
@@ -83,7 +90,7 @@ class AssignTaskCommandHandlerTest {
         when(agentPlatform.agents()).thenReturn(List.of(agent));
     }
 
-    /** Sets up the blackboard mock so that the single tick in handleAssignTask succeeds. */
+    /** Sets up the blackboard mock so that the single tick in the handler succeeds. */
     private void setUpBlackboard() {
         when(agentProcess.getBlackboard()).thenReturn(blackboard);
         when(blackboard.getObjects()).thenReturn(List.of());
@@ -99,6 +106,7 @@ class AssignTaskCommandHandlerTest {
         when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any()))
                 .thenReturn(agentProcess);
         when(agentProcess.getId()).thenReturn("embabel-proc-42");
+        when(agentProcess.getStatus()).thenReturn(null);
         setUpBlackboard();
 
         Stream<DomainEvent> result = handler.apply(command, state);
@@ -129,6 +137,7 @@ class AssignTaskCommandHandlerTest {
         when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any()))
                 .thenReturn(agentProcess);
         when(agentProcess.getId()).thenReturn("proc-abc");
+        when(agentProcess.getStatus()).thenReturn(null);
         setUpBlackboard();
 
         List<DomainEvent> events = handler.apply(command, state).toList();
@@ -148,6 +157,7 @@ class AssignTaskCommandHandlerTest {
         when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any()))
                 .thenReturn(agentProcess);
         when(agentProcess.getId()).thenReturn("proc-xyz");
+        when(agentProcess.getStatus()).thenReturn(null);
         setUpBlackboard();
 
         List<DomainEvent> events = handler.apply(command, state).toList();
@@ -159,18 +169,39 @@ class AssignTaskCommandHandlerTest {
     @Test
     void applyShouldThrowWhenNoAgentFound() {
         when(agentPlatform.agents()).thenReturn(List.of());
-        var noAgentHandler = KafkaAgenticAggregateRuntime.builtInCommandHandler(agentPlatform, "Unknown");
         var party = new HumanRequestingParty("user-1", "analyst");
         var command = new AssignTaskCommand("agg-1", "task", party, null);
         var state = new TestState("agg-1");
 
-        assertThatThrownBy(() -> noAgentHandler.apply(command, state).toList())
+        assertThatThrownBy(() -> handler.apply(command, state).toList())
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("No Agent found");
+                .hasMessageContaining(DefaultAgent.AGENT_NAME);
     }
 
     @Test
-    void applyShouldThrowForUnknownCommandType() {
+    void applyShouldFallBackToDefaultAgent() {
+        Agent defaultAgent = mock(Agent.class);
+        when(defaultAgent.getName()).thenReturn(DefaultAgent.AGENT_NAME);
+        when(agentPlatform.agents()).thenReturn(List.of(defaultAgent));
+        when(agentPlatform.createAgentProcess(eq(defaultAgent), eq(ProcessOptions.DEFAULT), any()))
+                .thenReturn(agentProcess);
+        when(agentProcess.getId()).thenReturn("proc-default");
+        when(agentProcess.getStatus()).thenReturn(null);
+        setUpBlackboard();
+
+        var party = new HumanRequestingParty("user-1", "analyst");
+        var command = new AssignTaskCommand("agg-1", "task", party, null);
+        var state = new TestState("agg-1");
+
+        List<DomainEvent> events = handler.apply(command, state).toList();
+
+        assertThat(events).hasSize(1);
+        assertThat(events.getFirst()).isInstanceOf(AgentTaskAssignedEvent.class);
+        verify(agentPlatform).createAgentProcess(eq(defaultAgent), eq(ProcessOptions.DEFAULT), any());
+    }
+
+    @Test
+    void applyShouldThrowForNonAssignTaskCommand() {
         Command unknownCommand = new Command() {
             @Override
             public String getAggregateId() {
@@ -181,6 +212,6 @@ class AssignTaskCommandHandlerTest {
 
         assertThatThrownBy(() -> handler.apply(unknownCommand, state).toList())
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Unsupported built-in command type");
+                .hasMessageContaining("AssignTaskCommandHandlerFunction only handles AssignTaskCommand");
     }
 }

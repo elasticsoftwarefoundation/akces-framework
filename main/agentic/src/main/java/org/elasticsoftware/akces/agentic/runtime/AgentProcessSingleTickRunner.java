@@ -35,10 +35,9 @@ import java.util.stream.Stream;
  *
  * <p>This utility is the building block for:
  * <ul>
- *   <li>Tick-to-completion loops in {@link AgenticCommandHandlerFunctionAdapter} and
+ *   <li>Single-tick event processing in {@link AgenticCommandHandlerFunctionAdapter} and
  *       {@link AgenticEventHandlerFunctionAdapter}</li>
- *   <li>Single-tick processing in
- *       {@link KafkaAgenticAggregateRuntime#handleAssignTask handleAssignTask} and
+ *   <li>Single-tick processing in {@link AssignTaskCommandHandlerFunction} and
  *       {@link KafkaAgenticAggregateRuntime#resumeNextAgentTask resumeNextAgentTask}</li>
  * </ul>
  */
