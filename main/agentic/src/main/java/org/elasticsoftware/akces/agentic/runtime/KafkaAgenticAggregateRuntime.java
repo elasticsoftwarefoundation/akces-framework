@@ -433,7 +433,9 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
         }
 
         // Round-robin selection: advance the counter and wrap around the task list size
-        int index = nextTaskIndex.getAndUpdate(i -> (i + 1) % tasks.size());
+        int index = Math.floorMod(
+                nextTaskIndex.getAndUpdate(i -> Math.floorMod(i + 1, tasks.size())),
+                tasks.size());
         AssignedTask task = tasks.get(index);
 
         logger.debug("Resuming agent task '{}' (processId={}) on aggregate {}",

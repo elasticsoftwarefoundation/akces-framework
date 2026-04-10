@@ -24,7 +24,6 @@ import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.commands.CommandBus;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.PayloadEncoding;
-import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,7 +34,6 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -158,8 +156,7 @@ class ResumeNextAgentTaskTest {
         when(blackboard.getObjects()).thenReturn(List.of());
         when(delegate.getAllDomainEventTypes()).thenReturn(List.of());
 
-        List<ProtocolRecord> producedRecords = new ArrayList<>();
-        runtime.resumeNextAgentTask(producedRecords::add, () -> stateRecord, commandBus);
+        runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
 
         verify(agentPlatform).getAgentProcess("proc-42");
         verify(agentProcess).tick();

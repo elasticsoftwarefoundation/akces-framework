@@ -94,19 +94,22 @@ public interface AgenticAggregateRuntime extends AggregateRuntime {
      * Resumes the next assigned agent task for the singleton aggregate instance.
      *
      * <p>Selects the next task in round-robin order from the aggregate state (which must
-     * implement {@link org.elasticsoftware.akces.aggregate.TaskAwareState}), creates an
-     * {@link com.embabel.agent.core.AgentProcess}, performs a single tick, and processes
-     * any resulting domain events through the aggregate's event-sourcing pipeline.
+     * implement {@link org.elasticsoftware.akces.aggregate.TaskAwareState}), looks up the
+     * existing {@link com.embabel.agent.core.AgentProcess} for that task via the
+     * {@link AgentPlatform}, performs a single tick, and processes any resulting domain
+     * events through the aggregate's event-sourcing pipeline.
      *
      * <p>If the state is {@code null}, does not implement
-     * {@link org.elasticsoftware.akces.aggregate.TaskAwareState}, or has no assigned tasks,
-     * this method returns without doing anything.
+     * {@link org.elasticsoftware.akces.aggregate.TaskAwareState}, has no assigned tasks, or
+     * no existing agent process can be obtained for the selected task, this method returns
+     * without doing anything.
      *
      * @param protocolRecordConsumer consumer that receives produced protocol records
      *                               (domain-event records and state records)
      * @param stateRecordSupplier    supplier for the current aggregate state record
-     * @param commandBus             command bus for sending commands produced during the tick
-     * @throws IOException if serialization or deserialization fails
+     * @param commandBus             currently unused by this method; retained in the API for
+     *                               consistency with other runtime operations
+     * @throws IOException if state or event serialization/deserialization fails
      */
     void resumeNextAgentTask(java.util.function.Consumer<org.elasticsoftware.akces.protocol.ProtocolRecord> protocolRecordConsumer,
                              java.util.function.Supplier<AggregateStateRecord> stateRecordSupplier,

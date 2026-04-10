@@ -513,13 +513,17 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
         if (currentStateRecord == null) {
             return;
         }
-        for (DomainEvent domainEvent : events.toList()) {
-            currentStateRecord = processDomainEvent(
-                    null, // no correlation ID for agent-tick-produced events
-                    protocolRecordConsumer,
-                    (der, ip) -> { }, // no indexing for agent-tick-produced events
-                    currentStateRecord,
-                    domainEvent);
+        try (events) {
+            Iterator<DomainEvent> iterator = events.iterator();
+            while (iterator.hasNext()) {
+                DomainEvent domainEvent = iterator.next();
+                currentStateRecord = processDomainEvent(
+                        null, // no correlation ID for agent-tick-produced events
+                        protocolRecordConsumer,
+                        (der, ip) -> { }, // no indexing for agent-tick-produced events
+                        currentStateRecord,
+                        domainEvent);
+            }
         }
     }
 
