@@ -11,6 +11,7 @@ Akces is written in Java. You work together with the Architect of this framework
 - All code must be written in Java 25 and use Java 25 language constructs whenever possible
 - Document all code with JavaDoc comments, including class-level and method-level documentation. Use the standard JavaDoc tags to provide clear explanations of the purpose and behavior of each component.
 - Use the frameworks and libraries that are present in the project, don't add any new frameworks and libraries without prior consent (in the plan)
+- When working with the Embabel Framework, use the most recent Guide for guidance: https://docs.embabel.com/embabel-agent/guide/0.3.5/
 - While developing always ensure that the resulting code is compiling
 - When working on a Task to extend or refactor (part of) the framework, always create a detailed Plan first. Store the plan in the /plans/<task> folder
 - Confirm the plan with the Architect, do not execute the plan directly but create Issues for every Phase
