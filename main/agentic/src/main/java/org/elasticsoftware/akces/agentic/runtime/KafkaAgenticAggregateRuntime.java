@@ -364,12 +364,11 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
      * @param aggregateName the name of the aggregate (used for agent resolution)
      * @return a command handler function for built-in agentic commands
      */
-    @SuppressWarnings("unchecked")
     public static CommandHandlerFunction<AggregateState, Command, DomainEvent> builtInCommandHandler(
             AgentPlatform agentPlatform, String aggregateName) {
         return (command, state) -> {
             if (command instanceof AssignTaskCommand assignTask) {
-                return (Stream<DomainEvent>) (Stream<?>) handleAssignTask(assignTask, state, agentPlatform, aggregateName);
+                return handleAssignTask(assignTask, state, agentPlatform, aggregateName);
             } else {
                 throw new IllegalArgumentException(
                         "Unsupported built-in command type: " + command.getClass().getName());
