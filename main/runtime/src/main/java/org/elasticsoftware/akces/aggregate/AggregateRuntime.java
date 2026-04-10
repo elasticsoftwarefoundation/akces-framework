@@ -99,4 +99,24 @@ public interface AggregateRuntime {
     boolean requiresGDPRContext(CommandRecord eventRecord);
 
     boolean shouldHandlePIIData();
+
+    /**
+     * Processes a stream of {@link org.elasticsoftware.akces.events.DomainEvent}s against
+     * the current aggregate state, applying event-sourcing handlers and emitting the
+     * resulting {@link ProtocolRecord}s (domain-event records and state records) through
+     * the given consumer.
+     *
+     * <p>This method is used by agentic aggregate runtimes to process events produced by
+     * an agent tick outside of the normal command or external-event processing paths.
+     *
+     * @param events                  the domain events to process
+     * @param protocolRecordConsumer  consumer that receives the produced protocol records
+     * @param stateRecordSupplier     supplier for the current aggregate state record
+     * @throws IOException if serialization or deserialization fails
+     */
+    default void processDomainEvents(java.util.stream.Stream<org.elasticsoftware.akces.events.DomainEvent> events,
+                                     Consumer<ProtocolRecord> protocolRecordConsumer,
+                                     Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
+        throw new UnsupportedOperationException("processDomainEvents not supported by this runtime");
+    }
 }

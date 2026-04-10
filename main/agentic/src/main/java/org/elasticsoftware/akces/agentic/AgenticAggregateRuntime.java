@@ -89,4 +89,26 @@ public interface AgenticAggregateRuntime extends AggregateRuntime {
      * @throws IOException if deserialization fails
      */
     List<AgenticAggregateMemory> getMemories(AggregateStateRecord stateRecord) throws IOException;
+
+    /**
+     * Resumes the next assigned agent task for the singleton aggregate instance.
+     *
+     * <p>Selects the next task in round-robin order from the aggregate state (which must
+     * implement {@link org.elasticsoftware.akces.aggregate.TaskAwareState}), creates an
+     * {@link com.embabel.agent.core.AgentProcess}, performs a single tick, and processes
+     * any resulting domain events through the aggregate's event-sourcing pipeline.
+     *
+     * <p>If the state is {@code null}, does not implement
+     * {@link org.elasticsoftware.akces.aggregate.TaskAwareState}, or has no assigned tasks,
+     * this method returns without doing anything.
+     *
+     * @param protocolRecordConsumer consumer that receives produced protocol records
+     *                               (domain-event records and state records)
+     * @param stateRecordSupplier    supplier for the current aggregate state record
+     * @param commandBus             command bus for sending commands produced during the tick
+     * @throws IOException if serialization or deserialization fails
+     */
+    void resumeNextAgentTask(java.util.function.Consumer<org.elasticsoftware.akces.protocol.ProtocolRecord> protocolRecordConsumer,
+                             java.util.function.Supplier<AggregateStateRecord> stateRecordSupplier,
+                             org.elasticsoftware.akces.commands.CommandBus commandBus) throws IOException;
 }

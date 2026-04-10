@@ -49,6 +49,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -70,6 +71,9 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     private final ObjectMapper objectMapper;
     private final Class<? extends AggregateState> stateClass;
     private final AgentPlatform agentPlatform;
+
+    /** Round-robin counter for selecting the next agent task to resume. */
+    private final AtomicInteger nextTaskIndex = new AtomicInteger(0);
 
     /**
      * Creates a new {@code KafkaAgenticAggregateRuntime}.
@@ -156,6 +160,13 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                                                 Supplier<AggregateStateRecord> stateRecordSupplier,
                                                 CommandBus commandBus) throws IOException {
         delegate.handleExternalDomainEventRecord(eventRecord, protocolRecordConsumer, domainEventIndexer, stateRecordSupplier, commandBus);
+    }
+
+    @Override
+    public void processDomainEvents(Stream<DomainEvent> events,
+                                    Consumer<ProtocolRecord> protocolRecordConsumer,
+                                    Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
+        delegate.processDomainEvents(events, protocolRecordConsumer, stateRecordSupplier);
     }
 
     @Override
@@ -383,9 +394,64 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
         };
     }
 
+    // -------------------------------------------------------------------------
+    // Resume agent tasks
+    // -------------------------------------------------------------------------
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Implementation strategy:
+     * <ol>
+     *   <li>Loads and deserializes the current aggregate state.</li>
+     *   <li>Checks whether the state implements {@link TaskAwareState}.</li>
+     *   <li>Selects the next {@link AssignedTask} using a round-robin counter.</li>
+     *   <li>Retrieves the existing {@link AgentProcess} from the {@link AgentPlatform}
+     *       using the task's {@code agentProcessId}.</li>
+     *   <li>Performs a single tick via {@link AgentProcessSingleTickRunner#tick}.</li>
+     *   <li>Processes any resulting domain events through the delegate's
+     *       {@link AggregateRuntime#processDomainEvents} method.</li>
+     * </ol>
+     */
+    @Override
+    public void resumeNextAgentTask(Consumer<ProtocolRecord> protocolRecordConsumer,
+                                    Supplier<AggregateStateRecord> stateRecordSupplier,
+                                    CommandBus commandBus) throws IOException {
+        AggregateStateRecord stateRecord = stateRecordSupplier.get();
+        if (stateRecord == null) {
+            return;
+        }
+
+        AggregateState state = objectMapper.readValue(stateRecord.payload(), stateClass);
+        if (!(state instanceof TaskAwareState taskAwareState)) {
+            return;
+        }
+
+        List<AssignedTask> tasks = taskAwareState.getAssignedTasks();
+        if (tasks.isEmpty()) {
+            return;
+        }
+
+        // Round-robin selection: advance the counter and wrap around the task list size
+        int index = nextTaskIndex.getAndUpdate(i -> (i + 1) % tasks.size());
+        AssignedTask task = tasks.get(index % tasks.size());
+
+        logger.debug("Resuming agent task '{}' (processId={}) on aggregate {}",
+                task.taskDescription(), task.agentProcessId(), getName());
+
+        AgentProcess agentProcess = agentPlatform.getAgentProcess(task.agentProcessId());
+
+        Stream<DomainEvent> tickEvents =
+                AgentProcessSingleTickRunner.tick(agentProcess, delegate.getAllDomainEventTypes());
+
+        delegate.processDomainEvents(tickEvents, protocolRecordConsumer, stateRecordSupplier);
+    }
+
     /**
      * Handles the {@link AssignTaskCommand} by resolving the agent, creating an
-     * {@link AgentProcess}, and emitting an {@link AgentTaskAssignedEvent}.
+     * {@link AgentProcess}, performing a single tick via
+     * {@link AgentProcessSingleTickRunner}, and emitting an {@link AgentTaskAssignedEvent}
+     * followed by any events produced during the tick.
      */
     private static Stream<DomainEvent> handleAssignTask(AssignTaskCommand command, AggregateState state,
                                                          AgentPlatform agentPlatform, String aggregateName) {
@@ -420,7 +486,10 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                 command.taskMetadata(),
                 Instant.now());
 
-        return Stream.of(event);
+        // Perform a single tick to kick-start the agent process
+        Stream<DomainEvent> tickEvents = AgentProcessSingleTickRunner.tick(agentProcess, List.of());
+
+        return Stream.concat(Stream.of(event), tickEvents);
     }
 
     /**

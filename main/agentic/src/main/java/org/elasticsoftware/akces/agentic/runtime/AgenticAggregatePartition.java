@@ -257,6 +257,8 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
                 ConsumerRecords<String, ProtocolRecord> records = consumer.poll(Duration.ofMillis(10));
                 if (!records.isEmpty()) {
                     processRecords(records);
+                } else {
+                    resumeAgentTasks();
                 }
             } else if (processState == LOADING_STATE) {
                 ConsumerRecords<String, ProtocolRecord> stateRecords = consumer.poll(Duration.ofMillis(10));
@@ -431,6 +433,54 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
                     this);
         } catch (IOException e) {
             logger.error("Error handling external event {}", eventRecord.name(), e);
+        }
+    }
+
+    /**
+     * Resumes agent tasks for the singleton aggregate when no records are available
+     * from the Kafka poll.
+     *
+     * <p>This method is called from the main processing loop when the partition is in
+     * the {@code PROCESSING} state and the consumer poll returns no records. It opens
+     * a Kafka transaction, delegates to the runtime's
+     * {@link AgenticAggregateRuntime#resumeNextAgentTask} for a single-tick resume of
+     * the next assigned task (round-robin), and commits the transaction.
+     */
+    private void resumeAgentTasks() {
+        try {
+            producer.beginTransaction();
+
+            runtime.resumeNextAgentTask(
+                    this::send,
+                    () -> stateRepository.get(runtime.getName()),
+                    this);
+
+            // Track state records produced during the tick
+            List<ConsumerRecord<String, ProtocolRecord>> stateRecords =
+                    consumer.poll(Duration.ZERO).records(statePartition).stream().toList();
+            if (!stateRecords.isEmpty()) {
+                stateRepository.process(stateRecords);
+            }
+
+            producer.commitTransaction();
+            stateRepository.commit();
+        } catch (KafkaException e) {
+            logger.error("Transaction failed during resumeAgentTasks for {}Aggregate — aborting",
+                    runtime.getName(), e);
+            try {
+                producer.abortTransaction();
+            } catch (KafkaException ae) {
+                logger.error("Failed to abort transaction", ae);
+            }
+            stateRepository.rollback();
+        } catch (IOException e) {
+            logger.error("Error resuming agent tasks for {}Aggregate", runtime.getName(), e);
+            try {
+                producer.abortTransaction();
+            } catch (KafkaException ae) {
+                logger.error("Failed to abort transaction", ae);
+            }
+            stateRepository.rollback();
         }
     }
 

@@ -20,6 +20,7 @@ package org.elasticsoftware.akces.agentic.runtime;
 import com.embabel.agent.core.Agent;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
+import com.embabel.agent.core.Blackboard;
 import com.embabel.agent.core.ProcessOptions;
 import org.elasticsoftware.akces.agentic.commands.AssignTaskCommand;
 import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
@@ -67,6 +68,9 @@ class AssignTaskCommandHandlerTest {
     @Mock
     private Agent agent;
 
+    @Mock
+    private Blackboard blackboard;
+
     private CommandHandlerFunction<AggregateState, Command, DomainEvent> handler;
 
     @BeforeEach
@@ -79,6 +83,12 @@ class AssignTaskCommandHandlerTest {
         when(agentPlatform.agents()).thenReturn(List.of(agent));
     }
 
+    /** Sets up the blackboard mock so that the single tick in handleAssignTask succeeds. */
+    private void setUpBlackboard() {
+        when(agentProcess.getBlackboard()).thenReturn(blackboard);
+        when(blackboard.getObjects()).thenReturn(List.of());
+    }
+
     @Test
     void applyShouldCreateAgentProcessAndEmitEvent() {
         setUpAgentResolution();
@@ -89,6 +99,7 @@ class AssignTaskCommandHandlerTest {
         when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any()))
                 .thenReturn(agentProcess);
         when(agentProcess.getId()).thenReturn("embabel-proc-42");
+        setUpBlackboard();
 
         Stream<DomainEvent> result = handler.apply(command, state);
         List<DomainEvent> events = result.toList();
@@ -118,6 +129,7 @@ class AssignTaskCommandHandlerTest {
         when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any()))
                 .thenReturn(agentProcess);
         when(agentProcess.getId()).thenReturn("proc-abc");
+        setUpBlackboard();
 
         List<DomainEvent> events = handler.apply(command, state).toList();
 
@@ -136,6 +148,7 @@ class AssignTaskCommandHandlerTest {
         when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any()))
                 .thenReturn(agentProcess);
         when(agentProcess.getId()).thenReturn("proc-xyz");
+        setUpBlackboard();
 
         List<DomainEvent> events = handler.apply(command, state).toList();
 
