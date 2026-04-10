@@ -17,12 +17,6 @@
 
 package org.elasticsoftware.akces.agentic.runtime;
 
-import com.embabel.agent.api.common.PlatformServices;
-import com.embabel.agent.api.common.autonomy.AgentProcessExecution;
-import com.embabel.agent.api.common.autonomy.Autonomy;
-import com.embabel.agent.api.common.autonomy.GoalChoiceApprover;
-import com.embabel.agent.api.common.autonomy.ProcessExecutionException;
-import com.embabel.agent.api.common.autonomy.ProcessExecutionFailedException;
 import com.embabel.agent.core.Agent;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
@@ -50,7 +44,7 @@ import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for {@link AgenticEventHandlerFunctionAdapter}, verifying the runtime
- * agent resolution by aggregate name and the {@link Autonomy} fallback when no matching
+ * agent resolution by aggregate name and the default agent fallback when no matching
  * agent is found.
  */
 @ExtendWith(MockitoExtension.class)
@@ -82,12 +76,6 @@ class AgenticEventHandlerFunctionAdapterTest {
 
     @Mock
     private Blackboard blackboard;
-
-    @Mock
-    private PlatformServices platformServices;
-
-    @Mock
-    private Autonomy autonomy;
 
     private final DomainEventType<TestExternalEvent> eventType =
             new DomainEventType<>("ExternalEvent", 1, TestExternalEvent.class, false, true, false, false);
@@ -149,20 +137,17 @@ class AgenticEventHandlerFunctionAdapterTest {
     }
 
     // -------------------------------------------------------------------------
-    // Autonomy fallback
+    // Default agent fallback
     // -------------------------------------------------------------------------
 
     @Test
-    void shouldFallBackToAutonomyWhenNoAgentFound() throws ProcessExecutionException {
-        when(agentPlatform.agents()).thenReturn(List.of());
-        when(agentPlatform.getPlatformServices()).thenReturn(platformServices);
-        when(platformServices.autonomy()).thenReturn(autonomy);
-
-        AgentProcessExecution execution = mock(AgentProcessExecution.class);
-        when(execution.getAgentProcess()).thenReturn(agentProcess);
-        when(autonomy.chooseAndAccomplishGoal(
-                any(GoalChoiceApprover.class), eq(agentPlatform), any(Map.class)))
-                .thenReturn(execution);
+    void shouldUseDefaultAgentWhenNoNameMatch() {
+        Agent defaultAgent = mock(Agent.class);
+        when(defaultAgent.getName()).thenReturn("SomeOtherAgent");
+        when(agentPlatform.agents()).thenReturn(List.of(defaultAgent));
+        when(agentPlatform.createAgentProcess(eq(defaultAgent), eq(ProcessOptions.DEFAULT), any(Map.class)))
+                .thenReturn(agentProcess);
+        when(agentProcess.getFinished()).thenReturn(true);
         when(agentProcess.getStatus()).thenReturn(null);
 
         var adapter = new AgenticEventHandlerFunctionAdapter<>(
@@ -173,21 +158,12 @@ class AgenticEventHandlerFunctionAdapterTest {
                 new TestExternalEvent("agg-1"), new TestState("agg-1"));
 
         assertThat(result).isEmpty();
-        verify(autonomy).chooseAndAccomplishGoal(
-                any(GoalChoiceApprover.class), eq(agentPlatform), any(Map.class));
-        verify(agentPlatform, never()).createAgentProcess(any(), any(), any(Map.class));
+        verify(agentPlatform).createAgentProcess(eq(defaultAgent), eq(ProcessOptions.DEFAULT), any(Map.class));
     }
 
     @Test
-    void shouldWrapAutonomyExceptionInIllegalStateException() throws ProcessExecutionException {
+    void shouldThrowWhenNoAgentsDeployed() {
         when(agentPlatform.agents()).thenReturn(List.of());
-        when(agentPlatform.getPlatformServices()).thenReturn(platformServices);
-        when(platformServices.autonomy()).thenReturn(autonomy);
-
-        AgentProcess failedProcess = mock(AgentProcess.class);
-        doThrow(new ProcessExecutionFailedException(failedProcess, "Autonomy failed"))
-                .when(autonomy).chooseAndAccomplishGoal(
-                        any(GoalChoiceApprover.class), eq(agentPlatform), any(Map.class));
 
         var adapter = new AgenticEventHandlerFunctionAdapter<>(
                 aggregate, "UnknownAggregate", eventType, agentPlatform,
@@ -196,8 +172,7 @@ class AgenticEventHandlerFunctionAdapterTest {
         assertThatThrownBy(() -> adapter.apply(
                 new TestExternalEvent("agg-1"), new TestState("agg-1")))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Autonomy fallback failed")
-                .hasMessageContaining("ExternalEvent")
+                .hasMessageContaining("No agents are deployed")
                 .hasMessageContaining("UnknownAggregate");
     }
 

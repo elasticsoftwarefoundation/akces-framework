@@ -17,10 +17,6 @@
 
 package org.elasticsoftware.akces.agentic.runtime;
 
-import com.embabel.agent.api.common.autonomy.AgentProcessExecution;
-import com.embabel.agent.api.common.autonomy.Autonomy;
-import com.embabel.agent.api.common.autonomy.GoalChoiceApprover;
-import com.embabel.agent.api.common.autonomy.ProcessExecutionException;
 import com.embabel.agent.core.Agent;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
@@ -37,7 +33,6 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -52,14 +47,12 @@ import java.util.stream.Stream;
  *       memories, aggregate service records, and condition flags.</li>
  *   <li>Attempts to resolve an {@link Agent} from the {@link AgentPlatform} by matching
  *       the aggregate name against deployed agent names (exact match or
- *       {@code {aggregateName}Agent} suffix match).</li>
- *   <li>If a matching agent is found, creates an {@link AgentProcess} via
+ *       {@code {aggregateName}Agent} suffix match). If no match is found, the first
+ *       available agent from the platform is used as a default.</li>
+ *   <li>Creates an {@link AgentProcess} via
  *       {@link AgentPlatform#createAgentProcess(Agent, ProcessOptions, Map)} and calls
  *       {@link AgentProcess#tick()} in a loop until the process reaches an end state
  *       (completed, failed, terminated, or killed).</li>
- *   <li>If no matching agent is found, falls back to
- *       {@link Autonomy#chooseAndAccomplishGoal} to let the Embabel platform decide
- *       on the best agent and goal combination.</li>
  *   <li>Collects {@link DomainEvent} objects placed on the agent's blackboard via
  *       {@link AgentProcessResultTranslator#collectEvents} and returns them as a
  *       {@link Stream}.</li>
@@ -141,7 +134,7 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
      * @return a stream of domain events produced by the agent; may be empty
      */
     @Nonnull
-    private static Optional<Agent> resolveAgentByName(AgentPlatform agentPlatform, String aggregateName) {
+    private static Agent resolveAgentByName(AgentPlatform agentPlatform, String aggregateName) {
         String suffixName = aggregateName + "Agent";
         Collection<Agent> agents = agentPlatform.agents();
         Agent suffixMatch = null;
@@ -149,14 +142,29 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
         for (Agent agent : agents) {
             String agentName = agent.getName();
             if (agentName.equals(aggregateName)) {
-                return Optional.of(agent);
+                return agent;
             }
             if (suffixMatch == null && agentName.equals(suffixName)) {
                 suffixMatch = agent;
             }
         }
 
-        return Optional.ofNullable(suffixMatch);
+        if (suffixMatch != null) {
+            return suffixMatch;
+        }
+
+        // No name match — use the first available agent as default
+        if (!agents.isEmpty()) {
+            Agent defaultAgent = agents.iterator().next();
+            logger.info("No agent found matching aggregate name '{}'; using default agent '{}'",
+                    aggregateName, defaultAgent.getName());
+            return defaultAgent;
+        }
+
+        throw new IllegalStateException(
+                "No agents are deployed on the AgentPlatform. "
+                        + "At least one agent must be available to handle aggregate '"
+                        + aggregateName + "'.");
     }
 
     @Override
@@ -178,31 +186,12 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
         bindings.put("isExternalEvent", true);
         bindings.put("hasMemories", !memories.isEmpty());
 
-        Optional<Agent> resolvedAgent = resolveAgentByName(agentPlatform, aggregateName);
-        AgentProcess agentProcess;
-
-        if (resolvedAgent.isPresent()) {
-            logger.debug("Resolved agent '{}' for aggregate '{}'",
-                    resolvedAgent.get().getName(), aggregateName);
-            agentProcess = agentPlatform.createAgentProcess(
-                    resolvedAgent.get(), ProcessOptions.DEFAULT, bindings);
-            tickToCompletion(agentProcess);
-        } else {
-            logger.info("No agent found matching aggregate name '{}'; falling back to Autonomy",
-                    aggregateName);
-            Autonomy autonomy = agentPlatform.getPlatformServices().autonomy();
-            try {
-                AgentProcessExecution execution = autonomy.chooseAndAccomplishGoal(
-                        GoalChoiceApprover.Companion.getAPPROVE_ALL(), agentPlatform, bindings);
-                agentProcess = execution.getAgentProcess();
-            } catch (ProcessExecutionException e) {
-                logger.error("Autonomy fallback failed for event {} on aggregate {}",
-                        eventType.typeName(), aggregateName, e);
-                throw new IllegalStateException(
-                        "Autonomy fallback failed for event " + eventType.typeName()
-                                + " on aggregate " + aggregateName, e);
-            }
-        }
+        Agent resolvedAgent = resolveAgentByName(agentPlatform, aggregateName);
+        logger.debug("Resolved agent '{}' for aggregate '{}'",
+                resolvedAgent.getName(), aggregateName);
+        AgentProcess agentProcess = agentPlatform.createAgentProcess(
+                resolvedAgent, ProcessOptions.DEFAULT, bindings);
+        tickToCompletion(agentProcess);
 
         logger.debug("Agent process completed with status {} for event {} on aggregate {}",
                 agentProcess.getStatus(), eventType.typeName(), aggregateName);
