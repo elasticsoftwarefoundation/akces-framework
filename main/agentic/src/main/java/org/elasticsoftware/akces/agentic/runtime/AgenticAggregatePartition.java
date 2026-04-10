@@ -30,8 +30,6 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.WakeupException;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
-import org.elasticsoftware.akces.agentic.commands.ForgetMemoryCommand;
-import org.elasticsoftware.akces.aggregate.AgenticAggregateMemory;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.aggregate.IndexParams;
 import org.elasticsoftware.akces.commands.Command;
@@ -81,11 +79,6 @@ import static org.elasticsoftware.akces.kafka.PartitionUtils.DOMAINEVENTS_SUFFIX
  *   <li>Always hard-assigns <strong>partition 0</strong> — no Kafka consumer-group rebalancing
  *       is needed because every agentic aggregate runs as a single-partition service.</li>
  *   <li>Processes commands in strict FIFO order; there is no prioritisation queue.</li>
- *   <li>Enforces a <em>sliding-window</em> memory capacity: whenever the number of stored
- *       memories exceeds {@code maxMemories} after a command is processed, a
- *       {@code ForgetMemoryCommand} is issued through the normal aggregate command path to
- *       evict the oldest entry. Memory state is derived directly from the loaded aggregate
- *       state, avoiding any separate in-memory deque reconstruction after restarts.</li>
  *   <li>Supports external domain-event subscriptions analogous to
  *       {@link org.elasticsoftware.akces.kafka.AggregatePartition}.</li>
  * </ul>
@@ -110,7 +103,6 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
     private final AgenticAggregateRuntime runtime;
     private final AggregateStateRepository stateRepository;
-    private final int maxMemories;
     private final Collection<DomainEventType<?>> externalDomainEventTypes;
     private final AkcesRegistry ackesRegistry;
     private final TopicPartition commandPartition;
@@ -130,7 +122,6 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
      * @param producerFactory        factory for creating transactional Kafka producers
      * @param runtime                the agentic aggregate runtime that processes commands and domain events
      * @param stateRepositoryFactory factory for creating the aggregate-state repository
-     * @param maxMemories            maximum number of memories allowed before sliding-window eviction
      * @param externalDomainEventTypes the collection of external domain event types to subscribe to
      * @param ackesRegistry          registry for resolving command types, topics, and partitions
      */
@@ -139,14 +130,12 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
             ProducerFactory<String, ProtocolRecord> producerFactory,
             AgenticAggregateRuntime runtime,
             AggregateStateRepositoryFactory stateRepositoryFactory,
-            int maxMemories,
             Collection<DomainEventType<?>> externalDomainEventTypes,
             AkcesRegistry ackesRegistry) {
         this.consumerFactory = consumerFactory;
         this.producerFactory = producerFactory;
         this.runtime = runtime;
         this.stateRepository = stateRepositoryFactory.create(runtime, AGENTIC_PARTITION);
-        this.maxMemories = maxMemories;
         this.externalDomainEventTypes = externalDomainEventTypes;
         this.ackesRegistry = ackesRegistry;
         this.commandPartition = new TopicPartition(runtime.getName() + COMMANDS_SUFFIX, AGENTIC_PARTITION);
@@ -379,9 +368,8 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
     }
 
     /**
-     * Handles a single command record by delegating to the {@link AgenticAggregateRuntime},
-     * then enforcing the sliding-window memory eviction policy. A
-     * {@link CommandResponseRecord} is sent when {@code replyToTopicPartition} is set.
+     * Handles a single command record by delegating to the {@link AgenticAggregateRuntime}.
+     * A {@link CommandResponseRecord} is sent when {@code replyToTopicPartition} is set.
      *
      * @param commandRecord the incoming command record to process
      */
@@ -403,11 +391,6 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
                     interceptingConsumer,
                     this::index,
                     () -> stateRepository.get(commandRecord.aggregateId()));
-
-            // Enforce sliding-window memory limit after every command.
-            // This is a no-op when the count is within the allowed window.
-            enforceMemorySlidingWindow(commandRecord.aggregateId(),
-                    commandRecord.tenantId(), commandRecord.correlationId());
 
             // Send a response so that AkcesClient.send() can complete its CompletionStage
             if (responseRecords != null) {
@@ -448,65 +431,6 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
                     this);
         } catch (IOException e) {
             logger.error("Error handling external event {}", eventRecord.name(), e);
-        }
-    }
-
-    /**
-     * Enforces the sliding-window memory limit for the given aggregate by querying the
-     * current state directly.
-     *
-     * <p>If the number of memories in the loaded state exceeds {@code maxMemories}, a
-     * {@link ForgetMemoryCommand} is issued through the normal aggregate command path for
-     * each excess entry (oldest first) until the count is within the allowed window.
-     * This avoids rebuilding a separate in-memory deque after restarts.
-     *
-     * <p>A safety bound of {@code 2 * (maxMemories + 1)} iterations guards against a pathological
-     * case where eviction commands fail to reduce the memory count (e.g., the ForgetMemory
-     * handler is not registered), preventing an infinite loop.
-     *
-     * @param aggregateId   the aggregate whose memory count should be checked
-     * @param tenantId      tenant identifier propagated from the triggering command
-     * @param correlationId correlation identifier propagated from the triggering command
-     */
-    private void enforceMemorySlidingWindow(String aggregateId, String tenantId,
-                                            String correlationId) {
-        try {
-            // Safety bound: evict at most 2 * (maxMemories + 1) times to prevent an infinite loop
-            // if the ForgetMemory handler does not actually reduce the memory count.
-            int maxEvictions = 2 * (maxMemories + 1);
-            for (int evictions = 0; evictions < maxEvictions; evictions++) {
-                AggregateStateRecord stateRecord = stateRepository.get(aggregateId);
-                List<AgenticAggregateMemory> memories = runtime.getMemories(stateRecord);
-                if (memories.size() <= maxMemories) {
-                    return;
-                }
-                // Evict the oldest memory (first in the list, ordered by storedAt)
-                AgenticAggregateMemory oldest = memories.get(0);
-                logger.debug("Sliding-window eviction: revoking memory {} for aggregate {}",
-                        oldest.memoryId(), aggregateId);
-                ForgetMemoryCommand forgetCmd = new ForgetMemoryCommand(
-                        aggregateId, oldest.memoryId(), "sliding window eviction");
-                CommandRecord evictionCommandRecord = new CommandRecord(
-                        tenantId,
-                        "ForgetMemory",
-                        1,
-                        runtime.serialize(forgetCmd),
-                        PayloadEncoding.JSON,
-                        aggregateId,
-                        correlationId,
-                        null); // no reply-to for system eviction commands
-                runtime.handleCommandRecord(
-                        evictionCommandRecord,
-                        this::send,
-                        this::index,
-                        () -> stateRepository.get(aggregateId));
-            }
-            logger.warn("Sliding-window eviction for aggregate {} did not converge within {} iterations; " +
-                    "check that the ForgetMemory command handler is correctly registered",
-                    aggregateId, maxEvictions);
-        } catch (IOException e) {
-            logger.error("Error during sliding-window memory eviction for aggregate {}",
-                    aggregateId, e);
         }
     }
 

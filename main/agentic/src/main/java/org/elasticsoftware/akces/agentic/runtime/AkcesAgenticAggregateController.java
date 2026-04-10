@@ -26,12 +26,6 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
-import org.elasticsoftware.akces.agentic.commands.ForgetMemoryCommand;
-import org.elasticsoftware.akces.agentic.commands.StoreMemoryCommand;
-import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
-import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
-import org.elasticsoftware.akces.annotations.CommandInfo;
-import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.control.AggregateServiceCommandType;
@@ -85,9 +79,9 @@ import static org.elasticsoftware.akces.kafka.PartitionUtils.DOMAINEVENTS_SUFFIX
  * <p>Responsibilities:
  * <ol>
  *   <li>Initialise a {@link SchemaRegistry} backed by Kafka.</li>
- *   <li>Register and validate schemas for the built-in memory commands
- *       ({@link StoreMemoryCommand}, {@link ForgetMemoryCommand}) and events
- *       ({@link MemoryStoredEvent}, {@link MemoryRevokedEvent}).</li>
+ *   <li>Register and validate schemas for the built-in memory events
+ *       ({@link org.elasticsoftware.akces.agentic.events.MemoryStoredEvent},
+ *       {@link org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent}).</li>
  *   <li>Register and validate schemas for all commands and events declared by the
  *       wrapped {@link AgenticAggregateRuntime}.</li>
  *   <li>Publish an {@link AggregateServiceRecord} to the {@code Akces-Control} topic so
@@ -122,13 +116,6 @@ public class AkcesAgenticAggregateController extends Thread
     /** Poll timeout (ms) used when reading the {@code Akces-Control} topic during initialisation. */
     private static final long CONTROL_TOPIC_POLL_TIMEOUT_MS = 100L;
 
-    /** Built-in command types provided by the agentic framework. */
-    @SuppressWarnings("unchecked")
-    private static final List<CommandType<?>> BUILTIN_COMMAND_TYPES = List.of(
-            new CommandType<>("StoreMemory", 1, StoreMemoryCommand.class, false, false, false),
-            new CommandType<>("ForgetMemory", 1, ForgetMemoryCommand.class, false, false, false)
-    );
-
     /** Built-in domain-event types provided by the agentic framework. */
     @SuppressWarnings("unchecked")
     private static final List<DomainEventType<?>> BUILTIN_EVENT_TYPES = List.of(
@@ -145,7 +132,6 @@ public class AkcesAgenticAggregateController extends Thread
     private final ConsumerFactory<String, ProtocolRecord> consumerFactory;
     private final ProducerFactory<String, ProtocolRecord> producerFactory;
     private final AggregateStateRepositoryFactory stateRepositoryFactory;
-    private final int maxMemories;
     private final ExecutorService partitionExecutor;
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
     private final CountDownLatch doneLatch = new CountDownLatch(1);
@@ -177,7 +163,6 @@ public class AkcesAgenticAggregateController extends Thread
      * @param consumerFactory        factory for creating the Kafka protocol consumer
      * @param producerFactory        factory for creating the Kafka protocol producer
      * @param stateRepositoryFactory factory for creating the aggregate-state repository
-     * @param maxMemories            maximum number of memories per aggregate before sliding-window eviction
      */
     public AkcesAgenticAggregateController(
             ConsumerFactory<String, SchemaRecord> schemaConsumerFactory,
@@ -188,8 +173,7 @@ public class AkcesAgenticAggregateController extends Thread
             AgenticAggregateRuntime aggregateRuntime,
             ConsumerFactory<String, ProtocolRecord> consumerFactory,
             ProducerFactory<String, ProtocolRecord> producerFactory,
-            AggregateStateRepositoryFactory stateRepositoryFactory,
-            int maxMemories) {
+            AggregateStateRepositoryFactory stateRepositoryFactory) {
         super(aggregateRuntime.getName() + "-AkcesAgenticController");
         this.schemaConsumerFactory = schemaConsumerFactory;
         this.schemaProducerFactory = schemaProducerFactory;
@@ -200,7 +184,6 @@ public class AkcesAgenticAggregateController extends Thread
         this.consumerFactory = consumerFactory;
         this.producerFactory = producerFactory;
         this.stateRepositoryFactory = stateRepositoryFactory;
-        this.maxMemories = maxMemories;
         this.partitionExecutor = Executors.newSingleThreadExecutor(
                 r -> new Thread(r, aggregateRuntime.getName() + "-AgenticPartitionThread"));
     }
@@ -254,7 +237,6 @@ public class AkcesAgenticAggregateController extends Thread
                     producerFactory,
                     aggregateRuntime,
                     stateRepositoryFactory,
-                    maxMemories,
                     aggregateRuntime.getExternalDomainEventTypes(),
                     this);
             this.partition = localPartition;
@@ -284,32 +266,14 @@ public class AkcesAgenticAggregateController extends Thread
     }
 
     /**
-     * Registers the built-in {@link StoreMemoryCommand}, {@link ForgetMemoryCommand},
-     * {@link MemoryStoredEvent}, and {@link MemoryRevokedEvent} schemas with the
-     * schema registry.
+     * Registers the built-in {@link org.elasticsoftware.akces.agentic.events.MemoryStoredEvent}
+     * and {@link org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent} schemas with the
+     * schema registry. These events are produced internally by the Embabel layer when the
+     * agent stores or revokes memories.
      */
     private void registerBuiltinSchemas() {
         logger.info("Registering built-in agentic schemas for {}Aggregate",
                 aggregateRuntime.getName());
-        for (CommandType<?> commandType : BUILTIN_COMMAND_TYPES) {
-            try {
-                aggregateRuntime.registerAndValidate(commandType, schemaRegistry);
-            } catch (IncompatibleSchemaException e) {
-                logger.warn("Built-in command schema {} is incompatible — attempting force-register",
-                        commandType.typeName(), e);
-                try {
-                    aggregateRuntime.registerAndValidate(commandType, schemaRegistry, true);
-                } catch (Exception ex) {
-                    logger.error("Failed to force-register built-in command schema {}",
-                            commandType.typeName(), ex);
-                    throw new RuntimeException("Failed to register built-in command schema: "
-                            + commandType.typeName(), ex);
-                }
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to register built-in command schema: "
-                        + commandType.typeName(), e);
-            }
-        }
         for (DomainEventType<?> eventType : BUILTIN_EVENT_TYPES) {
             try {
                 aggregateRuntime.registerAndValidate(eventType, schemaRegistry);
@@ -419,23 +383,14 @@ public class AkcesAgenticAggregateController extends Thread
     /**
      * Publishes an {@link AggregateServiceRecord} to the {@code Akces-Control} topic so that
      * clients can discover this service.
-     *
-     * <p>The record includes both the built-in agentic command types
-     * ({@link StoreMemoryCommand}, {@link ForgetMemoryCommand}) and any additional command
-     * types declared by the wrapped aggregate.
      */
     private void publishControlRecord() {
         String transactionalId = aggregateRuntime.getName() + "-" + HostUtils.getHostName()
                 + "-agentic-control";
         try (Producer<String, AkcesControlRecord> controlProducer =
                      controlProducerFactory.createProducer(transactionalId)) {
-            // Combine built-in + aggregate command types for the service record
+            // Collect aggregate command types for the service record
             List<AggregateServiceCommandType> allCommands = new ArrayList<>();
-            BUILTIN_COMMAND_TYPES.forEach(ct ->
-                    allCommands.add(new AggregateServiceCommandType(
-                            ct.typeName(), ct.version(), ct.create(),
-                            "commands." + ct.typeName(),
-                            normalizeDescription(ct.typeClass().getAnnotation(CommandInfo.class).description()))));
             aggregateRuntime.getLocalCommandTypes().forEach(ct ->
                     allCommands.add(new AggregateServiceCommandType(
                             ct.typeName(), ct.version(), ct.create(),
@@ -573,8 +528,7 @@ public class AkcesAgenticAggregateController extends Thread
     /**
      * Resolves the {@link CommandType} for the given command class.
      *
-     * <p>Built-in agentic commands ({@link StoreMemoryCommand}, {@link ForgetMemoryCommand})
-     * are returned directly. All other commands are resolved from the underlying
+     * <p>Command types are resolved from the underlying
      * {@link AgenticAggregateRuntime}'s local command types.
      *
      * @param commandClass the command class to resolve
@@ -584,13 +538,6 @@ public class AkcesAgenticAggregateController extends Thread
     @Override
     @Nonnull
     public CommandType<?> resolveType(@Nonnull Class<? extends Command> commandClass) {
-        // Check built-in types first
-        for (CommandType<?> builtIn : BUILTIN_COMMAND_TYPES) {
-            if (builtIn.typeClass().equals(commandClass)) {
-                return builtIn;
-            }
-        }
-        // Delegate to aggregate runtime
         var commandInfo = commandClass.getAnnotation(
                 org.elasticsoftware.akces.annotations.CommandInfo.class);
         if (commandInfo != null) {
