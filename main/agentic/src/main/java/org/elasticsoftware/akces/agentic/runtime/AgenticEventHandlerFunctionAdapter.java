@@ -51,11 +51,10 @@ import java.util.stream.Stream;
  *       {@code {aggregateName}Agent} suffix match). If no match is found, the
  *       {@link DefaultAgent} is used as a fallback.</li>
  *   <li>Creates an {@link AgentProcess} via
- *       {@link AgentPlatform#createAgentProcess(Agent, ProcessOptions, Map)} and calls
- *       {@link AgentProcess#tick()} in a loop until the process reaches an end state
- *       (completed, failed, terminated, or killed).</li>
+ *       {@link AgentPlatform#createAgentProcess(Agent, ProcessOptions, Map)} and performs
+ *       a single {@link AgentProcess#tick()}.</li>
  *   <li>Collects {@link DomainEvent} objects placed on the agent's blackboard via
- *       {@link AgentProcessResultTranslator#collectEvents} and returns them as a
+ *       {@link AgentProcessSingleTickRunner#tick} and returns them as a
  *       {@link Stream}.</li>
  * </ol>
  *
@@ -196,12 +195,13 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
         AgentProcess agentProcess = agentPlatform.createAgentProcess(
                 resolvedAgent, ProcessOptions.DEFAULT, bindings);
 
-        List<DomainEvent> allEvents = tickToCompletionAndCollectEvents(agentProcess);
+        Stream<DomainEvent> tickEvents =
+                AgentProcessSingleTickRunner.tick(agentProcess, getAllRegisteredEventTypes());
 
-        logger.debug("Agent process completed with status {} for event {} on aggregate {}",
+        logger.debug("Single tick completed with status {} for event {} on aggregate {}",
                 agentProcess.getStatus(), eventType.typeName(), aggregateName);
 
-        return (Stream<E>) allEvents.stream();
+        return (Stream<E>) tickEvents;
     }
 
     /**
@@ -249,45 +249,4 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
         return all;
     }
 
-    /**
-     * Ticks an {@link AgentProcess} to completion using
-     * {@link AgentProcessSingleTickRunner#tick} in a loop, collecting events after each
-     * tick. Defensive limits prevent a stuck process from blocking indefinitely.
-     *
-     * @param agentProcess the agent process to drive to completion
-     * @return all domain events collected across all ticks
-     * @throws IllegalStateException if the process does not finish within the safety limits
-     */
-    private List<DomainEvent> tickToCompletionAndCollectEvents(AgentProcess agentProcess) {
-        final long maxTicks = 10_000L;
-        final long timeoutNanos = java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
-        final long deadlineNanos = System.nanoTime() + timeoutNanos;
-        long tickCount = 0L;
-        List<DomainEvent> allEvents = new ArrayList<>();
-        Collection<DomainEventType<?>> registeredTypes = getAllRegisteredEventTypes();
-
-        while (!agentProcess.getFinished()
-                && tickCount < maxTicks
-                && System.nanoTime() < deadlineNanos) {
-            allEvents.addAll(AgentProcessSingleTickRunner.tick(agentProcess, registeredTypes).toList());
-            tickCount++;
-        }
-
-        if (!agentProcess.getFinished()) {
-            logger.error(
-                    "Agent process did not finish within safety limits for event {} on aggregate {}. " +
-                            "tickCount={}, maxTicks={}, timeoutSeconds={}, status={}",
-                    eventType.typeName(),
-                    aggregateName,
-                    tickCount,
-                    maxTicks,
-                    java.util.concurrent.TimeUnit.NANOSECONDS.toSeconds(timeoutNanos),
-                    agentProcess.getStatus());
-            throw new IllegalStateException(
-                    "Agent process exceeded execution limits for event " + eventType.typeName()
-                            + " on aggregate " + aggregateName);
-        }
-
-        return allEvents;
-    }
 }

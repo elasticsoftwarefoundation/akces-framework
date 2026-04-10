@@ -98,7 +98,6 @@ class AgenticEventHandlerFunctionAdapterTest {
         when(agentPlatform.agents()).thenReturn(List.of(agent));
         when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any(Map.class)))
                 .thenReturn(agentProcess);
-        when(agentProcess.getFinished()).thenReturn(true);
         when(agentProcess.getStatus()).thenReturn(null);
 
         var adapter = new AgenticEventHandlerFunctionAdapter<>(
@@ -123,7 +122,6 @@ class AgenticEventHandlerFunctionAdapterTest {
         when(agentPlatform.agents()).thenReturn(List.of(agent));
         when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any(Map.class)))
                 .thenReturn(agentProcess);
-        when(agentProcess.getFinished()).thenReturn(true);
         when(agentProcess.getStatus()).thenReturn(null);
 
         var adapter = new AgenticEventHandlerFunctionAdapter<>(
@@ -148,7 +146,6 @@ class AgenticEventHandlerFunctionAdapterTest {
         when(agentPlatform.agents()).thenReturn(List.of(defaultAgent));
         when(agentPlatform.createAgentProcess(eq(defaultAgent), eq(ProcessOptions.DEFAULT), any(Map.class)))
                 .thenReturn(agentProcess);
-        when(agentProcess.getFinished()).thenReturn(true);
         when(agentProcess.getStatus()).thenReturn(null);
 
         var adapter = new AgenticEventHandlerFunctionAdapter<>(
