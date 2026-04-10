@@ -184,7 +184,6 @@ public class AgenticAggregateBeanFactoryPostProcessor
                                 .addConstructorArgReference("agenticServiceConsumerFactory")
                                 .addConstructorArgReference("agenticServiceProducerFactory")
                                 .addConstructorArgReference("agenticServiceAggregateStateRepositoryFactory")
-                                .addConstructorArgValue(agenticInfo.maxMemories())
                                 .setInitMethodName("start")
                                 .setDestroyMethodName("close")
                                 .getBeanDefinition());

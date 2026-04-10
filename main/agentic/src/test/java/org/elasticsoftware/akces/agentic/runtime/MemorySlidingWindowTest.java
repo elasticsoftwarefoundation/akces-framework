@@ -32,15 +32,13 @@ import java.util.stream.IntStream;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Tests the sliding-window memory eviction logic that occurs when the memory list exceeds
- * the configured {@code maxMemories} limit. The eviction algorithm is exercised by
- * simulating the sequence of events that would be produced by
- * {@link AgenticAggregatePartition#enforceMemorySlidingWindow}.
+ * Tests the sliding-window memory eviction logic in the state transition layer.
+ * The eviction algorithm is exercised by simulating the sequence of events that are
+ * produced by the Embabel layer during the agent's memory management process.
  *
- * <p>The partition enforces the limit by issuing {@link org.elasticsoftware.akces.agentic.commands.ForgetMemoryCommand}
- * for the oldest entry (first in the list) until the count drops to the allowed window.
- * Each {@code ForgetMemoryCommand} produces a {@link MemoryRevokedEvent} that updates
- * the state through the built-in event-sourcing handler in
+ * <p>Memory revocation is handled by the Embabel agent (via its memory management tools),
+ * which produces {@link MemoryRevokedEvent} directly. Each such event updates the
+ * state through the built-in event-sourcing handler in
  * {@link KafkaAgenticAggregateRuntime}.
  */
 class MemorySlidingWindowTest {
@@ -184,13 +182,13 @@ class MemorySlidingWindowTest {
     }
 
     // -------------------------------------------------------------------------
-    // ForgetMemoryCommand removes specific memory by ID
+    // Revoke memory by ID removes specific memory
     // -------------------------------------------------------------------------
 
     @Test
     void forgetMemoryByIdShouldRemoveSpecificMemory() {
         AggregateState state = storeMemories(5);
-        // Simulate ForgetMemoryCommand for m3
+        // Simulate revoking memory m3 via MemoryRevokedEvent (produced by Embabel layer)
         MemoryRevokedEvent revokeEvent = new MemoryRevokedEvent(
                 "agg-1", "m3", "no longer relevant", Instant.now());
         state = KafkaAgenticAggregateRuntime.onMemoryRevoked(revokeEvent, state);
