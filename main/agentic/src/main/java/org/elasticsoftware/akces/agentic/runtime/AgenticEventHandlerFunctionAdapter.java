@@ -142,9 +142,21 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
      */
     @Nonnull
     private static Optional<Agent> resolveAgentByName(AgentPlatform agentPlatform, String aggregateName) {
-        return agentPlatform.getAgents().stream()
-                .filter(agent -> aggregateName.equals(agent.getName()))
-                .findFirst();
+        String suffixName = aggregateName + "Agent";
+        Collection<Agent> agents = agentPlatform.agents();
+        Agent suffixMatch = null;
+
+        for (Agent agent : agents) {
+            String agentName = agent.getName();
+            if (agentName.equals(aggregateName)) {
+                return Optional.of(agent);
+            }
+            if (suffixMatch == null && agentName.equals(suffixName)) {
+                suffixMatch = agent;
+            }
+        }
+
+        return Optional.ofNullable(suffixMatch);
     }
 
     @Override
