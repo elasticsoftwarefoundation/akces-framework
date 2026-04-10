@@ -22,6 +22,7 @@ import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.ProcessOptions;
 import jakarta.annotation.Nonnull;
+import org.elasticsoftware.akces.agentic.embabel.DefaultAgent;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -47,8 +48,8 @@ import java.util.stream.Stream;
  *       memories, aggregate service records, and condition flags.</li>
  *   <li>Attempts to resolve an {@link Agent} from the {@link AgentPlatform} by matching
  *       the aggregate name against deployed agent names (exact match or
- *       {@code {aggregateName}Agent} suffix match). If no match is found, the first
- *       available agent from the platform is used as a default.</li>
+ *       {@code {aggregateName}Agent} suffix match). If no match is found, the
+ *       {@link DefaultAgent} is used as a fallback.</li>
  *   <li>Creates an {@link AgentProcess} via
  *       {@link AgentPlatform#createAgentProcess(Agent, ProcessOptions, Map)} and calls
  *       {@link AgentProcess#tick()} in a loop until the process reaches an end state
@@ -138,6 +139,7 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
         String suffixName = aggregateName + "Agent";
         Collection<Agent> agents = agentPlatform.agents();
         Agent suffixMatch = null;
+        Agent defaultAgentMatch = null;
 
         for (Agent agent : agents) {
             String agentName = agent.getName();
@@ -147,23 +149,25 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
             if (suffixMatch == null && agentName.equals(suffixName)) {
                 suffixMatch = agent;
             }
+            if (defaultAgentMatch == null && agentName.equals(DefaultAgent.AGENT_NAME)) {
+                defaultAgentMatch = agent;
+            }
         }
 
         if (suffixMatch != null) {
             return suffixMatch;
         }
 
-        // No name match — use the first available agent as default
-        if (!agents.isEmpty()) {
-            Agent defaultAgent = agents.iterator().next();
+        // No name match — fall back to the DefaultAgent
+        if (defaultAgentMatch != null) {
             logger.info("No agent found matching aggregate name '{}'; using default agent '{}'",
-                    aggregateName, defaultAgent.getName());
-            return defaultAgent;
+                    aggregateName, defaultAgentMatch.getName());
+            return defaultAgentMatch;
         }
 
         throw new IllegalStateException(
-                "No agents are deployed on the AgentPlatform. "
-                        + "At least one agent must be available to handle aggregate '"
+                "No DefaultAgent ('" + DefaultAgent.AGENT_NAME + "') is deployed on the AgentPlatform. "
+                        + "At least the DefaultAgent must be available to handle aggregate '"
                         + aggregateName + "'.");
     }
 

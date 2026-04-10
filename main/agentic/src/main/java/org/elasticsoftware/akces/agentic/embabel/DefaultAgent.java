@@ -28,6 +28,12 @@ import com.embabel.agent.api.common.PlannerType;
  * <p>Uses the {@link PlannerType#UTILITY UTILITY} planner for flexible goal-based planning.
  * Actions and conditions will be added as the agentic framework evolves.
  */
-@Agent(description = "Default Akces agentic aggregate agent", planner = PlannerType.UTILITY)
+@Agent(name = DefaultAgent.AGENT_NAME, description = "Default Akces agentic aggregate agent", planner = PlannerType.UTILITY)
 public class DefaultAgent {
+
+    /**
+     * The well-known agent name used to locate this default agent on the
+     * {@link com.embabel.agent.core.AgentPlatform} during fallback resolution.
+     */
+    public static final String AGENT_NAME = "DefaultAgent";
 }

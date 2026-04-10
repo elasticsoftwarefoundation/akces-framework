@@ -22,6 +22,7 @@ import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.ProcessOptions;
 import jakarta.annotation.Nonnull;
+import org.elasticsoftware.akces.agentic.embabel.DefaultAgent;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
@@ -48,8 +49,8 @@ import java.util.stream.Stream;
  *       memories, aggregate service records, and condition flags.</li>
  *   <li>Attempts to resolve an {@link Agent} from the {@link AgentPlatform} by matching
  *       the aggregate name against deployed agent names (exact match or
- *       {@code {aggregateName}Agent} suffix match). If no match is found, the first
- *       available agent from the platform is used as a default.</li>
+ *       {@code {aggregateName}Agent} suffix match). If no match is found, the
+ *       {@link DefaultAgent} is used as a fallback.</li>
  *   <li>Creates an {@link AgentProcess} via
  *       {@link AgentPlatform#createAgentProcess(Agent, ProcessOptions, Map)} and calls
  *       {@link AgentProcess#tick()} in a loop until the process reaches an end state
@@ -217,25 +218,26 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C ex
 
     /**
      * Resolves an {@link Agent} from the {@link AgentPlatform} by matching deployed agent
-     * names against the given aggregate name. If no match is found, the first available
-     * agent from the platform is returned as a default.
+     * names against the given aggregate name. If no match is found, the
+     * {@link DefaultAgent} is returned as a fallback.
      *
      * <p>Matching rules (checked in order):
      * <ol>
      *   <li>Exact match: {@code agent.getName().equals(aggregateName)}</li>
      *   <li>Agent-suffix match: {@code agent.getName().equals(aggregateName + "Agent")}</li>
-     *   <li>Default: first available agent from the platform</li>
+     *   <li>Default: the {@link DefaultAgent} identified by {@link DefaultAgent#AGENT_NAME}</li>
      * </ol>
      *
      * @param platform      the agent platform containing deployed agents
      * @param aggregateName the aggregate name to match against
      * @return the matched or default agent; never {@code null}
-     * @throws IllegalStateException if no agents are deployed on the platform
+     * @throws IllegalStateException if the {@link DefaultAgent} is not deployed on the platform
      */
     static Agent resolveAgentByName(AgentPlatform platform, String aggregateName) {
         String suffixName = aggregateName + "Agent";
         Collection<Agent> agents = platform.agents();
         Agent suffixMatch = null;
+        Agent defaultAgentMatch = null;
 
         for (Agent agent : agents) {
             String agentName = agent.getName();
@@ -245,23 +247,25 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C ex
             if (suffixMatch == null && agentName.equals(suffixName)) {
                 suffixMatch = agent;
             }
+            if (defaultAgentMatch == null && agentName.equals(DefaultAgent.AGENT_NAME)) {
+                defaultAgentMatch = agent;
+            }
         }
 
         if (suffixMatch != null) {
             return suffixMatch;
         }
 
-        // No name match — use the first available agent as default
-        if (!agents.isEmpty()) {
-            Agent defaultAgent = agents.iterator().next();
+        // No name match — fall back to the DefaultAgent
+        if (defaultAgentMatch != null) {
             logger.info("No agent found matching aggregate name '{}'; using default agent '{}'",
-                    aggregateName, defaultAgent.getName());
-            return defaultAgent;
+                    aggregateName, defaultAgentMatch.getName());
+            return defaultAgentMatch;
         }
 
         throw new IllegalStateException(
-                "No agents are deployed on the AgentPlatform. "
-                        + "At least one agent must be available to handle aggregate '"
+                "No DefaultAgent ('" + DefaultAgent.AGENT_NAME + "') is deployed on the AgentPlatform. "
+                        + "At least the DefaultAgent must be available to handle aggregate '"
                         + aggregateName + "'.");
     }
 

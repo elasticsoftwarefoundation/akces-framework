@@ -22,6 +22,7 @@ import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.Blackboard;
 import com.embabel.agent.core.ProcessOptions;
+import org.elasticsoftware.akces.agentic.embabel.DefaultAgent;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -143,7 +144,7 @@ class AgenticEventHandlerFunctionAdapterTest {
     @Test
     void shouldUseDefaultAgentWhenNoNameMatch() {
         Agent defaultAgent = mock(Agent.class);
-        when(defaultAgent.getName()).thenReturn("SomeOtherAgent");
+        when(defaultAgent.getName()).thenReturn(DefaultAgent.AGENT_NAME);
         when(agentPlatform.agents()).thenReturn(List.of(defaultAgent));
         when(agentPlatform.createAgentProcess(eq(defaultAgent), eq(ProcessOptions.DEFAULT), any(Map.class)))
                 .thenReturn(agentProcess);
@@ -162,6 +163,23 @@ class AgenticEventHandlerFunctionAdapterTest {
     }
 
     @Test
+    void shouldThrowWhenNoDefaultAgentDeployed() {
+        Agent otherAgent = mock(Agent.class);
+        when(otherAgent.getName()).thenReturn("SomeOtherAgent");
+        when(agentPlatform.agents()).thenReturn(List.of(otherAgent));
+
+        var adapter = new AgenticEventHandlerFunctionAdapter<>(
+                aggregate, "UnknownAggregate", eventType, agentPlatform,
+                List.of(), List.of(), Collections::emptyList);
+
+        assertThatThrownBy(() -> adapter.apply(
+                new TestExternalEvent("agg-1"), new TestState("agg-1")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("No DefaultAgent")
+                .hasMessageContaining("UnknownAggregate");
+    }
+
+    @Test
     void shouldThrowWhenNoAgentsDeployed() {
         when(agentPlatform.agents()).thenReturn(List.of());
 
@@ -172,7 +190,7 @@ class AgenticEventHandlerFunctionAdapterTest {
         assertThatThrownBy(() -> adapter.apply(
                 new TestExternalEvent("agg-1"), new TestState("agg-1")))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("No agents are deployed")
+                .hasMessageContaining("No DefaultAgent")
                 .hasMessageContaining("UnknownAggregate");
     }
 
