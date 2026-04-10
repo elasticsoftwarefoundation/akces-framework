@@ -57,6 +57,7 @@ public final class Wallet implements Aggregate<WalletStateV2> {
     }
 
     @EventHandler(create = true, produces = WalletCreatedEvent.class, errors = {})
+    @SuppressWarnings("unused")
     public @Nonnull Stream<DomainEvent> create(@Nonnull AccountCreatedEvent event, WalletStateV2 isNull) {
         // TODO: base the currency on the country
         return Stream.of(new WalletCreatedEvent(event.getAggregateId()), new BalanceCreatedEvent(event.getAggregateId(), "EUR"));
@@ -108,6 +109,8 @@ public final class Wallet implements Aggregate<WalletStateV2> {
 
     @EventSourcingHandler(create = true)
     public @Nonnull WalletStateV2 create(@Nonnull WalletCreatedEvent event, WalletStateV2 isNull) {
+        // `isNull` is part of the framework handler signature for create handlers.
+        WalletStateV2 ignored = isNull;
         return new WalletStateV2(event.id(), new ArrayList<>());
     }
 

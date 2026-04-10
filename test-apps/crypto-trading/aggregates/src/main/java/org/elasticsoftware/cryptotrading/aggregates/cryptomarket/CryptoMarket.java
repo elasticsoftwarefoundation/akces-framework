@@ -118,7 +118,7 @@ public class CryptoMarket implements Aggregate<CryptoMarketState> {
     }
 
     @EventSourcingHandler(create = true)
-    public @Nonnull CryptoMarketState apply(@Nonnull CryptoMarketCreatedEvent event, CryptoMarketState isNull) {
+    public @Nonnull CryptoMarketState apply(@Nonnull CryptoMarketCreatedEvent event, CryptoMarketState _unusedState) {
         return new CryptoMarketState(event.id(),
                 event.baseCrypto(),
                 event.quoteCrypto(),

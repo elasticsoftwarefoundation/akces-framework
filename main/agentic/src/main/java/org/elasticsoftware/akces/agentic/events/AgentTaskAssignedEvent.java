@@ -51,7 +51,7 @@ import java.util.Map;
 @DomainEventInfo(type = "AgentTaskAssigned", version = 1,
         description = "Emitted when a task has been assigned to an agentic aggregate and an AgentProcess has been created")
 public record AgentTaskAssignedEvent(
-        @AggregateIdentifier String agenticAggregateId,
+        @AggregateIdentifier @Nonnull String agenticAggregateId,
         @Nonnull String agentProcessId,
         @Nonnull String taskDescription,
         @Nonnull RequestingParty requestingParty,
