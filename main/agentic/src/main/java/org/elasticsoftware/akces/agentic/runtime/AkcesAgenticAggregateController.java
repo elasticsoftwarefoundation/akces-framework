@@ -119,7 +119,14 @@ public class AkcesAgenticAggregateController extends Thread
     @SuppressWarnings("unchecked")
     private static final List<DomainEventType<?>> BUILTIN_EVENT_TYPES = List.of(
             AgenticAggregateRuntime.MEMORY_STORED_TYPE,
-            AgenticAggregateRuntime.MEMORY_REVOKED_TYPE
+            AgenticAggregateRuntime.MEMORY_REVOKED_TYPE,
+            AgenticAggregateRuntime.AGENT_TASK_ASSIGNED_TYPE
+    );
+
+    /** Built-in command types provided by the agentic framework. */
+    @SuppressWarnings("unchecked")
+    private static final List<CommandType<?>> BUILTIN_COMMAND_TYPES = List.of(
+            AgenticAggregateRuntime.ASSIGN_TASK_COMMAND_TYPE
     );
 
     private final ConsumerFactory<String, SchemaRecord> schemaConsumerFactory;
@@ -265,10 +272,11 @@ public class AkcesAgenticAggregateController extends Thread
     }
 
     /**
-     * Registers the built-in {@link org.elasticsoftware.akces.agentic.events.MemoryStoredEvent}
-     * and {@link org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent} schemas with the
-     * schema registry. These events are produced internally by the Embabel layer when the
-     * agent stores or revokes memories.
+     * Registers the built-in agentic schemas with the schema registry: the memory events
+     * ({@link org.elasticsoftware.akces.agentic.events.MemoryStoredEvent},
+     * {@link org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent}),
+     * the {@link org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent}, and
+     * the {@link org.elasticsoftware.akces.agentic.commands.AssignTaskCommand}.
      */
     private void registerBuiltinSchemas() {
         logger.info("Registering built-in agentic schemas for {}Aggregate",
@@ -290,6 +298,25 @@ public class AkcesAgenticAggregateController extends Thread
             } catch (Exception e) {
                 throw new RuntimeException("Failed to register built-in event schema: "
                         + eventType.typeName(), e);
+            }
+        }
+        for (CommandType<?> commandType : BUILTIN_COMMAND_TYPES) {
+            try {
+                aggregateRuntime.registerAndValidate(commandType, schemaRegistry);
+            } catch (IncompatibleSchemaException e) {
+                logger.warn("Built-in command schema {} is incompatible — attempting force-register",
+                        commandType.typeName(), e);
+                try {
+                    aggregateRuntime.registerAndValidate(commandType, schemaRegistry, true);
+                } catch (Exception ex) {
+                    logger.error("Failed to force-register built-in command schema {}",
+                            commandType.typeName(), ex);
+                    throw new RuntimeException("Failed to register built-in command schema: "
+                            + commandType.typeName(), ex);
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to register built-in command schema: "
+                        + commandType.typeName(), e);
             }
         }
     }

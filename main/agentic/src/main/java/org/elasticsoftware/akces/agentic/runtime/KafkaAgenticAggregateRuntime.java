@@ -20,6 +20,7 @@ package org.elasticsoftware.akces.agentic.runtime;
 import com.embabel.agent.core.AgentPlatform;
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
+import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -35,6 +36,7 @@ import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -298,6 +300,60 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
         } else {
             throw new IllegalArgumentException(
                     "Unsupported memory event type: " + event.getClass().getName());
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Built-in EventSourcingHandler for task assignment
+    // -------------------------------------------------------------------------
+
+    /**
+     * Built-in event-sourcing handler for {@link AgentTaskAssignedEvent}.
+     *
+     * <p>Creates an {@link AssignedTask} from the event and appends it to the state's
+     * assigned tasks list. The state must implement {@link TaskAwareState}; otherwise an
+     * {@link IllegalStateException} is thrown.
+     *
+     * @param event the {@code AgentTaskAssignedEvent} to apply
+     * @param state the current aggregate state
+     * @return a new state instance with the assigned task added
+     * @throws IllegalStateException if {@code state} does not implement {@link TaskAwareState}
+     */
+    @SuppressWarnings("unchecked")
+    public static AggregateState onAgentTaskAssigned(AgentTaskAssignedEvent event, AggregateState state) {
+        if (!(state instanceof TaskAwareState tas)) {
+            throw new IllegalStateException(
+                    "Aggregate state " + state.getClass().getName()
+                            + " does not implement TaskAwareState");
+        }
+        AssignedTask task = new AssignedTask(
+                event.agentProcessId(),
+                event.taskDescription(),
+                event.requestingParty(),
+                event.taskMetadata(),
+                event.assignedAt());
+        return (AggregateState) tas.withAssignedTask(task);
+    }
+
+    /**
+     * Single-dispatch event-sourcing handler that routes {@link AgentTaskAssignedEvent}
+     * to the appropriate typed handler.
+     *
+     * <p>Intended to be used as a method reference
+     * ({@code KafkaAgenticAggregateRuntime::handleTaskEvent}) so that no anonymous adapter
+     * class is required at the registration site.
+     *
+     * @param event the task domain event to apply; must be an {@code AgentTaskAssignedEvent}
+     * @param state the current aggregate state
+     * @return the updated aggregate state
+     * @throws IllegalArgumentException if {@code event} is not a recognised task event type
+     */
+    public static AggregateState handleTaskEvent(DomainEvent event, AggregateState state) {
+        if (event instanceof AgentTaskAssignedEvent assigned) {
+            return onAgentTaskAssigned(assigned, state);
+        } else {
+            throw new IllegalArgumentException(
+                    "Unsupported task event type: " + event.getClass().getName());
         }
     }
 }
