@@ -21,6 +21,7 @@ import com.embabel.agent.core.Agent;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.ProcessOptions;
+import jakarta.annotation.Nullable;
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
 import org.elasticsoftware.akces.agentic.commands.AssignTaskCommand;
@@ -127,6 +128,12 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     @Override
     public String getName() {
         return delegate.getName();
+    }
+
+    @Override
+    @Nullable
+    public String getDescription() {
+        return delegate.getDescription();
     }
 
     @Override
