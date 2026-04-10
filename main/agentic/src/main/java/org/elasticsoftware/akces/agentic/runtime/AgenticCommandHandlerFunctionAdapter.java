@@ -160,14 +160,13 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C ex
                 resolvedAgent.getName(), aggregateName);
         AgentProcess agentProcess = agentPlatform.createAgentProcess(
                 resolvedAgent, ProcessOptions.DEFAULT, bindings);
-        tickToCompletion(agentProcess);
+
+        List<DomainEvent> allEvents = tickToCompletionAndCollectEvents(agentProcess);
 
         logger.debug("Agent process completed with status {} for command {} on aggregate {}",
                 agentProcess.getStatus(), commandType.typeName(), aggregateName);
 
-        return (Stream<E>) AgentProcessResultTranslator
-                .collectEvents(agentProcess.getBlackboard(), getAllRegisteredEventTypes())
-                .stream();
+        return (Stream<E>) allEvents.stream();
     }
 
     /**
@@ -270,38 +269,31 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C ex
     }
 
     /**
-     * Ticks an {@link AgentProcess} to completion with defensive limits so a stuck agent
-     * process cannot block command or event handling indefinitely.
-     *
-     * <p>This overload preserves the existing call sites and attempts to resolve the
-     * aggregate identifier from SLF4J MDC using the {@code aggregateId} key.
+     * Ticks an {@link AgentProcess} to completion using
+     * {@link AgentProcessSingleTickRunner#tick} in a loop, collecting events after each
+     * tick. Defensive limits prevent a stuck process from blocking indefinitely.
      *
      * @param agentProcess the agent process to drive to completion
+     * @return all domain events collected across all ticks
      * @throws IllegalStateException if the process does not finish within the safety limits
      */
-    private void tickToCompletion(AgentProcess agentProcess) {
+    private List<DomainEvent> tickToCompletionAndCollectEvents(AgentProcess agentProcess) {
         String aggregateId = org.slf4j.MDC.get("aggregateId");
-        tickToCompletion(agentProcess, aggregateId != null ? aggregateId : "<unknown>");
-    }
+        if (aggregateId == null) {
+            aggregateId = "<unknown>";
+        }
 
-    /**
-     * Ticks an {@link AgentProcess} to completion with defensive limits so a stuck agent
-     * process cannot block command or event handling indefinitely.
-     *
-     * @param agentProcess the agent process to drive to completion
-     * @param aggregateId  the aggregate instance identifier for diagnostic logging
-     * @throws IllegalStateException if the process does not finish within the safety limits
-     */
-    private void tickToCompletion(AgentProcess agentProcess, String aggregateId) {
         final long maxTicks = 10_000L;
         final long timeoutNanos = java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
         final long deadlineNanos = System.nanoTime() + timeoutNanos;
         long tickCount = 0L;
+        List<DomainEvent> allEvents = new ArrayList<>();
+        Collection<DomainEventType<?>> registeredTypes = getAllRegisteredEventTypes();
 
         while (!agentProcess.getFinished()
                 && tickCount < maxTicks
                 && System.nanoTime() < deadlineNanos) {
-            agentProcess.tick();
+            allEvents.addAll(AgentProcessSingleTickRunner.tick(agentProcess, registeredTypes).toList());
             tickCount++;
         }
 
@@ -321,5 +313,7 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C ex
                             + " on aggregate " + aggregateName
                             + " with aggregateId " + aggregateId);
         }
+
+        return allEvents;
     }
 }

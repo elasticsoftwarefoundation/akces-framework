@@ -195,14 +195,13 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
                 resolvedAgent.getName(), aggregateName);
         AgentProcess agentProcess = agentPlatform.createAgentProcess(
                 resolvedAgent, ProcessOptions.DEFAULT, bindings);
-        tickToCompletion(agentProcess);
+
+        List<DomainEvent> allEvents = tickToCompletionAndCollectEvents(agentProcess);
 
         logger.debug("Agent process completed with status {} for event {} on aggregate {}",
                 agentProcess.getStatus(), eventType.typeName(), aggregateName);
 
-        return (Stream<E>) AgentProcessResultTranslator
-                .collectEvents(agentProcess.getBlackboard(), getAllRegisteredEventTypes())
-                .stream();
+        return (Stream<E>) allEvents.stream();
     }
 
     /**
@@ -251,60 +250,44 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
     }
 
     /**
-     * Ticks an {@link AgentProcess} to completion with defensive limits so a stuck agent
-     * process cannot block event handling indefinitely.
+     * Ticks an {@link AgentProcess} to completion using
+     * {@link AgentProcessSingleTickRunner#tick} in a loop, collecting events after each
+     * tick. Defensive limits prevent a stuck process from blocking indefinitely.
      *
      * @param agentProcess the agent process to drive to completion
+     * @return all domain events collected across all ticks
      * @throws IllegalStateException if the process does not finish within the safety limits
      */
-    private void tickToCompletion(AgentProcess agentProcess) {
-        AgenticProcessTickHelper.tickToCompletion(
-                agentProcess,
-                logger,
-                "event",
-                eventType.typeName(),
-                aggregateName);
-    }
-}
-
-final class AgenticProcessTickHelper {
-
-    private static final long MAX_TICKS = 10_000L;
-    private static final long TIMEOUT_NANOS = java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
-
-    private AgenticProcessTickHelper() {
-    }
-
-    static void tickToCompletion(
-            AgentProcess agentProcess,
-            Logger logger,
-            String handledTypeLabel,
-            String handledTypeName,
-            String aggregateName) {
-        final long deadlineNanos = System.nanoTime() + TIMEOUT_NANOS;
+    private List<DomainEvent> tickToCompletionAndCollectEvents(AgentProcess agentProcess) {
+        final long maxTicks = 10_000L;
+        final long timeoutNanos = java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
+        final long deadlineNanos = System.nanoTime() + timeoutNanos;
         long tickCount = 0L;
+        List<DomainEvent> allEvents = new ArrayList<>();
+        Collection<DomainEventType<?>> registeredTypes = getAllRegisteredEventTypes();
 
         while (!agentProcess.getFinished()
-                && tickCount < MAX_TICKS
+                && tickCount < maxTicks
                 && System.nanoTime() < deadlineNanos) {
-            agentProcess.tick();
+            allEvents.addAll(AgentProcessSingleTickRunner.tick(agentProcess, registeredTypes).toList());
             tickCount++;
         }
 
         if (!agentProcess.getFinished()) {
             logger.error(
-                    "Agent process did not finish within safety limits for {} {} on aggregate {}. " +
+                    "Agent process did not finish within safety limits for event {} on aggregate {}. " +
                             "tickCount={}, maxTicks={}, timeoutSeconds={}, status={}",
-                    handledTypeLabel,
-                    handledTypeName,
+                    eventType.typeName(),
                     aggregateName,
                     tickCount,
-                    MAX_TICKS,
-                    java.util.concurrent.TimeUnit.NANOSECONDS.toSeconds(TIMEOUT_NANOS),
+                    maxTicks,
+                    java.util.concurrent.TimeUnit.NANOSECONDS.toSeconds(timeoutNanos),
                     agentProcess.getStatus());
             throw new IllegalStateException(
-                    "Agent process exceeded execution limits for " + handledTypeLabel + " " + handledTypeName
+                    "Agent process exceeded execution limits for event " + eventType.typeName()
                             + " on aggregate " + aggregateName);
         }
+
+        return allEvents;
     }
 }
