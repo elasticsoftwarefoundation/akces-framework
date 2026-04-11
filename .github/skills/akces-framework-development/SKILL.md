@@ -23,8 +23,9 @@ applications on top of it. If you are building Embabel-based AI agents that run 
 - **Spring Boot 4.x** — auto-configuration, dependency injection, Spring Kafka
 - **Maven** — multi-module build, Bill of Materials (`bom/`), annotation processors
 - **RocksDB** — embedded key–value store for aggregate state snapshots
-- **Confluent Schema Registry** — Avro schema management for commands, events, and state
-- **Jackson 3.x** — JSON serialization via `tools.jackson` package (not `com.fasterxml.jackson`)
+- **Kafka-backed schema registry** — schemas are stored in the `Akces-Schemas` compacted Kafka topic and generated/validated as JSON Schema
+- **Protobuf 3.x** — internal wire protocol for all protocol records (`ProtocolRecordSerde`, `SchemaRecordSerde`) using Jackson's `jackson-dataformat-protobuf`
+- **Jackson 3.x** — use `tools.jackson` for core/databind JSON serialization APIs; `com.fasterxml.jackson.annotation` is still used for annotations (notably in `main/api`)
 - **Testcontainers** — Kafka integration tests
 
 ---
@@ -70,16 +71,16 @@ The API module defines the contracts that application developers code against:
 
 | Package | Contents |
 |---------|----------|
-| `o.e.akces.aggregate` | `Aggregate<S>`, `AgenticAggregate<S>`, `AggregateState`, `MemoryAwareState`, `TaskAwareState`, `CommandHandlerFunction`, `EventSourcingHandlerFunction`, `EventHandlerFunction`, `EventBridgeHandlerFunction`, `UpcastingHandlerFunction`, `CommandType`, `DomainEventType`, `AggregateStateType`, `SchemaType` |
-| `o.e.akces.annotations` | `@AggregateInfo`, `@AgenticAggregateInfo`, `@CommandInfo`, `@DomainEventInfo`, `@AggregateStateInfo`, `@CommandHandler`, `@EventSourcingHandler`, `@EventHandler`, `@EventBridgeHandler`, `@UpcastingHandler`, `@PIIData`, `@AggregateIdentifier`, `@QueryModelInfo`, `@QueryModelEventHandler`, `@DatabaseModelInfo`, `@DatabaseModelEventHandler`, `@QueryModelStateInfo`, `@ReflectorInfo`, `@ReflectorEventHandler` |
-| `o.e.akces.commands` | `Command`, `CommandBus` interfaces |
-| `o.e.akces.events` | `DomainEvent`, `ErrorEvent` interfaces |
-| `o.e.akces.processmanager` | `ProcessManager<S, P>` interface |
-| `o.e.akces.query` | `QueryModel<S>`, `QueryModelState`, `DatabaseModel` |
+| `org.elasticsoftware.akces.aggregate` | `Aggregate<S>`, `AgenticAggregate<S>`, `AggregateState`, `MemoryAwareState`, `TaskAwareState`, `CommandHandlerFunction`, `EventSourcingHandlerFunction`, `EventHandlerFunction`, `EventBridgeHandlerFunction`, `UpcastingHandlerFunction`, `CommandType`, `DomainEventType`, `AggregateStateType`, `SchemaType` |
+| `org.elasticsoftware.akces.annotations` | `@AggregateInfo`, `@AgenticAggregateInfo`, `@CommandInfo`, `@DomainEventInfo`, `@AggregateStateInfo`, `@CommandHandler`, `@EventSourcingHandler`, `@EventHandler`, `@EventBridgeHandler`, `@UpcastingHandler`, `@PIIData`, `@AggregateIdentifier`, `@QueryModelInfo`, `@QueryModelEventHandler`, `@DatabaseModelInfo`, `@DatabaseModelEventHandler`, `@QueryModelStateInfo`, `@ReflectorInfo`, `@ReflectorEventHandler` |
+| `org.elasticsoftware.akces.commands` | `Command`, `CommandBus` interfaces |
+| `org.elasticsoftware.akces.events` | `DomainEvent`, `ErrorEvent` interfaces |
+| `org.elasticsoftware.akces.processmanager` | `ProcessManager<S, P>` interface |
+| `org.elasticsoftware.akces.query` | `QueryModel<S>`, `QueryModelState`, `DatabaseModel` |
 
 **Rules when modifying `api`:**
 - Interfaces and annotations here are the public API. Changes are breaking.
-- Keep the module dependency-free (no Kafka, no Spring, no Jackson).
+- Keep the module free of Kafka and runtime implementation dependencies; only lightweight API-level dependencies such as Spring context support and Jackson annotations (`com.fasterxml.jackson.annotation`) should be used here.
 - Add `@Nullable` from Jakarta for optional return values.
 - Version all info annotations (`version` field) for schema evolution.
 
@@ -87,20 +88,20 @@ The API module defines the contracts that application developers code against:
 
 | Package | Contents |
 |---------|----------|
-| `o.e.akces.protocol` | Wire-format records: `CommandRecord`, `DomainEventRecord`, `AggregateStateRecord`, `CommandResponseRecord`, `GDPRKeyRecord`, `SchemaRecord`, `ProtocolRecord`, `PayloadEncoding` |
-| `o.e.akces.schemas` | `SchemaRegistry` interface, `KafkaSchemaRegistry` (Confluent), `JsonSchema` wrapper, schema diff utilities |
-| `o.e.akces.gdpr` | `GDPRContext`, `GDPRContextHolder` (thread-local), `EncryptingGDPRContext`, `GDPRContextRepository` (RocksDB and in-memory), `GDPRAnnotationUtils`, `GDPRKeyUtils` |
-| `o.e.akces.serialization` | `ProtocolRecordSerde`, `AkcesControlRecordSerde`, `SchemaRecordSerde`, `BigDecimalSerializer` |
-| `o.e.akces.control` | `AkcesControlRecord`, `AkcesRegistry`, `AggregateServiceRecord` |
-| `o.e.akces.errors` | Built-in error events: `AggregateAlreadyExistsErrorEvent`, `AggregateNotFoundErrorEvent`, `CommandExecutionErrorEvent` |
-| `o.e.akces.kafka` | `CustomKafkaConsumerFactory`, `CustomKafkaProducerFactory`, `RecordAndMetadata` |
-| `o.e.akces.util` | `HostUtils`, `KafkaSender` |
+| `org.elasticsoftware.akces.protocol` | Wire-format records: `CommandRecord`, `DomainEventRecord`, `AggregateStateRecord`, `CommandResponseRecord`, `GDPRKeyRecord`, `SchemaRecord`, `ProtocolRecord`, `PayloadEncoding` |
+| `org.elasticsoftware.akces.schemas` | `SchemaRegistry` interface, `KafkaSchemaRegistry`, `JsonSchema` wrapper, `KafkaTopicSchemaStorage` (stores schemas in `Akces-Schemas` topic), schema diff utilities |
+| `org.elasticsoftware.akces.gdpr` | `GDPRContext`, `GDPRContextHolder` (thread-local), `EncryptingGDPRContext`, `GDPRContextRepository` (RocksDB and in-memory), `GDPRAnnotationUtils`, `GDPRKeyUtils` |
+| `org.elasticsoftware.akces.serialization` | `ProtocolRecordSerde` (Protobuf), `AkcesControlRecordSerde`, `SchemaRecordSerde` (Protobuf), `BigDecimalSerializer` |
+| `org.elasticsoftware.akces.control` | `AkcesControlRecord`, `AkcesRegistry`, `AggregateServiceRecord` |
+| `org.elasticsoftware.akces.errors` | Built-in error events: `AggregateAlreadyExistsErrorEvent`, `AggregateNotFoundErrorEvent`, `CommandExecutionErrorEvent` |
+| `org.elasticsoftware.akces.kafka` | `CustomKafkaConsumerFactory`, `CustomKafkaProducerFactory`, `RecordAndMetadata` |
+| `org.elasticsoftware.akces.util` | `HostUtils`, `KafkaSender` |
 
 **Rules when modifying `shared`:**
-- Protocol records are serialized to Kafka — changes must be backward-compatible.
-- GDPR encryption uses per-aggregate keys stored in a dedicated Kafka topic.
+- Protocol records are serialized via Protobuf to Kafka — changes must be backward-compatible.
+- GDPR encryption uses per-aggregate keys stored in the shared partitioned `Akces-GDPRKeys` Kafka topic.
 - `GDPRContextHolder` uses `ThreadLocal` — be careful with virtual threads.
-- Jackson is imported as `tools.jackson` (Jackson 3.x), not `com.fasterxml.jackson`.
+- Core/databind serialization uses `tools.jackson` (Jackson 3.x), not `com.fasterxml.jackson`.
 
 ### `main/runtime` — The Kafka Event-Sourcing Engine
 
@@ -130,9 +131,11 @@ The API module defines the contracts that application developers code against:
 | `Foo-AggregateState` | N | Compacted state snapshots |
 
 **Partition lifecycle states** (defined in `AggregatePartitionState`):
-`STARTING` → `INITIALIZING` → `CATCHING_UP` → `PROCESSING` → `SHUTTING_DOWN`
+`INITIALIZING` → `INITIALIZING_STATE` → `LOADING_GDPR_KEYS` → `LOADING_STATE` → `PROCESSING` → `SHUTTING_DOWN`
 
-For agentic aggregates, there is an additional `INITIALIZING_STATE` step between `INITIALIZING` and `CATCHING_UP` for auto-creating singleton state.
+These names should be used as-is when correlating logs, metrics, and partition behavior during startup, state restoration, GDPR key loading, normal processing, and shutdown.
+
+For agentic aggregates, the `INITIALIZING_STATE` step handles auto-creating singleton state via the `getCreateDomainEvent()` method provided by the `AgenticAggregate` implementation.
 
 ### `main/client` — Command Submission
 
@@ -142,15 +145,15 @@ For agentic aggregates, there is an additional `INITIALIZING_STATE` step between
 | `AkcesClientController` | Lifecycle controller for the client-side Kafka consumers/producers |
 | `CommandServiceApplication` | Spring Boot application entry point for the Command Service |
 
-The client validates commands against their JSON Schema, serializes to Avro, and sends to the correct `*-Commands` topic partition based on the `@AggregateIdentifier`.
+The client validates commands against their JSON Schema, serializes via Protobuf, and sends to the correct `*-Commands` topic partition based on the `@AggregateIdentifier`.
 
 ### `main/query-support` — Read Models
 
 | Package | Contents |
 |---------|----------|
-| `o.e.akces.query.models` | `QueryModel` runtime, `QueryModelEventHandler` adapters |
-| `o.e.akces.query.database` | `JdbcDatabaseModel`, `JpaDatabaseModel`, `DatabaseModelEventHandler` adapters |
-| `o.e.akces.query.reflector` | `Reflector` model for event reflection/forwarding |
+| `org.elasticsoftware.akces.query.models` | `QueryModel` runtime, `QueryModelEventHandler` adapters |
+| `org.elasticsoftware.akces.query.database` | `JdbcDatabaseModel`, `JpaDatabaseModel`, `DatabaseModelEventHandler` adapters |
+| `org.elasticsoftware.akces.query.reflector` | `Reflector` model for event reflection/forwarding |
 
 Query models consume from `*-DomainEvents` topics and maintain local read-optimized state.
 
@@ -183,10 +186,19 @@ Key internal classes:
 | `AgenticAggregateRuntimeFactory` | Spring bean factory — registers built-in memory/task events and adapters |
 
 **Important agentic internals:**
+- AgenticAggregates are **singleton instances** — always exactly 1 partition per topic type and 1 replica. This is enforced by the framework and the Kubernetes operator.
+- The framework **automatically creates the initial state** by calling `AgenticAggregate.getCreateDomainEvent()` (which returns a `DomainEvent`) and processing it through the matching `@EventSourcingHandler(create = true)` method. This happens during the `INITIALIZING_STATE` partition lifecycle step.
 - Agent processes are **never ticked in command/event handlers**. All advancement happens via `resumeAgentTasks()` in the partition's idle-poll cycle.
 - Agent resolution: exact name match → `{name}Agent` suffix match → `DefaultAgent` fallback.
 - Built-in events (`MemoryStoredEvent`, `MemoryRevokedEvent`, `AgentTaskAssignedEvent`, `AgentTaskFinishedEvent`) are auto-registered.
-- Agentic aggregates are always **singletons** (single partition, single replica).
+
+**Kafka topic layout for AgenticAggregate `Bar` (always 1 partition):**
+
+| Topic | Partitions | Purpose |
+|-------|------------|---------|
+| `Bar-Commands` | 1 | Inbound commands (including `AssignTaskCommand`) |
+| `Bar-DomainEvents` | 1 | Event store (append-only) |
+| `Bar-AggregateState` | 1 | Compacted state snapshots |
 
 ### `services/operator` — Kubernetes Operator
 
@@ -235,7 +247,7 @@ mvn install -pl main/runtime -q -DskipTests
 ### Known build notes
 
 - The `runtime` and `agentic` modules may have pre-existing compilation issues in controller classes. Use `-Dmaven.compiler.failOnError=false` when installing locally if needed.
-- Jackson 3.x is used — import from `tools.jackson`, not `com.fasterxml.jackson`.
+- Jackson 3.x is used — import from `tools.jackson` for core/databind; `com.fasterxml.jackson.annotation` is still used for annotations in `main/api`.
 - Integration tests use Testcontainers with Kafka — ensure Docker is running.
 
 ---
@@ -269,7 +281,7 @@ mvn install -pl main/runtime -q -DskipTests
 ### GDPR / PII
 
 - Fields annotated with `@PIIData` are encrypted/decrypted transparently.
-- Encryption keys are per-aggregate, stored in a dedicated `*-GDPRKeys` Kafka topic.
+- Encryption keys are stored in the shared partitioned `Akces-GDPRKeys` Kafka topic.
 - `GDPRContextHolder` manages the current encryption context via `ThreadLocal`.
 - AgenticAggregates do **not** support GDPR/PII.
 
@@ -326,9 +338,9 @@ Follow the Arrange-Act-Assert pattern. Use `assertThat` (AssertJ) for assertions
 
 ### Adding a new annotation
 
-1. Define the annotation in `main/api` under `o.e.akces.annotations`.
-2. Create the corresponding handler function interface in `o.e.akces.aggregate` (if needed).
-3. Create the adapter in `main/runtime` under `o.e.akces.beans`.
+1. Define the annotation in `main/api` under `org.elasticsoftware.akces.annotations`.
+2. Create the corresponding handler function interface in `org.elasticsoftware.akces.aggregate` (if needed).
+3. Create the adapter in `main/runtime` under `org.elasticsoftware.akces.beans`.
 4. Register the adapter in `AggregateBeanFactoryPostProcessor`.
 5. Update `AggregateValidator` to validate the new annotation's constraints.
 6. Update `EventCatalogProcessor` in `main/eventcatalog` if the annotation affects documentation.
@@ -343,7 +355,7 @@ Follow the Arrange-Act-Assert pattern. Use `assertThat` (AssertJ) for assertions
 
 ### Adding a new protocol record type
 
-1. Define the record in `o.e.akces.protocol` in `main/shared`.
+1. Define the record in `org.elasticsoftware.akces.protocol` in `main/shared`.
 2. Add serialization support in `ProtocolRecordSerde`.
 3. Update `PayloadEncoding` if a new encoding is needed.
 4. Ensure backward compatibility with existing wire format.
@@ -366,9 +378,8 @@ Follow the Arrange-Act-Assert pattern. Use `assertThat` (AssertJ) for assertions
 ## Reference Links
 
 - [Akces Framework Repository](https://github.com/elasticsoftwarefoundation/akces-framework)
-- [FRAMEWORK_OVERVIEW.md](../../FRAMEWORK_OVERVIEW.md) — Detailed architecture documentation
-- [SERVICES.md](../../SERVICES.md) — Kubernetes services and deployment
-- [README.md](../../README.md) — Project overview and getting started
+- [FRAMEWORK_OVERVIEW.md](../../../FRAMEWORK_OVERVIEW.md) — Detailed architecture documentation
+- [SERVICES.md](../../../SERVICES.md) — Kubernetes services and deployment
+- [README.md](../../../README.md) — Project overview and getting started
 - [Apache Kafka Documentation](https://kafka.apache.org/documentation/)
-- [Confluent Schema Registry](https://docs.confluent.io/platform/current/schema-registry/)
 - [RocksDB Wiki](https://github.com/facebook/rocksdb/wiki)
