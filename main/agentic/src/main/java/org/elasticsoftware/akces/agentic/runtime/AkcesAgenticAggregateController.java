@@ -93,7 +93,7 @@ import static org.elasticsoftware.akces.kafka.PartitionUtils.DOMAINEVENTS_SUFFIX
  *
  * <p>This class implements {@link AkcesRegistry} so that the partition can resolve
  * topics and partitions without any external registry. Because agentic aggregates
- * are always single-partition services, {@link #resolvePartition(String)} always
+ * are always single-partition services, {@link #resolvePartition(CommandType, Command)} always
  * returns {@code 0}.
  *
  * <p>Unlike the previous design, this class is responsible for creating the
