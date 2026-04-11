@@ -603,7 +603,7 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
 
             int capacityLeft = Math.max(0, maxTotalMemories - currentMemories.size());
             int effectiveLimit = Math.min(capacityLeft, maxMemoriesAdded);
-            return translateDistillationResult(result, state.getAggregateId(), currentMemories, effectiveLimit);
+            return translateDistillationResult(result, currentMemories, effectiveLimit);
         } catch (Exception e) {
             logger.warn("Memory distillation failed for aggregate {}; proceeding without memory updates",
                     getName(), e);
@@ -633,13 +633,11 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
      * enforced by truncating stored memories when the limit would be exceeded.
      *
      * @param result           the distillation result from the agent
-     * @param aggregateId      the aggregate identifier for the events
      * @param currentMemories  the current memories from the aggregate state
      * @param maxNewMemories   the maximum number of net new memories allowed
      * @return an unmodifiable list of domain events
      */
     private List<DomainEvent> translateDistillationResult(MemoryDistillationResult result,
-                                                          String aggregateId,
                                                           List<AgenticAggregateMemory> currentMemories,
                                                           int maxNewMemories) {
         List<DomainEvent> events = new ArrayList<>();
