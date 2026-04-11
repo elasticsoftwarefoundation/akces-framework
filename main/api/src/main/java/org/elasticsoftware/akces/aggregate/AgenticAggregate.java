@@ -17,9 +17,28 @@
 
 package org.elasticsoftware.akces.aggregate;
 
+import org.elasticsoftware.akces.events.DomainEvent;
+
 import java.util.List;
 
 public interface AgenticAggregate<S extends AggregateState> extends Aggregate<S> {
+
+    /**
+     * Returns the domain event that creates the initial state for this singleton aggregate.
+     *
+     * <p>Because an agentic aggregate is a singleton (one instance per partition), there is
+     * no external command that triggers its creation. Instead, the framework calls this
+     * method automatically when it detects that no state exists yet for the aggregate.
+     *
+     * <p>The returned event must have a corresponding
+     * {@link org.elasticsoftware.akces.annotations.EventSourcingHandler EventSourcingHandler}
+     * with {@code create = true} that produces the initial {@link AggregateState}.
+     *
+     * @return a single {@link DomainEvent} that will be applied to create the aggregate state;
+     *         must not be {@code null}
+     */
+    DomainEvent getCreateDomainEvent();
+
     /**
      * Returns the memories held by the given state.
      * <p>

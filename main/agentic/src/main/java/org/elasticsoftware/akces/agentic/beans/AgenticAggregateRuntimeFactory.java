@@ -132,7 +132,7 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
 
         KafkaAggregateRuntime kafkaRuntime = createRuntime(agenticInfo, aggregate, agentPlatform);
         return new KafkaAgenticAggregateRuntime(
-                kafkaRuntime, objectMapper, agenticInfo.stateClass(), agentPlatform);
+                kafkaRuntime, objectMapper, agenticInfo.stateClass(), agentPlatform, aggregate);
     }
 
     @Override

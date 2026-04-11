@@ -285,9 +285,33 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
                 }
                 Map<TopicPartition, Long> endOffsets = consumer.endOffsets(List.of(statePartition));
                 if (endOffsets.getOrDefault(statePartition, 0L) == 0L) {
-                    // No existing state — start processing immediately
-                    logger.info("No existing state for {}Aggregate AgenticPartition, starting PROCESSING",
+                    // No existing state — auto-create the singleton aggregate state.
+                    logger.info("No existing state for {}Aggregate AgenticPartition, auto-creating initial state",
                             runtime.getName());
+                    try {
+                        producer.beginTransaction();
+                        runtime.initializeState(this::send, this::index);
+                        producer.commitTransaction();
+                        stateRepository.commit();
+                    } catch (KafkaException e) {
+                        logger.error("Failed to auto-create initial state for {}Aggregate — aborting transaction",
+                                runtime.getName(), e);
+                        try {
+                            producer.abortTransaction();
+                        } catch (KafkaException ae) {
+                            logger.error("Failed to abort transaction", ae);
+                        }
+                        stateRepository.rollback();
+                    } catch (IOException e) {
+                        logger.error("Failed to auto-create initial state for {}Aggregate — serialization error",
+                                runtime.getName(), e);
+                        try {
+                            producer.abortTransaction();
+                        } catch (KafkaException ae) {
+                            logger.error("Failed to abort transaction", ae);
+                        }
+                        stateRepository.rollback();
+                    }
                     processState = PROCESSING;
                 } else {
                     // Pause command/event/external topics while loading state

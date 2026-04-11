@@ -89,4 +89,22 @@ public interface AgenticAggregateRuntime extends AggregateRuntime {
      * @throws IOException if deserialization fails
      */
     List<AgenticAggregateMemory> getMemories(AggregateStateRecord stateRecord) throws IOException;
+
+    /**
+     * Initializes the singleton aggregate state by invoking the aggregate's
+     * {@link org.elasticsoftware.akces.aggregate.AgenticAggregate#getCreateDomainEvent()
+     * getCreateDomainEvent()} hook and applying the resulting event through the event-sourcing
+     * create handler.
+     *
+     * <p>This method is called by the partition when it detects that no state exists yet
+     * for the agentic aggregate. The produced {@link AggregateStateRecord} and
+     * {@link DomainEventRecord} are written to the Kafka topics via the provided consumers.
+     *
+     * @param protocolRecordConsumer consumer for the produced state and domain-event records
+     * @param domainEventIndexer     indexer callback for optional secondary indexing
+     * @throws IOException if serialisation fails
+     */
+    void initializeState(java.util.function.Consumer<org.elasticsoftware.akces.protocol.ProtocolRecord> protocolRecordConsumer,
+                         java.util.function.BiConsumer<org.elasticsoftware.akces.protocol.DomainEventRecord, org.elasticsoftware.akces.aggregate.IndexParams> domainEventIndexer)
+            throws IOException;
 }
