@@ -721,6 +721,10 @@ public class AkcesAgenticAggregateController extends Thread
             }
         }
         // Default: hash-based partitioning for STANDARD services
+        if (partitions == null) {
+            throw new IllegalStateException("Partition count not yet initialised; "
+                    + "Akces-Control topic may not have been loaded");
+        }
         return Math.abs(hashFunction.hashString(aggregateId, UTF_8).asInt()) % partitions;
     }
 
