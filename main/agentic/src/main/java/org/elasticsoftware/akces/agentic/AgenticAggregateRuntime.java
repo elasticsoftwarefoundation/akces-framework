@@ -96,6 +96,48 @@ public interface AgenticAggregateRuntime extends AggregateRuntime {
     List<AgenticAggregateMemory> getMemories(AggregateStateRecord stateRecord) throws IOException;
 
     /**
+     * Resumes the next assigned agent task for the singleton aggregate instance.
+     *
+     * <p>Selects the next task in round-robin order from the aggregate state (which must
+     * implement {@link org.elasticsoftware.akces.aggregate.TaskAwareState}), looks up the
+     * existing {@link com.embabel.agent.core.AgentProcess} for that task via the
+     * {@link AgentPlatform}, performs a single tick, and processes any resulting domain
+     * events through the aggregate's event-sourcing pipeline.
+     *
+     * <p>If the state is {@code null}, does not implement
+     * {@link org.elasticsoftware.akces.aggregate.TaskAwareState}, has no assigned tasks, or
+     * no existing agent process can be obtained for the selected task, this method returns
+     * without doing anything.
+     *
+     * @param protocolRecordConsumer consumer that receives produced protocol records
+     *                               (domain-event records and state records)
+     * @param stateRecordSupplier    supplier for the current aggregate state record
+     * @param commandBus             currently unused by this method; retained in the API for
+     *                               consistency with other runtime operations
+     * @throws IOException if state or event serialization/deserialization fails
+     */
+    void resumeNextAgentTask(java.util.function.Consumer<org.elasticsoftware.akces.protocol.ProtocolRecord> protocolRecordConsumer,
+                             java.util.function.Supplier<AggregateStateRecord> stateRecordSupplier,
+                             org.elasticsoftware.akces.commands.CommandBus commandBus) throws IOException;
+
+    /**
+     * Checks whether the aggregate currently has any active (assigned) agent tasks.
+     *
+     * <p>Deserializes the state from the supplied record and checks whether it implements
+     * {@link org.elasticsoftware.akces.aggregate.TaskAwareState} with a non-empty list of
+     * assigned tasks.
+     *
+     * <p>This method is intended as a fast-path check before opening a Kafka transaction
+     * in the idle-poll cycle, avoiding unnecessary transaction overhead when there are no
+     * tasks to resume.
+     *
+     * @param stateRecordSupplier supplier for the current aggregate state record
+     * @return {@code true} if the state has at least one assigned task; {@code false} otherwise
+     * @throws IOException if state deserialization fails
+     */
+    boolean hasActiveAgentTasks(java.util.function.Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException;
+  
+    /**
      * Initializes the singleton aggregate state by invoking the aggregate's
      * {@link org.elasticsoftware.akces.aggregate.AgenticAggregate#getCreateDomainEvent()
      * getCreateDomainEvent()} hook and applying the resulting event through the event-sourcing

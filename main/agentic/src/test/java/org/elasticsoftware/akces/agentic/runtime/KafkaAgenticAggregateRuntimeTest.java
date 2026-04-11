@@ -132,6 +132,7 @@ class KafkaAgenticAggregateRuntimeTest {
         AggregateStateRecord record = new AggregateStateRecord(
                 "tenant", "TestMemoryState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", "corr-1", 1L);
+        when(delegate.materializeState(record)).thenReturn(state);
 
         List<AgenticAggregateMemory> memories = runtime.getMemories(record);
 
@@ -151,8 +152,9 @@ class KafkaAgenticAggregateRuntimeTest {
         AggregateStateRecord record = new AggregateStateRecord(
                 "tenant", "PlainState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", "corr-1", 1L);
+        when(delegate.materializeState(record)).thenReturn(state);
 
-        List<AgenticAggregateMemory> memories = plainRuntime.getMemories(record);
+        List<AgenticAggregateMemory> memories = runtime.getMemories(record);
         assertThat(memories).isEmpty();
     }
 
@@ -164,6 +166,7 @@ class KafkaAgenticAggregateRuntimeTest {
         AggregateStateRecord record = new AggregateStateRecord(
                 "tenant", "TestMemoryState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", "corr-1", 1L);
+        when(delegate.materializeState(record)).thenReturn(state);
 
         List<AgenticAggregateMemory> memories = runtime.getMemories(record);
         assertThat(memories).isEmpty();
@@ -181,6 +184,7 @@ class KafkaAgenticAggregateRuntimeTest {
         AggregateStateRecord record = new AggregateStateRecord(
                 "tenant", "TestMemoryState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", "corr-1", 1L);
+        when(delegate.materializeState(record)).thenReturn(state);
 
         List<AgenticAggregateMemory> memories = runtime.getMemories(record);
         assertThat(memories).hasSize(2);

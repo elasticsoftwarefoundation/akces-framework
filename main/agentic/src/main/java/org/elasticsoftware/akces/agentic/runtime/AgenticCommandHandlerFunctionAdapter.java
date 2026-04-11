@@ -30,7 +30,6 @@ import org.elasticsoftware.akces.events.DomainEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -52,13 +51,12 @@ import java.util.stream.Stream;
  *       {@code {aggregateName}Agent} suffix match). If no match is found, the
  *       {@link DefaultAgent} is used as a fallback.</li>
  *   <li>Creates an {@link AgentProcess} via
- *       {@link AgentPlatform#createAgentProcess(Agent, ProcessOptions, Map)} and calls
- *       {@link AgentProcess#tick()} in a loop until the process reaches an end state
- *       (completed, failed, terminated, or killed).</li>
- *   <li>Collects {@link DomainEvent} objects placed on the agent's blackboard via
- *       {@link AgentProcessResultTranslator#collectEvents} and returns them as a
- *       {@link Stream}.</li>
+ *       {@link AgentPlatform#createAgentProcess(Agent, ProcessOptions, Map)}.</li>
  * </ol>
+ *
+ * <p>The adapter does <strong>not</strong> tick the newly created process. Instead, the
+ * partition's idle-poll cycle ({@code resumeAgentTasks}) exclusively drives all
+ * {@link AgentProcess} advancement.
  *
  * <p>{@link #isCreate()} always returns {@code false} — agent-handled commands cannot
  * create aggregate state. Every agentic aggregate must have a separate deterministic
@@ -133,7 +131,7 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C ex
      *
      * @param command the command to process; never {@code null}
      * @param state   the current aggregate state
-     * @return a stream of domain events produced by the agent; may be empty
+     * @return an empty stream — the process is advanced by {@code resumeAgentTasks}
      */
     @Nonnull
     @Override
@@ -160,14 +158,13 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C ex
                 resolvedAgent.getName(), aggregateName);
         AgentProcess agentProcess = agentPlatform.createAgentProcess(
                 resolvedAgent, ProcessOptions.DEFAULT, bindings);
-        tickToCompletion(agentProcess);
 
-        logger.debug("Agent process completed with status {} for command {} on aggregate {}",
-                agentProcess.getStatus(), commandType.typeName(), aggregateName);
+        logger.debug("Created AgentProcess with id={} for command {} on aggregate {}",
+                agentProcess.getId(), commandType.typeName(), aggregateName);
 
-        return (Stream<E>) AgentProcessResultTranslator
-                .collectEvents(agentProcess.getBlackboard(), getAllRegisteredEventTypes())
-                .stream();
+        // The process is NOT ticked here. The partition's idle-poll cycle
+        // (resumeAgentTasks) exclusively drives all AgentProcess advancement.
+        return (Stream<E>) Stream.<DomainEvent>empty();
     }
 
     /**
@@ -200,20 +197,6 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C ex
     @Override
     public List<DomainEventType<E>> getErrorEventTypes() {
         return errorEventTypes;
-    }
-
-    /**
-     * Returns all domain event types this adapter may produce (both state-changing and error types).
-     * Used by {@link AgentProcessResultTranslator} to filter out unknown {@link org.elasticsoftware.akces.events.ErrorEvent}
-     * instances that are not registered with the runtime.
-     *
-     * @return combined list of produced and error domain event types
-     */
-    private List<DomainEventType<?>> getAllRegisteredEventTypes() {
-        List<DomainEventType<?>> all = new ArrayList<>(producedDomainEventTypes.size() + errorEventTypes.size());
-        all.addAll(producedDomainEventTypes);
-        all.addAll(errorEventTypes);
-        return all;
     }
 
     /**
@@ -267,59 +250,5 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C ex
                 "No DefaultAgent ('" + DefaultAgent.AGENT_NAME + "') is deployed on the AgentPlatform. "
                         + "At least the DefaultAgent must be available to handle aggregate '"
                         + aggregateName + "'.");
-    }
-
-    /**
-     * Ticks an {@link AgentProcess} to completion with defensive limits so a stuck agent
-     * process cannot block command or event handling indefinitely.
-     *
-     * <p>This overload preserves the existing call sites and attempts to resolve the
-     * aggregate identifier from SLF4J MDC using the {@code aggregateId} key.
-     *
-     * @param agentProcess the agent process to drive to completion
-     * @throws IllegalStateException if the process does not finish within the safety limits
-     */
-    private void tickToCompletion(AgentProcess agentProcess) {
-        String aggregateId = org.slf4j.MDC.get("aggregateId");
-        tickToCompletion(agentProcess, aggregateId != null ? aggregateId : "<unknown>");
-    }
-
-    /**
-     * Ticks an {@link AgentProcess} to completion with defensive limits so a stuck agent
-     * process cannot block command or event handling indefinitely.
-     *
-     * @param agentProcess the agent process to drive to completion
-     * @param aggregateId  the aggregate instance identifier for diagnostic logging
-     * @throws IllegalStateException if the process does not finish within the safety limits
-     */
-    private void tickToCompletion(AgentProcess agentProcess, String aggregateId) {
-        final long maxTicks = 10_000L;
-        final long timeoutNanos = java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
-        final long deadlineNanos = System.nanoTime() + timeoutNanos;
-        long tickCount = 0L;
-
-        while (!agentProcess.getFinished()
-                && tickCount < maxTicks
-                && System.nanoTime() < deadlineNanos) {
-            agentProcess.tick();
-            tickCount++;
-        }
-
-        if (!agentProcess.getFinished()) {
-            logger.error(
-                    "Agent process did not finish within safety limits for command {} on aggregate {} " +
-                            "with aggregateId {}. tickCount={}, maxTicks={}, timeoutSeconds={}, status={}",
-                    commandType.typeName(),
-                    aggregateName,
-                    aggregateId,
-                    tickCount,
-                    maxTicks,
-                    java.util.concurrent.TimeUnit.NANOSECONDS.toSeconds(timeoutNanos),
-                    agentProcess.getStatus());
-            throw new IllegalStateException(
-                    "Agent process exceeded execution limits for command " + commandType.typeName()
-                            + " on aggregate " + aggregateName
-                            + " with aggregateId " + aggregateId);
-        }
     }
 }

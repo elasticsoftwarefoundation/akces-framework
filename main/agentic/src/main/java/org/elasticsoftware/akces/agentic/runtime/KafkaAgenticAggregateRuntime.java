@@ -17,14 +17,11 @@
 
 package org.elasticsoftware.akces.agentic.runtime;
 
-import com.embabel.agent.core.Agent;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
-import com.embabel.agent.core.ProcessOptions;
 import jakarta.annotation.Nullable;
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
-import org.elasticsoftware.akces.agentic.commands.AssignTaskCommand;
 import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
@@ -44,12 +41,10 @@ import org.slf4j.LoggerFactory;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -74,12 +69,15 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     private final AgentPlatform agentPlatform;
     private final AgenticAggregate<?> aggregate;
 
+    /** Round-robin counter for selecting the next agent task to resume. */
+    private final AtomicInteger nextTaskIndex = new AtomicInteger(0);
+
     /**
      * Creates a new {@code KafkaAgenticAggregateRuntime}.
      *
      * @param delegate      the underlying aggregate runtime to delegate to
-     * @param objectMapper  Jackson object mapper for state deserialization
-     * @param stateClass    the concrete state class used by this aggregate
+     * @param objectMapper  the Jackson {@link ObjectMapper} used for JSON serialization
+     * @param stateClass    the aggregate state class
      * @param agentPlatform the Embabel {@link AgentPlatform} used for AI-assisted processing;
      *                      must not be {@code null}
      * @param aggregate     the agentic aggregate instance whose
@@ -113,16 +111,17 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     /**
      * {@inheritDoc}
      *
-     * <p>Deserializes the state payload using the configured {@link ObjectMapper} and
-     * returns the memories when the state implements {@link MemoryAwareState}; otherwise
-     * returns an empty list.
+     * <p>Materializes the state from the record via the delegate's
+     * {@link AggregateRuntime#materializeState(AggregateStateRecord)} (which applies
+     * upcasting when needed) and returns the memories when the state implements
+     * {@link MemoryAwareState}; otherwise returns an empty list.
      */
     @Override
     public List<AgenticAggregateMemory> getMemories(AggregateStateRecord stateRecord) throws IOException {
         if (stateRecord == null) {
             return List.of();
         }
-        AggregateState state = objectMapper.readValue(stateRecord.payload(), stateClass);
+        AggregateState state = delegate.materializeState(stateRecord);
         if (state instanceof MemoryAwareState mas) {
             return mas.getMemories();
         }
@@ -184,6 +183,19 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                                                 Supplier<AggregateStateRecord> stateRecordSupplier,
                                                 CommandBus commandBus) throws IOException {
         delegate.handleExternalDomainEventRecord(eventRecord, protocolRecordConsumer, domainEventIndexer, stateRecordSupplier, commandBus);
+    }
+
+    @Override
+    public void processDomainEvents(Stream<DomainEvent> events,
+                                    String correlationId,
+                                    Consumer<ProtocolRecord> protocolRecordConsumer,
+                                    Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
+        delegate.processDomainEvents(events, correlationId, protocolRecordConsumer, stateRecordSupplier);
+    }
+
+    @Override
+    public AggregateState materializeState(AggregateStateRecord stateRecord) throws IOException {
+        return delegate.materializeState(stateRecord);
     }
 
     @Override
@@ -382,98 +394,79 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     }
 
     // -------------------------------------------------------------------------
-    // Built-in CommandHandler for task assignment
+    // Resume agent tasks
     // -------------------------------------------------------------------------
 
     /**
-     * Creates a {@link CommandHandlerFunction} for built-in agentic commands.
-     *
-     * <p>The returned function handles {@link AssignTaskCommand} by resolving the appropriate
-     * {@link Agent} from the {@link AgentPlatform}, creating an {@link AgentProcess},
-     * and emitting an {@link AgentTaskAssignedEvent} with the process ID.
-     *
-     * <p>This is a factory method rather than a static method reference because it needs
-     * runtime access to the {@link AgentPlatform} and aggregate name for agent resolution.
-     *
-     * @param agentPlatform the Embabel platform used to create agent processes
-     * @param aggregateName the name of the aggregate (used for agent resolution)
-     * @return a command handler function for built-in agentic commands
+     * {@inheritDoc}
      */
-    public static CommandHandlerFunction<AggregateState, Command, DomainEvent> builtInCommandHandler(
-            AgentPlatform agentPlatform, String aggregateName) {
-        return (command, state) -> {
-            if (command instanceof AssignTaskCommand assignTask) {
-                return handleAssignTask(assignTask, state, agentPlatform, aggregateName);
-            } else {
-                throw new IllegalArgumentException(
-                        "Unsupported built-in command type: " + command.getClass().getName());
-            }
-        };
+    @Override
+    public boolean hasActiveAgentTasks(Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
+        AggregateStateRecord stateRecord = stateRecordSupplier.get();
+        if (stateRecord == null) {
+            return false;
+        }
+        AggregateState state = delegate.materializeState(stateRecord);
+        if (!(state instanceof TaskAwareState taskAwareState)) {
+            return false;
+        }
+        return !taskAwareState.getAssignedTasks().isEmpty();
     }
 
     /**
-     * Handles the {@link AssignTaskCommand} by resolving the agent, creating an
-     * {@link AgentProcess}, and emitting an {@link AgentTaskAssignedEvent}.
+     * {@inheritDoc}
+     *
+     * <p>Implementation strategy:
+     * <ol>
+     *   <li>Loads and materializes the current aggregate state (with upcasting support).</li>
+     *   <li>Checks whether the state implements {@link TaskAwareState}.</li>
+     *   <li>Selects the next {@link AssignedTask} using a round-robin counter.</li>
+     *   <li>Retrieves the existing {@link AgentProcess} from the {@link AgentPlatform}
+     *       using the task's {@code agentProcessId}.</li>
+     *   <li>Performs a single tick via {@link AgentProcessSingleTickRunner#tick}.</li>
+     *   <li>Processes any resulting domain events through the delegate's
+     *       {@link AggregateRuntime#processDomainEvents} method, using the agent process ID
+     *       as correlation ID.</li>
+     * </ol>
      */
-    private static Stream<DomainEvent> handleAssignTask(AssignTaskCommand command, AggregateState state,
-                                                         AgentPlatform agentPlatform, String aggregateName) {
-        logger.debug("Processing AssignTask command for aggregate {}, taskDescription='{}'",
-                aggregateName, command.taskDescription());
-
-        Map<String, Object> bindings = new LinkedHashMap<>();
-        bindings.put("command", command);
-        bindings.put("state", state);
-        bindings.put("agenticAggregateId", command.agenticAggregateId());
-        bindings.put("taskDescription", command.taskDescription());
-        bindings.put("requestingParty", command.requestingParty());
-        if (command.taskMetadata() != null) {
-            bindings.put("taskMetadata", command.taskMetadata());
+    @Override
+    public void resumeNextAgentTask(Consumer<ProtocolRecord> protocolRecordConsumer,
+                                    Supplier<AggregateStateRecord> stateRecordSupplier,
+                                    CommandBus commandBus) throws IOException {
+        AggregateStateRecord stateRecord = stateRecordSupplier.get();
+        if (stateRecord == null) {
+            return;
         }
 
-        Agent agent = resolveAgentByName(agentPlatform, aggregateName);
-
-        AgentProcess agentProcess =
-                agentPlatform.createAgentProcess(agent, ProcessOptions.DEFAULT, bindings);
-
-        String processId = agentProcess.getId();
-
-        logger.debug("Created AgentProcess with id={} for AssignTask on aggregate {}",
-                processId, aggregateName);
-
-        AgentTaskAssignedEvent event = new AgentTaskAssignedEvent(
-                command.agenticAggregateId(),
-                processId,
-                command.taskDescription(),
-                command.requestingParty(),
-                command.taskMetadata(),
-                Instant.now());
-
-        return Stream.of(event);
-    }
-
-    /**
-     * Resolves the {@link Agent} for the aggregate from the platform's registered agents.
-     *
-     * <p>Looks for an agent matching either the exact aggregate name or the
-     * {@code {aggregateName}Agent} convention.
-     *
-     * @param agentPlatform the platform containing registered agents
-     * @param aggregateName the aggregate name to resolve an agent for
-     * @return the resolved {@link Agent}; never {@code null}
-     * @throws IllegalStateException if no matching agent is found
-     */
-    private static Agent resolveAgentByName(AgentPlatform agentPlatform, String aggregateName) {
-        String agentBeanName = aggregateName + "Agent";
-        for (Agent candidate : agentPlatform.agents()) {
-            String candidateName = candidate.getName();
-            if (aggregateName.equals(candidateName) || agentBeanName.equals(candidateName)) {
-                return candidate;
-            }
+        AggregateState state = delegate.materializeState(stateRecord);
+        if (!(state instanceof TaskAwareState taskAwareState)) {
+            return;
         }
-        throw new IllegalStateException(
-                "No Agent found with name '" + aggregateName + "' or '" + agentBeanName
-                        + "' in the AgentPlatform for built-in command handling. "
-                        + "The implementing application must provide an Agent named '"
-                        + agentBeanName + "'.");
+
+        List<AssignedTask> tasks = taskAwareState.getAssignedTasks();
+        if (tasks.isEmpty()) {
+            return;
+        }
+
+        // Round-robin selection: advance the counter and wrap around the task list size
+        int index = Math.floorMod(
+                nextTaskIndex.getAndUpdate(i -> Math.floorMod(i + 1, tasks.size())),
+                tasks.size());
+        AssignedTask task = tasks.get(index);
+
+        logger.debug("Resuming agent task '{}' (processId={}) on aggregate {}",
+                task.taskDescription(), task.agentProcessId(), getName());
+
+        AgentProcess agentProcess = agentPlatform.getAgentProcess(task.agentProcessId());
+        if (agentProcess == null) {
+            logger.warn("No existing AgentProcess found for id={} on aggregate {}; skipping tick",
+                    task.agentProcessId(), getName());
+            return;
+        }
+
+        Stream<DomainEvent> tickEvents =
+                AgentProcessSingleTickRunner.tick(agentProcess, delegate.getAllDomainEventTypes());
+
+        delegate.processDomainEvents(tickEvents, task.agentProcessId(), protocolRecordConsumer, stateRecordSupplier);
     }
 }

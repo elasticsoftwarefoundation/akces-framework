@@ -552,6 +552,34 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
         } // ignore if we don't have an external domainevent registered
     }
 
+    @Override
+    public void processDomainEvents(java.util.stream.Stream<DomainEvent> events,
+                                    String correlationId,
+                                    Consumer<ProtocolRecord> protocolRecordConsumer,
+                                    Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
+        AggregateStateRecord currentStateRecord = stateRecordSupplier.get();
+        if (currentStateRecord == null) {
+            return;
+        }
+        try (events) {
+            Iterator<DomainEvent> iterator = events.iterator();
+            while (iterator.hasNext()) {
+                DomainEvent domainEvent = iterator.next();
+                currentStateRecord = processDomainEvent(
+                        correlationId,
+                        protocolRecordConsumer,
+                        (der, ip) -> { }, // no indexing for agent-tick-produced events
+                        currentStateRecord,
+                        domainEvent);
+            }
+        }
+    }
+
+    @Override
+    public AggregateState materializeState(AggregateStateRecord stateRecord) throws IOException {
+        return materialize(stateRecord);
+    }
+
     @Nullable
     private DomainEventType<?> getDomainEventType(DomainEventRecord eventRecord) {
         // because it is an external event we need to find the highest version that is smaller than the eventRecord version

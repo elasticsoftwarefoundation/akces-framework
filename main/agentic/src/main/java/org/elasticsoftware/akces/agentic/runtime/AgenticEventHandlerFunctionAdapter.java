@@ -29,7 +29,6 @@ import org.elasticsoftware.akces.events.DomainEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -51,13 +50,12 @@ import java.util.stream.Stream;
  *       {@code {aggregateName}Agent} suffix match). If no match is found, the
  *       {@link DefaultAgent} is used as a fallback.</li>
  *   <li>Creates an {@link AgentProcess} via
- *       {@link AgentPlatform#createAgentProcess(Agent, ProcessOptions, Map)} and calls
- *       {@link AgentProcess#tick()} in a loop until the process reaches an end state
- *       (completed, failed, terminated, or killed).</li>
- *   <li>Collects {@link DomainEvent} objects placed on the agent's blackboard via
- *       {@link AgentProcessResultTranslator#collectEvents} and returns them as a
- *       {@link Stream}.</li>
+ *       {@link AgentPlatform#createAgentProcess(Agent, ProcessOptions, Map)}.</li>
  * </ol>
+ *
+ * <p>The adapter does <strong>not</strong> tick the newly created process. Instead, the
+ * partition's idle-poll cycle ({@code resumeAgentTasks}) exclusively drives all
+ * {@link AgentProcess} advancement.
  *
  * <p>{@link #isCreate()} always returns {@code false} — agent-handled events cannot
  * create aggregate state. Every agentic aggregate must have a separate deterministic
@@ -132,7 +130,7 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
      *
      * @param event the external domain event to process; never {@code null}
      * @param state the current aggregate state
-     * @return a stream of domain events produced by the agent; may be empty
+     * @return an empty stream — the process is advanced by {@code resumeAgentTasks}
      */
     @Nonnull
     private static Agent resolveAgentByName(AgentPlatform agentPlatform, String aggregateName) {
@@ -195,14 +193,13 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
                 resolvedAgent.getName(), aggregateName);
         AgentProcess agentProcess = agentPlatform.createAgentProcess(
                 resolvedAgent, ProcessOptions.DEFAULT, bindings);
-        tickToCompletion(agentProcess);
 
-        logger.debug("Agent process completed with status {} for event {} on aggregate {}",
-                agentProcess.getStatus(), eventType.typeName(), aggregateName);
+        logger.debug("Created AgentProcess with id={} for event {} on aggregate {}",
+                agentProcess.getId(), eventType.typeName(), aggregateName);
 
-        return (Stream<E>) AgentProcessResultTranslator
-                .collectEvents(agentProcess.getBlackboard(), getAllRegisteredEventTypes())
-                .stream();
+        // The process is NOT ticked here. The partition's idle-poll cycle
+        // (resumeAgentTasks) exclusively drives all AgentProcess advancement.
+        return (Stream<E>) Stream.<DomainEvent>empty();
     }
 
     /**
@@ -236,75 +233,4 @@ public class AgenticEventHandlerFunctionAdapter<S extends AggregateState, InputE
         return errorEventTypes;
     }
 
-    /**
-     * Returns all domain event types this adapter may produce (both state-changing and error types).
-     * Used by {@link AgentProcessResultTranslator} to filter out unknown {@link org.elasticsoftware.akces.events.ErrorEvent}
-     * instances that are not registered with the runtime.
-     *
-     * @return combined list of produced and error domain event types
-     */
-    private List<DomainEventType<?>> getAllRegisteredEventTypes() {
-        List<DomainEventType<?>> all = new ArrayList<>(producedDomainEventTypes.size() + errorEventTypes.size());
-        all.addAll(producedDomainEventTypes);
-        all.addAll(errorEventTypes);
-        return all;
-    }
-
-    /**
-     * Ticks an {@link AgentProcess} to completion with defensive limits so a stuck agent
-     * process cannot block event handling indefinitely.
-     *
-     * @param agentProcess the agent process to drive to completion
-     * @throws IllegalStateException if the process does not finish within the safety limits
-     */
-    private void tickToCompletion(AgentProcess agentProcess) {
-        AgenticProcessTickHelper.tickToCompletion(
-                agentProcess,
-                logger,
-                "event",
-                eventType.typeName(),
-                aggregateName);
-    }
-}
-
-final class AgenticProcessTickHelper {
-
-    private static final long MAX_TICKS = 10_000L;
-    private static final long TIMEOUT_NANOS = java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
-
-    private AgenticProcessTickHelper() {
-    }
-
-    static void tickToCompletion(
-            AgentProcess agentProcess,
-            Logger logger,
-            String handledTypeLabel,
-            String handledTypeName,
-            String aggregateName) {
-        final long deadlineNanos = System.nanoTime() + TIMEOUT_NANOS;
-        long tickCount = 0L;
-
-        while (!agentProcess.getFinished()
-                && tickCount < MAX_TICKS
-                && System.nanoTime() < deadlineNanos) {
-            agentProcess.tick();
-            tickCount++;
-        }
-
-        if (!agentProcess.getFinished()) {
-            logger.error(
-                    "Agent process did not finish within safety limits for {} {} on aggregate {}. " +
-                            "tickCount={}, maxTicks={}, timeoutSeconds={}, status={}",
-                    handledTypeLabel,
-                    handledTypeName,
-                    aggregateName,
-                    tickCount,
-                    MAX_TICKS,
-                    java.util.concurrent.TimeUnit.NANOSECONDS.toSeconds(TIMEOUT_NANOS),
-                    agentProcess.getStatus());
-            throw new IllegalStateException(
-                    "Agent process exceeded execution limits for " + handledTypeLabel + " " + handledTypeName
-                            + " on aggregate " + aggregateName);
-        }
-    }
 }
