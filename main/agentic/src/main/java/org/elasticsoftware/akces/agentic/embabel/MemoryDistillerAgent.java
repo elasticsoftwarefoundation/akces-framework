@@ -25,6 +25,7 @@ import com.embabel.agent.api.common.PlannerType;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Embabel agent responsible for distilling relevant memories from a successfully
@@ -65,7 +66,7 @@ public class MemoryDistillerAgent {
      *                     of blackboard objects and memories in the LLM prompt
      */
     public MemoryDistillerAgent(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
+        this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
     }
 
     /**
