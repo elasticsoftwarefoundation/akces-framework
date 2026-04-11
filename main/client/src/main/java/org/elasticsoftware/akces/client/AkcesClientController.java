@@ -497,7 +497,7 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
 
     @VisibleForTesting
     public Integer resolvePartition(@Nonnull String aggregateId) {
-        return Math.floorMod(hashFunction.hashString(aggregateId, UTF_8).asInt(), partitions);
+        return Math.abs(hashFunction.hashString(aggregateId, UTF_8).asInt()) % partitions;
     }
 
     /**
@@ -519,11 +519,11 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                 return 0;
             }
         }
-        return Math.floorMod(hashFunction.hashString(aggregateId, UTF_8).asInt(), partitions);
+        return Math.abs(hashFunction.hashString(aggregateId, UTF_8).asInt()) % partitions;
     }
 
     private Integer resolveCommandResponsePartition(String hostname, int partitions) {
-        return Math.floorMod(hashFunction.hashString(hostname, UTF_8).asInt(), partitions);
+        return Math.abs(hashFunction.hashString(hostname, UTF_8).asInt()) % partitions;
     }
 
     private void registerCommand(String type, int version, Class<? extends Command> commandClass) {

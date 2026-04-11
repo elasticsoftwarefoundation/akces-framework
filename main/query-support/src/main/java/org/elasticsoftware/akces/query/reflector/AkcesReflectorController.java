@@ -445,7 +445,7 @@ public class AkcesReflectorController extends Thread
                 return 0;
             }
         }
-        return Math.floorMod(hashFunction.hashString(aggregateId, UTF_8).asInt(), partitions);
+        return Math.abs(hashFunction.hashString(aggregateId, UTF_8).asInt()) % partitions;
     }
 
     public boolean isRunning() {

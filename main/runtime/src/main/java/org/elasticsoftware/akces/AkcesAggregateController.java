@@ -687,7 +687,7 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
             }
         }
         // Default: hash-based partitioning for STANDARD services
-        return Math.floorMod(hashFunction.hashString(aggregateId, UTF_8).asInt(), partitions);
+        return Math.abs(hashFunction.hashString(aggregateId, UTF_8).asInt()) % partitions;
     }
 
     public boolean isRunning() {
