@@ -17,7 +17,9 @@
 
 package org.elasticsoftware.akces.agentic.runtime;
 
+import com.embabel.agent.core.AgentProcessStatusCode;
 import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
+import org.elasticsoftware.akces.agentic.events.AgentTaskFinishedEvent;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.junit.jupiter.api.Test;
@@ -186,5 +188,118 @@ class TaskEventSourcingTest {
         assertThat(finalState.getAssignedTasks()).hasSize(3);
         assertThat(finalState.getAssignedTasks()).extracting(AssignedTask::agentProcessId)
                 .containsExactly("proc-1", "proc-2", "proc-3");
+    }
+
+    // -------------------------------------------------------------------------
+    // onAgentTaskFinished tests
+    // -------------------------------------------------------------------------
+
+    @Test
+    void onAgentTaskFinishedShouldRemoveTaskFromState() {
+        var party = new HumanRequestingParty("user-1", "analyst");
+        var task = new AssignedTask("proc-1", "Analyze data", party, Map.of(), Instant.parse("2026-04-10T12:00:00Z"));
+        var state = new TestTaskState("agg-1", List.of(task));
+
+        var event = new AgentTaskFinishedEvent("agg-1", "proc-1",
+                AgentProcessStatusCode.COMPLETED, Instant.now());
+
+        AggregateState result = KafkaAgenticAggregateRuntime.onAgentTaskFinished(event, state);
+
+        assertThat(result).isInstanceOf(TestTaskState.class);
+        assertThat(((TestTaskState) result).getAssignedTasks()).isEmpty();
+    }
+
+    @Test
+    void onAgentTaskFinishedShouldPreserveOtherTasks() {
+        var party = new HumanRequestingParty("user-1", "analyst");
+        var task1 = new AssignedTask("proc-1", "Task 1", party, null, Instant.now());
+        var task2 = new AssignedTask("proc-2", "Task 2", party, null, Instant.now());
+        var task3 = new AssignedTask("proc-3", "Task 3", party, null, Instant.now());
+        var state = new TestTaskState("agg-1", List.of(task1, task2, task3));
+
+        var event = new AgentTaskFinishedEvent("agg-1", "proc-2",
+                AgentProcessStatusCode.FAILED, Instant.now());
+
+        AggregateState result = KafkaAgenticAggregateRuntime.onAgentTaskFinished(event, state);
+
+        var newState = (TestTaskState) result;
+        assertThat(newState.getAssignedTasks()).hasSize(2);
+        assertThat(newState.getAssignedTasks()).extracting(AssignedTask::agentProcessId)
+                .containsExactly("proc-1", "proc-3");
+    }
+
+    @Test
+    void onAgentTaskFinishedShouldThrowWhenStateIsNotTaskAware() {
+        var event = new AgentTaskFinishedEvent("agg-1", "proc-1",
+                AgentProcessStatusCode.COMPLETED, Instant.now());
+        var plainState = new PlainState("agg-1");
+
+        assertThatThrownBy(() -> KafkaAgenticAggregateRuntime.onAgentTaskFinished(event, plainState))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("does not implement TaskAwareState");
+    }
+
+    @Test
+    void onAgentTaskFinishedShouldHandleNonMatchingProcessId() {
+        var party = new HumanRequestingParty("user-1", "analyst");
+        var task = new AssignedTask("proc-1", "Task 1", party, null, Instant.now());
+        var state = new TestTaskState("agg-1", List.of(task));
+
+        var event = new AgentTaskFinishedEvent("agg-1", "proc-nonexistent",
+                AgentProcessStatusCode.KILLED, Instant.now());
+
+        AggregateState result = KafkaAgenticAggregateRuntime.onAgentTaskFinished(event, state);
+
+        // The original task should still be there since no match was found
+        var newState = (TestTaskState) result;
+        assertThat(newState.getAssignedTasks()).hasSize(1);
+        assertThat(newState.getAssignedTasks().getFirst().agentProcessId()).isEqualTo("proc-1");
+    }
+
+    // -------------------------------------------------------------------------
+    // handleBuiltInEvent dispatch tests (AgentTaskFinished path)
+    // -------------------------------------------------------------------------
+
+    @Test
+    void handleBuiltInEventShouldDispatchAgentTaskFinishedEvent() {
+        var party = new HumanRequestingParty("user-1", "analyst");
+        var task = new AssignedTask("proc-1", "task", party, null, Instant.now());
+        var state = new TestTaskState("agg-1", List.of(task));
+
+        var event = new AgentTaskFinishedEvent("agg-1", "proc-1",
+                AgentProcessStatusCode.COMPLETED, Instant.now());
+
+        AggregateState result = KafkaAgenticAggregateRuntime.handleBuiltInEvent(event, state);
+
+        assertThat(result).isInstanceOf(TestTaskState.class);
+        assertThat(((TestTaskState) result).getAssignedTasks()).isEmpty();
+    }
+
+    // -------------------------------------------------------------------------
+    // Full lifecycle: assign + finish
+    // -------------------------------------------------------------------------
+
+    @Test
+    void shouldReconstructStateFromAssignThenFinishSequence() {
+        AggregateState state = new TestTaskState("agg-1", List.of());
+        var party = new HumanRequestingParty("user-1", "analyst");
+
+        // Assign 3 tasks
+        for (int i = 1; i <= 3; i++) {
+            var event = new AgentTaskAssignedEvent("agg-1", "proc-" + i, "Task " + i,
+                    party, null, Instant.now().plusSeconds(i));
+            state = KafkaAgenticAggregateRuntime.handleBuiltInEvent(event, state);
+        }
+        assertThat(((TestTaskState) state).getAssignedTasks()).hasSize(3);
+
+        // Finish proc-2
+        var finished = new AgentTaskFinishedEvent("agg-1", "proc-2",
+                AgentProcessStatusCode.COMPLETED, Instant.now());
+        state = KafkaAgenticAggregateRuntime.handleBuiltInEvent(finished, state);
+
+        var finalState = (TestTaskState) state;
+        assertThat(finalState.getAssignedTasks()).hasSize(2);
+        assertThat(finalState.getAssignedTasks()).extracting(AssignedTask::agentProcessId)
+                .containsExactly("proc-1", "proc-3");
     }
 }

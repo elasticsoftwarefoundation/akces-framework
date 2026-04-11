@@ -19,10 +19,12 @@ package org.elasticsoftware.akces.agentic.runtime;
 
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
+import com.embabel.agent.core.AgentProcessStatusCode;
 import jakarta.annotation.Nullable;
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
 import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
+import org.elasticsoftware.akces.agentic.events.AgentTaskFinishedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -41,6 +43,7 @@ import org.slf4j.LoggerFactory;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -366,10 +369,34 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     }
 
     /**
+     * Built-in event-sourcing handler for {@link AgentTaskFinishedEvent}.
+     *
+     * <p>Removes the {@link AssignedTask} identified by
+     * {@link AgentTaskFinishedEvent#agentProcessId()} from the state's assigned tasks list.
+     * The state must implement {@link TaskAwareState}; otherwise an
+     * {@link IllegalStateException} is thrown.
+     *
+     * @param event the {@code AgentTaskFinishedEvent} to apply
+     * @param state the current aggregate state
+     * @return a new state instance with the matching task removed
+     * @throws IllegalStateException if {@code state} does not implement {@link TaskAwareState}
+     */
+    @SuppressWarnings("unchecked")
+    public static AggregateState onAgentTaskFinished(AgentTaskFinishedEvent event, AggregateState state) {
+        if (!(state instanceof TaskAwareState tas)) {
+            throw new IllegalStateException(
+                    "Aggregate state " + state.getClass().getName()
+                            + " does not implement TaskAwareState");
+        }
+        return (AggregateState) tas.withoutAssignedTask(event.agentProcessId());
+    }
+
+    /**
      * Single-dispatch event-sourcing handler for all built-in agentic domain events.
      *
-     * <p>Routes {@link MemoryStoredEvent}, {@link MemoryRevokedEvent}, and
-     * {@link AgentTaskAssignedEvent} to the appropriate typed handler.
+     * <p>Routes {@link MemoryStoredEvent}, {@link MemoryRevokedEvent},
+     * {@link AgentTaskAssignedEvent}, and {@link AgentTaskFinishedEvent} to the
+     * appropriate typed handler.
      *
      * <p>Intended to be used as a method reference
      * ({@code KafkaAgenticAggregateRuntime::handleBuiltInEvent}) so that no anonymous adapter
@@ -387,6 +414,8 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
             return onMemoryRevoked(revoked, state);
         } else if (event instanceof AgentTaskAssignedEvent assigned) {
             return onAgentTaskAssigned(assigned, state);
+        } else if (event instanceof AgentTaskFinishedEvent finished) {
+            return onAgentTaskFinished(finished, state);
         } else {
             throw new IllegalArgumentException(
                     "Unsupported built-in event type: " + event.getClass().getName());
@@ -424,6 +453,10 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
      *   <li>Retrieves the existing {@link AgentProcess} from the {@link AgentPlatform}
      *       using the task's {@code agentProcessId}.</li>
      *   <li>Performs a single tick via {@link AgentProcessSingleTickRunner#tick}.</li>
+     *   <li>After the tick, checks {@link AgentProcess#getFinished()}. If the process is
+     *       finished, appends an {@link AgentTaskFinishedEvent} with the process's
+     *       {@link AgentProcessStatusCode} so the built-in event-sourcing handler will
+     *       remove the task from the state.</li>
      *   <li>Processes any resulting domain events through the delegate's
      *       {@link AggregateRuntime#processDomainEvents} method, using the agent process ID
      *       as correlation ID.</li>
@@ -466,6 +499,19 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
 
         Stream<DomainEvent> tickEvents =
                 AgentProcessSingleTickRunner.tick(agentProcess, delegate.getAllDomainEventTypes());
+
+        // Check whether the agent process finished after this tick
+        if (agentProcess.getFinished()) {
+            AgentProcessStatusCode statusCode = agentProcess.getStatus();
+            logger.info("Agent task '{}' (processId={}) on aggregate {} finished with status {}",
+                    task.taskDescription(), task.agentProcessId(), getName(), statusCode);
+            AgentTaskFinishedEvent finishedEvent = new AgentTaskFinishedEvent(
+                    state.getAggregateId(),
+                    task.agentProcessId(),
+                    statusCode,
+                    Instant.now());
+            tickEvents = Stream.concat(tickEvents, Stream.of(finishedEvent));
+        }
 
         delegate.processDomainEvents(tickEvents, task.agentProcessId(), protocolRecordConsumer, stateRecordSupplier);
     }
