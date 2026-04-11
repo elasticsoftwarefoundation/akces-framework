@@ -44,12 +44,25 @@ class AgenticAggregateInfoTest {
         }
     }
 
+    /** Stub create event used to satisfy the {@link AgenticAggregate#getCreateDomainEvent()} contract. */
+    record StubCreateEvent(String aggregateId) implements DomainEvent {
+        @Override
+        public String getAggregateId() {
+            return aggregateId;
+        }
+    }
+
     /** Test aggregate annotated with default settings. */
     @AgenticAggregateInfo(value = "TestAgentic", stateClass = TestState.class)
     static class DefaultAgenticAggregate implements AgenticAggregate<TestState> {
         @Override
         public Class<TestState> getStateClass() {
             return TestState.class;
+        }
+
+        @Override
+        public DomainEvent getCreateDomainEvent() {
+            return new StubCreateEvent(getName());
         }
     }
 
@@ -59,6 +72,11 @@ class AgenticAggregateInfoTest {
         @Override
         public Class<TestState> getStateClass() {
             return TestState.class;
+        }
+
+        @Override
+        public DomainEvent getCreateDomainEvent() {
+            return new StubCreateEvent(getName());
         }
     }
 
@@ -164,6 +182,11 @@ class AgenticAggregateInfoTest {
         @Override
         public Class<TestState> getStateClass() {
             return TestState.class;
+        }
+
+        @Override
+        public DomainEvent getCreateDomainEvent() {
+            return new StubCreateEvent(getName());
         }
     }
 
