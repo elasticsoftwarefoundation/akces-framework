@@ -638,7 +638,7 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                     validRevocations.add(revoked);
                 } else {
                     logger.debug("Skipping revocation of non-existent memory '{}' for aggregate {}",
-                            revoked != null ? revoked.memoryId() : "null", getName());
+                            revoked.memoryId(), getName());
                 }
             }
         }

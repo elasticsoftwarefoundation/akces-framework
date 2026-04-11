@@ -78,14 +78,11 @@ public class MemoryDistillerAgent {
     @Action(description = "Distill relevant memories from a completed agent process")
     @AchievesGoal(description = "Distill and manage memories from completed agent processes")
     public MemoryDistillationResult distillMemories(ActionContext context) {
-        List<?> history = context.getProcessContext().getAgentProcess()
-                .getBlackboard().objectsOfType(ActionInvocation.class);
-        List<?> blackboardObjects = (List<?>) context.getProcessContext()
-                .getAgentProcess().getBlackboard().get("blackboardObjects");
-        List<?> existingMemories = (List<?>) context.getProcessContext()
-                .getAgentProcess().getBlackboard().get("existingMemories");
-        int maxNewMemories = (int) context.getProcessContext()
-                .getAgentProcess().getBlackboard().get("maxNewMemories");
+        var blackboard = context.getProcessContext().getAgentProcess().getBlackboard();
+        List<?> history = blackboard.objectsOfType(ActionInvocation.class);
+        List<?> blackboardObjects = (List<?>) blackboard.get("blackboardObjects");
+        List<?> existingMemories = (List<?>) blackboard.get("existingMemories");
+        int maxNewMemories = (int) blackboard.get("maxNewMemories");
 
         String prompt = buildPrompt(history, blackboardObjects, existingMemories, maxNewMemories);
 
