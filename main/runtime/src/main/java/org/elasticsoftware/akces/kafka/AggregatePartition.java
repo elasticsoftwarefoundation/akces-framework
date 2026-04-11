@@ -210,8 +210,8 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         }
 
         if (commandType != null) {
-            // now we need to find the topic
-            String topic = ackesRegistry.resolveTopic(commandType);
+            // now we need to find the topic (pass aggregateId to handle AGENTIC routing)
+            String topic = ackesRegistry.resolveTopic(commandType, command.getAggregateId());
             // and send the command to the topic: TODO propagate tenantId and correlationId
             CommandRecord commandRecord = new CommandRecord(
                     null,
@@ -223,7 +223,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                     null,
                     null); // don't send a response
             // we should not use the local partition id but that of the aggregate
-            Integer partition = ackesRegistry.resolvePartition(command.getAggregateId());
+            Integer partition = ackesRegistry.resolvePartition(commandType, command.getAggregateId());
             KafkaSender.send(producer, new ProducerRecord<>(topic, partition, commandRecord.id(), commandRecord));
         }
     }

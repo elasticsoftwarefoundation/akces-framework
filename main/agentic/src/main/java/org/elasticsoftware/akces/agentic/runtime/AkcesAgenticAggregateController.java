@@ -123,7 +123,8 @@ public class AkcesAgenticAggregateController extends Thread
     private static final List<DomainEventType<?>> BUILTIN_EVENT_TYPES = List.of(
             AgenticAggregateRuntime.MEMORY_STORED_TYPE,
             AgenticAggregateRuntime.MEMORY_REVOKED_TYPE,
-            AgenticAggregateRuntime.AGENT_TASK_ASSIGNED_TYPE
+            AgenticAggregateRuntime.AGENT_TASK_ASSIGNED_TYPE,
+            AgenticAggregateRuntime.AGENT_TASK_FINISHED_TYPE
     );
 
     /** Built-in command types provided by the agentic framework. */
@@ -437,8 +438,13 @@ public class AkcesAgenticAggregateController extends Thread
                 + "-agentic-control";
         try (Producer<String, AkcesControlRecord> controlProducer =
                      controlProducerFactory.createProducer(transactionalId)) {
-            // Collect aggregate command types for the service record
+            // Collect aggregate command types for the service record (built-in + aggregate-specific)
             List<AggregateServiceCommandType> allCommands = new ArrayList<>();
+            BUILTIN_COMMAND_TYPES.forEach(ct ->
+                    allCommands.add(new AggregateServiceCommandType(
+                            ct.typeName(), ct.version(), ct.create(),
+                            "commands." + ct.typeName(),
+                            normalizeDescription(ct.typeClass().getAnnotation(CommandInfo.class).description()))));
             aggregateRuntime.getLocalCommandTypes().forEach(ct ->
                     allCommands.add(new AggregateServiceCommandType(
                             ct.typeName(), ct.version(), ct.create(),

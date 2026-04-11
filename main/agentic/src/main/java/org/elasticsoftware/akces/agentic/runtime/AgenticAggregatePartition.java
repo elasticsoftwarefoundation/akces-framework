@@ -233,7 +233,7 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
     public void send(Command command) {
         var commandType = ackesRegistry.resolveType(command.getClass());
         if (commandType != null) {
-            String topic = ackesRegistry.resolveTopic(commandType);
+            String topic = ackesRegistry.resolveTopic(commandType, command.getAggregateId());
             CommandRecord commandRecord = new CommandRecord(
                     null,
                     commandType.typeName(),
@@ -243,7 +243,7 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
                     command.getAggregateId(),
                     null,
                     null); // no response routing for system-originated commands
-            Integer partition = ackesRegistry.resolvePartition(command.getAggregateId());
+            Integer partition = ackesRegistry.resolvePartition(commandType, command.getAggregateId());
             KafkaSender.send(producer, new ProducerRecord<>(topic, partition, commandRecord.id(), commandRecord));
         }
     }

@@ -35,6 +35,7 @@ import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.control.AggregateServiceCommandType;
 import org.elasticsoftware.akces.control.AggregateServiceDomainEventType;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
+import org.elasticsoftware.akces.control.AggregateServiceType;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.control.AkcesRegistry;
 import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
@@ -357,7 +358,10 @@ public class AkcesReflectorController extends Thread
         List<AggregateServiceRecord> services = aggregateServices.values().stream()
                 .filter(record -> supportsCommand(record.supportedCommands(), commandInfo))
                 .toList();
-        if (services.size() == 1) {
+        if (services.size() >= 1) {
+            // One or more services support this command; return as external.
+            // When multiple services match (e.g. agentic built-in commands), the caller
+            // must use resolveTopic(CommandType, String) to route by aggregateId.
             return new CommandType<>(
                     commandInfo.type(),
                     commandInfo.version(),
@@ -385,9 +389,58 @@ public class AkcesReflectorController extends Thread
                 .toList();
         if (services.size() == 1) {
             return services.getFirst().commandTopic();
+        } else if (services.size() > 1) {
+            List<AggregateServiceRecord> standardServices = services.stream()
+                    .filter(s -> s.effectiveType() == AggregateServiceType.STANDARD)
+                    .toList();
+            if (standardServices.size() == 1) {
+                return standardServices.getFirst().commandTopic();
+            }
+            throw new IllegalStateException("Multiple services support command " + commandType.typeName()
+                    + " v" + commandType.version()
+                    + "; use resolveTopic(CommandType, String) with an aggregateId to disambiguate");
         } else {
             throw new IllegalStateException(
                     "Cannot determine where to send command " + commandType.typeName() + " v" + commandType.version());
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>When multiple services advertise the same command type (typically built-in agentic
+     * commands), the aggregate identifier is matched against the
+     * {@link AggregateServiceRecord#aggregateName()} of
+     * {@link AggregateServiceType#AGENTIC AGENTIC} services to select the correct target.
+     */
+    @Override
+    @Nonnull
+    public String resolveTopic(@Nonnull CommandType<?> commandType, @Nonnull String aggregateId) {
+        List<AggregateServiceRecord> services = aggregateServices.values().stream()
+                .filter(s -> supportsCommand(s.supportedCommands(), commandType))
+                .toList();
+        if (services.size() == 1) {
+            return services.getFirst().commandTopic();
+        } else if (services.size() > 1) {
+            return services.stream()
+                    .filter(s -> s.effectiveType() == AggregateServiceType.AGENTIC
+                            && s.aggregateName().equals(aggregateId))
+                    .findFirst()
+                    .map(AggregateServiceRecord::commandTopic)
+                    .orElseGet(() -> {
+                        List<AggregateServiceRecord> standard = services.stream()
+                                .filter(s -> s.effectiveType() == AggregateServiceType.STANDARD)
+                                .toList();
+                        if (standard.size() == 1) {
+                            return standard.getFirst().commandTopic();
+                        }
+                        throw new IllegalStateException("Cannot determine where to send command "
+                                + commandType.typeName() + " v" + commandType.version()
+                                + " for aggregateId " + aggregateId);
+                    });
+        } else {
+            throw new IllegalStateException("Cannot determine where to send command "
+                    + commandType.typeName() + " v" + commandType.version());
         }
     }
 
@@ -409,6 +462,37 @@ public class AkcesReflectorController extends Thread
     @Override
     @Nonnull
     public Integer resolvePartition(@Nonnull String aggregateId) {
+        return Math.abs(hashFunction.hashString(aggregateId, UTF_8).asInt()) % partitions;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>For {@link AggregateServiceType#AGENTIC AGENTIC} services (which are always
+     * single-partition), this method returns {@code 0}. For
+     * {@link AggregateServiceType#STANDARD STANDARD} services the partition is determined
+     * by hashing the aggregate identifier.
+     */
+    @Override
+    @Nonnull
+    public Integer resolvePartition(@Nonnull CommandType<?> commandType, @Nonnull String aggregateId) {
+        List<AggregateServiceRecord> services = aggregateServices.values().stream()
+                .filter(s -> supportsCommand(s.supportedCommands(), commandType))
+                .toList();
+        if (services.size() == 1) {
+            if (services.getFirst().effectiveType() == AggregateServiceType.AGENTIC) {
+                return 0;
+            }
+        } else if (services.size() > 1) {
+            AggregateServiceRecord target = services.stream()
+                    .filter(s -> s.effectiveType() == AggregateServiceType.AGENTIC
+                            && s.aggregateName().equals(aggregateId))
+                    .findFirst()
+                    .orElse(null);
+            if (target != null) {
+                return 0;
+            }
+        }
         return Math.abs(hashFunction.hashString(aggregateId, UTF_8).asInt()) % partitions;
     }
 

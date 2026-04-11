@@ -42,6 +42,7 @@ import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.control.AggregateServiceCommandType;
 import org.elasticsoftware.akces.control.AggregateServiceDomainEventType;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
+import org.elasticsoftware.akces.control.AggregateServiceType;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.events.ErrorEvent;
@@ -304,7 +305,9 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                 ProducerRecord<String, ProtocolRecord> producerRecord =
                         new ProducerRecord<>(
                                 topic,
-                                resolvePartition(commandRecord.aggregateId()),
+                                resolvePartition(commandRequest.commandType(),
+                                        commandRequest.commandVersion(),
+                                        commandRecord.aggregateId()),
                                 commandRecord.aggregateId(),
                                 commandRecord);
                 commandRecords.put(producerRecord, commandRequest);
@@ -470,8 +473,25 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
         } else if (services.isEmpty()) {
             throw new UnroutableCommandException(command.getClass());
         } else {
-            // TODO: make more specific exception
-            throw new UnroutableCommandException(command.getClass());
+            // Multiple services support this command type (e.g. built-in agentic commands
+            // like AssignTask shared by all agentic aggregates). Use the command's
+            // aggregateId to find the matching AGENTIC service.
+            String aggregateId = command.getAggregateId();
+            return services.stream()
+                    .filter(s -> s.effectiveType() == AggregateServiceType.AGENTIC
+                            && s.aggregateName().equals(aggregateId))
+                    .findFirst()
+                    .map(AggregateServiceRecord::commandTopic)
+                    .orElseGet(() -> {
+                        // Fall back to the single STANDARD service if one exists
+                        List<AggregateServiceRecord> standard = services.stream()
+                                .filter(s -> s.effectiveType() == AggregateServiceType.STANDARD)
+                                .toList();
+                        if (standard.size() == 1) {
+                            return standard.getFirst().commandTopic();
+                        }
+                        throw new UnroutableCommandException(command.getClass());
+                    });
         }
     }
 
@@ -487,6 +507,33 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
 
     @VisibleForTesting
     public Integer resolvePartition(@Nonnull String aggregateId) {
+        return Math.abs(hashFunction.hashString(aggregateId, UTF_8).asInt()) % partitions;
+    }
+
+    /**
+     * Resolves the partition for a command, taking into account the target service type.
+     * For {@link AggregateServiceType#AGENTIC AGENTIC} services (single-partition), returns 0.
+     * For {@link AggregateServiceType#STANDARD STANDARD} services, uses hash-based partitioning.
+     */
+    private Integer resolvePartition(String commandType, int version, @Nonnull String aggregateId) {
+        List<AggregateServiceRecord> services = aggregateServices.values().stream()
+                .filter(s -> supportsCommand(s.supportedCommands(), commandType, version))
+                .toList();
+        if (services.size() == 1) {
+            if (services.getFirst().effectiveType() == AggregateServiceType.AGENTIC) {
+                return 0;
+            }
+        } else if (services.size() > 1) {
+            // Multiple services — check if the target is an AGENTIC service matching aggregateId
+            AggregateServiceRecord target = services.stream()
+                    .filter(s -> s.effectiveType() == AggregateServiceType.AGENTIC
+                            && s.aggregateName().equals(aggregateId))
+                    .findFirst()
+                    .orElse(null);
+            if (target != null) {
+                return 0;
+            }
+        }
         return Math.abs(hashFunction.hashString(aggregateId, UTF_8).asInt()) % partitions;
     }
 

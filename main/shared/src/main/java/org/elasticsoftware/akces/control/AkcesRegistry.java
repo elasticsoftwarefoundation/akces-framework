@@ -29,7 +29,47 @@ public interface AkcesRegistry {
 
     String resolveTopic(@Nonnull CommandType<?> commandType);
 
+    /**
+     * Resolves the command topic for the given command type and aggregate identifier.
+     *
+     * <p>When multiple aggregate services support the same command type (e.g. the built-in
+     * {@code AssignTask} command shared by all agentic aggregates), the {@code aggregateId}
+     * is used to select the correct target service. For
+     * {@link AggregateServiceType#AGENTIC AGENTIC} services the aggregate identifier equals
+     * the aggregate name, which in turn is the Kafka topic prefix.
+     *
+     * <p>The default implementation ignores the aggregate identifier and delegates to
+     * {@link #resolveTopic(CommandType)}.
+     *
+     * @param commandType the command type to route
+     * @param aggregateId the aggregate identifier from the command instance
+     * @return the Kafka command topic name
+     */
+    default String resolveTopic(@Nonnull CommandType<?> commandType, @Nonnull String aggregateId) {
+        return resolveTopic(commandType);
+    }
+
     String resolveTopic(@Nonnull DomainEventType<?> externalDomainEventType);
 
     Integer resolvePartition(@Nonnull String aggregateId);
+
+    /**
+     * Resolves the target partition for a command, taking into account both the aggregate
+     * identifier and the target service type.
+     *
+     * <p>For {@link AggregateServiceType#STANDARD STANDARD} services the partition is
+     * determined by hashing the aggregate identifier. For
+     * {@link AggregateServiceType#AGENTIC AGENTIC} services (which are always
+     * single-partition) this method returns {@code 0}.
+     *
+     * <p>The default implementation ignores the command type and delegates to
+     * {@link #resolvePartition(String)}.
+     *
+     * @param commandType the command type being routed (used to look up the target service)
+     * @param aggregateId the aggregate identifier from the command instance
+     * @return the target partition number
+     */
+    default Integer resolvePartition(@Nonnull CommandType<?> commandType, @Nonnull String aggregateId) {
+        return resolvePartition(aggregateId);
+    }
 }
