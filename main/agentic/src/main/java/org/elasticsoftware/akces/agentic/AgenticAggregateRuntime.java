@@ -26,11 +26,16 @@ import org.elasticsoftware.akces.aggregate.AgenticAggregateMemory;
 import org.elasticsoftware.akces.aggregate.AggregateRuntime;
 import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
+import org.elasticsoftware.akces.aggregate.IndexParams;
 import org.elasticsoftware.akces.aggregate.MemoryAwareState;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
+import org.elasticsoftware.akces.protocol.DomainEventRecord;
+import org.elasticsoftware.akces.protocol.ProtocolRecord;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Extended runtime interface for {@link org.elasticsoftware.akces.aggregate.AgenticAggregate}s.
@@ -89,4 +94,22 @@ public interface AgenticAggregateRuntime extends AggregateRuntime {
      * @throws IOException if deserialization fails
      */
     List<AgenticAggregateMemory> getMemories(AggregateStateRecord stateRecord) throws IOException;
+
+    /**
+     * Initializes the singleton aggregate state by invoking the aggregate's
+     * {@link org.elasticsoftware.akces.aggregate.AgenticAggregate#getCreateDomainEvent()
+     * getCreateDomainEvent()} hook and applying the resulting event through the event-sourcing
+     * create handler.
+     *
+     * <p>This method is called by the partition when it detects that no state exists yet
+     * for the agentic aggregate. The produced {@link AggregateStateRecord} and
+     * {@link DomainEventRecord} are written to the Kafka topics via the provided consumers.
+     *
+     * @param protocolRecordConsumer consumer for the produced state and domain-event records
+     * @param domainEventIndexer     indexer callback for optional secondary indexing
+     * @throws IOException if serialisation fails
+     */
+    void initializeState(Consumer<ProtocolRecord> protocolRecordConsumer,
+                         BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer)
+            throws IOException;
 }

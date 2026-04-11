@@ -20,6 +20,8 @@ package org.elasticsoftware.akces.agentic.runtime;
 import com.embabel.agent.core.AgentPlatform;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
 import org.elasticsoftware.akces.aggregate.*;
+import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.kafka.KafkaAggregateRuntime;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.PayloadEncoding;
 import org.junit.jupiter.api.BeforeEach;
@@ -92,10 +94,13 @@ class KafkaAgenticAggregateRuntimeTest {
     }
 
     @Mock
-    private AggregateRuntime delegate;
+    private KafkaAggregateRuntime delegate;
 
     @Mock
     private AgentPlatform agentPlatform;
+
+    @Mock
+    private AgenticAggregate<?> aggregate;
 
     private ObjectMapper objectMapper;
     private KafkaAgenticAggregateRuntime runtime;
@@ -103,7 +108,7 @@ class KafkaAgenticAggregateRuntimeTest {
     @BeforeEach
     void setUp() {
         objectMapper = JsonMapper.builder().build();
-        runtime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, TestMemoryState.class, agentPlatform);
+        runtime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, TestMemoryState.class, agentPlatform, aggregate);
     }
 
     // -------------------------------------------------------------------------
@@ -139,7 +144,7 @@ class KafkaAgenticAggregateRuntimeTest {
 
     @Test
     void getMemoriesShouldReturnEmptyListForNonMemoryAwareState() throws IOException {
-        var plainRuntime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, PlainState.class, agentPlatform);
+        var plainRuntime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, PlainState.class, agentPlatform, aggregate);
         var state = new PlainState("agg-1");
 
         byte[] payload = objectMapper.writeValueAsBytes(state);
@@ -226,7 +231,7 @@ class KafkaAgenticAggregateRuntimeTest {
     void constructorShouldRejectNullDelegate() {
         assertThatNullPointerException()
                 .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
-                        null, objectMapper, TestMemoryState.class, agentPlatform))
+                        null, objectMapper, TestMemoryState.class, agentPlatform, aggregate))
                 .withMessageContaining("delegate");
     }
 
@@ -234,7 +239,7 @@ class KafkaAgenticAggregateRuntimeTest {
     void constructorShouldRejectNullObjectMapper() {
         assertThatNullPointerException()
                 .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
-                        delegate, null, TestMemoryState.class, agentPlatform))
+                        delegate, null, TestMemoryState.class, agentPlatform, aggregate))
                 .withMessageContaining("objectMapper");
     }
 
@@ -242,7 +247,7 @@ class KafkaAgenticAggregateRuntimeTest {
     void constructorShouldRejectNullStateClass() {
         assertThatNullPointerException()
                 .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
-                        delegate, objectMapper, null, agentPlatform))
+                        delegate, objectMapper, null, agentPlatform, aggregate))
                 .withMessageContaining("stateClass");
     }
 
@@ -250,8 +255,16 @@ class KafkaAgenticAggregateRuntimeTest {
     void constructorShouldRejectNullAgentPlatform() {
         assertThatNullPointerException()
                 .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
-                        delegate, objectMapper, TestMemoryState.class, null))
+                        delegate, objectMapper, TestMemoryState.class, null, aggregate))
                 .withMessageContaining("agentPlatform");
+    }
+
+    @Test
+    void constructorShouldRejectNullAggregate() {
+        assertThatNullPointerException()
+                .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
+                        delegate, objectMapper, TestMemoryState.class, agentPlatform, null))
+                .withMessageContaining("aggregate");
     }
 
     // -------------------------------------------------------------------------

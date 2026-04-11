@@ -43,9 +43,12 @@ import java.lang.annotation.Target;
  *       processing (registered for schema validation and service discovery)</li>
  * </ul>
  *
- * <p>Every {@code AgenticAggregate} must also have at least one deterministic
- * {@code @CommandHandler(create = true)} method so that the aggregate can be created
- * before the AI agent handles subsequent commands.
+ * <p>Every {@code AgenticAggregate} must implement
+ * {@link org.elasticsoftware.akces.aggregate.AgenticAggregate#getCreateDomainEvent()
+ * getCreateDomainEvent()} to provide the domain event that creates the initial aggregate
+ * state. The framework calls this method automatically when the singleton aggregate has no
+ * state yet. The returned event must have a corresponding
+ * {@code @EventSourcingHandler(create = true)} method.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE})

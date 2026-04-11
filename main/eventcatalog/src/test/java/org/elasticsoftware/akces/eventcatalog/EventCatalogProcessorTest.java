@@ -994,6 +994,7 @@ public record AssistantState(
 
 import org.elasticsoftware.akces.aggregate.AgenticAggregate;
 import org.elasticsoftware.akces.annotations.AgenticAggregateInfo;
+import org.elasticsoftware.akces.events.DomainEvent;
 
 @AgenticAggregateInfo(
         value = "Assistant",
@@ -1010,6 +1011,16 @@ public final class Assistant implements AgenticAggregate<AssistantState> {
     @Override
     public Class<AssistantState> getStateClass() {
         return AssistantState.class;
+    }
+
+    @Override
+    public DomainEvent getCreateDomainEvent() {
+        return new DomainEvent() {
+            @Override
+            public String getAggregateId() {
+                return getName();
+            }
+        };
     }
 }
                         """
