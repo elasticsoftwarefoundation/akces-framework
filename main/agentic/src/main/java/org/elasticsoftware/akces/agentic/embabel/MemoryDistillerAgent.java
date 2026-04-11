@@ -22,6 +22,7 @@ import com.embabel.agent.api.annotation.Action;
 import com.embabel.agent.api.annotation.Agent;
 import com.embabel.agent.api.common.ActionContext;
 import com.embabel.agent.api.common.PlannerType;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 
@@ -46,7 +47,7 @@ import java.util.List;
  */
 @Agent(name = MemoryDistillerAgent.AGENT_NAME,
         description = "Distills relevant memories from a completed agent process",
-        planner = PlannerType.UTILITY)
+        planner = PlannerType.GOAP)
 public class MemoryDistillerAgent {
 
     /**
@@ -54,6 +55,18 @@ public class MemoryDistillerAgent {
      * {@link com.embabel.agent.core.AgentPlatform}.
      */
     public static final String AGENT_NAME = "MemoryDistiller";
+
+    private final ObjectMapper objectMapper;
+
+    /**
+     * Creates a new {@code MemoryDistillerAgent}.
+     *
+     * @param objectMapper the Jackson {@link ObjectMapper} used for JSON serialization
+     *                     of blackboard objects and memories in the LLM prompt
+     */
+    public MemoryDistillerAgent(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     /**
      * Distills memories from a completed agent process by analyzing the process
@@ -128,11 +141,6 @@ public class MemoryDistillerAgent {
                 .append(maxNewMemories).append("\n");
 
         sb.append("""
-                - Each stored memory must have: agenticAggregateId, memoryId (UUID), \
-                subject (1-2 words), fact (max 200 chars), citations (source reference), \
-                reason (why it should be stored), and storedAt (ISO-8601 instant)
-                - Each revoked memory must have: agenticAggregateId, memoryId (from existing \
-                memories), reason, and revokedAt (ISO-8601 instant)
                 - Only store memories that are actionable, likely to remain relevant, and \
                 cannot always be inferred from limited context
                 - Only revoke memories that are clearly outdated, incorrect, or superseded \
@@ -143,7 +151,7 @@ public class MemoryDistillerAgent {
         sb.append("PROCESS HISTORY (actions executed):\n");
         if (history != null && !history.isEmpty()) {
             for (Object invocation : history) {
-                sb.append("- ").append(invocation).append("\n");
+                sb.append("- ").append(serialize(invocation)).append("\n");
             }
         } else {
             sb.append("(no actions recorded)\n");
@@ -153,7 +161,7 @@ public class MemoryDistillerAgent {
         if (blackboardObjects != null && !blackboardObjects.isEmpty()) {
             for (Object obj : blackboardObjects) {
                 sb.append("- [").append(obj.getClass().getSimpleName()).append("] ")
-                        .append(obj).append("\n");
+                        .append(serialize(obj)).append("\n");
             }
         } else {
             sb.append("(no objects)\n");
@@ -162,18 +170,24 @@ public class MemoryDistillerAgent {
         sb.append("\nEXISTING MEMORIES:\n");
         if (existingMemories != null && !existingMemories.isEmpty()) {
             for (Object memory : existingMemories) {
-                sb.append("- ").append(memory).append("\n");
+                sb.append("- ").append(serialize(memory)).append("\n");
             }
         } else {
             sb.append("(no existing memories)\n");
         }
 
-        sb.append("""
-
-                Return a JSON object with 'stored' (list of MemoryStoredEvent instances) \
-                and 'revoked' (list of MemoryRevokedEvent instances). \
-                If no memories should be stored or revoked, return empty lists.""");
-
         return sb.toString();
+    }
+
+    /**
+     * Serializes an object to JSON using the injected {@link ObjectMapper}.
+     * Falls back to {@link Object#toString()} if serialization fails.
+     */
+    private String serialize(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (Exception e) {
+            return obj.toString();
+        }
     }
 }

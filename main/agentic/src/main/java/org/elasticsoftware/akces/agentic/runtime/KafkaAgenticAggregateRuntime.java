@@ -105,8 +105,11 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
         this.stateClass = Objects.requireNonNull(stateClass, "stateClass must not be null");
         this.agentPlatform = Objects.requireNonNull(agentPlatform, "agentPlatform must not be null");
         this.aggregate = Objects.requireNonNull(aggregate, "aggregate must not be null");
-        if (maxMemories < 0) {
-            throw new IllegalArgumentException("maxMemories must be greater than or equal to 0");
+        if (maxTotalMemories < 0) {
+            throw new IllegalArgumentException("maxTotalMemories must be >= 0");
+        }
+        if (maxMemoriesAdded < 0) {
+            throw new IllegalArgumentException("maxMemoriesAdded must be >= 0");
         }
         this.maxTotalMemories = maxTotalMemories;
         this.maxMemoriesAdded = maxMemoriesAdded;
