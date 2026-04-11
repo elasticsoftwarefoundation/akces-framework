@@ -73,7 +73,8 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     private final Class<? extends AggregateState> stateClass;
     private final AgentPlatform agentPlatform;
     private final AgenticAggregate<?> aggregate;
-    private final int maxMemories;
+    private final int maxTotalMemories;
+    private final int maxMemoriesAdded;
 
     /** Round-robin counter for selecting the next agent task to resume. */
     private final AtomicInteger nextTaskIndex = new AtomicInteger(0);
@@ -81,28 +82,31 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     /**
      * Creates a new {@code KafkaAgenticAggregateRuntime}.
      *
-     * @param delegate      the underlying aggregate runtime to delegate to
-     * @param objectMapper  the Jackson {@link ObjectMapper} used for JSON serialization
-     * @param stateClass    the aggregate state class
-     * @param agentPlatform the Embabel {@link AgentPlatform} used for AI-assisted processing;
-     *                      must not be {@code null}
-     * @param aggregate     the agentic aggregate instance whose
-     *                      {@link AgenticAggregate#getCreateDomainEvent()} method provides the
-     *                      auto-create event
-     * @param maxMemories   the maximum number of memories allowed for this aggregate
+     * @param delegate         the underlying aggregate runtime to delegate to
+     * @param objectMapper     the Jackson {@link ObjectMapper} used for JSON serialization
+     * @param stateClass       the aggregate state class
+     * @param agentPlatform    the Embabel {@link AgentPlatform} used for AI-assisted processing;
+     *                         must not be {@code null}
+     * @param aggregate        the agentic aggregate instance whose
+     *                         {@link AgenticAggregate#getCreateDomainEvent()} method provides the
+     *                         auto-create event
+     * @param maxTotalMemories the total memory capacity for this aggregate
+     * @param maxMemoriesAdded the per-distillation budget for net new memories
      */
     public KafkaAgenticAggregateRuntime(KafkaAggregateRuntime delegate,
                                         ObjectMapper objectMapper,
                                         Class<? extends AggregateState> stateClass,
                                         AgentPlatform agentPlatform,
                                         AgenticAggregate<?> aggregate,
-                                        int maxMemories) {
+                                        int maxTotalMemories,
+                                        int maxMemoriesAdded) {
         this.delegate = Objects.requireNonNull(delegate, "delegate must not be null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
         this.stateClass = Objects.requireNonNull(stateClass, "stateClass must not be null");
         this.agentPlatform = Objects.requireNonNull(agentPlatform, "agentPlatform must not be null");
         this.aggregate = Objects.requireNonNull(aggregate, "aggregate must not be null");
-        this.maxMemories = maxMemories;
+        this.maxTotalMemories = maxTotalMemories;
+        this.maxMemoriesAdded = maxMemoriesAdded;
     }
 
     // -------------------------------------------------------------------------
@@ -555,20 +559,20 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     private List<DomainEvent> distillMemories(AgentProcess completedProcess, AggregateState state) {
         Agent memoryDistillerAgent = resolveMemoryDistillerAgent();
         if (memoryDistillerAgent == null) {
-            logger.debug("MemoryDistillerAgent not deployed on the platform; skipping memory distillation");
+            logger.warn("MemoryDistillerAgent not deployed on the platform; skipping memory distillation");
             return List.of();
         }
 
         List<AgenticAggregateMemory> currentMemories = state instanceof MemoryAwareState mas
                 ? mas.getMemories()
                 : List.of();
-        int maxNewMemories = Math.max(0, maxMemories - currentMemories.size());
 
         Map<String, Object> bindings = new LinkedHashMap<>();
         bindings.put("history", completedProcess.getHistory());
         bindings.put("blackboardObjects", completedProcess.getBlackboard().getObjects());
         bindings.put("existingMemories", currentMemories);
-        bindings.put("maxNewMemories", maxNewMemories);
+        bindings.put("maxTotalMemories", maxTotalMemories);
+        bindings.put("maxMemoriesAdded", maxMemoriesAdded);
 
         try {
             AgentProcess distillerProcess = agentPlatform.createAgentProcess(
@@ -583,7 +587,9 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                 return List.of();
             }
 
-            return translateDistillationResult(result, state.getAggregateId(), currentMemories, maxNewMemories);
+            int capacityLeft = Math.max(0, maxTotalMemories - currentMemories.size());
+            int effectiveLimit = Math.min(capacityLeft, maxMemoriesAdded);
+            return translateDistillationResult(result, state.getAggregateId(), currentMemories, effectiveLimit);
         } catch (Exception e) {
             logger.warn("Memory distillation failed for aggregate {}; proceeding without memory updates",
                     getName(), e);
@@ -623,53 +629,51 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                                                           List<AgenticAggregateMemory> currentMemories,
                                                           int maxNewMemories) {
         List<DomainEvent> events = new ArrayList<>();
-        Instant now = Instant.now();
 
-        // Collect valid revocations first (only for memories that actually exist)
+        // Collect valid revocations first (only for memories that actually exist),
+        // de-duplicated by memoryId so capacity calculations match effective revocations.
         Set<String> currentMemoryIds = new HashSet<>();
         for (AgenticAggregateMemory mem : currentMemories) {
             currentMemoryIds.add(mem.memoryId());
         }
 
-        List<MemoryDistillationResult.RevokedMemory> validRevocations = new ArrayList<>();
+        List<MemoryRevokedEvent> validRevocations = new ArrayList<>();
+        Set<String> revokedMemoryIds = new HashSet<>();
         if (result.revoked() != null) {
-            for (MemoryDistillationResult.RevokedMemory revoked : result.revoked()) {
-                if (revoked.memoryId() != null && currentMemoryIds.contains(revoked.memoryId())) {
-                    validRevocations.add(revoked);
-                } else {
+            for (MemoryRevokedEvent revoked : result.revoked()) {
+                String memoryId = revoked.memoryId();
+                if (memoryId == null || !currentMemoryIds.contains(memoryId)) {
                     logger.debug("Skipping revocation of non-existent memory '{}' for aggregate {}",
-                            revoked.memoryId(), getName());
+                            memoryId, getName());
+                    continue;
                 }
+                if (!revokedMemoryIds.add(memoryId)) {
+                    logger.debug("Skipping duplicate revocation of memory '{}' for aggregate {}",
+                            memoryId, getName());
+                    continue;
+                }
+                validRevocations.add(revoked);
             }
         }
 
         // Calculate how many stored memories we can accept
-        int revokedCount = validRevocations.size();
+        int revokedCount = revokedMemoryIds.size();
         int maxStoredCount = maxNewMemories + revokedCount;
 
         // Add revocation events
-        for (MemoryDistillationResult.RevokedMemory revoked : validRevocations) {
-            events.add(new MemoryRevokedEvent(aggregateId, revoked.memoryId(), revoked.reason(), now));
-        }
+        events.addAll(validRevocations);
 
         // Add stored events (respecting the limit)
         if (result.stored() != null) {
             int storedCount = 0;
-            for (MemoryDistillationResult.StoredMemory stored : result.stored()) {
+            for (MemoryStoredEvent stored : result.stored()) {
                 if (storedCount >= maxStoredCount) {
                     logger.debug("Memory distillation limit reached ({} stored, {} revoked, max {}); "
                                     + "truncating remaining stored memories for aggregate {}",
-                            storedCount, revokedCount, maxNewMemories, getName());
+                            storedCount, revokedCount, maxStoredCount, getName());
                     break;
                 }
-                events.add(new MemoryStoredEvent(
-                        aggregateId,
-                        UUID.randomUUID().toString(),
-                        stored.subject(),
-                        stored.fact(),
-                        stored.citations(),
-                        stored.reason(),
-                        now));
+                events.add(stored);
                 storedCount++;
             }
         }

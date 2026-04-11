@@ -31,7 +31,7 @@ import java.time.Instant;
  * <p>This event is produced internally by the Embabel layer (via the agent's memory
  * management tools) when a memory is explicitly revoked, or as part of the
  * sliding-window eviction mechanism when
- * {@link org.elasticsoftware.akces.annotations.AgenticAggregateInfo#maxMemories()} is exceeded.
+ * {@link org.elasticsoftware.akces.annotations.AgenticAggregateInfo#maxTotalMemories()} is exceeded.
  *
  * @param agenticAggregateId the unique identifier of the AgenticAggregate instance
  * @param memoryId           UUID of the memory entry that was revoked

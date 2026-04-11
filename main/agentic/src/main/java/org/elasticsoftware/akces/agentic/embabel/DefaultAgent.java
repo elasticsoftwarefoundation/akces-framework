@@ -35,5 +35,5 @@ public class DefaultAgent {
      * The well-known agent name used to locate this default agent on the
      * {@link com.embabel.agent.core.AgentPlatform} during fallback resolution.
      */
-    public static final String AGENT_NAME = "DefaultAgent";
+    public static final String AGENT_NAME = "Default";
 }

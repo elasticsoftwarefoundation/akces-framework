@@ -17,8 +17,11 @@
 
 package org.elasticsoftware.akces.agentic.embabel;
 
+import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
+import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,23 +31,24 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class MemoryDistillationResultTest {
 
+    private static final Instant NOW = Instant.now();
+
     @Test
-    void shouldCreateWithStoredAndRevokedMemories() {
+    void shouldCreateWithStoredAndRevokedEvents() {
         var stored = List.of(
-                new MemoryDistillationResult.StoredMemory("testing", "Use JUnit 5", "src/test", "best practice"),
-                new MemoryDistillationResult.StoredMemory("logging", "Use SLF4J", "src/main", "consistency")
+                new MemoryStoredEvent("agg-1", "mem-1", "testing", "Use JUnit 5",
+                        "src/test", "best practice", NOW),
+                new MemoryStoredEvent("agg-1", "mem-2", "logging", "Use SLF4J",
+                        "src/main", "consistency", NOW)
         );
         var revoked = List.of(
-                new MemoryDistillationResult.RevokedMemory("mem-old-1", "superseded by new info")
+                new MemoryRevokedEvent("agg-1", "mem-old-1", "superseded by new info", NOW)
         );
 
         var result = new MemoryDistillationResult(stored, revoked);
 
         assertThat(result.stored()).hasSize(2);
         assertThat(result.revoked()).hasSize(1);
-        assertThat(result.stored().getFirst().subject()).isEqualTo("testing");
-        assertThat(result.stored().getFirst().fact()).isEqualTo("Use JUnit 5");
-        assertThat(result.revoked().getFirst().memoryId()).isEqualTo("mem-old-1");
     }
 
     @Test
@@ -53,24 +57,5 @@ class MemoryDistillationResultTest {
 
         assertThat(result.stored()).isEmpty();
         assertThat(result.revoked()).isEmpty();
-    }
-
-    @Test
-    void storedMemoryShouldExposeAllFields() {
-        var stored = new MemoryDistillationResult.StoredMemory(
-                "conventions", "Use records for DTOs", "src/main/Model.java:10", "immutability");
-
-        assertThat(stored.subject()).isEqualTo("conventions");
-        assertThat(stored.fact()).isEqualTo("Use records for DTOs");
-        assertThat(stored.citations()).isEqualTo("src/main/Model.java:10");
-        assertThat(stored.reason()).isEqualTo("immutability");
-    }
-
-    @Test
-    void revokedMemoryShouldExposeAllFields() {
-        var revoked = new MemoryDistillationResult.RevokedMemory("mem-123", "outdated");
-
-        assertThat(revoked.memoryId()).isEqualTo("mem-123");
-        assertThat(revoked.reason()).isEqualTo("outdated");
     }
 }

@@ -22,7 +22,6 @@ import com.embabel.agent.api.annotation.Action;
 import com.embabel.agent.api.annotation.Agent;
 import com.embabel.agent.api.common.ActionContext;
 import com.embabel.agent.api.common.PlannerType;
-import com.embabel.agent.core.ActionInvocation;
 
 import java.util.List;
 
@@ -41,9 +40,9 @@ import java.util.List;
  *   <li>A list of existing memories to revoke</li>
  * </ul>
  *
- * <p>The net number of new memories (stored minus revoked) is constrained by the
- * {@code maxNewMemories} binding on the blackboard, which is derived from the
- * aggregate's {@code maxMemories} configuration minus the current memory count.
+ * <p>The net number of new memories (stored minus revoked) is constrained by both
+ * the {@code maxTotalMemories} capacity and the per-distillation budget
+ * {@code maxMemoriesAdded}.
  */
 @Agent(name = MemoryDistillerAgent.AGENT_NAME,
         description = "Distills relevant memories from a completed agent process",
@@ -54,7 +53,7 @@ public class MemoryDistillerAgent {
      * The well-known agent name used to locate this agent on the
      * {@link com.embabel.agent.core.AgentPlatform}.
      */
-    public static final String AGENT_NAME = "MemoryDistillerAgent";
+    public static final String AGENT_NAME = "MemoryDistiller";
 
     /**
      * Distills memories from a completed agent process by analyzing the process
@@ -62,14 +61,13 @@ public class MemoryDistillerAgent {
      *
      * <p>The method reads the following bindings from the blackboard:
      * <ul>
-     *   <li>{@code "history"} — the {@link List} of {@link ActionInvocation}s from the
-     *       completed process</li>
+     *   <li>{@code "history"} — the execution history from the completed process</li>
      *   <li>{@code "blackboardObjects"} — all objects from the completed process's
      *       blackboard</li>
      *   <li>{@code "existingMemories"} — the current list of memories from the aggregate
      *       state</li>
-     *   <li>{@code "maxNewMemories"} — the maximum number of net new memories allowed
-     *       (maxMemories - currentMemoryCount)</li>
+     *   <li>{@code "maxTotalMemories"} — the total memory capacity of the aggregate</li>
+     *   <li>{@code "maxMemoriesAdded"} — the per-distillation budget for net new memories</li>
      * </ul>
      *
      * @param context the action context providing access to AI capabilities and blackboard
@@ -79,12 +77,33 @@ public class MemoryDistillerAgent {
     @AchievesGoal(description = "Distill and manage memories from completed agent processes")
     public MemoryDistillationResult distillMemories(ActionContext context) {
         var blackboard = context.getProcessContext().getAgentProcess().getBlackboard();
-        List<?> history = blackboard.objectsOfType(ActionInvocation.class);
-        List<?> blackboardObjects = (List<?>) blackboard.get("blackboardObjects");
-        List<?> existingMemories = (List<?>) blackboard.get("existingMemories");
-        int maxNewMemories = (int) blackboard.get("maxNewMemories");
 
-        String prompt = buildPrompt(history, blackboardObjects, existingMemories, maxNewMemories);
+        Object historyBinding = blackboard.get("history");
+        List<?> history = historyBinding instanceof List<?> historyList
+                ? historyList
+                : List.of();
+        Object blackboardObjectsBinding = blackboard.get("blackboardObjects");
+        List<?> blackboardObjects = blackboardObjectsBinding instanceof List<?> objectList
+                ? objectList
+                : List.of();
+        Object existingMemoriesBinding = blackboard.get("existingMemories");
+        List<?> existingMemories = existingMemoriesBinding instanceof List<?> memoryList
+                ? memoryList
+                : List.of();
+        Object maxTotalMemoriesBinding = blackboard.get("maxTotalMemories");
+        int maxTotalMemories = maxTotalMemoriesBinding instanceof Number number
+                ? number.intValue()
+                : 0;
+        Object maxMemoriesAddedBinding = blackboard.get("maxMemoriesAdded");
+        int maxMemoriesAdded = maxMemoriesAddedBinding instanceof Number number
+                ? number.intValue()
+                : 0;
+
+        int currentCount = existingMemories.size();
+        int capacityLeft = Math.max(0, maxTotalMemories - currentCount);
+        int effectiveLimit = Math.min(capacityLeft, maxMemoriesAdded);
+
+        String prompt = buildPrompt(history, blackboardObjects, existingMemories, effectiveLimit);
 
         return context.ai()
                 .withDefaultLlm()
@@ -95,21 +114,31 @@ public class MemoryDistillerAgent {
                                 List<?> blackboardObjects,
                                 List<?> existingMemories,
                                 int maxNewMemories) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("You are a memory distillation agent. Analyze the following completed agent process ");
-        sb.append("and determine which facts should be stored as new memories and which existing ");
-        sb.append("memories should be revoked (because they are outdated, incorrect, or superseded).\n\n");
+        var sb = new StringBuilder();
 
-        sb.append("CONSTRAINTS:\n");
+        sb.append("""
+                You are a memory distillation agent. Analyze the following completed agent process \
+                and determine which facts should be stored as new memories and which existing \
+                memories should be revoked (because they are outdated, incorrect, or superseded).
+
+                CONSTRAINTS:
+                """);
+
         sb.append("- The net number of new memories (stored count minus revoked count) must be <= ")
                 .append(maxNewMemories).append("\n");
-        sb.append("- Each stored memory must have: subject (1-2 words), fact (max 200 chars), ");
-        sb.append("citations (source reference), and reason (why it should be stored)\n");
-        sb.append("- Each revoked memory must have: memoryId (from existing memories) and reason\n");
-        sb.append("- Only store memories that are actionable, likely to remain relevant, and ");
-        sb.append("cannot always be inferred from limited context\n");
-        sb.append("- Only revoke memories that are clearly outdated, incorrect, or superseded ");
-        sb.append("by new information\n\n");
+
+        sb.append("""
+                - Each stored memory must have: agenticAggregateId, memoryId (UUID), \
+                subject (1-2 words), fact (max 200 chars), citations (source reference), \
+                reason (why it should be stored), and storedAt (ISO-8601 instant)
+                - Each revoked memory must have: agenticAggregateId, memoryId (from existing \
+                memories), reason, and revokedAt (ISO-8601 instant)
+                - Only store memories that are actionable, likely to remain relevant, and \
+                cannot always be inferred from limited context
+                - Only revoke memories that are clearly outdated, incorrect, or superseded \
+                by new information
+
+                """);
 
         sb.append("PROCESS HISTORY (actions executed):\n");
         if (history != null && !history.isEmpty()) {
@@ -139,9 +168,11 @@ public class MemoryDistillerAgent {
             sb.append("(no existing memories)\n");
         }
 
-        sb.append("\nReturn a JSON object with 'stored' (list of new memories to store) ");
-        sb.append("and 'revoked' (list of existing memories to revoke). ");
-        sb.append("If no memories should be stored or revoked, return empty lists.");
+        sb.append("""
+
+                Return a JSON object with 'stored' (list of MemoryStoredEvent instances) \
+                and 'revoked' (list of MemoryRevokedEvent instances). \
+                If no memories should be stored or revoked, return empty lists.""");
 
         return sb.toString();
     }

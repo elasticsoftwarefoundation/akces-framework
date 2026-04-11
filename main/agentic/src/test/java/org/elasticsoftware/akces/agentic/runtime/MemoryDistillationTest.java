@@ -112,6 +112,8 @@ class MemoryDistillationTest {
         }
     }
 
+    private static final Instant NOW = Instant.now();
+
     @Mock
     private KafkaAggregateRuntime delegate;
 
@@ -146,7 +148,7 @@ class MemoryDistillationTest {
     void setUp() {
         objectMapper = JsonMapper.builder().build();
         runtime = new KafkaAgenticAggregateRuntime(
-                delegate, objectMapper, MemoryTaskState.class, agentPlatform, aggregate, 100);
+                delegate, objectMapper, MemoryTaskState.class, agentPlatform, aggregate, 100, 10);
     }
 
     // -------------------------------------------------------------------------
@@ -180,8 +182,8 @@ class MemoryDistillationTest {
 
         // Set up distiller process
         var distillationResult = new MemoryDistillationResult(
-                List.of(new MemoryDistillationResult.StoredMemory(
-                        "testing", "Use JUnit 5", "src/test", "best practice")),
+                List.of(new MemoryStoredEvent("agg-1", "mem-new-1", "testing", "Use JUnit 5",
+                        "src/test", "best practice", NOW)),
                 List.of());
         when(agentPlatform.createAgentProcess(eq(memoryDistillerAgent), eq(ProcessOptions.DEFAULT), anyMap()))
                 .thenReturn(distillerProcess);
@@ -323,11 +325,11 @@ class MemoryDistillationTest {
     @Test
     @SuppressWarnings("unchecked")
     void distillationShouldEnforceMaxMemoriesLimit() throws IOException {
-        // Set up runtime with maxMemories = 5
+        // maxTotalMemories = 5, maxMemoriesAdded = 10 — capacity is the binding constraint
         runtime = new KafkaAgenticAggregateRuntime(
-                delegate, objectMapper, MemoryTaskState.class, agentPlatform, aggregate, 5);
+                delegate, objectMapper, MemoryTaskState.class, agentPlatform, aggregate, 5, 10);
 
-        // State already has 3 memories, so maxNewMemories = 2
+        // State already has 3 memories, so capacityLeft = 2, effectiveLimit = min(2, 10) = 2
         var existingMemories = List.of(
                 new AgenticAggregateMemory("mem-1", "s1", "f1", "c1", "r1", Instant.now()),
                 new AgenticAggregateMemory("mem-2", "s2", "f2", "c2", "r2", Instant.now()),
@@ -353,14 +355,14 @@ class MemoryDistillationTest {
         when(memoryDistillerAgent.getName()).thenReturn(MemoryDistillerAgent.AGENT_NAME);
         when(agentPlatform.agents()).thenReturn(List.of(memoryDistillerAgent));
 
-        // Agent tries to store 5 memories but only 2 should be allowed (maxMemories=5, existing=3)
+        // Agent tries to store 5 memories but only 2 should be allowed
         var distillationResult = new MemoryDistillationResult(
                 List.of(
-                        new MemoryDistillationResult.StoredMemory("s1", "fact1", "c1", "r1"),
-                        new MemoryDistillationResult.StoredMemory("s2", "fact2", "c2", "r2"),
-                        new MemoryDistillationResult.StoredMemory("s3", "fact3", "c3", "r3"),
-                        new MemoryDistillationResult.StoredMemory("s4", "fact4", "c4", "r4"),
-                        new MemoryDistillationResult.StoredMemory("s5", "fact5", "c5", "r5")
+                        new MemoryStoredEvent("agg-1", "n1", "s1", "fact1", "c1", "r1", NOW),
+                        new MemoryStoredEvent("agg-1", "n2", "s2", "fact2", "c2", "r2", NOW),
+                        new MemoryStoredEvent("agg-1", "n3", "s3", "fact3", "c3", "r3", NOW),
+                        new MemoryStoredEvent("agg-1", "n4", "s4", "fact4", "c4", "r4", NOW),
+                        new MemoryStoredEvent("agg-1", "n5", "s5", "fact5", "c5", "r5", NOW)
                 ),
                 List.of());
         when(agentPlatform.createAgentProcess(eq(memoryDistillerAgent), eq(ProcessOptions.DEFAULT), anyMap()))
@@ -383,11 +385,66 @@ class MemoryDistillationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void distillationShouldEnforceMaxMemoriesAddedLimit() throws IOException {
+        // maxTotalMemories = 100, maxMemoriesAdded = 2 — per-distillation budget is the constraint
+        runtime = new KafkaAgenticAggregateRuntime(
+                delegate, objectMapper, MemoryTaskState.class, agentPlatform, aggregate, 100, 2);
+
+        var party = new HumanRequestingParty("user-1", "analyst");
+        var task = new AssignedTask("proc-1", "Task", party, Map.of(), Instant.now());
+        var state = new MemoryTaskState("agg-1", List.of(task), List.of());
+        byte[] payload = objectMapper.writeValueAsBytes(state);
+        var stateRecord = new AggregateStateRecord(null, "MemoryTaskState", 1, payload,
+                PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
+
+        when(agentPlatform.getAgentProcess("proc-1")).thenReturn(agentProcess);
+        when(agentProcess.getBlackboard()).thenReturn(blackboard);
+        when(blackboard.getObjects()).thenReturn(List.of());
+        when(delegate.getAllDomainEventTypes()).thenReturn(List.of());
+
+        when(agentProcess.getFinished()).thenReturn(true);
+        when(agentProcess.getStatus()).thenReturn(AgentProcessStatusCode.COMPLETED);
+        when(agentProcess.getHistory()).thenReturn(List.of());
+
+        when(memoryDistillerAgent.getName()).thenReturn(MemoryDistillerAgent.AGENT_NAME);
+        when(agentPlatform.agents()).thenReturn(List.of(memoryDistillerAgent));
+
+        // Agent tries to store 5 memories but only 2 should be allowed (maxMemoriesAdded=2)
+        var distillationResult = new MemoryDistillationResult(
+                List.of(
+                        new MemoryStoredEvent("agg-1", "n1", "s1", "fact1", "c1", "r1", NOW),
+                        new MemoryStoredEvent("agg-1", "n2", "s2", "fact2", "c2", "r2", NOW),
+                        new MemoryStoredEvent("agg-1", "n3", "s3", "fact3", "c3", "r3", NOW),
+                        new MemoryStoredEvent("agg-1", "n4", "s4", "fact4", "c4", "r4", NOW),
+                        new MemoryStoredEvent("agg-1", "n5", "s5", "fact5", "c5", "r5", NOW)
+                ),
+                List.of());
+        when(agentPlatform.createAgentProcess(eq(memoryDistillerAgent), eq(ProcessOptions.DEFAULT), anyMap()))
+                .thenReturn(distillerProcess);
+        when(distillerProcess.getBlackboard()).thenReturn(distillerBlackboard);
+        when(distillerBlackboard.last(MemoryDistillationResult.class)).thenReturn(distillationResult);
+
+        ArgumentCaptor<Stream<DomainEvent>> eventsCaptor = ArgumentCaptor.forClass(Stream.class);
+        runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
+
+        verify(delegate).processDomainEvents(eventsCaptor.capture(), eq("proc-1"), any(), any());
+        List<DomainEvent> events = eventsCaptor.getValue().toList();
+
+        // 1 finished + 2 stored (truncated from 5 by maxMemoriesAdded)
+        assertThat(events).hasSize(3);
+        assertThat(events.get(0)).isInstanceOf(AgentTaskFinishedEvent.class);
+        long storedCount = events.stream().filter(e -> e instanceof MemoryStoredEvent).count();
+        assertThat(storedCount).isEqualTo(2);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void distillationShouldAllowMoreStoredWhenMemoriesAreRevoked() throws IOException {
-        // maxMemories = 5, existing = 4, so maxNew = 1
+        // maxTotalMemories = 5, maxMemoriesAdded = 10; existing = 4, so capacityLeft = 1
         // But we also revoke 2, so we can store up to 3 (1 + 2)
         runtime = new KafkaAgenticAggregateRuntime(
-                delegate, objectMapper, MemoryTaskState.class, agentPlatform, aggregate, 5);
+                delegate, objectMapper, MemoryTaskState.class, agentPlatform, aggregate, 5, 10);
 
         var existingMemories = List.of(
                 new AgenticAggregateMemory("mem-1", "s1", "f1", "c1", "r1", Instant.now()),
@@ -418,13 +475,13 @@ class MemoryDistillationTest {
         // Revoke 2, store 3
         var distillationResult = new MemoryDistillationResult(
                 List.of(
-                        new MemoryDistillationResult.StoredMemory("s1", "new-fact1", "c1", "r1"),
-                        new MemoryDistillationResult.StoredMemory("s2", "new-fact2", "c2", "r2"),
-                        new MemoryDistillationResult.StoredMemory("s3", "new-fact3", "c3", "r3")
+                        new MemoryStoredEvent("agg-1", "n1", "s1", "new-fact1", "c1", "r1", NOW),
+                        new MemoryStoredEvent("agg-1", "n2", "s2", "new-fact2", "c2", "r2", NOW),
+                        new MemoryStoredEvent("agg-1", "n3", "s3", "new-fact3", "c3", "r3", NOW)
                 ),
                 List.of(
-                        new MemoryDistillationResult.RevokedMemory("mem-1", "outdated"),
-                        new MemoryDistillationResult.RevokedMemory("mem-2", "superseded")
+                        new MemoryRevokedEvent("agg-1", "mem-1", "outdated", NOW),
+                        new MemoryRevokedEvent("agg-1", "mem-2", "superseded", NOW)
                 ));
         when(agentPlatform.createAgentProcess(eq(memoryDistillerAgent), eq(ProcessOptions.DEFAULT), anyMap()))
                 .thenReturn(distillerProcess);
@@ -477,8 +534,8 @@ class MemoryDistillationTest {
         var distillationResult = new MemoryDistillationResult(
                 List.of(),
                 List.of(
-                        new MemoryDistillationResult.RevokedMemory("mem-1", "outdated"),
-                        new MemoryDistillationResult.RevokedMemory("non-existent", "cleanup")
+                        new MemoryRevokedEvent("agg-1", "mem-1", "outdated", NOW),
+                        new MemoryRevokedEvent("agg-1", "non-existent", "cleanup", NOW)
                 ));
         when(agentPlatform.createAgentProcess(eq(memoryDistillerAgent), eq(ProcessOptions.DEFAULT), anyMap()))
                 .thenReturn(distillerProcess);
@@ -585,10 +642,12 @@ class MemoryDistillationTest {
         assertThat(bindings).containsKey("history");
         assertThat(bindings).containsKey("blackboardObjects");
         assertThat(bindings).containsKey("existingMemories");
-        assertThat(bindings).containsKey("maxNewMemories");
+        assertThat(bindings).containsKey("maxTotalMemories");
+        assertThat(bindings).containsKey("maxMemoriesAdded");
 
         assertThat(bindings.get("existingMemories")).isEqualTo(List.of(existingMemory));
-        // maxMemories=100, existing=1, so maxNewMemories=99
-        assertThat(bindings.get("maxNewMemories")).isEqualTo(99);
+        // maxTotalMemories=100, maxMemoriesAdded=10
+        assertThat(bindings.get("maxTotalMemories")).isEqualTo(100);
+        assertThat(bindings.get("maxMemoriesAdded")).isEqualTo(10);
     }
 }
