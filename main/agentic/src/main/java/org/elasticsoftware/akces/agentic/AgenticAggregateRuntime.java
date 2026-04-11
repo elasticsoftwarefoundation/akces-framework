@@ -20,6 +20,7 @@ package org.elasticsoftware.akces.agentic;
 import com.embabel.agent.core.AgentPlatform;
 import org.elasticsoftware.akces.agentic.commands.AssignTaskCommand;
 import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
+import org.elasticsoftware.akces.agentic.events.AgentTaskFinishedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
 import org.elasticsoftware.akces.aggregate.AgenticAggregateMemory;
@@ -71,6 +72,10 @@ public interface AgenticAggregateRuntime extends AggregateRuntime {
     /** Built-in domain event type for {@link AgentTaskAssignedEvent}. */
     DomainEventType<AgentTaskAssignedEvent> AGENT_TASK_ASSIGNED_TYPE = new DomainEventType<>(
             "AgentTaskAssigned", 1, AgentTaskAssignedEvent.class, false, false, false, false);
+
+    /** Built-in domain event type for {@link AgentTaskFinishedEvent}. */
+    DomainEventType<AgentTaskFinishedEvent> AGENT_TASK_FINISHED_TYPE = new DomainEventType<>(
+            "AgentTaskFinished", 1, AgentTaskFinishedEvent.class, false, false, false, false);
 
     /**
      * Returns the Embabel {@link AgentPlatform} used to create and run agent processes.

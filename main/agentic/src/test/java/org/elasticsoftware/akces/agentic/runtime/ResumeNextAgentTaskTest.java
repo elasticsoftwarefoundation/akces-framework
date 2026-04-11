@@ -19,15 +19,18 @@ package org.elasticsoftware.akces.agentic.runtime;
 
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
+import com.embabel.agent.core.AgentProcessStatusCode;
 import com.embabel.agent.core.Blackboard;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.commands.CommandBus;
+import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.kafka.KafkaAggregateRuntime;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.PayloadEncoding;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import tools.jackson.databind.ObjectMapper;
@@ -40,6 +43,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -263,5 +267,101 @@ class ResumeNextAgentTaskTest {
         when(delegate.materializeState(stateRecord)).thenReturn(state);
 
         assertThat(runtime.hasActiveAgentTasks(() -> stateRecord)).isTrue();
+    }
+
+    // -------------------------------------------------------------------------
+    // Agent process finished detection
+    // -------------------------------------------------------------------------
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void resumeShouldEmitAgentTaskFinishedEventWhenProcessIsFinished() throws IOException {
+        var party = new HumanRequestingParty("user-1", "analyst");
+        var task = new AssignedTask("proc-42", "Analyze data", party, Map.of(), Instant.now());
+        var state = new TaskState("agg-1", List.of(task));
+        byte[] payload = objectMapper.writeValueAsBytes(state);
+        var stateRecord = new AggregateStateRecord(null, "TaskState", 1, payload,
+                PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
+
+        when(agentPlatform.getAgentProcess("proc-42")).thenReturn(agentProcess);
+        when(agentProcess.getBlackboard()).thenReturn(blackboard);
+        when(blackboard.getObjects()).thenReturn(List.of());
+        when(delegate.getAllDomainEventTypes()).thenReturn(List.of());
+        when(agentProcess.getFinished()).thenReturn(true);
+        when(agentProcess.getStatus()).thenReturn(AgentProcessStatusCode.COMPLETED);
+
+        runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
+
+        // Verify that processDomainEvents was called with a stream that contains
+        // the AgentTaskFinishedEvent
+        ArgumentCaptor<Stream<DomainEvent>> streamCaptor = ArgumentCaptor.forClass(Stream.class);
+        verify(delegate).processDomainEvents(streamCaptor.capture(), eq("proc-42"), any(), any());
+
+        List<DomainEvent> events = streamCaptor.getValue().toList();
+        assertThat(events).hasSize(1);
+        assertThat(events.getFirst()).isInstanceOf(org.elasticsoftware.akces.agentic.events.AgentTaskFinishedEvent.class);
+        var finishedEvent = (org.elasticsoftware.akces.agentic.events.AgentTaskFinishedEvent) events.getFirst();
+        assertThat(finishedEvent.agentProcessId()).isEqualTo("proc-42");
+        assertThat(finishedEvent.status()).isEqualTo(AgentProcessStatusCode.COMPLETED);
+        assertThat(finishedEvent.agenticAggregateId()).isEqualTo("agg-1");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void resumeShouldNotEmitAgentTaskFinishedEventWhenProcessIsNotFinished() throws IOException {
+        var party = new HumanRequestingParty("user-1", "analyst");
+        var task = new AssignedTask("proc-42", "Analyze data", party, Map.of(), Instant.now());
+        var state = new TaskState("agg-1", List.of(task));
+        byte[] payload = objectMapper.writeValueAsBytes(state);
+        var stateRecord = new AggregateStateRecord(null, "TaskState", 1, payload,
+                PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
+
+        when(agentPlatform.getAgentProcess("proc-42")).thenReturn(agentProcess);
+        when(agentProcess.getBlackboard()).thenReturn(blackboard);
+        when(blackboard.getObjects()).thenReturn(List.of());
+        when(delegate.getAllDomainEventTypes()).thenReturn(List.of());
+        when(agentProcess.getFinished()).thenReturn(false);
+
+        runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
+
+        // Verify that processDomainEvents was called with a stream that does NOT
+        // contain an AgentTaskFinishedEvent
+        ArgumentCaptor<Stream<DomainEvent>> streamCaptor = ArgumentCaptor.forClass(Stream.class);
+        verify(delegate).processDomainEvents(streamCaptor.capture(), eq("proc-42"), any(), any());
+
+        List<DomainEvent> events = streamCaptor.getValue().toList();
+        assertThat(events).noneMatch(e -> e instanceof org.elasticsoftware.akces.agentic.events.AgentTaskFinishedEvent);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void resumeShouldEmitAgentTaskFinishedEventWithFailedStatus() throws IOException {
+        var party = new HumanRequestingParty("user-1", "analyst");
+        var task = new AssignedTask("proc-99", "Failing task", party, Map.of(), Instant.now());
+        var state = new TaskState("agg-1", List.of(task));
+        byte[] payload = objectMapper.writeValueAsBytes(state);
+        var stateRecord = new AggregateStateRecord(null, "TaskState", 1, payload,
+                PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
+
+        when(agentPlatform.getAgentProcess("proc-99")).thenReturn(agentProcess);
+        when(agentProcess.getBlackboard()).thenReturn(blackboard);
+        when(blackboard.getObjects()).thenReturn(List.of());
+        when(delegate.getAllDomainEventTypes()).thenReturn(List.of());
+        when(agentProcess.getFinished()).thenReturn(true);
+        when(agentProcess.getStatus()).thenReturn(AgentProcessStatusCode.FAILED);
+
+        runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
+
+        ArgumentCaptor<Stream<DomainEvent>> streamCaptor = ArgumentCaptor.forClass(Stream.class);
+        verify(delegate).processDomainEvents(streamCaptor.capture(), eq("proc-99"), any(), any());
+
+        List<DomainEvent> events = streamCaptor.getValue().toList();
+        assertThat(events).hasSize(1);
+        var finishedEvent = (org.elasticsoftware.akces.agentic.events.AgentTaskFinishedEvent) events.getFirst();
+        assertThat(finishedEvent.agentProcessId()).isEqualTo("proc-99");
+        assertThat(finishedEvent.status()).isEqualTo(AgentProcessStatusCode.FAILED);
     }
 }
