@@ -25,6 +25,7 @@ import com.embabel.agent.core.ProcessOptions;
 import jakarta.annotation.Nullable;
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
+import org.elasticsoftware.akces.agentic.embabel.MemoryDistillationInput;
 import org.elasticsoftware.akces.agentic.embabel.MemoryDistillationResult;
 import org.elasticsoftware.akces.agentic.embabel.MemoryDistillerAgent;
 import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
@@ -549,9 +550,10 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
      * by running the {@link MemoryDistillerAgent} to completion.
      *
      * <p>Creates a separate agent process for the {@link MemoryDistillerAgent}, populates
-     * its blackboard with the completed process's history and blackboard objects, the
-     * current memories, and the maximum number of net new memories allowed, then runs
-     * the process to completion via {@link AgentProcess#run()}.
+     * its blackboard with a single {@link MemoryDistillationInput} containing the completed
+     * process's history, blackboard objects, current memories, and memory capacity constraints.
+     * The Embabel framework injects this input into the agent's action method via type-based
+     * parameter resolution. The process is then run to completion via {@link AgentProcess#run()}.
      *
      * <p>The net memory constraint ensures that
      * {@code storedCount - revokedCount <= maxMemories - currentMemoryCount}, preventing
@@ -575,13 +577,16 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                 ? mas.getMemories()
                 : List.of();
 
+        MemoryDistillationInput distillationInput = new MemoryDistillationInput(
+                task,
+                completedProcess.getHistory(),
+                completedProcess.getBlackboard().getObjects(),
+                currentMemories,
+                maxTotalMemories,
+                maxMemoriesAdded);
+
         Map<String, Object> bindings = new LinkedHashMap<>();
-        bindings.put("agentTask", task);
-        bindings.put("history", completedProcess.getHistory());
-        bindings.put("blackboardObjects", completedProcess.getBlackboard().getObjects());
-        bindings.put("existingMemories", currentMemories);
-        bindings.put("maxTotalMemories", maxTotalMemories);
-        bindings.put("maxMemoriesAdded", maxMemoriesAdded);
+        bindings.put("input", distillationInput);
 
         try {
             AgentProcess distillerProcess = agentPlatform.createAgentProcess(

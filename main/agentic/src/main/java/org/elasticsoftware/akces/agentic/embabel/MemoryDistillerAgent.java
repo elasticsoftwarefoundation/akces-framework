@@ -73,54 +73,31 @@ public class MemoryDistillerAgent {
      * Distills memories from a completed agent process by analyzing the process
      * history and blackboard contents using an LLM.
      *
-     * <p>The method reads the following bindings from the blackboard:
+     * <p>The Embabel framework injects the {@link MemoryDistillationInput} parameter
+     * from the Blackboard via type-based resolution. The input contains:
      * <ul>
-     *   <li>{@code "agentTask"} — the {@link org.elasticsoftware.akces.aggregate.AssignedTask}
+     *   <li>{@code agentTask} — the {@link org.elasticsoftware.akces.aggregate.AssignedTask}
      *       that triggered the completed process</li>
-     *   <li>{@code "history"} — the execution history from the completed process</li>
-     *   <li>{@code "blackboardObjects"} — all objects from the completed process's
-     *       blackboard</li>
-     *   <li>{@code "existingMemories"} — the current list of memories from the aggregate
-     *       state</li>
-     *   <li>{@code "maxTotalMemories"} — the total memory capacity of the aggregate</li>
-     *   <li>{@code "maxMemoriesAdded"} — the per-distillation budget for net new memories</li>
+     *   <li>{@code history} — the execution history from the completed process</li>
+     *   <li>{@code blackboardObjects} — all objects from the completed process's blackboard</li>
+     *   <li>{@code existingMemories} — the current list of memories from the aggregate state</li>
+     *   <li>{@code maxTotalMemories} — the total memory capacity of the aggregate</li>
+     *   <li>{@code maxMemoriesAdded} — the per-distillation budget for net new memories</li>
      * </ul>
      *
-     * @param context the action context providing access to AI capabilities and blackboard
+     * @param input   the strongly-typed distillation input, injected by the Embabel framework
+     * @param context the action context providing access to AI capabilities
      * @return a {@link MemoryDistillationResult} with memories to store and revoke
      */
     @Action(description = "Distill relevant memories from a completed agent process")
     @AchievesGoal(description = "Distill and manage memories from completed agent processes")
-    public MemoryDistillationResult distillMemories(ActionContext context) {
-        var blackboard = context.getProcessContext().getAgentProcess().getBlackboard();
+    public MemoryDistillationResult distillMemories(MemoryDistillationInput input, ActionContext context) {
+        int currentCount = input.existingMemories().size();
+        int capacityLeft = Math.max(0, input.maxTotalMemories() - currentCount);
+        int effectiveLimit = Math.min(capacityLeft, input.maxMemoriesAdded());
 
-        Object agentTaskBinding = blackboard.get("agentTask");
-        Object historyBinding = blackboard.get("history");
-        List<?> history = historyBinding instanceof List<?> historyList
-                ? historyList
-                : List.of();
-        Object blackboardObjectsBinding = blackboard.get("blackboardObjects");
-        List<?> blackboardObjects = blackboardObjectsBinding instanceof List<?> objectList
-                ? objectList
-                : List.of();
-        Object existingMemoriesBinding = blackboard.get("existingMemories");
-        List<?> existingMemories = existingMemoriesBinding instanceof List<?> memoryList
-                ? memoryList
-                : List.of();
-        Object maxTotalMemoriesBinding = blackboard.get("maxTotalMemories");
-        int maxTotalMemories = maxTotalMemoriesBinding instanceof Number number
-                ? number.intValue()
-                : 0;
-        Object maxMemoriesAddedBinding = blackboard.get("maxMemoriesAdded");
-        int maxMemoriesAdded = maxMemoriesAddedBinding instanceof Number number
-                ? number.intValue()
-                : 0;
-
-        int currentCount = existingMemories.size();
-        int capacityLeft = Math.max(0, maxTotalMemories - currentCount);
-        int effectiveLimit = Math.min(capacityLeft, maxMemoriesAdded);
-
-        String prompt = buildPrompt(agentTaskBinding, history, blackboardObjects, existingMemories, effectiveLimit);
+        String prompt = buildPrompt(input.agentTask(), input.history(), input.blackboardObjects(),
+                input.existingMemories(), effectiveLimit);
 
         return context.ai()
                 .withDefaultLlm()

@@ -23,6 +23,7 @@ import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.AgentProcessStatusCode;
 import com.embabel.agent.core.Blackboard;
 import com.embabel.agent.core.ProcessOptions;
+import org.elasticsoftware.akces.agentic.embabel.MemoryDistillationInput;
 import org.elasticsoftware.akces.agentic.embabel.MemoryDistillationResult;
 import org.elasticsoftware.akces.agentic.embabel.MemoryDistillerAgent;
 import org.elasticsoftware.akces.agentic.events.AgentTaskFinishedEvent;
@@ -639,17 +640,15 @@ class MemoryDistillationTest {
                 eq(memoryDistillerAgent), eq(ProcessOptions.DEFAULT), bindingsCaptor.capture());
 
         Map<String, Object> bindings = bindingsCaptor.getValue();
-        assertThat(bindings).containsKey("agentTask");
-        assertThat(bindings).containsKey("history");
-        assertThat(bindings).containsKey("blackboardObjects");
-        assertThat(bindings).containsKey("existingMemories");
-        assertThat(bindings).containsKey("maxTotalMemories");
-        assertThat(bindings).containsKey("maxMemoriesAdded");
+        assertThat(bindings).containsKey("input");
+        assertThat(bindings.get("input")).isInstanceOf(MemoryDistillationInput.class);
 
-        assertThat(bindings.get("agentTask")).isEqualTo(task);
-        assertThat(bindings.get("existingMemories")).isEqualTo(List.of(existingMemory));
-        // maxTotalMemories=100, maxMemoriesAdded=10
-        assertThat(bindings.get("maxTotalMemories")).isEqualTo(100);
-        assertThat(bindings.get("maxMemoriesAdded")).isEqualTo(10);
+        MemoryDistillationInput input = (MemoryDistillationInput) bindings.get("input");
+        assertThat(input.agentTask()).isEqualTo(task);
+        assertThat(input.history()).isEqualTo(List.of());
+        assertThat(input.blackboardObjects()).isEqualTo(List.of("some-object"));
+        assertThat(input.existingMemories()).isEqualTo(List.of(existingMemory));
+        assertThat(input.maxTotalMemories()).isEqualTo(100);
+        assertThat(input.maxMemoriesAdded()).isEqualTo(10);
     }
 }
