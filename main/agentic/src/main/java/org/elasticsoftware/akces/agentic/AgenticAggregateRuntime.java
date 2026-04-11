@@ -26,11 +26,16 @@ import org.elasticsoftware.akces.aggregate.AgenticAggregateMemory;
 import org.elasticsoftware.akces.aggregate.AggregateRuntime;
 import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
+import org.elasticsoftware.akces.aggregate.IndexParams;
 import org.elasticsoftware.akces.aggregate.MemoryAwareState;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
+import org.elasticsoftware.akces.protocol.DomainEventRecord;
+import org.elasticsoftware.akces.protocol.ProtocolRecord;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Extended runtime interface for {@link org.elasticsoftware.akces.aggregate.AgenticAggregate}s.
@@ -104,7 +109,7 @@ public interface AgenticAggregateRuntime extends AggregateRuntime {
      * @param domainEventIndexer     indexer callback for optional secondary indexing
      * @throws IOException if serialisation fails
      */
-    void initializeState(java.util.function.Consumer<org.elasticsoftware.akces.protocol.ProtocolRecord> protocolRecordConsumer,
-                         java.util.function.BiConsumer<org.elasticsoftware.akces.protocol.DomainEventRecord, org.elasticsoftware.akces.aggregate.IndexParams> domainEventIndexer)
+    void initializeState(Consumer<ProtocolRecord> protocolRecordConsumer,
+                         BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer)
             throws IOException;
 }
