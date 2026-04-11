@@ -81,17 +81,17 @@ class AgenticAggregateInfoTest {
     }
 
     @Test
-    void defaultMaxMemoriesShouldBe100() {
+    void defaultMaxMemoriesShouldBe50() {
         AgenticAggregateInfo info = DefaultAgenticAggregate.class.getAnnotation(AgenticAggregateInfo.class);
         assertThat(info).isNotNull();
-        assertThat(info.maxTotalMemories()).isEqualTo(100);
+        assertThat(info.maxTotalMemories()).isEqualTo(50);
     }
 
     @Test
-    void defaultMaxMemoriesAddedShouldBe10() {
+    void defaultMaxMemoriesAddedShouldBe5() {
         AgenticAggregateInfo info = DefaultAgenticAggregate.class.getAnnotation(AgenticAggregateInfo.class);
         assertThat(info).isNotNull();
-        assertThat(info.maxMemoriesAdded()).isEqualTo(10);
+        assertThat(info.maxMemoriesAdded()).isEqualTo(5);
     }
 
     @Test

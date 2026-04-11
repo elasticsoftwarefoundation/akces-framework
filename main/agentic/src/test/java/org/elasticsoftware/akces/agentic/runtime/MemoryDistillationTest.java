@@ -639,12 +639,14 @@ class MemoryDistillationTest {
                 eq(memoryDistillerAgent), eq(ProcessOptions.DEFAULT), bindingsCaptor.capture());
 
         Map<String, Object> bindings = bindingsCaptor.getValue();
+        assertThat(bindings).containsKey("agentTask");
         assertThat(bindings).containsKey("history");
         assertThat(bindings).containsKey("blackboardObjects");
         assertThat(bindings).containsKey("existingMemories");
         assertThat(bindings).containsKey("maxTotalMemories");
         assertThat(bindings).containsKey("maxMemoriesAdded");
 
+        assertThat(bindings.get("agentTask")).isEqualTo(task);
         assertThat(bindings.get("existingMemories")).isEqualTo(List.of(existingMemory));
         // maxTotalMemories=100, maxMemoriesAdded=10
         assertThat(bindings.get("maxTotalMemories")).isEqualTo(100);

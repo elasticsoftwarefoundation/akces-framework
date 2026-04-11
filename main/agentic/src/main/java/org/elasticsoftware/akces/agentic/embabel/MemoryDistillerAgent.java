@@ -75,6 +75,8 @@ public class MemoryDistillerAgent {
      *
      * <p>The method reads the following bindings from the blackboard:
      * <ul>
+     *   <li>{@code "agentTask"} — the {@link org.elasticsoftware.akces.aggregate.AssignedTask}
+     *       that triggered the completed process</li>
      *   <li>{@code "history"} — the execution history from the completed process</li>
      *   <li>{@code "blackboardObjects"} — all objects from the completed process's
      *       blackboard</li>
@@ -92,6 +94,7 @@ public class MemoryDistillerAgent {
     public MemoryDistillationResult distillMemories(ActionContext context) {
         var blackboard = context.getProcessContext().getAgentProcess().getBlackboard();
 
+        Object agentTaskBinding = blackboard.get("agentTask");
         Object historyBinding = blackboard.get("history");
         List<?> history = historyBinding instanceof List<?> historyList
                 ? historyList
@@ -117,14 +120,15 @@ public class MemoryDistillerAgent {
         int capacityLeft = Math.max(0, maxTotalMemories - currentCount);
         int effectiveLimit = Math.min(capacityLeft, maxMemoriesAdded);
 
-        String prompt = buildPrompt(history, blackboardObjects, existingMemories, effectiveLimit);
+        String prompt = buildPrompt(agentTaskBinding, history, blackboardObjects, existingMemories, effectiveLimit);
 
         return context.ai()
                 .withDefaultLlm()
                 .createObject(prompt, MemoryDistillationResult.class);
     }
 
-    private String buildPrompt(List<?> history,
+    private String buildPrompt(Object agentTask,
+                                List<?> history,
                                 List<?> blackboardObjects,
                                 List<?> existingMemories,
                                 int maxNewMemories) {
@@ -149,7 +153,15 @@ public class MemoryDistillerAgent {
 
                 """);
 
-        sb.append("PROCESS HISTORY (actions executed):\n```json\n");
+        sb.append("AGENT TASK:\n```json\n");
+        if (agentTask != null) {
+            sb.append(serialize(agentTask)).append("\n");
+        } else {
+            sb.append("null\n");
+        }
+        sb.append("```\n");
+
+        sb.append("\nPROCESS HISTORY (actions executed):\n```json\n");
         if (history != null && !history.isEmpty()) {
             sb.append("[\n");
             for (int i = 0; i < history.size(); i++) {

@@ -530,7 +530,7 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
 
             // Distill memories from successfully completed processes
             if (statusCode == AgentProcessStatusCode.COMPLETED) {
-                List<DomainEvent> memoryEvents = distillMemories(agentProcess, state);
+                List<DomainEvent> memoryEvents = distillMemories(agentProcess, state, task);
                 if (!memoryEvents.isEmpty()) {
                     tickEvents = Stream.concat(tickEvents, memoryEvents.stream());
                 }
@@ -559,10 +559,12 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
      *
      * @param completedProcess the agent process that has completed successfully
      * @param state            the current aggregate state
+     * @param task             the assigned task that triggered the agent process
      * @return a list of {@link MemoryStoredEvent} and {@link MemoryRevokedEvent} instances;
      *         may be empty if no memories need to be changed
      */
-    private List<DomainEvent> distillMemories(AgentProcess completedProcess, AggregateState state) {
+    private List<DomainEvent> distillMemories(AgentProcess completedProcess, AggregateState state,
+                                               AssignedTask task) {
         Agent memoryDistillerAgent = resolveMemoryDistillerAgent();
         if (memoryDistillerAgent == null) {
             logger.warn("MemoryDistillerAgent not deployed on the platform; skipping memory distillation");
@@ -574,6 +576,7 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                 : List.of();
 
         Map<String, Object> bindings = new LinkedHashMap<>();
+        bindings.put("agentTask", task);
         bindings.put("history", completedProcess.getHistory());
         bindings.put("blackboardObjects", completedProcess.getBlackboard().getObjects());
         bindings.put("existingMemories", currentMemories);
