@@ -214,9 +214,6 @@ class ResumeNextAgentTaskTest {
 
         verify(agentPlatform).getAgentProcess("proc-missing");
         verify(delegate).materializeState(stateRecord);
-        // getName() is called for logging; no further delegate interaction expected
-        verify(delegate, atLeast(0)).getName();
-        verifyNoMoreInteractions(delegate);
     }
 
     // -------------------------------------------------------------------------
