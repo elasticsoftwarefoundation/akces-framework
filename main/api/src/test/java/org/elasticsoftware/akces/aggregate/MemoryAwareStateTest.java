@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces.aggregate;
 
+import org.elasticsoftware.akces.events.DomainEvent;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -78,6 +79,16 @@ class MemoryAwareStateTest {
         public Class<TestMemoryState> getStateClass() {
             return TestMemoryState.class;
         }
+
+        @Override
+        public DomainEvent getCreateDomainEvent() {
+            return new DomainEvent() {
+                @Override
+                public String getAggregateId() {
+                    return getName();
+                }
+            };
+        }
     }
 
     /** Test AgenticAggregate that uses a plain (non-MemoryAwareState) state. */
@@ -85,6 +96,16 @@ class MemoryAwareStateTest {
         @Override
         public Class<PlainState> getStateClass() {
             return PlainState.class;
+        }
+
+        @Override
+        public DomainEvent getCreateDomainEvent() {
+            return new DomainEvent() {
+                @Override
+                public String getAggregateId() {
+                    return getName();
+                }
+            };
         }
     }
 

@@ -20,6 +20,8 @@ package org.elasticsoftware.akces.agentic.runtime;
 import com.embabel.agent.core.AgentPlatform;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
 import org.elasticsoftware.akces.aggregate.*;
+import org.elasticsoftware.akces.events.DomainEvent;
+import org.elasticsoftware.akces.kafka.KafkaAggregateRuntime;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.PayloadEncoding;
 import org.junit.jupiter.api.BeforeEach;
@@ -92,10 +94,13 @@ class KafkaAgenticAggregateRuntimeTest {
     }
 
     @Mock
-    private AggregateRuntime delegate;
+    private KafkaAggregateRuntime delegate;
 
     @Mock
     private AgentPlatform agentPlatform;
+
+    @Mock
+    private AgenticAggregate<?> aggregate;
 
     private ObjectMapper objectMapper;
     private KafkaAgenticAggregateRuntime runtime;
@@ -103,7 +108,7 @@ class KafkaAgenticAggregateRuntimeTest {
     @BeforeEach
     void setUp() {
         objectMapper = JsonMapper.builder().build();
-        runtime = new KafkaAgenticAggregateRuntime(delegate, agentPlatform);
+        runtime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, TestMemoryState.class, agentPlatform, aggregate);
     }
 
     // -------------------------------------------------------------------------
@@ -140,6 +145,7 @@ class KafkaAgenticAggregateRuntimeTest {
 
     @Test
     void getMemoriesShouldReturnEmptyListForNonMemoryAwareState() throws IOException {
+        var plainRuntime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, PlainState.class, agentPlatform, aggregate);
         var state = new PlainState("agg-1");
 
         byte[] payload = objectMapper.writeValueAsBytes(state);
@@ -229,7 +235,7 @@ class KafkaAgenticAggregateRuntimeTest {
     void constructorShouldRejectNullDelegate() {
         assertThatNullPointerException()
                 .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
-                        null, agentPlatform))
+                        null, objectMapper, TestMemoryState.class, agentPlatform, aggregate))
                 .withMessageContaining("delegate");
     }
 
@@ -238,7 +244,37 @@ class KafkaAgenticAggregateRuntimeTest {
         assertThatNullPointerException()
                 .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
                         delegate, null))
+    
+    @Test      
+    void constructorShouldRejectNullObjectMapper() {
+        assertThatNullPointerException()
+                .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
+                        delegate, null, TestMemoryState.class, agentPlatform, aggregate))
+                .withMessageContaining("objectMapper");
+    }
+
+    @Test
+    void constructorShouldRejectNullStateClass() {
+        assertThatNullPointerException()
+                .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
+                        delegate, objectMapper, null, agentPlatform, aggregate))
+                .withMessageContaining("stateClass");
+    }
+
+    @Test
+    void constructorShouldRejectNullAgentPlatform() {
+        assertThatNullPointerException()
+                .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
+                        delegate, objectMapper, TestMemoryState.class, null, aggregate))
                 .withMessageContaining("agentPlatform");
+    }
+
+    @Test
+    void constructorShouldRejectNullAggregate() {
+        assertThatNullPointerException()
+                .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
+                        delegate, objectMapper, TestMemoryState.class, agentPlatform, null))
+                .withMessageContaining("aggregate");
     }
 
     // -------------------------------------------------------------------------

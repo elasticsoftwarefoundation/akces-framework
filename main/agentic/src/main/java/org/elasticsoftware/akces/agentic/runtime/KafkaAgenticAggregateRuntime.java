@@ -29,6 +29,7 @@ import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.commands.CommandBus;
+import org.elasticsoftware.akces.kafka.KafkaAggregateRuntime;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.CommandRecord;
 import org.elasticsoftware.akces.protocol.DomainEventRecord;
@@ -51,8 +52,9 @@ import java.util.stream.Stream;
 /**
  * Kafka-backed implementation of {@link AgenticAggregateRuntime}.
  *
- * <p>Wraps a {@link AggregateRuntime} delegate (typically a {@code KafkaAggregateRuntime}) and
- * adds the memory-aware {@link #getMemories(AggregateStateRecord)} method. All other
+ * <p>Wraps a {@link KafkaAggregateRuntime} delegate and adds the memory-aware
+ * {@link #getMemories(AggregateStateRecord)} method as well as the auto-create
+ * {@link #initializeState(Consumer, BiConsumer)} method. All other
  * {@link AggregateRuntime} operations are forwarded to the delegate.
  */
 public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
@@ -60,8 +62,11 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     private static final Logger logger =
             LoggerFactory.getLogger(KafkaAgenticAggregateRuntime.class);
 
-    private final AggregateRuntime delegate;
+    private final KafkaAggregateRuntime delegate;
+    private final ObjectMapper objectMapper;
+    private final Class<? extends AggregateState> stateClass;
     private final AgentPlatform agentPlatform;
+    private final AgenticAggregate<?> aggregate;
 
     /** Round-robin counter for selecting the next agent task to resume. */
     private final AtomicInteger nextTaskIndex = new AtomicInteger(0);
@@ -72,11 +77,18 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
      * @param delegate      the underlying aggregate runtime to delegate to
      * @param agentPlatform the Embabel {@link AgentPlatform} used for AI-assisted processing;
      *                      must not be {@code null}
+     * @param aggregate     the agentic aggregate instance whose
+     *                      {@link AgenticAggregate#getCreateDomainEvent()} method provides the
+     *                      auto-create event
      */
-    public KafkaAgenticAggregateRuntime(AggregateRuntime delegate,
-                                        AgentPlatform agentPlatform) {
+    public KafkaAgenticAggregateRuntime(KafkaAggregateRuntime delegate,
+                                        ObjectMapper objectMapper,
+                                        Class<? extends AggregateState> stateClass,
+                                        AgentPlatform agentPlatform,
+                                        AgenticAggregate<?> aggregate) {
         this.delegate = Objects.requireNonNull(delegate, "delegate must not be null");
         this.agentPlatform = Objects.requireNonNull(agentPlatform, "agentPlatform must not be null");
+        this.aggregate = Objects.requireNonNull(aggregate, "aggregate must not be null");
     }
 
     // -------------------------------------------------------------------------
@@ -109,6 +121,26 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
             return mas.getMemories();
         }
         return List.of();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Calls {@link AgenticAggregate#getCreateDomainEvent()} on the aggregate instance and
+     * delegates to the underlying {@link KafkaAggregateRuntime#handleAutoCreateDomainEvent}
+     * to apply the event-sourcing create handler and produce the initial state and event
+     * records.
+     */
+    @Override
+    public void initializeState(Consumer<ProtocolRecord> protocolRecordConsumer,
+                                BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer)
+            throws IOException {
+        DomainEvent createEvent = aggregate.getCreateDomainEvent();
+        Objects.requireNonNull(createEvent,
+                "AgenticAggregate.getCreateDomainEvent() must not return null");
+        logger.info("Auto-creating initial state for {}Aggregate using {}",
+                getName(), createEvent.getClass().getSimpleName());
+        delegate.handleAutoCreateDomainEvent(createEvent, protocolRecordConsumer, domainEventIndexer);
     }
 
     // -------------------------------------------------------------------------

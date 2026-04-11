@@ -64,6 +64,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsoftware.akces.kafka.AggregatePartitionState.INITIALIZING;
+import static org.elasticsoftware.akces.kafka.AggregatePartitionState.INITIALIZING_STATE;
 import static org.elasticsoftware.akces.kafka.AggregatePartitionState.LOADING_STATE;
 import static org.elasticsoftware.akces.kafka.AggregatePartitionState.PROCESSING;
 import static org.elasticsoftware.akces.kafka.AggregatePartitionState.SHUTTING_DOWN;
@@ -287,10 +288,11 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
                 }
                 Map<TopicPartition, Long> endOffsets = consumer.endOffsets(List.of(statePartition));
                 if (endOffsets.getOrDefault(statePartition, 0L) == 0L) {
-                    // No existing state — start processing immediately
-                    logger.info("No existing state for {}Aggregate AgenticPartition, starting PROCESSING",
-                            runtime.getName());
-                    processState = PROCESSING;
+                    // No existing state — transition to INITIALIZING_STATE to auto-create
+                    // the singleton aggregate state in the next poll cycle.
+                    logger.info("No existing state for {}Aggregate AgenticPartition, " +
+                            "switching to INITIALIZING_STATE", runtime.getName());
+                    processState = INITIALIZING_STATE;
                 } else {
                     // Pause command/event/external topics while loading state
                     List<TopicPartition> toPause = new ArrayList<>(
@@ -298,6 +300,28 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
                     toPause.addAll(externalEventPartitions);
                     consumer.pause(toPause);
                     processState = LOADING_STATE;
+                }
+            } else if (processState == INITIALIZING_STATE) {
+                logger.info("Auto-creating initial state for {}Aggregate AgenticPartition",
+                        runtime.getName());
+                try {
+                    producer.beginTransaction();
+                    runtime.initializeState(this::send, this::index);
+                    producer.commitTransaction();
+                    stateRepository.commit();
+                    processState = PROCESSING;
+                    logger.info("Successfully auto-created initial state for {}Aggregate, " +
+                            "switching to PROCESSING", runtime.getName());
+                } catch (Exception e) {
+                    logger.error("Failed to auto-create initial state for {}Aggregate — " +
+                            "shutting down", runtime.getName(), e);
+                    try {
+                        producer.abortTransaction();
+                    } catch (KafkaException ae) {
+                        logger.error("Failed to abort transaction", ae);
+                    }
+                    stateRepository.rollback();
+                    processState = SHUTTING_DOWN;
                 }
             }
         } catch (WakeupException | InterruptException ignore) {
