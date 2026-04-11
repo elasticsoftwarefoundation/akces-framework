@@ -403,8 +403,9 @@ public class RuntimeTests {
         String userId = "086fe270-f848-4b37-9858-f5311280a32e";
         CreateWalletCommand command = new CreateWalletCommand(userId, "USD");
         CommandRecord commandRecord = new CommandRecord(null, "CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null, null);
-        String topicName = walletAggregateController.resolveTopic(command.getClass());
-        int partition = walletAggregateController.resolvePartition(command.getAggregateId());
+        var commandType = walletAggregateController.resolveType(command.getClass());
+        String topicName = walletAggregateController.resolveTopic(commandType, command);
+        int partition = walletAggregateController.resolvePartition(commandType, command);
         // produce a command to create a Wallet
         testProducer.beginTransaction();
         testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));
@@ -503,8 +504,9 @@ public class RuntimeTests {
             for (String userId : userIds) {
                 CreateWalletCommand command = new CreateWalletCommand(userId, "USD");
                 CommandRecord commandRecord = new CommandRecord(null, "CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null, null);
-                String topicName = walletAggregateController.resolveTopic(command.getClass());
-                int partition = walletAggregateController.resolvePartition(command.getAggregateId());
+                var commandType = walletAggregateController.resolveType(command.getClass());
+                String topicName = walletAggregateController.resolveTopic(commandType, command);
+                int partition = walletAggregateController.resolvePartition(commandType, command);
                 // produce a command to create a Wallet
                 testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));
             }
@@ -571,8 +573,9 @@ public class RuntimeTests {
                     command.getAggregateId(),
                     null,
                     null);
-            String topicName = walletAggregateController.resolveTopic(command.getClass());
-            int partition = walletAggregateController.resolvePartition(command.getAggregateId());
+            var commandType = walletAggregateController.resolveType(command.getClass());
+            String topicName = walletAggregateController.resolveTopic(commandType, command);
+            int partition = walletAggregateController.resolvePartition(commandType, command);
             // produce a command to create an Account
             testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));
             testProducer.commitTransaction();
@@ -637,8 +640,9 @@ public class RuntimeTests {
                     command.getAggregateId(),
                     null,
                     null);
-            String topicName = walletAggregateController.resolveTopic(command.getClass());
-            int partition = walletAggregateController.resolvePartition(command.getAggregateId());
+            var commandType = walletAggregateController.resolveType(command.getClass());
+            String topicName = walletAggregateController.resolveTopic(commandType, command);
+            int partition = walletAggregateController.resolvePartition(commandType, command);
             // produce a command to create an Account
             testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));
             testProducer.commitTransaction();
@@ -707,8 +711,9 @@ public class RuntimeTests {
                     command.getAggregateId(),
                     null,
                     null);
-            String topicName = walletAggregateController.resolveTopic(command.getClass());
-            int partition = walletAggregateController.resolvePartition(command.getAggregateId());
+            var commandType = walletAggregateController.resolveType(command.getClass());
+            String topicName = walletAggregateController.resolveTopic(commandType, command);
+            int partition = walletAggregateController.resolvePartition(commandType, command);
             // produce a command to create an Account
             testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));
             testProducer.commitTransaction();
@@ -761,8 +766,9 @@ public class RuntimeTests {
         ) {
             CreateWalletCommand command = new CreateWalletCommand(userId, "USD");
             CommandRecord commandRecord = new CommandRecord(null, "CreateWallet", 1, objectMapper.writeValueAsBytes(command), PayloadEncoding.JSON, command.getAggregateId(), null, null);
-            String topicName = walletAggregateController.resolveTopic(command.getClass());
-            int partition = walletAggregateController.resolvePartition(command.getAggregateId());
+            var commandType = walletAggregateController.resolveType(command.getClass());
+            String topicName = walletAggregateController.resolveTopic(commandType, command);
+            int partition = walletAggregateController.resolvePartition(commandType, command);
             // produce a command to create a Wallet
             testProducer.beginTransaction();
             testProducer.send(new ProducerRecord<>(topicName, partition, commandRecord.aggregateId(), commandRecord));

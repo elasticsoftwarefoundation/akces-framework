@@ -35,6 +35,7 @@ import org.elasticsoftware.akces.commands.Command;
 import org.elasticsoftware.akces.control.AggregateServiceCommandType;
 import org.elasticsoftware.akces.control.AggregateServiceDomainEventType;
 import org.elasticsoftware.akces.control.AggregateServiceRecord;
+import org.elasticsoftware.akces.control.AggregateServiceType;
 import org.elasticsoftware.akces.control.AkcesControlRecord;
 import org.elasticsoftware.akces.control.AkcesRegistry;
 import org.elasticsoftware.akces.gdpr.GDPRContextRepositoryFactory;
@@ -357,7 +358,10 @@ public class AkcesReflectorController extends Thread
         List<AggregateServiceRecord> services = aggregateServices.values().stream()
                 .filter(record -> supportsCommand(record.supportedCommands(), commandInfo))
                 .toList();
-        if (services.size() == 1) {
+        if (services.size() >= 1) {
+            // One or more services support this command; return as external.
+            // When multiple services match (e.g. agentic built-in commands), the caller
+            // must use resolveTopic(CommandType, Command) to route by aggregateId.
             return new CommandType<>(
                     commandInfo.type(),
                     commandInfo.version(),
@@ -371,34 +375,44 @@ public class AkcesReflectorController extends Thread
         }
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>When multiple services advertise the same command type (typically built-in agentic
+     * commands), the command's {@link Command#getAggregateId() aggregateId} is matched
+     * against the {@link AggregateServiceRecord#aggregateName()} of
+     * {@link AggregateServiceType#AGENTIC AGENTIC} services to select the correct target.
+     */
     @Override
     @Nonnull
-    public String resolveTopic(@Nonnull Class<? extends Command> commandClass) {
-        return resolveTopic(resolveType(commandClass));
-    }
-
-    @Override
-    @Nonnull
-    public String resolveTopic(@Nonnull CommandType<?> commandType) {
+    public String resolveTopic(@Nonnull CommandType<?> commandType, @Nonnull Command command) {
         List<AggregateServiceRecord> services = aggregateServices.values().stream()
-                .filter(record -> supportsCommand(record.supportedCommands(), commandType))
+                .filter(s -> supportsCommand(s.supportedCommands(), commandType))
                 .toList();
         if (services.size() == 1) {
             return services.getFirst().commandTopic();
+        } else if (services.size() > 1) {
+            AggregateServiceRecord target = AggregateServiceRecord.resolveAgenticTarget(services, command.getAggregateId());
+            if (target != null) {
+                return target.commandTopic();
+            }
+            throw new IllegalStateException("Cannot determine where to send command "
+                    + commandType.typeName() + " v" + commandType.version()
+                    + " for aggregateId " + command.getAggregateId());
         } else {
-            throw new IllegalStateException(
-                    "Cannot determine where to send command " + commandType.typeName() + " v" + commandType.version());
+            throw new IllegalStateException("Cannot determine where to send command "
+                    + commandType.typeName() + " v" + commandType.version());
         }
     }
 
     @Override
     @Nonnull
-    public String resolveTopic(@Nonnull DomainEventType<?> externalDomainEventType) {
+    public List<String> resolveTopics(@Nonnull DomainEventType<?> externalDomainEventType) {
         List<AggregateServiceRecord> services = aggregateServices.values().stream()
                 .filter(record -> producesDomainEvent(record.producedEvents(), externalDomainEventType))
                 .toList();
-        if (services.size() == 1) {
-            return services.getFirst().domainEventTopic();
+        if (!services.isEmpty()) {
+            return services.stream().map(AggregateServiceRecord::domainEventTopic).toList();
         } else {
             throw new IllegalStateException(
                     "Cannot determine which service produces DomainEvent "
@@ -406,9 +420,31 @@ public class AkcesReflectorController extends Thread
         }
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>For {@link AggregateServiceType#AGENTIC AGENTIC} services (which are always
+     * single-partition), this method returns {@code 0}. For
+     * {@link AggregateServiceType#STANDARD STANDARD} services the partition is determined
+     * by hashing the aggregate identifier.
+     */
     @Override
     @Nonnull
-    public Integer resolvePartition(@Nonnull String aggregateId) {
+    public Integer resolvePartition(@Nonnull CommandType<?> commandType, @Nonnull Command command) {
+        String aggregateId = command.getAggregateId();
+        List<AggregateServiceRecord> services = aggregateServices.values().stream()
+                .filter(s -> supportsCommand(s.supportedCommands(), commandType))
+                .toList();
+        if (services.size() == 1) {
+            if (services.getFirst().effectiveType() == AggregateServiceType.AGENTIC) {
+                return 0;
+            }
+        } else if (services.size() > 1) {
+            AggregateServiceRecord target = AggregateServiceRecord.resolveAgenticTarget(services, aggregateId);
+            if (target != null && target.effectiveType() == AggregateServiceType.AGENTIC) {
+                return 0;
+            }
+        }
         return Math.abs(hashFunction.hashString(aggregateId, UTF_8).asInt()) % partitions;
     }
 

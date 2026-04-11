@@ -552,27 +552,35 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
     public CommandType<?> resolveType(@Nonnull Class<? extends Command> commandClass) {
         CommandInfo commandInfo = commandClass.getAnnotation(CommandInfo.class);
         if (commandInfo != null) {
+            // Check if this is a local command first
+            if (aggregateRuntime.getLocalCommandTypes().stream().anyMatch(
+                    commandType -> commandType.typeName().equals(commandInfo.type())
+                            && commandType.version() == commandInfo.version())) {
+                return aggregateRuntime.getLocalCommandType(commandInfo.type(), commandInfo.version());
+            }
             List<AggregateServiceRecord> services = aggregateServices.values().stream()
                     .filter(commandServiceRecord -> supportsCommand(commandServiceRecord.supportedCommands(), commandInfo))
                     .toList();
             if (services.size() == 1) {
-                AggregateServiceRecord aggregateServiceRecord = services.getFirst();
-                if (aggregateRuntime.getName().equals(aggregateServiceRecord.aggregateName())) {
-                    // this is a local command (will be sent to self)
-                    return aggregateRuntime.getLocalCommandType(commandInfo.type(), commandInfo.version());
-                } else {
-                    return new CommandType<>(commandInfo.type(),
-                            commandInfo.version(),
-                            commandClass,
-                            false,
-                            true,
-                            hasPIIDataAnnotation(commandClass));
-                }
-            } else if(aggregateRuntime.getLocalCommandTypes().stream().anyMatch(commandType -> commandType.typeName().equals(commandInfo.type()) && commandType.version() == commandInfo.version())) {
-                // return the local command type
-                return aggregateRuntime.getLocalCommandType(commandInfo.type(), commandInfo.version());
+                return new CommandType<>(commandInfo.type(),
+                        commandInfo.version(),
+                        commandClass,
+                        false,
+                        true,
+                        hasPIIDataAnnotation(commandClass));
+            } else if (services.size() > 1) {
+                // Multiple services support the same command type (e.g. built-in agentic
+                // commands like AssignTask shared by all agentic aggregates). Return an
+                // external command type; the caller must use
+                // resolveTopic(CommandType, String) and resolvePartition(CommandType, String)
+                // to route the command to the correct service based on aggregateId.
+                return new CommandType<>(commandInfo.type(),
+                        commandInfo.version(),
+                        commandClass,
+                        false,
+                        true,
+                        hasPIIDataAnnotation(commandClass));
             } else {
-                // TODO: throw exception, we cannot determine where to send the command
                 throw new IllegalStateException("Cannot determine where to send command " + commandClass.getName());
             }
 
@@ -611,40 +619,74 @@ public class AkcesAggregateController extends Thread implements AutoCloseable, C
         return false;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>When multiple services advertise the same command type (typically built-in agentic
+     * commands), the command's {@link Command#getAggregateId() aggregateId} is matched
+     * against the {@link AggregateServiceRecord#aggregateName()} of
+     * {@link AggregateServiceType#AGENTIC AGENTIC} services to select the correct target.
+     */
     @Override
     @Nonnull
-    public String resolveTopic(@Nonnull Class<? extends Command> commandClass) {
-        return resolveTopic(resolveType(commandClass));
-    }
-
-    @Override
-    @Nonnull
-    public String resolveTopic(@Nonnull CommandType<?> commandType) {
+    public String resolveTopic(@Nonnull CommandType<?> commandType, @Nonnull Command command) {
         List<AggregateServiceRecord> services = aggregateServices.values().stream()
-                .filter(commandServiceRecord -> supportsCommand(commandServiceRecord.supportedCommands(), commandType))
+                .filter(s -> supportsCommand(s.supportedCommands(), commandType))
                 .toList();
         if (services.size() == 1) {
             return services.getFirst().commandTopic();
+        } else if (services.size() > 1) {
+            AggregateServiceRecord target = AggregateServiceRecord.resolveAgenticTarget(services, command.getAggregateId());
+            if (target != null) {
+                return target.commandTopic();
+            }
+            throw new IllegalStateException("Cannot determine where to send command "
+                    + commandType.typeName() + " v" + commandType.version()
+                    + " for aggregateId " + command.getAggregateId());
         } else {
             throw new IllegalStateException("Cannot determine where to send command " + commandType.typeName() + " v" + commandType.version());
         }
     }
 
     @Override
-    public String resolveTopic(@Nonnull DomainEventType<?> externalDomainEventType) {
+    public List<String> resolveTopics(@Nonnull DomainEventType<?> externalDomainEventType) {
         List<AggregateServiceRecord> services = aggregateServices.values().stream()
                 .filter(commandServiceRecord -> producesDomainEvent(commandServiceRecord.producedEvents(), externalDomainEventType))
                 .toList();
-        if (services.size() == 1) {
-            return services.getFirst().domainEventTopic();
+        if (!services.isEmpty()) {
+            return services.stream().map(AggregateServiceRecord::domainEventTopic).toList();
         } else {
             throw new IllegalStateException("Cannot determine which service produces DomainEvent " + externalDomainEventType.typeName() + " v" + externalDomainEventType.version());
         }
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>For {@link AggregateServiceType#AGENTIC AGENTIC} services (which are always
+     * single-partition), this method returns {@code 0}. For
+     * {@link AggregateServiceType#STANDARD STANDARD} services the partition is determined
+     * by hashing the aggregate identifier.
+     */
     @Override
     @Nonnull
-    public Integer resolvePartition(@Nonnull String aggregateId) {
+    public Integer resolvePartition(@Nonnull CommandType<?> commandType, @Nonnull Command command) {
+        String aggregateId = command.getAggregateId();
+        // Check whether the target service is AGENTIC; if so, always route to partition 0.
+        List<AggregateServiceRecord> services = aggregateServices.values().stream()
+                .filter(s -> supportsCommand(s.supportedCommands(), commandType))
+                .toList();
+        if (services.size() == 1) {
+            if (services.getFirst().effectiveType() == AggregateServiceType.AGENTIC) {
+                return 0;
+            }
+        } else if (services.size() > 1) {
+            AggregateServiceRecord target = AggregateServiceRecord.resolveAgenticTarget(services, aggregateId);
+            if (target != null && target.effectiveType() == AggregateServiceType.AGENTIC) {
+                return 0;
+            }
+        }
+        // Default: hash-based partitioning for STANDARD services
         return Math.abs(hashFunction.hashString(aggregateId, UTF_8).asInt()) % partitions;
     }
 
