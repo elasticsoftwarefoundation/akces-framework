@@ -240,7 +240,7 @@ class AgenticAggregateAutoCreateTest {
         ObjectMapper objectMapper = JsonMapper.builder().build();
 
         KafkaAgenticAggregateRuntime runtime = new KafkaAgenticAggregateRuntime(
-                delegate, objectMapper, TestBotState.class, agentPlatform, testBot);
+                delegate, objectMapper, TestBotState.class, agentPlatform, testBot, 100, 10);
 
         when(delegate.getName()).thenReturn("TestBot");
 
@@ -275,7 +275,7 @@ class AgenticAggregateAutoCreateTest {
 
         ObjectMapper objectMapper = JsonMapper.builder().build();
         KafkaAgenticAggregateRuntime runtime = new KafkaAgenticAggregateRuntime(
-                delegate, objectMapper, TestBotState.class, agentPlatform, nullReturningAggregate);
+                delegate, objectMapper, TestBotState.class, agentPlatform, nullReturningAggregate, 100, 10);
 
         assertThatNullPointerException()
                 .isThrownBy(() -> runtime.initializeState(pr -> {}, (der, ip) -> {}))
@@ -289,7 +289,7 @@ class AgenticAggregateAutoCreateTest {
         ObjectMapper objectMapper = JsonMapper.builder().build();
 
         KafkaAgenticAggregateRuntime runtime = new KafkaAgenticAggregateRuntime(
-                delegate, objectMapper, TestBotState.class, agentPlatform, testBot);
+                delegate, objectMapper, TestBotState.class, agentPlatform, testBot, 100, 10);
 
         when(delegate.getName()).thenReturn("TestBot");
 

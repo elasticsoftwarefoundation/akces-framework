@@ -1000,7 +1000,7 @@ import org.elasticsoftware.akces.events.DomainEvent;
         value = "Assistant",
         stateClass = AssistantState.class,
         description = "AI Assistant AgenticAggregate",
-        maxMemories = 50)
+        maxTotalMemories = 50)
 @SuppressWarnings("unused")
 public final class Assistant implements AgenticAggregate<AssistantState> {
     @Override

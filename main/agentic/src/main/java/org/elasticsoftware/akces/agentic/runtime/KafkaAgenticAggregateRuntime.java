@@ -17,12 +17,17 @@
 
 package org.elasticsoftware.akces.agentic.runtime;
 
+import com.embabel.agent.core.Agent;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.AgentProcessStatusCode;
+import com.embabel.agent.core.ProcessOptions;
 import jakarta.annotation.Nullable;
 import org.apache.kafka.common.errors.SerializationException;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
+import org.elasticsoftware.akces.agentic.embabel.MemoryDistillationInput;
+import org.elasticsoftware.akces.agentic.embabel.MemoryDistillationResult;
+import org.elasticsoftware.akces.agentic.embabel.MemoryDistillerAgent;
 import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
 import org.elasticsoftware.akces.agentic.events.AgentTaskFinishedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
@@ -44,9 +49,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -71,6 +74,8 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     private final Class<? extends AggregateState> stateClass;
     private final AgentPlatform agentPlatform;
     private final AgenticAggregate<?> aggregate;
+    private final int maxTotalMemories;
+    private final int maxMemoriesAdded;
 
     /** Round-robin counter for selecting the next agent task to resume. */
     private final AtomicInteger nextTaskIndex = new AtomicInteger(0);
@@ -78,25 +83,37 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     /**
      * Creates a new {@code KafkaAgenticAggregateRuntime}.
      *
-     * @param delegate      the underlying aggregate runtime to delegate to
-     * @param objectMapper  the Jackson {@link ObjectMapper} used for JSON serialization
-     * @param stateClass    the aggregate state class
-     * @param agentPlatform the Embabel {@link AgentPlatform} used for AI-assisted processing;
-     *                      must not be {@code null}
-     * @param aggregate     the agentic aggregate instance whose
-     *                      {@link AgenticAggregate#getCreateDomainEvent()} method provides the
-     *                      auto-create event
+     * @param delegate         the underlying aggregate runtime to delegate to
+     * @param objectMapper     the Jackson {@link ObjectMapper} used for JSON serialization
+     * @param stateClass       the aggregate state class
+     * @param agentPlatform    the Embabel {@link AgentPlatform} used for AI-assisted processing;
+     *                         must not be {@code null}
+     * @param aggregate        the agentic aggregate instance whose
+     *                         {@link AgenticAggregate#getCreateDomainEvent()} method provides the
+     *                         auto-create event
+     * @param maxTotalMemories the total memory capacity for this aggregate
+     * @param maxMemoriesAdded the per-distillation budget for net new memories
      */
     public KafkaAgenticAggregateRuntime(KafkaAggregateRuntime delegate,
                                         ObjectMapper objectMapper,
                                         Class<? extends AggregateState> stateClass,
                                         AgentPlatform agentPlatform,
-                                        AgenticAggregate<?> aggregate) {
+                                        AgenticAggregate<?> aggregate,
+                                        int maxTotalMemories,
+                                        int maxMemoriesAdded) {
         this.delegate = Objects.requireNonNull(delegate, "delegate must not be null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
         this.stateClass = Objects.requireNonNull(stateClass, "stateClass must not be null");
         this.agentPlatform = Objects.requireNonNull(agentPlatform, "agentPlatform must not be null");
         this.aggregate = Objects.requireNonNull(aggregate, "aggregate must not be null");
+        if (maxTotalMemories < 0) {
+            throw new IllegalArgumentException("maxTotalMemories must be >= 0");
+        }
+        if (maxMemoriesAdded < 0) {
+            throw new IllegalArgumentException("maxMemoriesAdded must be >= 0");
+        }
+        this.maxTotalMemories = maxTotalMemories;
+        this.maxMemoriesAdded = maxMemoriesAdded;
     }
 
     // -------------------------------------------------------------------------
@@ -511,8 +528,171 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                     statusCode,
                     Instant.now());
             tickEvents = Stream.concat(tickEvents, Stream.of(finishedEvent));
+
+            // Distill memories from successfully completed processes
+            if (statusCode == AgentProcessStatusCode.COMPLETED) {
+                List<DomainEvent> memoryEvents = distillMemories(agentProcess, state, task);
+                if (!memoryEvents.isEmpty()) {
+                    tickEvents = Stream.concat(tickEvents, memoryEvents.stream());
+                }
+            }
         }
 
         delegate.processDomainEvents(tickEvents, task.agentProcessId(), protocolRecordConsumer, stateRecordSupplier);
+    }
+
+    // -------------------------------------------------------------------------
+    // Memory distillation
+    // -------------------------------------------------------------------------
+
+    /**
+     * Distills relevant memories from a successfully completed {@link AgentProcess}
+     * by running the {@link MemoryDistillerAgent} to completion.
+     *
+     * <p>Creates a separate agent process for the {@link MemoryDistillerAgent}, populates
+     * its blackboard with a single {@link MemoryDistillationInput} containing the completed
+     * process's history, blackboard objects, current memories, and memory capacity constraints.
+     * The Embabel framework injects this input into the agent's action method via type-based
+     * parameter resolution. The process is then run to completion via {@link AgentProcess#run()}.
+     *
+     * <p>The net memory constraint ensures that
+     * {@code storedCount - revokedCount <= maxMemories - currentMemoryCount}, preventing
+     * the memory system from exceeding its configured capacity.
+     *
+     * @param completedProcess the agent process that has completed successfully
+     * @param state            the current aggregate state
+     * @param task             the assigned task that triggered the agent process
+     * @return a list of {@link MemoryStoredEvent} and {@link MemoryRevokedEvent} instances;
+     *         may be empty if no memories need to be changed
+     */
+    private List<DomainEvent> distillMemories(AgentProcess completedProcess, AggregateState state,
+                                               AssignedTask task) {
+        Agent memoryDistillerAgent = resolveMemoryDistillerAgent();
+        if (memoryDistillerAgent == null) {
+            logger.warn("MemoryDistillerAgent not deployed on the platform; skipping memory distillation");
+            return List.of();
+        }
+
+        List<AgenticAggregateMemory> currentMemories = state instanceof MemoryAwareState mas
+                ? mas.getMemories()
+                : List.of();
+
+        MemoryDistillationInput distillationInput = new MemoryDistillationInput(
+                task,
+                completedProcess.getHistory(),
+                completedProcess.getBlackboard().getObjects(),
+                currentMemories,
+                maxTotalMemories,
+                maxMemoriesAdded);
+
+        Map<String, Object> bindings = new LinkedHashMap<>();
+        bindings.put("input", distillationInput);
+
+        try {
+            AgentProcess distillerProcess = agentPlatform.createAgentProcess(
+                    memoryDistillerAgent, ProcessOptions.DEFAULT, bindings);
+            distillerProcess.run();
+
+            MemoryDistillationResult result = distillerProcess.getBlackboard()
+                    .last(MemoryDistillationResult.class);
+
+            if (result == null) {
+                logger.debug("MemoryDistillerAgent produced no result for aggregate {}", getName());
+                return List.of();
+            }
+
+            int capacityLeft = Math.max(0, maxTotalMemories - currentMemories.size());
+            int effectiveLimit = Math.min(capacityLeft, maxMemoriesAdded);
+            return translateDistillationResult(result, currentMemories, effectiveLimit);
+        } catch (Exception e) {
+            logger.warn("Memory distillation failed for aggregate {}; proceeding without memory updates",
+                    getName(), e);
+            return List.of();
+        }
+    }
+
+    /**
+     * Resolves the {@link MemoryDistillerAgent} from the {@link AgentPlatform}.
+     *
+     * @return the resolved agent, or {@code null} if not deployed
+     */
+    private Agent resolveMemoryDistillerAgent() {
+        for (Agent agent : agentPlatform.agents()) {
+            if (MemoryDistillerAgent.AGENT_NAME.equals(agent.getName())) {
+                return agent;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Translates a {@link MemoryDistillationResult} into a list of domain events,
+     * enforcing the net memory limit.
+     *
+     * <p>The constraint {@code stored.size() - revoked.size() <= maxNewMemories} is
+     * enforced by truncating stored memories when the limit would be exceeded.
+     *
+     * @param result           the distillation result from the agent
+     * @param currentMemories  the current memories from the aggregate state
+     * @param maxNewMemories   the maximum number of net new memories allowed
+     * @return an unmodifiable list of domain events
+     */
+    private List<DomainEvent> translateDistillationResult(MemoryDistillationResult result,
+                                                          List<AgenticAggregateMemory> currentMemories,
+                                                          int maxNewMemories) {
+        List<DomainEvent> events = new ArrayList<>();
+
+        // Collect valid revocations first (only for memories that actually exist),
+        // de-duplicated by memoryId so capacity calculations match effective revocations.
+        Set<String> currentMemoryIds = new HashSet<>();
+        for (AgenticAggregateMemory mem : currentMemories) {
+            currentMemoryIds.add(mem.memoryId());
+        }
+
+        List<MemoryRevokedEvent> validRevocations = new ArrayList<>();
+        Set<String> revokedMemoryIds = new HashSet<>();
+        if (result.revoked() != null) {
+            for (MemoryRevokedEvent revoked : result.revoked()) {
+                String memoryId = revoked.memoryId();
+                if (memoryId == null || !currentMemoryIds.contains(memoryId)) {
+                    logger.debug("Skipping revocation of non-existent memory '{}' for aggregate {}",
+                            memoryId, getName());
+                    continue;
+                }
+                if (!revokedMemoryIds.add(memoryId)) {
+                    logger.debug("Skipping duplicate revocation of memory '{}' for aggregate {}",
+                            memoryId, getName());
+                    continue;
+                }
+                validRevocations.add(revoked);
+            }
+        }
+
+        // Calculate how many stored memories we can accept
+        int revokedCount = revokedMemoryIds.size();
+        int maxStoredCount = maxNewMemories + revokedCount;
+
+        // Add revocation events
+        events.addAll(validRevocations);
+
+        // Add stored events (respecting the limit)
+        if (result.stored() != null) {
+            int storedCount = 0;
+            for (MemoryStoredEvent stored : result.stored()) {
+                if (storedCount >= maxStoredCount) {
+                    logger.debug("Memory distillation limit reached ({} stored, {} revoked, max {}); "
+                                    + "truncating remaining stored memories for aggregate {}",
+                            storedCount, revokedCount, maxStoredCount, getName());
+                    break;
+                }
+                events.add(stored);
+                storedCount++;
+            }
+        }
+
+        logger.debug("Memory distillation for aggregate {} produced {} stored and {} revoked events",
+                getName(), events.size() - validRevocations.size(), validRevocations.size());
+
+        return List.copyOf(events);
     }
 }

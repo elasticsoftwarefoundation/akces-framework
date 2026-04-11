@@ -113,7 +113,7 @@ class ResumeNextAgentTaskTest {
     @BeforeEach
     void setUp() {
         objectMapper = JsonMapper.builder().build();
-        runtime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, TaskState.class, agentPlatform, aggregate);
+        runtime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, TaskState.class, agentPlatform, aggregate, 100, 10);
     }
 
     @Test
@@ -126,7 +126,7 @@ class ResumeNextAgentTaskTest {
 
     @Test
     void resumeShouldDoNothingWhenStateDoesNotImplementTaskAwareState() throws IOException {
-        var simpleRuntime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, SimpleState.class, agentPlatform, aggregate);
+        var simpleRuntime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, SimpleState.class, agentPlatform, aggregate, 100, 10);
         var state = new SimpleState("agg-1");
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "SimpleState", 1, payload,
@@ -235,7 +235,7 @@ class ResumeNextAgentTaskTest {
 
     @Test
     void hasActiveAgentTasksShouldReturnFalseWhenNotTaskAware() throws IOException {
-        var simpleRuntime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, SimpleState.class, agentPlatform, aggregate);
+        var simpleRuntime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, SimpleState.class, agentPlatform, aggregate, 100, 10);
         var state = new SimpleState("agg-1");
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "SimpleState", 1, payload,
