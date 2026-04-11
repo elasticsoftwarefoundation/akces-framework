@@ -103,7 +103,7 @@ class KafkaAgenticAggregateRuntimeTest {
     @BeforeEach
     void setUp() {
         objectMapper = JsonMapper.builder().build();
-        runtime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, TestMemoryState.class, agentPlatform);
+        runtime = new KafkaAgenticAggregateRuntime(delegate, agentPlatform);
     }
 
     // -------------------------------------------------------------------------
@@ -127,6 +127,7 @@ class KafkaAgenticAggregateRuntimeTest {
         AggregateStateRecord record = new AggregateStateRecord(
                 "tenant", "TestMemoryState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", "corr-1", 1L);
+        when(delegate.materializeState(record)).thenReturn(state);
 
         List<AgenticAggregateMemory> memories = runtime.getMemories(record);
 
@@ -139,15 +140,15 @@ class KafkaAgenticAggregateRuntimeTest {
 
     @Test
     void getMemoriesShouldReturnEmptyListForNonMemoryAwareState() throws IOException {
-        var plainRuntime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, PlainState.class, agentPlatform);
         var state = new PlainState("agg-1");
 
         byte[] payload = objectMapper.writeValueAsBytes(state);
         AggregateStateRecord record = new AggregateStateRecord(
                 "tenant", "PlainState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", "corr-1", 1L);
+        when(delegate.materializeState(record)).thenReturn(state);
 
-        List<AgenticAggregateMemory> memories = plainRuntime.getMemories(record);
+        List<AgenticAggregateMemory> memories = runtime.getMemories(record);
         assertThat(memories).isEmpty();
     }
 
@@ -159,6 +160,7 @@ class KafkaAgenticAggregateRuntimeTest {
         AggregateStateRecord record = new AggregateStateRecord(
                 "tenant", "TestMemoryState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", "corr-1", 1L);
+        when(delegate.materializeState(record)).thenReturn(state);
 
         List<AgenticAggregateMemory> memories = runtime.getMemories(record);
         assertThat(memories).isEmpty();
@@ -176,6 +178,7 @@ class KafkaAgenticAggregateRuntimeTest {
         AggregateStateRecord record = new AggregateStateRecord(
                 "tenant", "TestMemoryState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", "corr-1", 1L);
+        when(delegate.materializeState(record)).thenReturn(state);
 
         List<AgenticAggregateMemory> memories = runtime.getMemories(record);
         assertThat(memories).hasSize(2);
@@ -226,31 +229,15 @@ class KafkaAgenticAggregateRuntimeTest {
     void constructorShouldRejectNullDelegate() {
         assertThatNullPointerException()
                 .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
-                        null, objectMapper, TestMemoryState.class, agentPlatform))
+                        null, agentPlatform))
                 .withMessageContaining("delegate");
-    }
-
-    @Test
-    void constructorShouldRejectNullObjectMapper() {
-        assertThatNullPointerException()
-                .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
-                        delegate, null, TestMemoryState.class, agentPlatform))
-                .withMessageContaining("objectMapper");
-    }
-
-    @Test
-    void constructorShouldRejectNullStateClass() {
-        assertThatNullPointerException()
-                .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
-                        delegate, objectMapper, null, agentPlatform))
-                .withMessageContaining("stateClass");
     }
 
     @Test
     void constructorShouldRejectNullAgentPlatform() {
         assertThatNullPointerException()
                 .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
-                        delegate, objectMapper, TestMemoryState.class, null))
+                        delegate, null))
                 .withMessageContaining("agentPlatform");
     }
 

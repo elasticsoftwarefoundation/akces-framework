@@ -105,7 +105,7 @@ class ResumeNextAgentTaskTest {
     @BeforeEach
     void setUp() {
         objectMapper = JsonMapper.builder().build();
-        runtime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, TaskState.class, agentPlatform);
+        runtime = new KafkaAgenticAggregateRuntime(delegate, agentPlatform);
     }
 
     @Test
@@ -118,16 +118,18 @@ class ResumeNextAgentTaskTest {
 
     @Test
     void resumeShouldDoNothingWhenStateDoesNotImplementTaskAwareState() throws IOException {
-        var simpleRuntime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, SimpleState.class, agentPlatform);
+        var simpleRuntime = new KafkaAgenticAggregateRuntime(delegate, agentPlatform);
         var state = new SimpleState("agg-1");
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "SimpleState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
 
         simpleRuntime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
 
         verifyNoInteractions(agentPlatform);
-        verifyNoInteractions(delegate);
+        verify(delegate).materializeState(stateRecord);
+        verifyNoMoreInteractions(delegate);
     }
 
     @Test
@@ -136,11 +138,13 @@ class ResumeNextAgentTaskTest {
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "TaskState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
 
         runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
 
         verifyNoInteractions(agentPlatform);
-        verifyNoInteractions(delegate);
+        verify(delegate).materializeState(stateRecord);
+        verifyNoMoreInteractions(delegate);
     }
 
     @Test
@@ -151,6 +155,7 @@ class ResumeNextAgentTaskTest {
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "TaskState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
 
         when(agentPlatform.getAgentProcess("proc-42")).thenReturn(agentProcess);
         when(agentProcess.getBlackboard()).thenReturn(blackboard);
@@ -161,7 +166,7 @@ class ResumeNextAgentTaskTest {
 
         verify(agentPlatform).getAgentProcess("proc-42");
         verify(agentProcess).tick();
-        verify(delegate).processDomainEvents(any(), any(), any());
+        verify(delegate).processDomainEvents(any(), eq("proc-42"), any(), any());
     }
 
     @Test
@@ -173,6 +178,7 @@ class ResumeNextAgentTaskTest {
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "TaskState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
 
         when(agentPlatform.getAgentProcess(anyString())).thenReturn(agentProcess);
         when(agentProcess.getBlackboard()).thenReturn(blackboard);
@@ -190,5 +196,71 @@ class ResumeNextAgentTaskTest {
         // Third call: should wrap around to index 0 (proc-1)
         runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
         verify(agentPlatform, times(2)).getAgentProcess("proc-1");
+    }
+
+    @Test
+    void resumeShouldSkipWhenAgentProcessIsNull() throws IOException {
+        var party = new HumanRequestingParty("user-1", "analyst");
+        var task = new AssignedTask("proc-missing", "Ghost task", party, Map.of(), Instant.now());
+        var state = new TaskState("agg-1", List.of(task));
+        byte[] payload = objectMapper.writeValueAsBytes(state);
+        var stateRecord = new AggregateStateRecord(null, "TaskState", 1, payload,
+                PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
+
+        when(agentPlatform.getAgentProcess("proc-missing")).thenReturn(null);
+
+        runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
+
+        verify(agentPlatform).getAgentProcess("proc-missing");
+        verify(delegate).materializeState(stateRecord);
+        // getName() is called for logging; no further delegate interaction expected
+        verify(delegate, atLeast(0)).getName();
+        verifyNoMoreInteractions(delegate);
+    }
+
+    // -------------------------------------------------------------------------
+    // hasActiveAgentTasks
+    // -------------------------------------------------------------------------
+
+    @Test
+    void hasActiveAgentTasksShouldReturnFalseWhenStateIsNull() throws IOException {
+        assertThat(runtime.hasActiveAgentTasks(() -> null)).isFalse();
+    }
+
+    @Test
+    void hasActiveAgentTasksShouldReturnFalseWhenNotTaskAware() throws IOException {
+        var simpleRuntime = new KafkaAgenticAggregateRuntime(delegate, agentPlatform);
+        var state = new SimpleState("agg-1");
+        byte[] payload = objectMapper.writeValueAsBytes(state);
+        var stateRecord = new AggregateStateRecord(null, "SimpleState", 1, payload,
+                PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
+
+        assertThat(simpleRuntime.hasActiveAgentTasks(() -> stateRecord)).isFalse();
+    }
+
+    @Test
+    void hasActiveAgentTasksShouldReturnFalseWhenNoTasks() throws IOException {
+        var state = new TaskState("agg-1", List.of());
+        byte[] payload = objectMapper.writeValueAsBytes(state);
+        var stateRecord = new AggregateStateRecord(null, "TaskState", 1, payload,
+                PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
+
+        assertThat(runtime.hasActiveAgentTasks(() -> stateRecord)).isFalse();
+    }
+
+    @Test
+    void hasActiveAgentTasksShouldReturnTrueWhenTasksExist() throws IOException {
+        var party = new HumanRequestingParty("user-1", "analyst");
+        var task = new AssignedTask("proc-1", "Active task", party, Map.of(), Instant.now());
+        var state = new TaskState("agg-1", List.of(task));
+        byte[] payload = objectMapper.writeValueAsBytes(state);
+        var stateRecord = new AggregateStateRecord(null, "TaskState", 1, payload,
+                PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
+
+        assertThat(runtime.hasActiveAgentTasks(() -> stateRecord)).isTrue();
     }
 }

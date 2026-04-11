@@ -37,7 +37,6 @@ import org.elasticsoftware.akces.schemas.SchemaException;
 import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -62,8 +61,6 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
             LoggerFactory.getLogger(KafkaAgenticAggregateRuntime.class);
 
     private final AggregateRuntime delegate;
-    private final ObjectMapper objectMapper;
-    private final Class<? extends AggregateState> stateClass;
     private final AgentPlatform agentPlatform;
 
     /** Round-robin counter for selecting the next agent task to resume. */
@@ -73,18 +70,12 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
      * Creates a new {@code KafkaAgenticAggregateRuntime}.
      *
      * @param delegate      the underlying aggregate runtime to delegate to
-     * @param objectMapper  Jackson object mapper for state deserialization
-     * @param stateClass    the concrete state class used by this aggregate
      * @param agentPlatform the Embabel {@link AgentPlatform} used for AI-assisted processing;
      *                      must not be {@code null}
      */
     public KafkaAgenticAggregateRuntime(AggregateRuntime delegate,
-                                        ObjectMapper objectMapper,
-                                        Class<? extends AggregateState> stateClass,
                                         AgentPlatform agentPlatform) {
         this.delegate = Objects.requireNonNull(delegate, "delegate must not be null");
-        this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
-        this.stateClass = Objects.requireNonNull(stateClass, "stateClass must not be null");
         this.agentPlatform = Objects.requireNonNull(agentPlatform, "agentPlatform must not be null");
     }
 
@@ -112,7 +103,7 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
         if (stateRecord == null) {
             return List.of();
         }
-        AggregateState state = objectMapper.readValue(stateRecord.payload(), stateClass);
+        AggregateState state = delegate.materializeState(stateRecord);
         if (state instanceof MemoryAwareState mas) {
             return mas.getMemories();
         }
@@ -158,9 +149,15 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
 
     @Override
     public void processDomainEvents(Stream<DomainEvent> events,
+                                    String correlationId,
                                     Consumer<ProtocolRecord> protocolRecordConsumer,
                                     Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
-        delegate.processDomainEvents(events, protocolRecordConsumer, stateRecordSupplier);
+        delegate.processDomainEvents(events, correlationId, protocolRecordConsumer, stateRecordSupplier);
+    }
+
+    @Override
+    public AggregateState materializeState(AggregateStateRecord stateRecord) throws IOException {
+        return delegate.materializeState(stateRecord);
     }
 
     @Override
@@ -364,17 +361,34 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
 
     /**
      * {@inheritDoc}
+     */
+    @Override
+    public boolean hasActiveAgentTasks(Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
+        AggregateStateRecord stateRecord = stateRecordSupplier.get();
+        if (stateRecord == null) {
+            return false;
+        }
+        AggregateState state = delegate.materializeState(stateRecord);
+        if (!(state instanceof TaskAwareState taskAwareState)) {
+            return false;
+        }
+        return !taskAwareState.getAssignedTasks().isEmpty();
+    }
+
+    /**
+     * {@inheritDoc}
      *
      * <p>Implementation strategy:
      * <ol>
-     *   <li>Loads and deserializes the current aggregate state.</li>
+     *   <li>Loads and materializes the current aggregate state (with upcasting support).</li>
      *   <li>Checks whether the state implements {@link TaskAwareState}.</li>
      *   <li>Selects the next {@link AssignedTask} using a round-robin counter.</li>
      *   <li>Retrieves the existing {@link AgentProcess} from the {@link AgentPlatform}
      *       using the task's {@code agentProcessId}.</li>
      *   <li>Performs a single tick via {@link AgentProcessSingleTickRunner#tick}.</li>
      *   <li>Processes any resulting domain events through the delegate's
-     *       {@link AggregateRuntime#processDomainEvents} method.</li>
+     *       {@link AggregateRuntime#processDomainEvents} method, using the agent process ID
+     *       as correlation ID.</li>
      * </ol>
      */
     @Override
@@ -386,7 +400,7 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
             return;
         }
 
-        AggregateState state = objectMapper.readValue(stateRecord.payload(), stateClass);
+        AggregateState state = delegate.materializeState(stateRecord);
         if (!(state instanceof TaskAwareState taskAwareState)) {
             return;
         }
@@ -406,10 +420,15 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                 task.taskDescription(), task.agentProcessId(), getName());
 
         AgentProcess agentProcess = agentPlatform.getAgentProcess(task.agentProcessId());
+        if (agentProcess == null) {
+            logger.warn("No existing AgentProcess found for id={} on aggregate {}; skipping tick",
+                    task.agentProcessId(), getName());
+            return;
+        }
 
         Stream<DomainEvent> tickEvents =
                 AgentProcessSingleTickRunner.tick(agentProcess, delegate.getAllDomainEventTypes());
 
-        delegate.processDomainEvents(tickEvents, protocolRecordConsumer, stateRecordSupplier);
+        delegate.processDomainEvents(tickEvents, task.agentProcessId(), protocolRecordConsumer, stateRecordSupplier);
     }
 }

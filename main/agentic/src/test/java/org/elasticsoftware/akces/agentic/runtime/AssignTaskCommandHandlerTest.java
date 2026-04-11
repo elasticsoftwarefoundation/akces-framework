@@ -69,11 +69,15 @@ class AssignTaskCommandHandlerTest {
     @Mock
     private Agent agent;
 
+    @Mock
+    private AgenticAggregate<?> aggregate;
+
     private CommandHandlerFunction<AggregateState, Command, DomainEvent> handler;
 
     @BeforeEach
     void setUp() {
         handler = new AssignTaskCommandHandlerFunction(
+                aggregate,
                 "TestAggregate",
                 agentPlatform,
                 List.of(),

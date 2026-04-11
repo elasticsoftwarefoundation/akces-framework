@@ -22,6 +22,7 @@ import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.ProcessOptions;
 import jakarta.annotation.Nonnull;
+import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
 import org.elasticsoftware.akces.agentic.commands.AssignTaskCommand;
 import org.elasticsoftware.akces.agentic.embabel.DefaultAgent;
 import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
@@ -76,6 +77,7 @@ public class AssignTaskCommandHandlerFunction
     private static final Logger logger =
             LoggerFactory.getLogger(AssignTaskCommandHandlerFunction.class);
 
+    private final AgenticAggregate<?> aggregate;
     private final String aggregateName;
     private final AgentPlatform agentPlatform;
     private final List<DomainEventType<?>> producedEventTypes;
@@ -85,6 +87,7 @@ public class AssignTaskCommandHandlerFunction
     /**
      * Creates a new {@code AssignTaskCommandHandlerFunction}.
      *
+     * @param aggregate                  the owning agentic aggregate instance
      * @param aggregateName              the aggregate name used for agent resolution
      * @param agentPlatform              the Embabel platform used to create agent processes
      * @param producedEventTypes         domain event types this handler may produce
@@ -93,11 +96,13 @@ public class AssignTaskCommandHandlerFunction
      *                                   used to populate the blackboard for service discovery
      */
     public AssignTaskCommandHandlerFunction(
+            AgenticAggregate<?> aggregate,
             String aggregateName,
             AgentPlatform agentPlatform,
             List<DomainEventType<?>> producedEventTypes,
             List<DomainEventType<?>> errorEventTypes,
             Supplier<Collection<AggregateServiceRecord>> aggregateServicesSupplier) {
+        this.aggregate = aggregate;
         this.aggregateName = aggregateName;
         this.agentPlatform = agentPlatform;
         this.producedEventTypes = List.copyOf(producedEventTypes);
@@ -182,5 +187,38 @@ public class AssignTaskCommandHandlerFunction
         // The process is NOT ticked here. The partition's idle-poll cycle
         // (resumeAgentTasks) exclusively drives all AgentProcess advancement.
         return Stream.of(assignedEvent);
+    }
+
+    @Override
+    public boolean isCreate() {
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public CommandType<Command> getCommandType() {
+        return (CommandType<Command>) (CommandType<?>) AgenticAggregateRuntime.ASSIGN_TASK_COMMAND_TYPE;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public Aggregate<AggregateState> getAggregate() {
+        return (Aggregate<AggregateState>) (Aggregate<?>) aggregate;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public List<DomainEventType<DomainEvent>> getProducedDomainEventTypes() {
+        return producedEventTypes.stream()
+                .map(t -> (DomainEventType<DomainEvent>) (DomainEventType<?>) t)
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public List<DomainEventType<DomainEvent>> getErrorEventTypes() {
+        return errorEventTypes.stream()
+                .map(t -> (DomainEventType<DomainEvent>) (DomainEventType<?>) t)
+                .toList();
     }
 }

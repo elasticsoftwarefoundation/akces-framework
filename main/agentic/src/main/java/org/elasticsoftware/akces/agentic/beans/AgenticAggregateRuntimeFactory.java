@@ -132,8 +132,7 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
         AgentPlatform agentPlatform = resolveAgentPlatform(agenticInfo.value());
 
         KafkaAggregateRuntime kafkaRuntime = createRuntime(agenticInfo, aggregate, agentPlatform);
-        return new KafkaAgenticAggregateRuntime(
-                kafkaRuntime, objectMapper, agenticInfo.stateClass(), agentPlatform);
+        return new KafkaAgenticAggregateRuntime(kafkaRuntime, agentPlatform);
     }
 
     @Override
@@ -264,11 +263,12 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
 
         // Register built-in AssignTask command handler using a dedicated
         // AssignTaskCommandHandlerFunction. The handler resolves the agent from the
-        // platform, creates an AgentProcess, emits AgentTaskAssignedEvent, and performs
-        // a single kick-start tick.
+        // platform, creates an AgentProcess, and emits AgentTaskAssignedEvent.
+        // The process is NOT ticked here; resumeAgentTasks drives all advancement.
         List<DomainEventType<?>> assignTaskErrorTypes = new ArrayList<>(COMMAND_HANDLER_SYSTEM_ERRORS);
         assignTaskErrorTypes.addAll(agentProducedErrorTypes);
         AssignTaskCommandHandlerFunction assignTaskHandler = new AssignTaskCommandHandlerFunction(
+                aggregate,
                 agenticInfo.value(),
                 agentPlatform,
                 List.of(AGENT_TASK_ASSIGNED_TYPE),

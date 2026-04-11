@@ -441,13 +441,17 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
      * from the Kafka poll.
      *
      * <p>This method is called from the main processing loop when the partition is in
-     * the {@code PROCESSING} state and the consumer poll returns no records. It opens
-     * a Kafka transaction, delegates to the runtime's
-     * {@link AgenticAggregateRuntime#resumeNextAgentTask} for a single-tick resume of
-     * the next assigned task (round-robin), and commits the transaction.
+     * the {@code PROCESSING} state and the consumer poll returns no records. It first
+     * checks whether the aggregate has any active agent tasks and only opens a Kafka
+     * transaction when there is work to do, avoiding unnecessary transaction overhead
+     * when idle.
      */
     private void resumeAgentTasks() {
         try {
+            if (!runtime.hasActiveAgentTasks(() -> stateRepository.get(runtime.getName()))) {
+                return;
+            }
+
             producer.beginTransaction();
 
             runtime.resumeNextAgentTask(

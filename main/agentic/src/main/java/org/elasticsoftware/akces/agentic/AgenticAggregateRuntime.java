@@ -114,4 +114,21 @@ public interface AgenticAggregateRuntime extends AggregateRuntime {
     void resumeNextAgentTask(java.util.function.Consumer<org.elasticsoftware.akces.protocol.ProtocolRecord> protocolRecordConsumer,
                              java.util.function.Supplier<AggregateStateRecord> stateRecordSupplier,
                              org.elasticsoftware.akces.commands.CommandBus commandBus) throws IOException;
+
+    /**
+     * Checks whether the aggregate currently has any active (assigned) agent tasks.
+     *
+     * <p>Deserializes the state from the supplied record and checks whether it implements
+     * {@link org.elasticsoftware.akces.aggregate.TaskAwareState} with a non-empty list of
+     * assigned tasks.
+     *
+     * <p>This method is intended as a fast-path check before opening a Kafka transaction
+     * in the idle-poll cycle, avoiding unnecessary transaction overhead when there are no
+     * tasks to resume.
+     *
+     * @param stateRecordSupplier supplier for the current aggregate state record
+     * @return {@code true} if the state has at least one assigned task; {@code false} otherwise
+     * @throws IOException if state deserialization fails
+     */
+    boolean hasActiveAgentTasks(java.util.function.Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException;
 }

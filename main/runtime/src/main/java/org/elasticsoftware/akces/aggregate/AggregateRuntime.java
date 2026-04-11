@@ -28,6 +28,8 @@ import org.elasticsoftware.akces.protocol.ProtocolRecord;
 import org.elasticsoftware.akces.schemas.SchemaException;
 import org.elasticsoftware.akces.schemas.SchemaRegistry;
 
+import org.elasticsoftware.akces.events.DomainEvent;
+
 import java.io.IOException;
 import java.util.Collection;
 import java.util.function.BiConsumer;
@@ -101,7 +103,18 @@ public interface AggregateRuntime {
     boolean shouldHandlePIIData();
 
     /**
-     * Processes a stream of {@link org.elasticsoftware.akces.events.DomainEvent}s against
+     * Materializes an {@link AggregateState} from the given {@link AggregateStateRecord},
+     * applying any necessary state upcasting when the stored version differs from the
+     * current schema.
+     *
+     * @param stateRecord the state record to deserialize and potentially upcast
+     * @return the materialized aggregate state
+     * @throws IOException if deserialization fails
+     */
+    AggregateState materializeState(AggregateStateRecord stateRecord) throws IOException;
+
+    /**
+     * Processes a stream of {@link DomainEvent}s against
      * the current aggregate state, applying event-sourcing handlers and emitting the
      * resulting {@link ProtocolRecord}s (domain-event records and state records) through
      * the given consumer.
@@ -110,11 +123,13 @@ public interface AggregateRuntime {
      * an agent tick outside of the normal command or external-event processing paths.
      *
      * @param events                  the domain events to process
+     * @param correlationId           correlation ID to set on produced records (may be {@code null})
      * @param protocolRecordConsumer  consumer that receives the produced protocol records
      * @param stateRecordSupplier     supplier for the current aggregate state record
      * @throws IOException if serialization or deserialization fails
      */
-    default void processDomainEvents(java.util.stream.Stream<org.elasticsoftware.akces.events.DomainEvent> events,
+    default void processDomainEvents(java.util.stream.Stream<DomainEvent> events,
+                                     String correlationId,
                                      Consumer<ProtocolRecord> protocolRecordConsumer,
                                      Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
         throw new UnsupportedOperationException("processDomainEvents not supported by this runtime");

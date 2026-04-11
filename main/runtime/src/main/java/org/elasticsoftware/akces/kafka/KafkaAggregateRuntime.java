@@ -507,6 +507,7 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
 
     @Override
     public void processDomainEvents(java.util.stream.Stream<DomainEvent> events,
+                                    String correlationId,
                                     Consumer<ProtocolRecord> protocolRecordConsumer,
                                     Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
         AggregateStateRecord currentStateRecord = stateRecordSupplier.get();
@@ -518,13 +519,18 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
             while (iterator.hasNext()) {
                 DomainEvent domainEvent = iterator.next();
                 currentStateRecord = processDomainEvent(
-                        null, // no correlation ID for agent-tick-produced events
+                        correlationId,
                         protocolRecordConsumer,
                         (der, ip) -> { }, // no indexing for agent-tick-produced events
                         currentStateRecord,
                         domainEvent);
             }
         }
+    }
+
+    @Override
+    public AggregateState materializeState(AggregateStateRecord stateRecord) throws IOException {
+        return materialize(stateRecord);
     }
 
     @Nullable
