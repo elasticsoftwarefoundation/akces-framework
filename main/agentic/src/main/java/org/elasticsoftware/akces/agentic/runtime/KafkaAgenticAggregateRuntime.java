@@ -38,6 +38,7 @@ import org.elasticsoftware.akces.schemas.SchemaException;
 import org.elasticsoftware.akces.schemas.SchemaRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -75,6 +76,8 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
      * Creates a new {@code KafkaAgenticAggregateRuntime}.
      *
      * @param delegate      the underlying aggregate runtime to delegate to
+     * @param objectMapper  the Jackson {@link ObjectMapper} used for JSON serialization
+     * @param stateClass    the aggregate state class
      * @param agentPlatform the Embabel {@link AgentPlatform} used for AI-assisted processing;
      *                      must not be {@code null}
      * @param aggregate     the agentic aggregate instance whose
@@ -87,6 +90,8 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                                         AgentPlatform agentPlatform,
                                         AgenticAggregate<?> aggregate) {
         this.delegate = Objects.requireNonNull(delegate, "delegate must not be null");
+        this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
+        this.stateClass = Objects.requireNonNull(stateClass, "stateClass must not be null");
         this.agentPlatform = Objects.requireNonNull(agentPlatform, "agentPlatform must not be null");
         this.aggregate = Objects.requireNonNull(aggregate, "aggregate must not be null");
     }

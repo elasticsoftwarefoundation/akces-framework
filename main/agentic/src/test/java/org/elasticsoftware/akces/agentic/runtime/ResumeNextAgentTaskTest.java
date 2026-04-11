@@ -22,6 +22,7 @@ import com.embabel.agent.core.AgentProcess;
 import com.embabel.agent.core.Blackboard;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.commands.CommandBus;
+import org.elasticsoftware.akces.kafka.KafkaAggregateRuntime;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
 import org.elasticsoftware.akces.protocol.PayloadEncoding;
 import org.junit.jupiter.api.BeforeEach;
@@ -85,7 +86,7 @@ class ResumeNextAgentTaskTest {
     }
 
     @Mock
-    private AggregateRuntime delegate;
+    private KafkaAggregateRuntime delegate;
 
     @Mock
     private AgentPlatform agentPlatform;
@@ -99,13 +100,16 @@ class ResumeNextAgentTaskTest {
     @Mock
     private CommandBus commandBus;
 
+    @Mock
+    private AgenticAggregate<?> aggregate;
+
     private ObjectMapper objectMapper;
     private KafkaAgenticAggregateRuntime runtime;
 
     @BeforeEach
     void setUp() {
         objectMapper = JsonMapper.builder().build();
-        runtime = new KafkaAgenticAggregateRuntime(delegate, agentPlatform);
+        runtime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, TaskState.class, agentPlatform, aggregate);
     }
 
     @Test
@@ -118,7 +122,7 @@ class ResumeNextAgentTaskTest {
 
     @Test
     void resumeShouldDoNothingWhenStateDoesNotImplementTaskAwareState() throws IOException {
-        var simpleRuntime = new KafkaAgenticAggregateRuntime(delegate, agentPlatform);
+        var simpleRuntime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, SimpleState.class, agentPlatform, aggregate);
         var state = new SimpleState("agg-1");
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "SimpleState", 1, payload,
@@ -227,7 +231,7 @@ class ResumeNextAgentTaskTest {
 
     @Test
     void hasActiveAgentTasksShouldReturnFalseWhenNotTaskAware() throws IOException {
-        var simpleRuntime = new KafkaAgenticAggregateRuntime(delegate, agentPlatform);
+        var simpleRuntime = new KafkaAgenticAggregateRuntime(delegate, objectMapper, SimpleState.class, agentPlatform, aggregate);
         var state = new SimpleState("agg-1");
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "SimpleState", 1, payload,

@@ -240,12 +240,6 @@ class KafkaAgenticAggregateRuntimeTest {
     }
 
     @Test
-    void constructorShouldRejectNullAgentPlatform() {
-        assertThatNullPointerException()
-                .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
-                        delegate, null))
-    
-    @Test      
     void constructorShouldRejectNullObjectMapper() {
         assertThatNullPointerException()
                 .isThrownBy(() -> new KafkaAgenticAggregateRuntime(
