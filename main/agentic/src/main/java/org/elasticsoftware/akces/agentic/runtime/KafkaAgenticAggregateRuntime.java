@@ -94,9 +94,10 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     /**
      * {@inheritDoc}
      *
-     * <p>Deserializes the state payload using the configured {@link ObjectMapper} and
-     * returns the memories when the state implements {@link MemoryAwareState}; otherwise
-     * returns an empty list.
+     * <p>Materializes the state from the record via the delegate's
+     * {@link AggregateRuntime#materializeState(AggregateStateRecord)} (which applies
+     * upcasting when needed) and returns the memories when the state implements
+     * {@link MemoryAwareState}; otherwise returns an empty list.
      */
     @Override
     public List<AgenticAggregateMemory> getMemories(AggregateStateRecord stateRecord) throws IOException {
