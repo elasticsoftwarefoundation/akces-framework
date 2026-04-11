@@ -22,6 +22,8 @@ import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.elasticsoftware.akces.commands.Command;
 
+import java.util.List;
+
 public interface AkcesRegistry {
     CommandType<?> resolveType(@Nonnull Class<? extends Command> commandClass);
 
@@ -44,7 +46,17 @@ public interface AkcesRegistry {
      */
     String resolveTopic(@Nonnull CommandType<?> commandType, @Nonnull Command command);
 
-    String resolveTopic(@Nonnull DomainEventType<?> externalDomainEventType);
+    /**
+     * Resolves the domain-event topic(s) for the given external domain-event type.
+     *
+     * <p>Built-in agentic events (e.g. {@code AgentTaskAssigned}) are produced by
+     * every agentic aggregate service, so more than one topic may match. Callers must
+     * subscribe to <em>all</em> returned topics to receive events from every producer.
+     *
+     * @param externalDomainEventType the domain-event type to look up
+     * @return a non-empty list of Kafka domain-event topic names
+     */
+    List<String> resolveTopics(@Nonnull DomainEventType<?> externalDomainEventType);
 
     /**
      * Resolves the target partition for a command, taking into account both the command

@@ -166,16 +166,18 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
             // external topic so that no events are missed regardless of which partition they
             // were produced on.
             externalDomainEventTypes.forEach(domainEventType -> {
-                String topic = ackesRegistry.resolveTopic(domainEventType);
-                List<PartitionInfo> partitionInfos = consumer.partitionsFor(topic);
-                if (partitionInfos == null || partitionInfos.isEmpty()) {
-                    logger.warn("No partition info found for external topic '{}'; skipping subscription", topic);
-                } else {
-                    partitionInfos.forEach(pi ->
-                            externalEventPartitions.add(new TopicPartition(topic, pi.partition())));
-                    logger.info("Subscribing to {} partition(s) of external topic '{}'",
-                            partitionInfos.size(), topic);
-                }
+                List<String> topics = ackesRegistry.resolveTopics(domainEventType);
+                topics.forEach(topic -> {
+                    List<PartitionInfo> partitionInfos = consumer.partitionsFor(topic);
+                    if (partitionInfos == null || partitionInfos.isEmpty()) {
+                        logger.warn("No partition info found for external topic '{}'; skipping subscription", topic);
+                    } else {
+                        partitionInfos.forEach(pi ->
+                                externalEventPartitions.add(new TopicPartition(topic, pi.partition())));
+                        logger.info("Subscribing to {} partition(s) of external topic '{}'",
+                                partitionInfos.size(), topic);
+                    }
+                });
             });
 
             // Hard-assign all partitions — no consumer group rebalancing needed

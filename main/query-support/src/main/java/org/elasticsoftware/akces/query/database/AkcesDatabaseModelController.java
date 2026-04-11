@@ -325,12 +325,12 @@ public class AkcesDatabaseModelController extends Thread implements AutoCloseabl
     }
 
     @Override
-    public String resolveTopic(@Nonnull DomainEventType<?> externalDomainEventType) {
+    public List<String> resolveTopics(@Nonnull DomainEventType<?> externalDomainEventType) {
         List<AggregateServiceRecord> services = aggregateServices.values().stream()
                 .filter(commandServiceRecord -> producesDomainEvent(commandServiceRecord.producedEvents(), externalDomainEventType))
                 .toList();
-        if (services.size() == 1) {
-            return services.getFirst().domainEventTopic();
+        if (!services.isEmpty()) {
+            return services.stream().map(AggregateServiceRecord::domainEventTopic).toList();
         } else {
             throw new IllegalStateException("Cannot determine which service produces DomainEvent " + externalDomainEventType.typeName() + " v" + externalDomainEventType.version());
         }

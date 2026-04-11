@@ -124,7 +124,7 @@ public class ReflectorPartition implements Runnable, AutoCloseable, CommandBus {
                     runtime.getName() + "Reflector-partition-" + id + "-" + HostUtils.getHostName());
             // resolve the external event partitions
             Set<String> distinctTopics = externalDomainEventTypes.stream()
-                    .map(akcesRegistry::resolveTopic)
+                    .flatMap(domainEventType -> akcesRegistry.resolveTopics(domainEventType).stream())
                     .collect(Collectors.toSet());
             externalEventPartitions.addAll(distinctTopics.stream()
                     .map(topic -> new TopicPartition(topic, id))

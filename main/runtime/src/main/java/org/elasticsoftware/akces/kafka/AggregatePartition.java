@@ -136,8 +136,8 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             this.producer = producerFactory.createProducer(runtime.getName() + "Aggregate-partition-" + id + "-" + HostUtils.getHostName());
             // resolve the external event partitions
             externalDomainEventTypes.forEach(domainEventType -> {
-                String topic = ackesRegistry.resolveTopic(domainEventType);
-                externalEventPartitions.add(new TopicPartition(topic, id));
+                List<String> topics = ackesRegistry.resolveTopics(domainEventType);
+                topics.forEach(topic -> externalEventPartitions.add(new TopicPartition(topic, id)));
             });
             // make a hard assignment, only assign the gdprKeyPartition if needed
             consumer.assign(Stream.concat(Stream.concat(

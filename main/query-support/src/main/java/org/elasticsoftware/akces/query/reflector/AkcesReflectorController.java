@@ -407,12 +407,12 @@ public class AkcesReflectorController extends Thread
 
     @Override
     @Nonnull
-    public String resolveTopic(@Nonnull DomainEventType<?> externalDomainEventType) {
+    public List<String> resolveTopics(@Nonnull DomainEventType<?> externalDomainEventType) {
         List<AggregateServiceRecord> services = aggregateServices.values().stream()
                 .filter(record -> producesDomainEvent(record.producedEvents(), externalDomainEventType))
                 .toList();
-        if (services.size() == 1) {
-            return services.getFirst().domainEventTopic();
+        if (!services.isEmpty()) {
+            return services.stream().map(AggregateServiceRecord::domainEventTopic).toList();
         } else {
             throw new IllegalStateException(
                     "Cannot determine which service produces DomainEvent "

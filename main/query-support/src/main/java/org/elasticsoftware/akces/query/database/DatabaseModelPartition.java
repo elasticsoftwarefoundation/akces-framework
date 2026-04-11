@@ -92,7 +92,7 @@ public class DatabaseModelPartition implements Runnable, AutoCloseable {
                     null);
             // resolve the external event partitions
             Set<String> distinctTopics = externalDomainEventTypes.stream()
-                    .map(akcesRegistry::resolveTopic)
+                    .flatMap(domainEventType -> akcesRegistry.resolveTopics(domainEventType).stream())
                     .collect(Collectors.toSet());
             externalEventPartitions.addAll(distinctTopics.stream()
                     .map(topic -> new TopicPartition(topic, id))
