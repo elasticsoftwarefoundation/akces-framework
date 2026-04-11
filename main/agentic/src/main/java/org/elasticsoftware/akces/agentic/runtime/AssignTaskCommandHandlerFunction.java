@@ -33,7 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -58,9 +57,11 @@ import java.util.stream.Stream;
  *   <li>Emits an {@link AgentTaskAssignedEvent} containing the process ID so that
  *       the event-sourcing handler can record the task in
  *       {@link TaskAwareState}.</li>
- *   <li>Performs a single tick via {@link AgentProcessSingleTickRunner#tick} and
- *       concatenates any produced events after the assigned-event.</li>
  * </ol>
+ *
+ * <p>The handler does <strong>not</strong> tick the newly created process. Instead, the
+ * partition's idle-poll cycle ({@code resumeAgentTasks}) exclusively drives all
+ * {@link AgentProcess} advancement.
  *
  * <p>This handler is always registered as a built-in command handler on every agentic
  * aggregate. Unlike {@link AgenticCommandHandlerFunctionAdapter} (which delegates
@@ -125,8 +126,7 @@ public class AssignTaskCommandHandlerFunction
      *
      * @param command the command to process; must be an {@link AssignTaskCommand}
      * @param state   the current aggregate state
-     * @return a stream starting with {@link AgentTaskAssignedEvent} followed by any
-     *         events produced during the single agent tick
+     * @return a stream containing the {@link AgentTaskAssignedEvent}
      */
     @Nonnull
     @Override
@@ -179,29 +179,8 @@ public class AssignTaskCommandHandlerFunction
                 assignTask.taskMetadata(),
                 Instant.now());
 
-        // Perform a single tick to kick-start the agent process, using the full set
-        // of registered event types so first-tick events are correctly recognized.
-        Stream<DomainEvent> tickEvents =
-                AgentProcessSingleTickRunner.tick(agentProcess, getAllRegisteredEventTypes());
-
-        logger.debug("Single tick completed with status {} for AssignTask on aggregate {}",
-                agentProcess.getStatus(), aggregateName);
-
-        return Stream.concat(Stream.of(assignedEvent), tickEvents);
-    }
-
-    /**
-     * Returns all domain event types this handler may produce (both state-changing and error types).
-     * Used by {@link AgentProcessResultTranslator} to filter out unknown
-     * {@link org.elasticsoftware.akces.events.ErrorEvent} instances that are not
-     * registered with the runtime.
-     *
-     * @return combined list of produced and error domain event types
-     */
-    private List<DomainEventType<?>> getAllRegisteredEventTypes() {
-        List<DomainEventType<?>> all = new ArrayList<>(producedEventTypes.size() + errorEventTypes.size());
-        all.addAll(producedEventTypes);
-        all.addAll(errorEventTypes);
-        return all;
+        // The process is NOT ticked here. The partition's idle-poll cycle
+        // (resumeAgentTasks) exclusively drives all AgentProcess advancement.
+        return Stream.of(assignedEvent);
     }
 }

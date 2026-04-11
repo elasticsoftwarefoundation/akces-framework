@@ -30,7 +30,6 @@ import org.elasticsoftware.akces.events.DomainEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -52,12 +51,12 @@ import java.util.stream.Stream;
  *       {@code {aggregateName}Agent} suffix match). If no match is found, the
  *       {@link DefaultAgent} is used as a fallback.</li>
  *   <li>Creates an {@link AgentProcess} via
- *       {@link AgentPlatform#createAgentProcess(Agent, ProcessOptions, Map)} and performs
- *       a single {@link AgentProcess#tick()}.</li>
- *   <li>Collects {@link DomainEvent} objects placed on the agent's blackboard via
- *       {@link AgentProcessSingleTickRunner#tick} and returns them as a
- *       {@link Stream}.</li>
+ *       {@link AgentPlatform#createAgentProcess(Agent, ProcessOptions, Map)}.</li>
  * </ol>
+ *
+ * <p>The adapter does <strong>not</strong> tick the newly created process. Instead, the
+ * partition's idle-poll cycle ({@code resumeAgentTasks}) exclusively drives all
+ * {@link AgentProcess} advancement.
  *
  * <p>{@link #isCreate()} always returns {@code false} — agent-handled commands cannot
  * create aggregate state. Every agentic aggregate must have a separate deterministic
@@ -132,7 +131,7 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C ex
      *
      * @param command the command to process; never {@code null}
      * @param state   the current aggregate state
-     * @return a stream of domain events produced by the agent; may be empty
+     * @return an empty stream — the process is advanced by {@code resumeAgentTasks}
      */
     @Nonnull
     @Override
@@ -160,13 +159,12 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C ex
         AgentProcess agentProcess = agentPlatform.createAgentProcess(
                 resolvedAgent, ProcessOptions.DEFAULT, bindings);
 
-        Stream<DomainEvent> tickEvents =
-                AgentProcessSingleTickRunner.tick(agentProcess, getAllRegisteredEventTypes());
+        logger.debug("Created AgentProcess with id={} for command {} on aggregate {}",
+                agentProcess.getId(), commandType.typeName(), aggregateName);
 
-        logger.debug("Single tick completed with status {} for command {} on aggregate {}",
-                agentProcess.getStatus(), commandType.typeName(), aggregateName);
-
-        return (Stream<E>) tickEvents;
+        // The process is NOT ticked here. The partition's idle-poll cycle
+        // (resumeAgentTasks) exclusively drives all AgentProcess advancement.
+        return (Stream<E>) Stream.<DomainEvent>empty();
     }
 
     /**
@@ -199,20 +197,6 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C ex
     @Override
     public List<DomainEventType<E>> getErrorEventTypes() {
         return errorEventTypes;
-    }
-
-    /**
-     * Returns all domain event types this adapter may produce (both state-changing and error types).
-     * Used by {@link AgentProcessResultTranslator} to filter out unknown {@link org.elasticsoftware.akces.events.ErrorEvent}
-     * instances that are not registered with the runtime.
-     *
-     * @return combined list of produced and error domain event types
-     */
-    private List<DomainEventType<?>> getAllRegisteredEventTypes() {
-        List<DomainEventType<?>> all = new ArrayList<>(producedDomainEventTypes.size() + errorEventTypes.size());
-        all.addAll(producedDomainEventTypes);
-        all.addAll(errorEventTypes);
-        return all;
     }
 
     /**

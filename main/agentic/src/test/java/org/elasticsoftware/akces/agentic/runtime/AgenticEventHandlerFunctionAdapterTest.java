@@ -20,7 +20,6 @@ package org.elasticsoftware.akces.agentic.runtime;
 import com.embabel.agent.core.Agent;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
-import com.embabel.agent.core.Blackboard;
 import com.embabel.agent.core.ProcessOptions;
 import org.elasticsoftware.akces.agentic.embabel.DefaultAgent;
 import org.elasticsoftware.akces.aggregate.*;
@@ -75,16 +74,12 @@ class AgenticEventHandlerFunctionAdapterTest {
     @Mock
     private AgentProcess agentProcess;
 
-    @Mock
-    private Blackboard blackboard;
-
     private final DomainEventType<TestExternalEvent> eventType =
             new DomainEventType<>("ExternalEvent", 1, TestExternalEvent.class, false, true, false, false);
 
     @BeforeEach
     void setUp() {
-        lenient().when(agentProcess.getBlackboard()).thenReturn(blackboard);
-        lenient().when(blackboard.get(any(String.class))).thenReturn(null);
+        // No blackboard setup needed — adapters no longer tick the process.
     }
 
     // -------------------------------------------------------------------------
@@ -98,7 +93,6 @@ class AgenticEventHandlerFunctionAdapterTest {
         when(agentPlatform.agents()).thenReturn(List.of(agent));
         when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any(Map.class)))
                 .thenReturn(agentProcess);
-        when(agentProcess.getStatus()).thenReturn(null);
 
         var adapter = new AgenticEventHandlerFunctionAdapter<>(
                 aggregate, "TestAggregate", eventType, agentPlatform,
@@ -122,7 +116,6 @@ class AgenticEventHandlerFunctionAdapterTest {
         when(agentPlatform.agents()).thenReturn(List.of(agent));
         when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any(Map.class)))
                 .thenReturn(agentProcess);
-        when(agentProcess.getStatus()).thenReturn(null);
 
         var adapter = new AgenticEventHandlerFunctionAdapter<>(
                 aggregate, "TestAggregate", eventType, agentPlatform,
@@ -146,7 +139,6 @@ class AgenticEventHandlerFunctionAdapterTest {
         when(agentPlatform.agents()).thenReturn(List.of(defaultAgent));
         when(agentPlatform.createAgentProcess(eq(defaultAgent), eq(ProcessOptions.DEFAULT), any(Map.class)))
                 .thenReturn(agentProcess);
-        when(agentProcess.getStatus()).thenReturn(null);
 
         var adapter = new AgenticEventHandlerFunctionAdapter<>(
                 aggregate, "UnknownAggregate", eventType, agentPlatform,

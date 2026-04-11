@@ -20,7 +20,6 @@ package org.elasticsoftware.akces.agentic.runtime;
 import com.embabel.agent.core.Agent;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
-import com.embabel.agent.core.Blackboard;
 import com.embabel.agent.core.ProcessOptions;
 import org.elasticsoftware.akces.agentic.embabel.DefaultAgent;
 import org.elasticsoftware.akces.aggregate.*;
@@ -85,16 +84,12 @@ class AgenticCommandHandlerFunctionAdapterTest {
     @Mock
     private AgentProcess agentProcess;
 
-    @Mock
-    private Blackboard blackboard;
-
     private final CommandType<TestCommand> commandType =
             new CommandType<>("TestCommand", 1, TestCommand.class, false, false, false);
 
     @BeforeEach
     void setUp() {
-        lenient().when(agentProcess.getBlackboard()).thenReturn(blackboard);
-        lenient().when(blackboard.get(any(String.class))).thenReturn(null);
+        // No blackboard setup needed — adapters no longer tick the process.
     }
 
     // -------------------------------------------------------------------------
@@ -108,7 +103,6 @@ class AgenticCommandHandlerFunctionAdapterTest {
         when(agentPlatform.agents()).thenReturn(List.of(agent));
         when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any(Map.class)))
                 .thenReturn(agentProcess);
-        when(agentProcess.getStatus()).thenReturn(null);
 
         var adapter = new AgenticCommandHandlerFunctionAdapter<>(
                 aggregate, "TestAggregate", commandType, agentPlatform,
@@ -131,7 +125,6 @@ class AgenticCommandHandlerFunctionAdapterTest {
         when(agentPlatform.agents()).thenReturn(List.of(agent));
         when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any(Map.class)))
                 .thenReturn(agentProcess);
-        when(agentProcess.getStatus()).thenReturn(null);
 
         var adapter = new AgenticCommandHandlerFunctionAdapter<>(
                 aggregate, "TestAggregate", commandType, agentPlatform,
@@ -154,7 +147,6 @@ class AgenticCommandHandlerFunctionAdapterTest {
         when(agentPlatform.agents()).thenReturn(List.of(defaultAgent));
         when(agentPlatform.createAgentProcess(eq(defaultAgent), eq(ProcessOptions.DEFAULT), any(Map.class)))
                 .thenReturn(agentProcess);
-        when(agentProcess.getStatus()).thenReturn(null);
 
         var adapter = new AgenticCommandHandlerFunctionAdapter<>(
                 aggregate, "UnknownAggregate", commandType, agentPlatform,
@@ -211,7 +203,6 @@ class AgenticCommandHandlerFunctionAdapterTest {
         when(agentPlatform.agents()).thenReturn(List.of(suffixAgent, exactAgent));
         when(agentPlatform.createAgentProcess(eq(exactAgent), eq(ProcessOptions.DEFAULT), any(Map.class)))
                 .thenReturn(agentProcess);
-        when(agentProcess.getStatus()).thenReturn(null);
 
         var adapter = new AgenticCommandHandlerFunctionAdapter<>(
                 aggregate, "MyAggregate", commandType, agentPlatform,

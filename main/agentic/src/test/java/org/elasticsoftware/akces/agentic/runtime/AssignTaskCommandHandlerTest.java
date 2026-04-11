@@ -20,7 +20,6 @@ package org.elasticsoftware.akces.agentic.runtime;
 import com.embabel.agent.core.Agent;
 import com.embabel.agent.core.AgentPlatform;
 import com.embabel.agent.core.AgentProcess;
-import com.embabel.agent.core.Blackboard;
 import com.embabel.agent.core.ProcessOptions;
 import org.elasticsoftware.akces.agentic.commands.AssignTaskCommand;
 import org.elasticsoftware.akces.agentic.embabel.DefaultAgent;
@@ -70,9 +69,6 @@ class AssignTaskCommandHandlerTest {
     @Mock
     private Agent agent;
 
-    @Mock
-    private Blackboard blackboard;
-
     private CommandHandlerFunction<AggregateState, Command, DomainEvent> handler;
 
     @BeforeEach
@@ -90,12 +86,6 @@ class AssignTaskCommandHandlerTest {
         when(agentPlatform.agents()).thenReturn(List.of(agent));
     }
 
-    /** Sets up the blackboard mock so that the single tick in the handler succeeds. */
-    private void setUpBlackboard() {
-        when(agentProcess.getBlackboard()).thenReturn(blackboard);
-        when(blackboard.getObjects()).thenReturn(List.of());
-    }
-
     @Test
     void applyShouldCreateAgentProcessAndEmitEvent() {
         setUpAgentResolution();
@@ -106,8 +96,6 @@ class AssignTaskCommandHandlerTest {
         when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any()))
                 .thenReturn(agentProcess);
         when(agentProcess.getId()).thenReturn("embabel-proc-42");
-        when(agentProcess.getStatus()).thenReturn(null);
-        setUpBlackboard();
 
         Stream<DomainEvent> result = handler.apply(command, state);
         List<DomainEvent> events = result.toList();
@@ -137,8 +125,6 @@ class AssignTaskCommandHandlerTest {
         when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any()))
                 .thenReturn(agentProcess);
         when(agentProcess.getId()).thenReturn("proc-abc");
-        when(agentProcess.getStatus()).thenReturn(null);
-        setUpBlackboard();
 
         List<DomainEvent> events = handler.apply(command, state).toList();
 
@@ -157,8 +143,6 @@ class AssignTaskCommandHandlerTest {
         when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any()))
                 .thenReturn(agentProcess);
         when(agentProcess.getId()).thenReturn("proc-xyz");
-        when(agentProcess.getStatus()).thenReturn(null);
-        setUpBlackboard();
 
         List<DomainEvent> events = handler.apply(command, state).toList();
 
@@ -186,8 +170,6 @@ class AssignTaskCommandHandlerTest {
         when(agentPlatform.createAgentProcess(eq(defaultAgent), eq(ProcessOptions.DEFAULT), any()))
                 .thenReturn(agentProcess);
         when(agentProcess.getId()).thenReturn("proc-default");
-        when(agentProcess.getStatus()).thenReturn(null);
-        setUpBlackboard();
 
         var party = new HumanRequestingParty("user-1", "analyst");
         var command = new AssignTaskCommand("agg-1", "task", party, null);

@@ -33,13 +33,9 @@ import java.util.stream.Stream;
  * {@link AgentProcessResultTranslator#collectEvents} and marked as hidden so that
  * subsequent calls do not return the same events again.
  *
- * <p>This utility is the building block for:
- * <ul>
- *   <li>Single-tick event processing in {@link AgenticCommandHandlerFunctionAdapter} and
- *       {@link AgenticEventHandlerFunctionAdapter}</li>
- *   <li>Single-tick processing in {@link AssignTaskCommandHandlerFunction} and
- *       {@link KafkaAgenticAggregateRuntime#resumeNextAgentTask resumeNextAgentTask}</li>
- * </ul>
+ * <p>This utility is the building block for the idle-poll resume path in
+ * {@link KafkaAgenticAggregateRuntime#resumeNextAgentTask resumeNextAgentTask},
+ * which exclusively drives all {@link com.embabel.agent.core.AgentProcess} advancement.
  */
 public final class AgentProcessSingleTickRunner {
 
