@@ -342,17 +342,12 @@ public class AkcesDatabaseModelController extends Thread implements AutoCloseabl
     }
 
     @Override
-    public String resolveTopic(@Nonnull Class<? extends Command> commandClass) {
+    public String resolveTopic(@Nonnull CommandType<?> commandType, @Nonnull Command command) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public String resolveTopic(@Nonnull CommandType<?> commandType) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Integer resolvePartition(@Nonnull String aggregateId) {
+    public Integer resolvePartition(@Nonnull CommandType<?> commandType, @Nonnull Command command) {
         throw new UnsupportedOperationException();
     }
 

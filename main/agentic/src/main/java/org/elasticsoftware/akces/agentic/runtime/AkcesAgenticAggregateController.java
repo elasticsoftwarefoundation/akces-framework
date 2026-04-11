@@ -607,32 +607,18 @@ public class AkcesAgenticAggregateController extends Thread
     }
 
     /**
-     * Resolves the command topic for the given command class.
-     *
-     * <p>All commands for an agentic aggregate are routed to
-     * {@code {aggregateName}-Commands}.
-     *
-     * @param commandClass the command class
-     * @return the command topic name
-     */
-    @Override
-    @Nonnull
-    public String resolveTopic(@Nonnull Class<? extends Command> commandClass) {
-        return aggregateRuntime.getName() + COMMANDS_SUFFIX;
-    }
-
-    /**
-     * Resolves the command topic for the given {@link CommandType}.
+     * Resolves the command topic for the given command type and command instance.
      *
      * <p>All commands for an agentic aggregate are routed to
      * {@code {aggregateName}-Commands}.
      *
      * @param commandType the command type
+     * @param command     the command instance
      * @return the command topic name
      */
     @Override
     @Nonnull
-    public String resolveTopic(@Nonnull CommandType<?> commandType) {
+    public String resolveTopic(@Nonnull CommandType<?> commandType, @Nonnull Command command) {
         return aggregateRuntime.getName() + COMMANDS_SUFFIX;
     }
 
@@ -663,17 +649,18 @@ public class AkcesAgenticAggregateController extends Thread
     }
 
     /**
-     * Resolves the partition for the given aggregate ID.
+     * Resolves the partition for the given command.
      *
      * <p>Agentic aggregates are always single-partition services, so this method
      * always returns {@code 0}.
      *
-     * @param aggregateId the aggregate identifier (unused)
+     * @param commandType the command type (unused)
+     * @param command     the command instance (unused)
      * @return always {@code 0}
      */
     @Override
     @Nonnull
-    public Integer resolvePartition(@Nonnull String aggregateId) {
+    public Integer resolvePartition(@Nonnull CommandType<?> commandType, @Nonnull Command command) {
         return AgenticAggregatePartition.AGENTIC_PARTITION;
     }
 

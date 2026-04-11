@@ -361,7 +361,7 @@ public class AkcesReflectorController extends Thread
         if (services.size() >= 1) {
             // One or more services support this command; return as external.
             // When multiple services match (e.g. agentic built-in commands), the caller
-            // must use resolveTopic(CommandType, String) to route by aggregateId.
+            // must use resolveTopic(CommandType, Command) to route by aggregateId.
             return new CommandType<>(
                     commandInfo.type(),
                     commandInfo.version(),
@@ -375,60 +375,30 @@ public class AkcesReflectorController extends Thread
         }
     }
 
-    @Override
-    @Nonnull
-    public String resolveTopic(@Nonnull Class<? extends Command> commandClass) {
-        return resolveTopic(resolveType(commandClass));
-    }
-
-    @Override
-    @Nonnull
-    public String resolveTopic(@Nonnull CommandType<?> commandType) {
-        List<AggregateServiceRecord> services = aggregateServices.values().stream()
-                .filter(record -> supportsCommand(record.supportedCommands(), commandType))
-                .toList();
-        if (services.size() == 1) {
-            return services.getFirst().commandTopic();
-        } else if (services.size() > 1) {
-            List<AggregateServiceRecord> standardServices = services.stream()
-                    .filter(s -> s.effectiveType() == AggregateServiceType.STANDARD)
-                    .toList();
-            if (standardServices.size() == 1) {
-                return standardServices.getFirst().commandTopic();
-            }
-            throw new IllegalStateException("Multiple services support command " + commandType.typeName()
-                    + " v" + commandType.version()
-                    + "; use resolveTopic(CommandType, String) with an aggregateId to disambiguate");
-        } else {
-            throw new IllegalStateException(
-                    "Cannot determine where to send command " + commandType.typeName() + " v" + commandType.version());
-        }
-    }
-
     /**
      * {@inheritDoc}
      *
      * <p>When multiple services advertise the same command type (typically built-in agentic
-     * commands), the aggregate identifier is matched against the
-     * {@link AggregateServiceRecord#aggregateName()} of
+     * commands), the command's {@link Command#getAggregateId() aggregateId} is matched
+     * against the {@link AggregateServiceRecord#aggregateName()} of
      * {@link AggregateServiceType#AGENTIC AGENTIC} services to select the correct target.
      */
     @Override
     @Nonnull
-    public String resolveTopic(@Nonnull CommandType<?> commandType, @Nonnull String aggregateId) {
+    public String resolveTopic(@Nonnull CommandType<?> commandType, @Nonnull Command command) {
         List<AggregateServiceRecord> services = aggregateServices.values().stream()
                 .filter(s -> supportsCommand(s.supportedCommands(), commandType))
                 .toList();
         if (services.size() == 1) {
             return services.getFirst().commandTopic();
         } else if (services.size() > 1) {
-            AggregateServiceRecord target = AggregateServiceRecord.resolveAgenticTarget(services, aggregateId);
+            AggregateServiceRecord target = AggregateServiceRecord.resolveAgenticTarget(services, command.getAggregateId());
             if (target != null) {
                 return target.commandTopic();
             }
             throw new IllegalStateException("Cannot determine where to send command "
                     + commandType.typeName() + " v" + commandType.version()
-                    + " for aggregateId " + aggregateId);
+                    + " for aggregateId " + command.getAggregateId());
         } else {
             throw new IllegalStateException("Cannot determine where to send command "
                     + commandType.typeName() + " v" + commandType.version());
@@ -450,12 +420,6 @@ public class AkcesReflectorController extends Thread
         }
     }
 
-    @Override
-    @Nonnull
-    public Integer resolvePartition(@Nonnull String aggregateId) {
-        return Math.abs(hashFunction.hashString(aggregateId, UTF_8).asInt()) % partitions;
-    }
-
     /**
      * {@inheritDoc}
      *
@@ -466,7 +430,8 @@ public class AkcesReflectorController extends Thread
      */
     @Override
     @Nonnull
-    public Integer resolvePartition(@Nonnull CommandType<?> commandType, @Nonnull String aggregateId) {
+    public Integer resolvePartition(@Nonnull CommandType<?> commandType, @Nonnull Command command) {
+        String aggregateId = command.getAggregateId();
         List<AggregateServiceRecord> services = aggregateServices.values().stream()
                 .filter(s -> supportsCommand(s.supportedCommands(), commandType))
                 .toList();
@@ -480,7 +445,7 @@ public class AkcesReflectorController extends Thread
                 return 0;
             }
         }
-        return Math.abs(hashFunction.hashString(aggregateId, UTF_8).asInt()) % partitions;
+        return Math.floorMod(hashFunction.hashString(aggregateId, UTF_8).asInt(), partitions);
     }
 
     public boolean isRunning() {
