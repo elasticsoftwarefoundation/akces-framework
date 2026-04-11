@@ -35,8 +35,11 @@ public interface AkcesRegistry {
      * <p>When multiple aggregate services support the same command type (e.g. the built-in
      * {@code AssignTask} command shared by all agentic aggregates), the {@code aggregateId}
      * is used to select the correct target service. For
-     * {@link AggregateServiceType#AGENTIC AGENTIC} services the aggregate identifier equals
-     * the aggregate name, which in turn is the Kafka topic prefix.
+     * {@link AggregateServiceType#AGENTIC AGENTIC} services the aggregate identifier
+     * matches the service's {@link AggregateServiceRecord#aggregateName() aggregateName},
+     * which doubles as the Kafka topic prefix. This identity does <em>not</em> hold for
+     * {@link AggregateServiceType#STANDARD STANDARD} services where aggregate identifiers
+     * are arbitrary domain keys.
      *
      * <p>The default implementation ignores the aggregate identifier and delegates to
      * {@link #resolveTopic(CommandType)}.

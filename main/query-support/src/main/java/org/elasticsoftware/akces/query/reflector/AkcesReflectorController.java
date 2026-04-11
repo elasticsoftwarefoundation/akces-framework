@@ -422,22 +422,13 @@ public class AkcesReflectorController extends Thread
         if (services.size() == 1) {
             return services.getFirst().commandTopic();
         } else if (services.size() > 1) {
-            return services.stream()
-                    .filter(s -> s.effectiveType() == AggregateServiceType.AGENTIC
-                            && s.aggregateName().equals(aggregateId))
-                    .findFirst()
-                    .map(AggregateServiceRecord::commandTopic)
-                    .orElseGet(() -> {
-                        List<AggregateServiceRecord> standard = services.stream()
-                                .filter(s -> s.effectiveType() == AggregateServiceType.STANDARD)
-                                .toList();
-                        if (standard.size() == 1) {
-                            return standard.getFirst().commandTopic();
-                        }
-                        throw new IllegalStateException("Cannot determine where to send command "
-                                + commandType.typeName() + " v" + commandType.version()
-                                + " for aggregateId " + aggregateId);
-                    });
+            AggregateServiceRecord target = AggregateServiceRecord.resolveAgenticTarget(services, aggregateId);
+            if (target != null) {
+                return target.commandTopic();
+            }
+            throw new IllegalStateException("Cannot determine where to send command "
+                    + commandType.typeName() + " v" + commandType.version()
+                    + " for aggregateId " + aggregateId);
         } else {
             throw new IllegalStateException("Cannot determine where to send command "
                     + commandType.typeName() + " v" + commandType.version());
@@ -484,12 +475,8 @@ public class AkcesReflectorController extends Thread
                 return 0;
             }
         } else if (services.size() > 1) {
-            AggregateServiceRecord target = services.stream()
-                    .filter(s -> s.effectiveType() == AggregateServiceType.AGENTIC
-                            && s.aggregateName().equals(aggregateId))
-                    .findFirst()
-                    .orElse(null);
-            if (target != null) {
+            AggregateServiceRecord target = AggregateServiceRecord.resolveAgenticTarget(services, aggregateId);
+            if (target != null && target.effectiveType() == AggregateServiceType.AGENTIC) {
                 return 0;
             }
         }

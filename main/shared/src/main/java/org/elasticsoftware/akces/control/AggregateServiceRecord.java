@@ -63,4 +63,39 @@ public record AggregateServiceRecord(
     public AggregateServiceType effectiveType() {
         return type != null ? type : AggregateServiceType.STANDARD;
     }
+
+    /**
+     * Finds the matching aggregate service for a command when multiple services support the
+     * same command type.
+     *
+     * <p>For {@link AggregateServiceType#AGENTIC AGENTIC} services, the aggregate identifier
+     * is matched against the service's {@link #aggregateName()} (since agentic aggregate IDs
+     * equal the aggregate name). If no matching AGENTIC service is found, falls back to the
+     * single {@link AggregateServiceType#STANDARD STANDARD} service if one exists.
+     *
+     * @param services    the candidate services that support the command type
+     * @param aggregateId the aggregate identifier from the command instance
+     * @return the matching service, or {@code null} if no unique match can be determined
+     */
+    @Nullable
+    public static AggregateServiceRecord resolveAgenticTarget(
+            List<AggregateServiceRecord> services, String aggregateId) {
+        // Try to find the AGENTIC service whose aggregate name matches the aggregateId
+        AggregateServiceRecord agenticMatch = services.stream()
+                .filter(s -> s.effectiveType() == AggregateServiceType.AGENTIC
+                        && s.aggregateName().equals(aggregateId))
+                .findFirst()
+                .orElse(null);
+        if (agenticMatch != null) {
+            return agenticMatch;
+        }
+        // Fall back to the single STANDARD service if one exists
+        List<AggregateServiceRecord> standard = services.stream()
+                .filter(s -> s.effectiveType() == AggregateServiceType.STANDARD)
+                .toList();
+        if (standard.size() == 1) {
+            return standard.getFirst();
+        }
+        return null;
+    }
 }

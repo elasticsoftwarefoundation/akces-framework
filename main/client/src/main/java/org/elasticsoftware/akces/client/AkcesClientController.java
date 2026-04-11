@@ -476,22 +476,12 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
             // Multiple services support this command type (e.g. built-in agentic commands
             // like AssignTask shared by all agentic aggregates). Use the command's
             // aggregateId to find the matching AGENTIC service.
-            String aggregateId = command.getAggregateId();
-            return services.stream()
-                    .filter(s -> s.effectiveType() == AggregateServiceType.AGENTIC
-                            && s.aggregateName().equals(aggregateId))
-                    .findFirst()
-                    .map(AggregateServiceRecord::commandTopic)
-                    .orElseGet(() -> {
-                        // Fall back to the single STANDARD service if one exists
-                        List<AggregateServiceRecord> standard = services.stream()
-                                .filter(s -> s.effectiveType() == AggregateServiceType.STANDARD)
-                                .toList();
-                        if (standard.size() == 1) {
-                            return standard.getFirst().commandTopic();
-                        }
-                        throw new UnroutableCommandException(command.getClass());
-                    });
+            AggregateServiceRecord target = AggregateServiceRecord.resolveAgenticTarget(
+                    services, command.getAggregateId());
+            if (target != null) {
+                return target.commandTopic();
+            }
+            throw new UnroutableCommandException(command.getClass());
         }
     }
 
@@ -524,13 +514,8 @@ public class AkcesClientController extends Thread implements AutoCloseable, Akce
                 return 0;
             }
         } else if (services.size() > 1) {
-            // Multiple services — check if the target is an AGENTIC service matching aggregateId
-            AggregateServiceRecord target = services.stream()
-                    .filter(s -> s.effectiveType() == AggregateServiceType.AGENTIC
-                            && s.aggregateName().equals(aggregateId))
-                    .findFirst()
-                    .orElse(null);
-            if (target != null) {
+            AggregateServiceRecord target = AggregateServiceRecord.resolveAgenticTarget(services, aggregateId);
+            if (target != null && target.effectiveType() == AggregateServiceType.AGENTIC) {
                 return 0;
             }
         }
