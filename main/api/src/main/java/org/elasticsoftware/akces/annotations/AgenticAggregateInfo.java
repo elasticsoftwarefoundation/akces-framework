@@ -65,7 +65,7 @@ public @interface AgenticAggregateInfo {
      * The sliding-window capacity of the memory system. When the number of stored memories
      * exceeds this limit the oldest entries are evicted to make room for new ones.
      */
-    int maxTotalMemories() default 100;
+    int maxTotalMemories() default 50;
 
     /**
      * The maximum number of net new memories that the {@code MemoryDistillerAgent} may add
@@ -75,7 +75,7 @@ public @interface AgenticAggregateInfo {
      * Set to a low value to avoid overwhelming the memory store with many entries in a single
      * agent run.
      */
-    int maxMemoriesAdded() default 10;
+    int maxMemoriesAdded() default 5;
 
     /**
      * Command classes to be processed by the AI agent instead of a deterministic

@@ -149,33 +149,47 @@ public class MemoryDistillerAgent {
 
                 """);
 
-        sb.append("PROCESS HISTORY (actions executed):\n");
+        sb.append("PROCESS HISTORY (actions executed):\n```json\n");
         if (history != null && !history.isEmpty()) {
-            for (Object invocation : history) {
-                sb.append("- ").append(serialize(invocation)).append("\n");
+            sb.append("[\n");
+            for (int i = 0; i < history.size(); i++) {
+                sb.append(serialize(history.get(i)));
+                if (i < history.size() - 1) sb.append(",");
+                sb.append("\n");
             }
+            sb.append("]\n");
         } else {
-            sb.append("(no actions recorded)\n");
+            sb.append("[]\n");
         }
+        sb.append("```\n");
 
-        sb.append("\nBLACKBOARD OBJECTS (process context and results):\n");
+        sb.append("\nBLACKBOARD OBJECTS (process context and results):\n```json\n");
         if (blackboardObjects != null && !blackboardObjects.isEmpty()) {
-            for (Object obj : blackboardObjects) {
-                sb.append("- [").append(obj.getClass().getSimpleName()).append("] ")
-                        .append(serialize(obj)).append("\n");
+            sb.append("[\n");
+            for (int i = 0; i < blackboardObjects.size(); i++) {
+                sb.append(serialize(blackboardObjects.get(i)));
+                if (i < blackboardObjects.size() - 1) sb.append(",");
+                sb.append("\n");
             }
+            sb.append("]\n");
         } else {
-            sb.append("(no objects)\n");
+            sb.append("[]\n");
         }
+        sb.append("```\n");
 
-        sb.append("\nEXISTING MEMORIES:\n");
+        sb.append("\nEXISTING MEMORIES:\n```json\n");
         if (existingMemories != null && !existingMemories.isEmpty()) {
-            for (Object memory : existingMemories) {
-                sb.append("- ").append(serialize(memory)).append("\n");
+            sb.append("[\n");
+            for (int i = 0; i < existingMemories.size(); i++) {
+                sb.append(serialize(existingMemories.get(i)));
+                if (i < existingMemories.size() - 1) sb.append(",");
+                sb.append("\n");
             }
+            sb.append("]\n");
         } else {
-            sb.append("(no existing memories)\n");
+            sb.append("[]\n");
         }
+        sb.append("```\n");
 
         return sb.toString();
     }
