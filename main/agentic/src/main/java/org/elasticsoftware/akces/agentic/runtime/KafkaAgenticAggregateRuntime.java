@@ -603,7 +603,8 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                                      AgentProcess agentProcess,
                                      AggregateState state,
                                      Consumer<ProtocolRecord> protocolRecordConsumer,
-                                     Supplier<AggregateStateRecord> stateRecordSupplier) {
+                                     Supplier<AggregateStateRecord> stateRecordSupplier)
+            throws IOException {
         Stream<DomainEvent> tickEvents =
                 AgentProcessSingleTickRunner.tick(agentProcess, delegate.getAllDomainEventTypes());
 
@@ -641,7 +642,8 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                                            AgentProcess agentProcess,
                                            AggregateState state,
                                            Consumer<ProtocolRecord> protocolRecordConsumer,
-                                           Supplier<AggregateStateRecord> stateRecordSupplier) {
+                                           Supplier<AggregateStateRecord> stateRecordSupplier)
+            throws IOException {
         Stream<DomainEvent> tickEvents =
                 AgentProcessSingleTickRunner.tick(agentProcess, delegate.getAllDomainEventTypes());
 
