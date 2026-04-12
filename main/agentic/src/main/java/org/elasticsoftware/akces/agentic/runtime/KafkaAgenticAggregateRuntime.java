@@ -30,6 +30,8 @@ import org.elasticsoftware.akces.agentic.embabel.MemoryDistillationResult;
 import org.elasticsoftware.akces.agentic.embabel.MemoryDistillerAgent;
 import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
 import org.elasticsoftware.akces.agentic.events.AgentTaskFinishedEvent;
+import org.elasticsoftware.akces.agentic.events.MemoryDistillationFinishedEvent;
+import org.elasticsoftware.akces.agentic.events.MemoryDistillationStartedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -409,11 +411,63 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     }
 
     /**
+     * Built-in event-sourcing handler for {@link MemoryDistillationStartedEvent}.
+     *
+     * <p>Records the active {@link MemoryDistillation} in the aggregate state. The state
+     * must implement {@link MemoryDistillationAwareState}; otherwise an
+     * {@link IllegalStateException} is thrown.
+     *
+     * @param event the {@code MemoryDistillationStartedEvent} to apply
+     * @param state the current aggregate state
+     * @return a new state instance with the distillation recorded
+     * @throws IllegalStateException if {@code state} does not implement
+     *         {@link MemoryDistillationAwareState}
+     */
+    @SuppressWarnings("unchecked")
+    public static AggregateState onMemoryDistillationStarted(MemoryDistillationStartedEvent event,
+                                                              AggregateState state) {
+        if (!(state instanceof MemoryDistillationAwareState mdas)) {
+            throw new IllegalStateException(
+                    "Aggregate state " + state.getClass().getName()
+                            + " does not implement MemoryDistillationAwareState");
+        }
+        MemoryDistillation distillation = new MemoryDistillation(
+                event.agentProcessId(),
+                event.startedAt());
+        return (AggregateState) mdas.withMemoryDistillation(distillation);
+    }
+
+    /**
+     * Built-in event-sourcing handler for {@link MemoryDistillationFinishedEvent}.
+     *
+     * <p>Clears the active {@link MemoryDistillation} from the aggregate state. The state
+     * must implement {@link MemoryDistillationAwareState}; otherwise an
+     * {@link IllegalStateException} is thrown.
+     *
+     * @param event the {@code MemoryDistillationFinishedEvent} to apply
+     * @param state the current aggregate state
+     * @return a new state instance with the distillation cleared
+     * @throws IllegalStateException if {@code state} does not implement
+     *         {@link MemoryDistillationAwareState}
+     */
+    @SuppressWarnings("unchecked")
+    public static AggregateState onMemoryDistillationFinished(MemoryDistillationFinishedEvent event,
+                                                               AggregateState state) {
+        if (!(state instanceof MemoryDistillationAwareState mdas)) {
+            throw new IllegalStateException(
+                    "Aggregate state " + state.getClass().getName()
+                            + " does not implement MemoryDistillationAwareState");
+        }
+        return (AggregateState) mdas.withoutMemoryDistillation();
+    }
+
+    /**
      * Single-dispatch event-sourcing handler for all built-in agentic domain events.
      *
      * <p>Routes {@link MemoryStoredEvent}, {@link MemoryRevokedEvent},
-     * {@link AgentTaskAssignedEvent}, and {@link AgentTaskFinishedEvent} to the
-     * appropriate typed handler.
+     * {@link AgentTaskAssignedEvent}, {@link AgentTaskFinishedEvent},
+     * {@link MemoryDistillationStartedEvent}, and {@link MemoryDistillationFinishedEvent}
+     * to the appropriate typed handler.
      *
      * <p>Intended to be used as a method reference
      * ({@code KafkaAgenticAggregateRuntime::handleBuiltInEvent}) so that no anonymous adapter
@@ -433,6 +487,10 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
             return onAgentTaskAssigned(assigned, state);
         } else if (event instanceof AgentTaskFinishedEvent finished) {
             return onAgentTaskFinished(finished, state);
+        } else if (event instanceof MemoryDistillationStartedEvent started) {
+            return onMemoryDistillationStarted(started, state);
+        } else if (event instanceof MemoryDistillationFinishedEvent finished) {
+            return onMemoryDistillationFinished(finished, state);
         } else {
             throw new IllegalArgumentException(
                     "Unsupported built-in event type: " + event.getClass().getName());
@@ -453,10 +511,15 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
             return false;
         }
         AggregateState state = delegate.materializeState(stateRecord);
-        if (!(state instanceof TaskAwareState taskAwareState)) {
-            return false;
+        // Check for active assigned tasks
+        if (state instanceof TaskAwareState taskAwareState && !taskAwareState.getAssignedTasks().isEmpty()) {
+            return true;
         }
-        return !taskAwareState.getAssignedTasks().isEmpty();
+        // Check for an active memory distillation process
+        if (state instanceof MemoryDistillationAwareState mdas && mdas.getMemoryDistillation() != null) {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -465,18 +528,20 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
      * <p>Implementation strategy:
      * <ol>
      *   <li>Loads and materializes the current aggregate state (with upcasting support).</li>
-     *   <li>Checks whether the state implements {@link TaskAwareState}.</li>
-     *   <li>Selects the next {@link AssignedTask} using a round-robin counter.</li>
+     *   <li>Collects all active {@link AgentProcessAware} items (assigned tasks and any
+     *       active memory distillation) into a unified list.</li>
+     *   <li>Selects the next item using a round-robin counter.</li>
      *   <li>Retrieves the existing {@link AgentProcess} from the {@link AgentPlatform}
-     *       using the task's {@code agentProcessId}.</li>
+     *       using the item's {@code getAgentProcessId()}.</li>
      *   <li>Performs a single tick via {@link AgentProcessSingleTickRunner#tick}.</li>
-     *   <li>After the tick, checks {@link AgentProcess#getFinished()}. If the process is
-     *       finished, appends an {@link AgentTaskFinishedEvent} with the process's
-     *       {@link AgentProcessStatusCode} so the built-in event-sourcing handler will
-     *       remove the task from the state.</li>
+     *   <li>If the item is an {@link AssignedTask} and the process finishes, appends an
+     *       {@link AgentTaskFinishedEvent}. If the task completed successfully and a
+     *       {@link MemoryDistillerAgent} is available, creates a distillation process
+     *       and emits a {@link MemoryDistillationStartedEvent}.</li>
+     *   <li>If the item is a {@link MemoryDistillation} and the process finishes,
+     *       collects memory events and emits a {@link MemoryDistillationFinishedEvent}.</li>
      *   <li>Processes any resulting domain events through the delegate's
-     *       {@link AggregateRuntime#processDomainEvents} method, using the agent process ID
-     *       as correlation ID.</li>
+     *       {@link AggregateRuntime#processDomainEvents} method.</li>
      * </ol>
      */
     @Override
@@ -489,31 +554,56 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
         }
 
         AggregateState state = delegate.materializeState(stateRecord);
-        if (!(state instanceof TaskAwareState taskAwareState)) {
+
+        // Build a unified list of all AgentProcessAware items
+        List<AgentProcessAware> activeItems = new ArrayList<>();
+        if (state instanceof TaskAwareState taskAwareState) {
+            activeItems.addAll(taskAwareState.getAssignedTasks());
+        }
+        if (state instanceof MemoryDistillationAwareState mdas && mdas.getMemoryDistillation() != null) {
+            activeItems.add(mdas.getMemoryDistillation());
+        }
+
+        if (activeItems.isEmpty()) {
             return;
         }
 
-        List<AssignedTask> tasks = taskAwareState.getAssignedTasks();
-        if (tasks.isEmpty()) {
-            return;
-        }
-
-        // Round-robin selection: advance the counter and wrap around the task list size
+        // Round-robin selection: advance the counter and wrap around the list size
         int index = Math.floorMod(
-                nextTaskIndex.getAndUpdate(i -> Math.floorMod(i + 1, tasks.size())),
-                tasks.size());
-        AssignedTask task = tasks.get(index);
+                nextTaskIndex.getAndUpdate(i -> Math.floorMod(i + 1, activeItems.size())),
+                activeItems.size());
+        AgentProcessAware item = activeItems.get(index);
 
-        logger.debug("Resuming agent task '{}' (processId={}) on aggregate {}",
-                task.taskDescription(), task.agentProcessId(), getName());
+        logger.debug("Resuming agent process (processId={}) on aggregate {}",
+                item.getAgentProcessId(), getName());
 
-        AgentProcess agentProcess = agentPlatform.getAgentProcess(task.agentProcessId());
+        AgentProcess agentProcess = agentPlatform.getAgentProcess(item.getAgentProcessId());
         if (agentProcess == null) {
             logger.warn("No existing AgentProcess found for id={} on aggregate {}; skipping tick",
-                    task.agentProcessId(), getName());
+                    item.getAgentProcessId(), getName());
             return;
         }
 
+        if (item instanceof AssignedTask task) {
+            resumeAssignedTask(task, agentProcess, state, protocolRecordConsumer, stateRecordSupplier);
+        } else if (item instanceof MemoryDistillation distillation) {
+            resumeMemoryDistillation(distillation, agentProcess, state, protocolRecordConsumer, stateRecordSupplier);
+        }
+    }
+
+    /**
+     * Resumes a single tick for an {@link AssignedTask}.
+     *
+     * <p>Ticks the agent process and, if finished, emits an {@link AgentTaskFinishedEvent}.
+     * For successfully completed tasks, starts a memory distillation process (if a
+     * {@link MemoryDistillerAgent} is available) and emits a
+     * {@link MemoryDistillationStartedEvent}.
+     */
+    private void resumeAssignedTask(AssignedTask task,
+                                     AgentProcess agentProcess,
+                                     AggregateState state,
+                                     Consumer<ProtocolRecord> protocolRecordConsumer,
+                                     Supplier<AggregateStateRecord> stateRecordSupplier) {
         Stream<DomainEvent> tickEvents =
                 AgentProcessSingleTickRunner.tick(agentProcess, delegate.getAllDomainEventTypes());
 
@@ -529,11 +619,11 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                     Instant.now());
             tickEvents = Stream.concat(tickEvents, Stream.of(finishedEvent));
 
-            // Distill memories from successfully completed processes
+            // Start memory distillation for successfully completed processes
             if (statusCode == AgentProcessStatusCode.COMPLETED) {
-                List<DomainEvent> memoryEvents = distillMemories(agentProcess, state, task);
-                if (!memoryEvents.isEmpty()) {
-                    tickEvents = Stream.concat(tickEvents, memoryEvents.stream());
+                List<DomainEvent> distillationEvents = startMemoryDistillation(agentProcess, state, task);
+                if (!distillationEvents.isEmpty()) {
+                    tickEvents = Stream.concat(tickEvents, distillationEvents.stream());
                 }
             }
         }
@@ -541,32 +631,62 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
         delegate.processDomainEvents(tickEvents, task.agentProcessId(), protocolRecordConsumer, stateRecordSupplier);
     }
 
+    /**
+     * Resumes a single tick for an active {@link MemoryDistillation} process.
+     *
+     * <p>Ticks the distillation agent process and, if finished, translates the result
+     * into memory events and emits a {@link MemoryDistillationFinishedEvent}.
+     */
+    private void resumeMemoryDistillation(MemoryDistillation distillation,
+                                           AgentProcess agentProcess,
+                                           AggregateState state,
+                                           Consumer<ProtocolRecord> protocolRecordConsumer,
+                                           Supplier<AggregateStateRecord> stateRecordSupplier) {
+        Stream<DomainEvent> tickEvents =
+                AgentProcessSingleTickRunner.tick(agentProcess, delegate.getAllDomainEventTypes());
+
+        if (agentProcess.getFinished()) {
+            logger.info("Memory distillation (processId={}) on aggregate {} finished",
+                    distillation.agentProcessId(), getName());
+
+            // Collect memory events from the finished distillation
+            List<DomainEvent> memoryEvents = collectDistillationResult(agentProcess, state);
+            if (!memoryEvents.isEmpty()) {
+                tickEvents = Stream.concat(tickEvents, memoryEvents.stream());
+            }
+
+            // Emit finished event to clear the distillation from state
+            MemoryDistillationFinishedEvent finishedEvent = new MemoryDistillationFinishedEvent(
+                    state.getAggregateId(),
+                    distillation.agentProcessId(),
+                    Instant.now());
+            tickEvents = Stream.concat(tickEvents, Stream.of(finishedEvent));
+        }
+
+        delegate.processDomainEvents(tickEvents, distillation.agentProcessId(),
+                protocolRecordConsumer, stateRecordSupplier);
+    }
+
     // -------------------------------------------------------------------------
     // Memory distillation
     // -------------------------------------------------------------------------
 
     /**
-     * Distills relevant memories from a successfully completed {@link AgentProcess}
-     * by running the {@link MemoryDistillerAgent} to completion.
+     * Starts a memory distillation process for a successfully completed {@link AgentProcess}.
      *
-     * <p>Creates a separate agent process for the {@link MemoryDistillerAgent}, populates
-     * its blackboard with a single {@link MemoryDistillationInput} containing the completed
-     * process's history, blackboard objects, current memories, and memory capacity constraints.
-     * The Embabel framework injects this input into the agent's action method via type-based
-     * parameter resolution. The process is then run to completion via {@link AgentProcess#run()}.
-     *
-     * <p>The net memory constraint ensures that
-     * {@code storedCount - revokedCount <= maxMemories - currentMemoryCount}, preventing
-     * the memory system from exceeding its configured capacity.
+     * <p>Creates a separate agent process for the {@link MemoryDistillerAgent} and populates
+     * its blackboard with a single {@link MemoryDistillationInput}. Instead of running the
+     * process to completion, it emits a {@link MemoryDistillationStartedEvent} so that the
+     * distillation is tracked in the aggregate state and advanced via the tick mechanism.
      *
      * @param completedProcess the agent process that has completed successfully
      * @param state            the current aggregate state
      * @param task             the assigned task that triggered the agent process
-     * @return a list of {@link MemoryStoredEvent} and {@link MemoryRevokedEvent} instances;
-     *         may be empty if no memories need to be changed
+     * @return a list containing a {@link MemoryDistillationStartedEvent}, or an empty list
+     *         if the {@link MemoryDistillerAgent} is not available
      */
-    private List<DomainEvent> distillMemories(AgentProcess completedProcess, AggregateState state,
-                                               AssignedTask task) {
+    private List<DomainEvent> startMemoryDistillation(AgentProcess completedProcess, AggregateState state,
+                                                       AssignedTask task) {
         Agent memoryDistillerAgent = resolveMemoryDistillerAgent();
         if (memoryDistillerAgent == null) {
             logger.warn("MemoryDistillerAgent not deployed on the platform; skipping memory distillation");
@@ -591,8 +711,36 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
         try {
             AgentProcess distillerProcess = agentPlatform.createAgentProcess(
                     memoryDistillerAgent, ProcessOptions.DEFAULT, bindings);
-            distillerProcess.run();
 
+            MemoryDistillationStartedEvent startedEvent = new MemoryDistillationStartedEvent(
+                    state.getAggregateId(),
+                    distillerProcess.getId(),
+                    distillationInput,
+                    Instant.now());
+
+            logger.info("Started memory distillation (processId={}) for aggregate {}",
+                    distillerProcess.getId(), getName());
+
+            return List.of(startedEvent);
+        } catch (Exception e) {
+            logger.warn("Failed to start memory distillation for aggregate {}; proceeding without memory updates",
+                    getName(), e);
+            return List.of();
+        }
+    }
+
+    /**
+     * Collects the memory distillation result from a finished distillation process
+     * and translates it into memory domain events.
+     *
+     * @param distillerProcess the finished distiller agent process
+     * @param state            the current aggregate state
+     * @return a list of {@link MemoryStoredEvent} and {@link MemoryRevokedEvent} instances;
+     *         may be empty if no memories need to be changed
+     */
+    private List<DomainEvent> collectDistillationResult(AgentProcess distillerProcess,
+                                                         AggregateState state) {
+        try {
             MemoryDistillationResult result = distillerProcess.getBlackboard()
                     .last(MemoryDistillationResult.class);
 
@@ -601,12 +749,16 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                 return List.of();
             }
 
+            List<AgenticAggregateMemory> currentMemories = state instanceof MemoryAwareState mas
+                    ? mas.getMemories()
+                    : List.of();
+
             int capacityLeft = Math.max(0, maxTotalMemories - currentMemories.size());
             int effectiveLimit = Math.min(capacityLeft, maxMemoriesAdded);
             return translateDistillationResult(result, currentMemories, effectiveLimit);
         } catch (Exception e) {
-            logger.warn("Memory distillation failed for aggregate {}; proceeding without memory updates",
-                    getName(), e);
+            logger.warn("Failed to collect memory distillation result for aggregate {}; " +
+                            "proceeding without memory updates", getName(), e);
             return List.of();
         }
     }
