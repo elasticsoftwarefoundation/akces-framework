@@ -30,6 +30,7 @@ import org.elasticsoftware.akces.agentic.embabel.MemoryDistillationResult;
 import org.elasticsoftware.akces.agentic.embabel.MemoryDistillerAgent;
 import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
 import org.elasticsoftware.akces.agentic.events.AgentTaskFinishedEvent;
+import org.elasticsoftware.akces.agentic.events.MemoryDistillationFailedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryDistillationFinishedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryDistillationStartedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
@@ -463,12 +464,37 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
     }
 
     /**
+     * Built-in event-sourcing handler for {@link MemoryDistillationFailedEvent}.
+     *
+     * <p>Removes the {@link MemoryDistillation} identified by
+     * {@link MemoryDistillationFailedEvent#agentProcessId()} from the aggregate state.
+     * The state must implement {@link MemoryAwareState}; otherwise an
+     * {@link IllegalStateException} is thrown.
+     *
+     * @param event the {@code MemoryDistillationFailedEvent} to apply
+     * @param state the current aggregate state
+     * @return a new state instance with the matching distillation removed
+     * @throws IllegalStateException if {@code state} does not implement
+     *         {@link MemoryAwareState}
+     */
+    @SuppressWarnings("unchecked")
+    public static AggregateState onMemoryDistillationFailed(MemoryDistillationFailedEvent event,
+                                                             AggregateState state) {
+        if (!(state instanceof MemoryAwareState mas)) {
+            throw new IllegalStateException(
+                    "Aggregate state " + state.getClass().getName()
+                            + " does not implement MemoryAwareState");
+        }
+        return (AggregateState) mas.withoutMemoryDistillation(event.agentProcessId());
+    }
+
+    /**
      * Single-dispatch event-sourcing handler for all built-in agentic domain events.
      *
      * <p>Routes {@link MemoryStoredEvent}, {@link MemoryRevokedEvent},
      * {@link AgentTaskAssignedEvent}, {@link AgentTaskFinishedEvent},
-     * {@link MemoryDistillationStartedEvent}, and {@link MemoryDistillationFinishedEvent}
-     * to the appropriate typed handler.
+     * {@link MemoryDistillationStartedEvent}, {@link MemoryDistillationFinishedEvent},
+     * and {@link MemoryDistillationFailedEvent} to the appropriate typed handler.
      *
      * <p>Intended to be used as a method reference
      * ({@code KafkaAgenticAggregateRuntime::handleBuiltInEvent}) so that no anonymous adapter
@@ -492,6 +518,8 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
             return onMemoryDistillationStarted(started, state);
         } else if (event instanceof MemoryDistillationFinishedEvent finished) {
             return onMemoryDistillationFinished(finished, state);
+        } else if (event instanceof MemoryDistillationFailedEvent failed) {
+            return onMemoryDistillationFailed(failed, state);
         } else {
             throw new IllegalArgumentException(
                     "Unsupported built-in event type: " + event.getClass().getName());
@@ -580,8 +608,9 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
 
         AgentProcess agentProcess = agentPlatform.getAgentProcess(item.getAgentProcessId());
         if (agentProcess == null) {
-            logger.warn("No existing AgentProcess found for id={} on aggregate {}; skipping tick",
+            logger.warn("No existing AgentProcess found for id={} on aggregate {}; emitting failure event",
                     item.getAgentProcessId(), getName());
+            handleMissingAgentProcess(item, state, protocolRecordConsumer, stateRecordSupplier);
             return;
         }
 
@@ -590,6 +619,45 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
         } else if (item instanceof MemoryDistillation distillation) {
             resumeMemoryDistillation(distillation, agentProcess, state, protocolRecordConsumer, stateRecordSupplier);
         }
+    }
+
+    /**
+     * Handles the case where an {@link AgentProcess} can no longer be found on the
+     * {@link AgentPlatform}, typically after a restart or crash.
+     *
+     * <p>For an {@link AssignedTask}, emits an {@link AgentTaskFinishedEvent} with
+     * {@link AgentProcessStatusCode#FAILED} to clear the task from state.
+     * For a {@link MemoryDistillation}, emits a {@link MemoryDistillationFailedEvent}
+     * to clear the distillation from state.
+     */
+    private void handleMissingAgentProcess(AgentProcessAware item,
+                                            AggregateState state,
+                                            Consumer<ProtocolRecord> protocolRecordConsumer,
+                                            Supplier<AggregateStateRecord> stateRecordSupplier)
+            throws IOException {
+        Stream<DomainEvent> events;
+        if (item instanceof AssignedTask task) {
+            logger.info("Emitting AgentTaskFinished(FAILED) for orphaned task '{}' (processId={}) on aggregate {}",
+                    task.taskDescription(), task.agentProcessId(), getName());
+            events = Stream.of(new AgentTaskFinishedEvent(
+                    state.getAggregateId(),
+                    task.agentProcessId(),
+                    AgentProcessStatusCode.FAILED,
+                    Instant.now()));
+        } else if (item instanceof MemoryDistillation distillation) {
+            logger.info("Emitting MemoryDistillationFailed for orphaned distillation (processId={}) on aggregate {}",
+                    distillation.agentProcessId(), getName());
+            events = Stream.of(new MemoryDistillationFailedEvent(
+                    state.getAggregateId(),
+                    distillation.agentProcessId(),
+                    Instant.now()));
+        } else {
+            logger.warn("Unknown AgentProcessAware type: {}; cannot emit failure event",
+                    item.getClass().getName());
+            return;
+        }
+        delegate.processDomainEvents(events, item.getAgentProcessId(),
+                protocolRecordConsumer, stateRecordSupplier);
     }
 
     /**

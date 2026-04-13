@@ -21,6 +21,7 @@ import com.embabel.agent.core.AgentPlatform;
 import org.elasticsoftware.akces.agentic.commands.AssignTaskCommand;
 import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
 import org.elasticsoftware.akces.agentic.events.AgentTaskFinishedEvent;
+import org.elasticsoftware.akces.agentic.events.MemoryDistillationFailedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryDistillationFinishedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryDistillationStartedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
@@ -86,6 +87,10 @@ public interface AgenticAggregateRuntime extends AggregateRuntime {
     /** Built-in domain event type for {@link MemoryDistillationFinishedEvent}. */
     DomainEventType<MemoryDistillationFinishedEvent> MEMORY_DISTILLATION_FINISHED_TYPE = new DomainEventType<>(
             "MemoryDistillationFinished", 1, MemoryDistillationFinishedEvent.class, false, false, false, false);
+
+    /** Built-in domain event type for {@link MemoryDistillationFailedEvent}. */
+    DomainEventType<MemoryDistillationFailedEvent> MEMORY_DISTILLATION_FAILED_TYPE = new DomainEventType<>(
+            "MemoryDistillationFailed", 1, MemoryDistillationFailedEvent.class, false, false, false, false);
 
     /**
      * Returns the Embabel {@link AgentPlatform} used to create and run agent processes.

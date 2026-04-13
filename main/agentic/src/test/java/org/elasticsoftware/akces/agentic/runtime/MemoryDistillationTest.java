@@ -27,6 +27,7 @@ import org.elasticsoftware.akces.agentic.embabel.MemoryDistillationInput;
 import org.elasticsoftware.akces.agentic.embabel.MemoryDistillationResult;
 import org.elasticsoftware.akces.agentic.embabel.MemoryDistillerAgent;
 import org.elasticsoftware.akces.agentic.events.AgentTaskFinishedEvent;
+import org.elasticsoftware.akces.agentic.events.MemoryDistillationFailedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryDistillationFinishedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryDistillationStartedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
@@ -719,5 +720,63 @@ class MemoryDistillationTest {
         assertThat(input.existingMemories()).isEqualTo(List.of(existingMemory));
         assertThat(input.maxTotalMemories()).isEqualTo(100);
         assertThat(input.maxMemoriesAdded()).isEqualTo(10);
+    }
+
+    // -------------------------------------------------------------------------
+    // Missing AgentProcess handling
+    // -------------------------------------------------------------------------
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void missingAgentProcessForTaskShouldEmitAgentTaskFinishedFailed() throws IOException {
+        var party = new HumanRequestingParty("user-1", "analyst");
+        var task = new AssignedTask("proc-1", "Task", party, Map.of(), Instant.now());
+        var state = new MemoryTaskState("agg-1", List.of(task), List.of());
+        byte[] payload = objectMapper.writeValueAsBytes(state);
+        var stateRecord = new AggregateStateRecord(null, "MemoryTaskState", 1, payload,
+                PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
+
+        // AgentProcess no longer exists (e.g., after restart)
+        when(agentPlatform.getAgentProcess("proc-1")).thenReturn(null);
+
+        ArgumentCaptor<Stream<DomainEvent>> eventsCaptor = ArgumentCaptor.forClass(Stream.class);
+        runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
+
+        verify(delegate).processDomainEvents(eventsCaptor.capture(), eq("proc-1"), any(), any());
+        List<DomainEvent> events = eventsCaptor.getValue().toList();
+
+        assertThat(events).hasSize(1);
+        assertThat(events.getFirst()).isInstanceOf(AgentTaskFinishedEvent.class);
+        AgentTaskFinishedEvent finishedEvent = (AgentTaskFinishedEvent) events.getFirst();
+        assertThat(finishedEvent.agenticAggregateId()).isEqualTo("agg-1");
+        assertThat(finishedEvent.agentProcessId()).isEqualTo("proc-1");
+        assertThat(finishedEvent.status()).isEqualTo(AgentProcessStatusCode.FAILED);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void missingAgentProcessForDistillationShouldEmitMemoryDistillationFailed() throws IOException {
+        var distillation = new MemoryDistillation("distiller-proc-1", Instant.now());
+        var state = new MemoryTaskState("agg-1", List.of(), List.of(), List.of(distillation));
+        byte[] payload = objectMapper.writeValueAsBytes(state);
+        var stateRecord = new AggregateStateRecord(null, "MemoryTaskState", 1, payload,
+                PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
+
+        // AgentProcess no longer exists (e.g., after restart)
+        when(agentPlatform.getAgentProcess("distiller-proc-1")).thenReturn(null);
+
+        ArgumentCaptor<Stream<DomainEvent>> eventsCaptor = ArgumentCaptor.forClass(Stream.class);
+        runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
+
+        verify(delegate).processDomainEvents(eventsCaptor.capture(), eq("distiller-proc-1"), any(), any());
+        List<DomainEvent> events = eventsCaptor.getValue().toList();
+
+        assertThat(events).hasSize(1);
+        assertThat(events.getFirst()).isInstanceOf(MemoryDistillationFailedEvent.class);
+        MemoryDistillationFailedEvent failedEvent = (MemoryDistillationFailedEvent) events.getFirst();
+        assertThat(failedEvent.agenticAggregateId()).isEqualTo("agg-1");
+        assertThat(failedEvent.agentProcessId()).isEqualTo("distiller-proc-1");
     }
 }
