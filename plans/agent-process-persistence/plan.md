@@ -288,6 +288,26 @@ to serialize `AgentProcess` objects directly. However:
 (what's on the blackboard, what actions ran, what's the status) and reconstructs framework references
 from the running context.
 
+### Selective Persistence: Task Processes Only
+
+Not all `AgentProcess` instances need persistence. There are four creation points in Akces:
+
+| Creator | Process Type | Lifecycle | Persist? |
+|---------|-------------|-----------|----------|
+| `AssignTaskCommandHandlerFunction` | Task assignment | Long-lived, tick-based | **Yes** |
+| `AgenticCommandHandlerFunctionAdapter` | Agent-handled command | Long-lived, tick-based | **Yes** |
+| `AgenticEventHandlerFunctionAdapter` | Agent-handled external event | Long-lived, tick-based | **Yes** |
+| `KafkaAgenticAggregateRuntime.distillMemories()` | Memory distillation | Short-lived, run-to-completion | **No** |
+
+The implementation uses a **decorator pattern**: `PersistentAgentProcessRepository` wraps the existing
+`InMemoryAgentProcessRepository`. On `save()`/`update()`/`delete()`, it delegates to the in-memory
+implementation AND persists to RocksDB for task processes. For short-lived processes (e.g., memory
+distillation), it delegates to in-memory only.
+
+The distinction is made by tracking which process IDs correspond to assigned tasks. When a process is
+created via `save()`, the decorator checks if the process is associated with a task (identifiable by
+the `isTaskAssignment` binding or via an explicit flag) and only persists task-related processes.
+
 ## Implementation Phases
 
 ### Phase 1: AgentProcessSnapshot Model and Serialization
@@ -318,28 +338,31 @@ from the running context.
 - Handle graceful degradation for unresolvable types
 - Unit tests for rehydration with mock AgentPlatform
 
-**Key Challenge**: Embabel's `DefaultAgentPlatform.createAgentProcess()` creates a fresh process. We
-need a way to create a process and then populate it with restored state. Options:
-  - a) Use `createAgentProcess()` with restored bindings, then use reflection to set status/history
-  - b) Propose an Embabel API extension (e.g., `restoreAgentProcess(snapshot)`) — preferred long-term
-  - c) Create a `RestoredAgentProcess` wrapper that delegates to a fresh process but overrides metadata
+**Approach — Wrapper/Decorator Pattern**: Create a `RestoredAgentProcess` that wraps a freshly created
+`AgentProcess` (via `AgentPlatform.createAgentProcess()`) and implements the exact Embabel
+`AgentProcess` interface. The wrapper:
+  - Creates a new process with the restored blackboard bindings
+  - Overrides `getStatus()`, `getHistory()`, `getId()`, `getParentId()` etc. to return the snapshot values
+  - Delegates `tick()`, `run()`, `kill()` etc. to the wrapped process
+  - The planning system reconstructs `WorldState` from the Blackboard contents on the first `tick()`
 
-The recommended approach is **(c)** for the initial implementation, with a proposal to Embabel for
-**(b)** as a follow-up.
+### Phase 3: RocksDB-backed AgentProcessRepository (Decorator)
 
-### Phase 3: RocksDB-backed AgentProcessRepository
-
-**Goal**: Implement the persistent repository using RocksDB.
+**Goal**: Implement the persistent repository using RocksDB with a decorator pattern.
 
 **Deliverables**:
-- `RocksDBAgentProcessRepository` implementing `AgentProcessRepository`
-- RocksDB database configuration (separate DB or column family within existing aggregate state DB)
-- Write-through to RocksDB on `save()` and `update()`
-- Delete from RocksDB on `delete()`
-- `findById()` and `findByParentId()` with RocksDB reads + deserialization
-- Lazy rehydration (only rehydrate when the process is actually needed, not on startup)
-- `RocksDBAgentProcessRepositoryFactory` matching existing factory patterns
+- `PersistentAgentProcessRepository` implementing `AgentProcessRepository` as a **decorator** around
+  `InMemoryAgentProcessRepository`
+- All operations delegate to the in-memory implementation first
+- `save()` and `update()` additionally persist to RocksDB for task-related processes
+- `delete()` additionally removes from RocksDB
+- `findById()` falls back to RocksDB + rehydration when not found in memory
+- `findByParentId()` combines results from memory and RocksDB
+- RocksDB database configuration (separate DB from aggregate state)
+- Snapshot after every `tick()` via the `update()` call
+- `PersistentAgentProcessRepositoryFactory` matching existing factory patterns
 - Integration tests with RocksDB
+- **This is the default implementation** (replaces InMemoryAgentProcessRepository as the default)
 
 **Design Decision**: Use a **separate RocksDB database** (not a column family in the aggregate state DB)
 to maintain separation of concerns and allow independent lifecycle management.
@@ -359,17 +382,18 @@ to maintain separation of concerns and allow independent lifecycle management.
 
 ### Phase 5: Integration with Agentic Runtime
 
-**Goal**: Wire the persistent repository into the existing agentic runtime flow.
+**Goal**: Wire the persistent repository into the existing agentic runtime flow as the default.
 
 **Deliverables**:
-- Replace `InMemoryAgentProcessRepository` with `RocksDBAgentProcessRepository` in
-  `AgenticAggregateServiceApplication` configuration
+- Configure `PersistentAgentProcessRepository` as the **default** `AgentProcessRepository` in
+  `AgenticAggregateServiceApplication` (replacing `InMemoryAgentProcessRepository`)
 - Update `AgenticAggregateRuntimeFactory` to create the persistent repository
-- Update `KafkaAgenticAggregateRuntime` to handle rehydrated processes correctly
-- Handle orphan detection: assigned tasks in aggregate state without a corresponding stored process
-  → re-create from task metadata or emit failure event
-- Handle stale processes: stored processes for tasks no longer in aggregate state → clean up
-- Configuration properties for enabling/disabling persistence
+- Ensure `KafkaAgenticAggregateRuntime` works correctly with rehydrated processes
+- Handle stale processes: stored processes for tasks no longer in aggregate state → clean up on
+  partition initialization
+- Note: Orphan recovery (missing process for assigned task) is **already handled** by the existing
+  `resumeNextAgentTask()` code which logs a warning and skips the tick. With persistence, this
+  situation should be extremely rare (only if RocksDB + Kafka both lose data)
 - End-to-end integration tests
 
 ### Phase 6: Testing and Documentation
@@ -387,29 +411,37 @@ to maintain separation of concerns and allow independent lifecycle management.
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Embabel `createAgentProcess()` doesn't support state restoration | High | Use wrapper/decorator pattern; propose API extension to Embabel |
+| Wrapper/decorator doesn't perfectly replicate Embabel process behavior | High | Comprehensive testing; track Embabel version upgrades |
 | User-defined blackboard objects not Jackson-serializable | Medium | Graceful degradation; log warnings; document requirement |
 | Blackboard object ordering semantics change across Embabel versions | Medium | Version the snapshot format; test against Embabel upgrades |
 | Large blackboard objects (e.g., full documents) cause storage pressure | Low | Configurable max snapshot size; evict oversized entries |
-| Serialization adds latency to each tick cycle | Low | Async write-through; batch updates; only snapshot on meaningful changes |
+| Serialization after every tick adds latency | Low | RocksDB writes are fast (local SSD); async Kafka write-through |
 
-## Open Questions for Architect
+## Architect Decisions (Resolved)
 
-1. **Embabel API Extension**: Should we propose a `restoreAgentProcess(snapshot)` method to the Embabel
-   project, or is the wrapper approach sufficient long-term?
+The following decisions were made by the architect in response to open questions from the initial plan:
 
-2. **Snapshot Frequency**: Should we snapshot after every `tick()`, or only on status transitions
-   (RUNNING → COMPLETED, etc.)? Every tick is safest but most expensive.
+1. **Embabel API Extension**: **No.** Use a wrapper/decorator pattern implementing the exact Embabel
+   `AgentProcessRepository` interface. No API extension proposal needed.
 
-3. **Memory Distillation Processes**: The `MemoryDistillerAgent` processes are short-lived (run to
-   completion synchronously). Should they also be persisted, or only the main task processes?
+2. **Snapshot Frequency**: **After every tick.** This ensures minimal data loss on crash. The
+   performance cost is acceptable given RocksDB's fast local writes.
 
-4. **Orphan Recovery Strategy**: When an assigned task exists in aggregate state but no stored process
-   is found, should we (a) re-create the process from scratch (losing progress), (b) emit a failure
-   event, or (c) both with configuration?
+3. **Selective Persistence**: **Only persist AgentTask processes.** Short-lived processes (e.g.,
+   `MemoryDistillerAgent` for memory distillation) are delegated to the `InMemoryAgentProcessRepository`
+   only. The decorator pattern makes this distinction transparent.
 
-5. **ContextRepository**: Embabel also has a `ContextRepository` with only in-memory implementation.
-   Should this plan also cover persistent context storage, or is that a separate effort?
+4. **Orphan Recovery**: **Already handled.** The existing `resumeNextAgentTask()` code handles missing
+   processes by logging a warning and skipping the tick. With persistent storage, this scenario should
+   be extremely rare.
 
-6. **Backward Compatibility**: Should the RocksDB repository be the default, or should it be opt-in
-   with `InMemoryAgentProcessRepository` remaining the default?
+5. **ContextRepository**: **Not in scope.** The Embabel `ContextRepository` stores `Context` objects that
+   can persist state across multiple agent processes (similar to a session). Akces does not use this
+   feature — `ProcessOptions.DEFAULT` is always used, meaning `contextId` is never set. The Akces
+   architecture already provides cross-process state via aggregate state and the memories system
+   (`MemoryAwareState`), making `ContextRepository` redundant. If needed in the future, it would be a
+   separate effort following the same RocksDB + Kafka pattern.
+
+6. **Default Configuration**: **RocksDB is the default.** The `PersistentAgentProcessRepository`
+   (decorator over `InMemoryAgentProcessRepository` + RocksDB) will be the default repository
+   configured in `AgenticAggregateServiceApplication`.
