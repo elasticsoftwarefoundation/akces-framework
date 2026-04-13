@@ -952,13 +952,20 @@ import java.util.List;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.aggregate.AgenticAggregateMemory;
 import org.elasticsoftware.akces.aggregate.MemoryAwareState;
+import org.elasticsoftware.akces.aggregate.MemoryDistillation;
 import org.elasticsoftware.akces.annotations.AggregateStateInfo;
 
 @AggregateStateInfo(type = "AssistantState", version = 1)
 public record AssistantState(
         String agenticAggregateId,
-        List<AgenticAggregateMemory> memories
+        List<AgenticAggregateMemory> memories,
+        List<MemoryDistillation> memoryDistillations
 ) implements AggregateState, MemoryAwareState {
+
+    public AssistantState(String agenticAggregateId, List<AgenticAggregateMemory> memories) {
+        this(agenticAggregateId, memories, List.of());
+    }
+
     @Override
     public String getAggregateId() {
         return agenticAggregateId();
@@ -973,7 +980,7 @@ public record AssistantState(
     public AssistantState withMemory(AgenticAggregateMemory memory) {
         List<AgenticAggregateMemory> updated = new java.util.ArrayList<>(memories);
         updated.add(memory);
-        return new AssistantState(agenticAggregateId, updated);
+        return new AssistantState(agenticAggregateId, updated, memoryDistillations);
     }
 
     @Override
@@ -981,7 +988,26 @@ public record AssistantState(
         List<AgenticAggregateMemory> updated = memories.stream()
                 .filter(m -> !m.memoryId().equals(memoryId))
                 .toList();
-        return new AssistantState(agenticAggregateId, updated);
+        return new AssistantState(agenticAggregateId, updated, memoryDistillations);
+    }
+
+    @Override
+    public List<MemoryDistillation> getMemoryDistillations() {
+        return memoryDistillations;
+    }
+
+    @Override
+    public MemoryAwareState withMemoryDistillation(MemoryDistillation distillation) {
+        List<MemoryDistillation> updated = new java.util.ArrayList<>(memoryDistillations);
+        updated.add(distillation);
+        return new AssistantState(agenticAggregateId, memories, List.copyOf(updated));
+    }
+
+    @Override
+    public MemoryAwareState withoutMemoryDistillation(String agentProcessId) {
+        return new AssistantState(agenticAggregateId, memories, memoryDistillations.stream()
+                .filter(d -> !d.agentProcessId().equals(agentProcessId))
+                .toList());
     }
 }
                         """

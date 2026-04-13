@@ -28,6 +28,9 @@ import java.util.Map;
  * {@code AgentTaskAssignedEvent} is applied, and are stored in aggregate states
  * that implement {@link TaskAwareState}.
  *
+ * <p>Implements {@link AgentProcessAware} so that the tick logic can uniformly
+ * operate on both assigned tasks and memory distillation processes.
+ *
  * @param agentProcessId  the Embabel {@code AgentProcess} identifier created for this task
  * @param taskDescription a human-readable description of what the agent should do
  * @param requestingParty the entity (agent or human) that requested this task
@@ -41,5 +44,13 @@ public record AssignedTask(
         RequestingParty requestingParty,
         Map<String, String> taskMetadata,
         Instant assignedAt
-) {
+) implements AgentProcessAware {
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String getAgentProcessId() {
+        return agentProcessId;
+    }
 }

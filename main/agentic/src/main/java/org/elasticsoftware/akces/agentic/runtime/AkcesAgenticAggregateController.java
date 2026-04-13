@@ -131,7 +131,10 @@ public class AkcesAgenticAggregateController extends Thread
             AgenticAggregateRuntime.MEMORY_STORED_TYPE,
             AgenticAggregateRuntime.MEMORY_REVOKED_TYPE,
             AgenticAggregateRuntime.AGENT_TASK_ASSIGNED_TYPE,
-            AgenticAggregateRuntime.AGENT_TASK_FINISHED_TYPE
+            AgenticAggregateRuntime.AGENT_TASK_FINISHED_TYPE,
+            AgenticAggregateRuntime.MEMORY_DISTILLATION_STARTED_TYPE,
+            AgenticAggregateRuntime.MEMORY_DISTILLATION_FINISHED_TYPE,
+            AgenticAggregateRuntime.MEMORY_DISTILLATION_FAILED_TYPE
     );
 
     /** Built-in command types provided by the agentic framework. */

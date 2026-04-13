@@ -27,6 +27,9 @@ import org.elasticsoftware.akces.agentic.embabel.MemoryDistillationInput;
 import org.elasticsoftware.akces.agentic.embabel.MemoryDistillationResult;
 import org.elasticsoftware.akces.agentic.embabel.MemoryDistillerAgent;
 import org.elasticsoftware.akces.agentic.events.AgentTaskFinishedEvent;
+import org.elasticsoftware.akces.agentic.events.MemoryDistillationFailedEvent;
+import org.elasticsoftware.akces.agentic.events.MemoryDistillationFinishedEvent;
+import org.elasticsoftware.akces.agentic.events.MemoryDistillationStartedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
 import org.elasticsoftware.akces.aggregate.*;
@@ -62,12 +65,17 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class MemoryDistillationTest {
 
-    /** State that implements both TaskAwareState and MemoryAwareState. */
+    /** State that implements TaskAwareState and MemoryAwareState (which now includes distillation tracking). */
     record MemoryTaskState(
             String id,
             List<AssignedTask> assignedTasks,
-            List<AgenticAggregateMemory> memories
+            List<AgenticAggregateMemory> memories,
+            List<MemoryDistillation> memoryDistillations
     ) implements AggregateState, TaskAwareState, MemoryAwareState {
+
+        MemoryTaskState(String id, List<AssignedTask> assignedTasks, List<AgenticAggregateMemory> memories) {
+            this(id, assignedTasks, memories, List.of());
+        }
 
         @Override
         public String getAggregateId() {
@@ -83,14 +91,14 @@ class MemoryDistillationTest {
         public TaskAwareState withAssignedTask(AssignedTask task) {
             var newTasks = new ArrayList<>(assignedTasks);
             newTasks.add(task);
-            return new MemoryTaskState(id, List.copyOf(newTasks), memories);
+            return new MemoryTaskState(id, List.copyOf(newTasks), memories, memoryDistillations);
         }
 
         @Override
         public TaskAwareState withoutAssignedTask(String agentProcessId) {
             return new MemoryTaskState(id, assignedTasks.stream()
                     .filter(t -> !t.agentProcessId().equals(agentProcessId))
-                    .toList(), memories);
+                    .toList(), memories, memoryDistillations);
         }
 
         @Override
@@ -102,13 +110,32 @@ class MemoryDistillationTest {
         public MemoryAwareState withMemory(AgenticAggregateMemory memory) {
             var updated = new ArrayList<>(memories);
             updated.add(memory);
-            return new MemoryTaskState(id, assignedTasks, List.copyOf(updated));
+            return new MemoryTaskState(id, assignedTasks, List.copyOf(updated), memoryDistillations);
         }
 
         @Override
         public MemoryAwareState withoutMemory(String memoryId) {
             return new MemoryTaskState(id, assignedTasks, memories.stream()
                     .filter(m -> !m.memoryId().equals(memoryId))
+                    .toList(), memoryDistillations);
+        }
+
+        @Override
+        public List<MemoryDistillation> getMemoryDistillations() {
+            return memoryDistillations;
+        }
+
+        @Override
+        public MemoryAwareState withMemoryDistillation(MemoryDistillation distillation) {
+            var updated = new ArrayList<>(memoryDistillations);
+            updated.add(distillation);
+            return new MemoryTaskState(id, assignedTasks, memories, List.copyOf(updated));
+        }
+
+        @Override
+        public MemoryAwareState withoutMemoryDistillation(String agentProcessId) {
+            return new MemoryTaskState(id, assignedTasks, memories, memoryDistillations.stream()
+                    .filter(d -> !d.agentProcessId().equals(agentProcessId))
                     .toList());
         }
     }
@@ -181,15 +208,10 @@ class MemoryDistillationTest {
         when(memoryDistillerAgent.getName()).thenReturn(MemoryDistillerAgent.AGENT_NAME);
         when(agentPlatform.agents()).thenReturn(List.of(memoryDistillerAgent));
 
-        // Set up distiller process
-        var distillationResult = new MemoryDistillationResult(
-                List.of(new MemoryStoredEvent("agg-1", "mem-new-1", "testing", "Use JUnit 5",
-                        "src/test", "best practice", NOW)),
-                List.of());
+        // Set up distiller process creation (no longer run to completion)
         when(agentPlatform.createAgentProcess(eq(memoryDistillerAgent), eq(ProcessOptions.DEFAULT), anyMap()))
                 .thenReturn(distillerProcess);
-        when(distillerProcess.getBlackboard()).thenReturn(distillerBlackboard);
-        when(distillerBlackboard.last(MemoryDistillationResult.class)).thenReturn(distillationResult);
+        when(distillerProcess.getId()).thenReturn("distiller-proc-1");
 
         // Capture the events stream
         ArgumentCaptor<Stream<DomainEvent>> eventsCaptor = ArgumentCaptor.forClass(Stream.class);
@@ -198,18 +220,17 @@ class MemoryDistillationTest {
         verify(delegate).processDomainEvents(eventsCaptor.capture(), eq("proc-1"), any(), any());
         List<DomainEvent> events = eventsCaptor.getValue().toList();
 
-        // Should have: tick events (empty) + AgentTaskFinishedEvent + MemoryStoredEvent
+        // Should have: tick events (empty) + AgentTaskFinishedEvent + MemoryDistillationStartedEvent
         assertThat(events).hasSize(2);
         assertThat(events.get(0)).isInstanceOf(AgentTaskFinishedEvent.class);
-        assertThat(events.get(1)).isInstanceOf(MemoryStoredEvent.class);
+        assertThat(events.get(1)).isInstanceOf(MemoryDistillationStartedEvent.class);
 
-        MemoryStoredEvent storedEvent = (MemoryStoredEvent) events.get(1);
-        assertThat(storedEvent.agenticAggregateId()).isEqualTo("agg-1");
-        assertThat(storedEvent.subject()).isEqualTo("testing");
-        assertThat(storedEvent.fact()).isEqualTo("Use JUnit 5");
+        MemoryDistillationStartedEvent startedEvent = (MemoryDistillationStartedEvent) events.get(1);
+        assertThat(startedEvent.agenticAggregateId()).isEqualTo("agg-1");
+        assertThat(startedEvent.agentProcessId()).isEqualTo("distiller-proc-1");
 
-        // Verify distiller process was run to completion
-        verify(distillerProcess).run();
+        // Verify distiller process was NOT run to completion (tick-based now)
+        verify(distillerProcess, never()).run();
     }
 
     @Test
@@ -325,7 +346,7 @@ class MemoryDistillationTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void distillationShouldEnforceMaxMemoriesLimit() throws IOException {
+    void completedTaskShouldEmitDistillationStartedWithMaxMemoriesLimit() throws IOException {
         // maxTotalMemories = 5, maxMemoriesAdded = 10 — capacity is the binding constraint
         runtime = new KafkaAgenticAggregateRuntime(
                 delegate, objectMapper, MemoryTaskState.class, agentPlatform, aggregate, 5, 10);
@@ -356,7 +377,49 @@ class MemoryDistillationTest {
         when(memoryDistillerAgent.getName()).thenReturn(MemoryDistillerAgent.AGENT_NAME);
         when(agentPlatform.agents()).thenReturn(List.of(memoryDistillerAgent));
 
-        // Agent tries to store 5 memories but only 2 should be allowed
+        when(agentPlatform.createAgentProcess(eq(memoryDistillerAgent), eq(ProcessOptions.DEFAULT), anyMap()))
+                .thenReturn(distillerProcess);
+        when(distillerProcess.getId()).thenReturn("distiller-proc-1");
+
+        ArgumentCaptor<Stream<DomainEvent>> eventsCaptor = ArgumentCaptor.forClass(Stream.class);
+        runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
+
+        verify(delegate).processDomainEvents(eventsCaptor.capture(), eq("proc-1"), any(), any());
+        List<DomainEvent> events = eventsCaptor.getValue().toList();
+
+        // First tick: 1 finished + 1 MemoryDistillationStartedEvent
+        assertThat(events).hasSize(2);
+        assertThat(events.get(0)).isInstanceOf(AgentTaskFinishedEvent.class);
+        assertThat(events.get(1)).isInstanceOf(MemoryDistillationStartedEvent.class);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void distillationTickShouldEnforceMaxMemoriesLimit() throws IOException {
+        // Test the second phase: when a distillation process finishes, memory limits are enforced
+        runtime = new KafkaAgenticAggregateRuntime(
+                delegate, objectMapper, MemoryTaskState.class, agentPlatform, aggregate, 5, 10);
+
+        var existingMemories = List.of(
+                new AgenticAggregateMemory("mem-1", "s1", "f1", "c1", "r1", Instant.now()),
+                new AgenticAggregateMemory("mem-2", "s2", "f2", "c2", "r2", Instant.now()),
+                new AgenticAggregateMemory("mem-3", "s3", "f3", "c3", "r3", Instant.now())
+        );
+        // State has an active memory distillation and no assigned tasks
+        var distillation = new MemoryDistillation("distiller-proc-1", Instant.now());
+        var state = new MemoryTaskState("agg-1", List.of(), existingMemories, List.of(distillation));
+        byte[] payload = objectMapper.writeValueAsBytes(state);
+        var stateRecord = new AggregateStateRecord(null, "MemoryTaskState", 1, payload,
+                PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
+
+        // Set up distiller process as finished with result
+        when(agentPlatform.getAgentProcess("distiller-proc-1")).thenReturn(distillerProcess);
+        when(distillerProcess.getBlackboard()).thenReturn(distillerBlackboard);
+        when(delegate.getAllDomainEventTypes()).thenReturn(List.of());
+        when(distillerProcess.getFinished()).thenReturn(true);
+
+        // Agent tries to store 5 memories but only 2 should be allowed (capacityLeft=2)
         var distillationResult = new MemoryDistillationResult(
                 List.of(
                         new MemoryStoredEvent("agg-1", "n1", "s1", "fact1", "c1", "r1", NOW),
@@ -366,27 +429,23 @@ class MemoryDistillationTest {
                         new MemoryStoredEvent("agg-1", "n5", "s5", "fact5", "c5", "r5", NOW)
                 ),
                 List.of());
-        when(agentPlatform.createAgentProcess(eq(memoryDistillerAgent), eq(ProcessOptions.DEFAULT), anyMap()))
-                .thenReturn(distillerProcess);
-        when(distillerProcess.getBlackboard()).thenReturn(distillerBlackboard);
         when(distillerBlackboard.last(MemoryDistillationResult.class)).thenReturn(distillationResult);
 
         ArgumentCaptor<Stream<DomainEvent>> eventsCaptor = ArgumentCaptor.forClass(Stream.class);
         runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
 
-        verify(delegate).processDomainEvents(eventsCaptor.capture(), eq("proc-1"), any(), any());
+        verify(delegate).processDomainEvents(eventsCaptor.capture(), eq("distiller-proc-1"), any(), any());
         List<DomainEvent> events = eventsCaptor.getValue().toList();
 
-        // 1 finished + 2 stored (truncated from 5)
-        assertThat(events).hasSize(3);
-        assertThat(events.get(0)).isInstanceOf(AgentTaskFinishedEvent.class);
+        // 2 stored (truncated from 5) + 1 MemoryDistillationFinishedEvent
         long storedCount = events.stream().filter(e -> e instanceof MemoryStoredEvent).count();
         assertThat(storedCount).isEqualTo(2);
+        assertThat(events.getLast()).isInstanceOf(MemoryDistillationFinishedEvent.class);
     }
 
     @Test
     @SuppressWarnings("unchecked")
-    void distillationShouldEnforceMaxMemoriesAddedLimit() throws IOException {
+    void completedTaskShouldEmitDistillationStartedWithMaxMemoriesAddedLimit() throws IOException {
         // maxTotalMemories = 100, maxMemoriesAdded = 2 — per-distillation budget is the constraint
         runtime = new KafkaAgenticAggregateRuntime(
                 delegate, objectMapper, MemoryTaskState.class, agentPlatform, aggregate, 100, 2);
@@ -411,6 +470,42 @@ class MemoryDistillationTest {
         when(memoryDistillerAgent.getName()).thenReturn(MemoryDistillerAgent.AGENT_NAME);
         when(agentPlatform.agents()).thenReturn(List.of(memoryDistillerAgent));
 
+        when(agentPlatform.createAgentProcess(eq(memoryDistillerAgent), eq(ProcessOptions.DEFAULT), anyMap()))
+                .thenReturn(distillerProcess);
+        when(distillerProcess.getId()).thenReturn("distiller-proc-1");
+
+        ArgumentCaptor<Stream<DomainEvent>> eventsCaptor = ArgumentCaptor.forClass(Stream.class);
+        runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
+
+        verify(delegate).processDomainEvents(eventsCaptor.capture(), eq("proc-1"), any(), any());
+        List<DomainEvent> events = eventsCaptor.getValue().toList();
+
+        // First tick: 1 finished + 1 MemoryDistillationStartedEvent
+        assertThat(events).hasSize(2);
+        assertThat(events.get(0)).isInstanceOf(AgentTaskFinishedEvent.class);
+        assertThat(events.get(1)).isInstanceOf(MemoryDistillationStartedEvent.class);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void distillationTickShouldEnforceMaxMemoriesAddedLimit() throws IOException {
+        // Test the second phase: max memories added limit is enforced during distillation tick
+        runtime = new KafkaAgenticAggregateRuntime(
+                delegate, objectMapper, MemoryTaskState.class, agentPlatform, aggregate, 100, 2);
+
+        // State has an active distillation and no assigned tasks
+        var distillation = new MemoryDistillation("distiller-proc-1", Instant.now());
+        var state = new MemoryTaskState("agg-1", List.of(), List.of(), List.of(distillation));
+        byte[] payload = objectMapper.writeValueAsBytes(state);
+        var stateRecord = new AggregateStateRecord(null, "MemoryTaskState", 1, payload,
+                PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
+
+        when(agentPlatform.getAgentProcess("distiller-proc-1")).thenReturn(distillerProcess);
+        when(distillerProcess.getBlackboard()).thenReturn(distillerBlackboard);
+        when(delegate.getAllDomainEventTypes()).thenReturn(List.of());
+        when(distillerProcess.getFinished()).thenReturn(true);
+
         // Agent tries to store 5 memories but only 2 should be allowed (maxMemoriesAdded=2)
         var distillationResult = new MemoryDistillationResult(
                 List.of(
@@ -421,27 +516,24 @@ class MemoryDistillationTest {
                         new MemoryStoredEvent("agg-1", "n5", "s5", "fact5", "c5", "r5", NOW)
                 ),
                 List.of());
-        when(agentPlatform.createAgentProcess(eq(memoryDistillerAgent), eq(ProcessOptions.DEFAULT), anyMap()))
-                .thenReturn(distillerProcess);
-        when(distillerProcess.getBlackboard()).thenReturn(distillerBlackboard);
         when(distillerBlackboard.last(MemoryDistillationResult.class)).thenReturn(distillationResult);
 
         ArgumentCaptor<Stream<DomainEvent>> eventsCaptor = ArgumentCaptor.forClass(Stream.class);
         runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
 
-        verify(delegate).processDomainEvents(eventsCaptor.capture(), eq("proc-1"), any(), any());
+        verify(delegate).processDomainEvents(eventsCaptor.capture(), eq("distiller-proc-1"), any(), any());
         List<DomainEvent> events = eventsCaptor.getValue().toList();
 
-        // 1 finished + 2 stored (truncated from 5 by maxMemoriesAdded)
-        assertThat(events).hasSize(3);
-        assertThat(events.get(0)).isInstanceOf(AgentTaskFinishedEvent.class);
+        // 2 stored (truncated from 5) + 1 MemoryDistillationFinishedEvent
         long storedCount = events.stream().filter(e -> e instanceof MemoryStoredEvent).count();
         assertThat(storedCount).isEqualTo(2);
+        assertThat(events.getLast()).isInstanceOf(MemoryDistillationFinishedEvent.class);
     }
 
     @Test
     @SuppressWarnings("unchecked")
-    void distillationShouldAllowMoreStoredWhenMemoriesAreRevoked() throws IOException {
+    void distillationTickShouldAllowMoreStoredWhenMemoriesAreRevoked() throws IOException {
+        // Test the second phase: revocations free capacity for more stored memories
         // maxTotalMemories = 5, maxMemoriesAdded = 10; existing = 4, so capacityLeft = 1
         // But we also revoke 2, so we can store up to 3 (1 + 2)
         runtime = new KafkaAgenticAggregateRuntime(
@@ -453,25 +545,18 @@ class MemoryDistillationTest {
                 new AgenticAggregateMemory("mem-3", "s3", "f3", "c3", "r3", Instant.now()),
                 new AgenticAggregateMemory("mem-4", "s4", "f4", "c4", "r4", Instant.now())
         );
-        var party = new HumanRequestingParty("user-1", "analyst");
-        var task = new AssignedTask("proc-1", "Task", party, Map.of(), Instant.now());
-        var state = new MemoryTaskState("agg-1", List.of(task), existingMemories);
+        // State has an active memory distillation and no assigned tasks
+        var distillation = new MemoryDistillation("distiller-proc-1", Instant.now());
+        var state = new MemoryTaskState("agg-1", List.of(), existingMemories, List.of(distillation));
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "MemoryTaskState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", null, 1L);
         when(delegate.materializeState(stateRecord)).thenReturn(state);
 
-        when(agentPlatform.getAgentProcess("proc-1")).thenReturn(agentProcess);
-        when(agentProcess.getBlackboard()).thenReturn(blackboard);
-        when(blackboard.getObjects()).thenReturn(List.of());
+        when(agentPlatform.getAgentProcess("distiller-proc-1")).thenReturn(distillerProcess);
+        when(distillerProcess.getBlackboard()).thenReturn(distillerBlackboard);
         when(delegate.getAllDomainEventTypes()).thenReturn(List.of());
-
-        when(agentProcess.getFinished()).thenReturn(true);
-        when(agentProcess.getStatus()).thenReturn(AgentProcessStatusCode.COMPLETED);
-        when(agentProcess.getHistory()).thenReturn(List.of());
-
-        when(memoryDistillerAgent.getName()).thenReturn(MemoryDistillerAgent.AGENT_NAME);
-        when(agentPlatform.agents()).thenReturn(List.of(memoryDistillerAgent));
+        when(distillerProcess.getFinished()).thenReturn(true);
 
         // Revoke 2, store 3
         var distillationResult = new MemoryDistillationResult(
@@ -484,52 +569,40 @@ class MemoryDistillationTest {
                         new MemoryRevokedEvent("agg-1", "mem-1", "outdated", NOW),
                         new MemoryRevokedEvent("agg-1", "mem-2", "superseded", NOW)
                 ));
-        when(agentPlatform.createAgentProcess(eq(memoryDistillerAgent), eq(ProcessOptions.DEFAULT), anyMap()))
-                .thenReturn(distillerProcess);
-        when(distillerProcess.getBlackboard()).thenReturn(distillerBlackboard);
         when(distillerBlackboard.last(MemoryDistillationResult.class)).thenReturn(distillationResult);
 
         ArgumentCaptor<Stream<DomainEvent>> eventsCaptor = ArgumentCaptor.forClass(Stream.class);
         runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
 
-        verify(delegate).processDomainEvents(eventsCaptor.capture(), eq("proc-1"), any(), any());
+        verify(delegate).processDomainEvents(eventsCaptor.capture(), eq("distiller-proc-1"), any(), any());
         List<DomainEvent> events = eventsCaptor.getValue().toList();
 
-        // 1 finished + 2 revoked + 3 stored = 6
-        assertThat(events).hasSize(6);
-        assertThat(events.get(0)).isInstanceOf(AgentTaskFinishedEvent.class);
-
+        // 2 revoked + 3 stored + 1 MemoryDistillationFinishedEvent = 6
         long revokedCount = events.stream().filter(e -> e instanceof MemoryRevokedEvent).count();
         long storedCount = events.stream().filter(e -> e instanceof MemoryStoredEvent).count();
         assertThat(revokedCount).isEqualTo(2);
         assertThat(storedCount).isEqualTo(3);
+        assertThat(events.getLast()).isInstanceOf(MemoryDistillationFinishedEvent.class);
     }
 
     @Test
     @SuppressWarnings("unchecked")
-    void distillationShouldSkipRevocationOfNonExistentMemories() throws IOException {
-        var party = new HumanRequestingParty("user-1", "analyst");
-        var task = new AssignedTask("proc-1", "Task", party, Map.of(), Instant.now());
+    void distillationTickShouldSkipRevocationOfNonExistentMemories() throws IOException {
         var existingMemories = List.of(
                 new AgenticAggregateMemory("mem-1", "s1", "f1", "c1", "r1", Instant.now())
         );
-        var state = new MemoryTaskState("agg-1", List.of(task), existingMemories);
+        // State has an active distillation and no assigned tasks
+        var distillation = new MemoryDistillation("distiller-proc-1", Instant.now());
+        var state = new MemoryTaskState("agg-1", List.of(), existingMemories, List.of(distillation));
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "MemoryTaskState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", null, 1L);
         when(delegate.materializeState(stateRecord)).thenReturn(state);
 
-        when(agentPlatform.getAgentProcess("proc-1")).thenReturn(agentProcess);
-        when(agentProcess.getBlackboard()).thenReturn(blackboard);
-        when(blackboard.getObjects()).thenReturn(List.of());
+        when(agentPlatform.getAgentProcess("distiller-proc-1")).thenReturn(distillerProcess);
+        when(distillerProcess.getBlackboard()).thenReturn(distillerBlackboard);
         when(delegate.getAllDomainEventTypes()).thenReturn(List.of());
-
-        when(agentProcess.getFinished()).thenReturn(true);
-        when(agentProcess.getStatus()).thenReturn(AgentProcessStatusCode.COMPLETED);
-        when(agentProcess.getHistory()).thenReturn(List.of());
-
-        when(memoryDistillerAgent.getName()).thenReturn(MemoryDistillerAgent.AGENT_NAME);
-        when(agentPlatform.agents()).thenReturn(List.of(memoryDistillerAgent));
+        when(distillerProcess.getFinished()).thenReturn(true);
 
         // Try to revoke a memory that doesn't exist
         var distillationResult = new MemoryDistillationResult(
@@ -538,18 +611,15 @@ class MemoryDistillationTest {
                         new MemoryRevokedEvent("agg-1", "mem-1", "outdated", NOW),
                         new MemoryRevokedEvent("agg-1", "non-existent", "cleanup", NOW)
                 ));
-        when(agentPlatform.createAgentProcess(eq(memoryDistillerAgent), eq(ProcessOptions.DEFAULT), anyMap()))
-                .thenReturn(distillerProcess);
-        when(distillerProcess.getBlackboard()).thenReturn(distillerBlackboard);
         when(distillerBlackboard.last(MemoryDistillationResult.class)).thenReturn(distillationResult);
 
         ArgumentCaptor<Stream<DomainEvent>> eventsCaptor = ArgumentCaptor.forClass(Stream.class);
         runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
 
-        verify(delegate).processDomainEvents(eventsCaptor.capture(), eq("proc-1"), any(), any());
+        verify(delegate).processDomainEvents(eventsCaptor.capture(), eq("distiller-proc-1"), any(), any());
         List<DomainEvent> events = eventsCaptor.getValue().toList();
 
-        // 1 finished + 1 revoked (only mem-1, not non-existent)
+        // 1 revoked (only mem-1, not non-existent) + 1 MemoryDistillationFinishedEvent
         long revokedCount = events.stream().filter(e -> e instanceof MemoryRevokedEvent).count();
         assertThat(revokedCount).isEqualTo(1);
 
@@ -559,6 +629,7 @@ class MemoryDistillationTest {
                 .findFirst()
                 .orElseThrow();
         assertThat(revokedEvent.memoryId()).isEqualTo("mem-1");
+        assertThat(events.getLast()).isInstanceOf(MemoryDistillationFinishedEvent.class);
     }
 
     @Test
@@ -584,11 +655,10 @@ class MemoryDistillationTest {
         when(memoryDistillerAgent.getName()).thenReturn(MemoryDistillerAgent.AGENT_NAME);
         when(agentPlatform.agents()).thenReturn(List.of(memoryDistillerAgent));
 
-        // Distiller produces no result
+        // Distiller process is created successfully (null result handled in second tick)
         when(agentPlatform.createAgentProcess(eq(memoryDistillerAgent), eq(ProcessOptions.DEFAULT), anyMap()))
                 .thenReturn(distillerProcess);
-        when(distillerProcess.getBlackboard()).thenReturn(distillerBlackboard);
-        when(distillerBlackboard.last(MemoryDistillationResult.class)).thenReturn(null);
+        when(distillerProcess.getId()).thenReturn("distiller-proc-1");
 
         ArgumentCaptor<Stream<DomainEvent>> eventsCaptor = ArgumentCaptor.forClass(Stream.class);
         runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
@@ -596,9 +666,10 @@ class MemoryDistillationTest {
         verify(delegate).processDomainEvents(eventsCaptor.capture(), eq("proc-1"), any(), any());
         List<DomainEvent> events = eventsCaptor.getValue().toList();
 
-        // Should only have AgentTaskFinishedEvent
-        assertThat(events).hasSize(1);
-        assertThat(events.getFirst()).isInstanceOf(AgentTaskFinishedEvent.class);
+        // Should have AgentTaskFinishedEvent + MemoryDistillationStartedEvent
+        assertThat(events).hasSize(2);
+        assertThat(events.get(0)).isInstanceOf(AgentTaskFinishedEvent.class);
+        assertThat(events.get(1)).isInstanceOf(MemoryDistillationStartedEvent.class);
     }
 
     @Test
@@ -628,8 +699,7 @@ class MemoryDistillationTest {
 
         when(agentPlatform.createAgentProcess(eq(memoryDistillerAgent), eq(ProcessOptions.DEFAULT), anyMap()))
                 .thenReturn(distillerProcess);
-        when(distillerProcess.getBlackboard()).thenReturn(distillerBlackboard);
-        when(distillerBlackboard.last(MemoryDistillationResult.class)).thenReturn(null);
+        when(distillerProcess.getId()).thenReturn("distiller-proc-1");
 
         @SuppressWarnings("rawtypes")
         ArgumentCaptor<Map<String, Object>> bindingsCaptor = ArgumentCaptor.forClass(Map.class);
@@ -650,5 +720,63 @@ class MemoryDistillationTest {
         assertThat(input.existingMemories()).isEqualTo(List.of(existingMemory));
         assertThat(input.maxTotalMemories()).isEqualTo(100);
         assertThat(input.maxMemoriesAdded()).isEqualTo(10);
+    }
+
+    // -------------------------------------------------------------------------
+    // Missing AgentProcess handling
+    // -------------------------------------------------------------------------
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void missingAgentProcessForTaskShouldEmitAgentTaskFinishedFailed() throws IOException {
+        var party = new HumanRequestingParty("user-1", "analyst");
+        var task = new AssignedTask("proc-1", "Task", party, Map.of(), Instant.now());
+        var state = new MemoryTaskState("agg-1", List.of(task), List.of());
+        byte[] payload = objectMapper.writeValueAsBytes(state);
+        var stateRecord = new AggregateStateRecord(null, "MemoryTaskState", 1, payload,
+                PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
+
+        // AgentProcess no longer exists (e.g., after restart)
+        when(agentPlatform.getAgentProcess("proc-1")).thenReturn(null);
+
+        ArgumentCaptor<Stream<DomainEvent>> eventsCaptor = ArgumentCaptor.forClass(Stream.class);
+        runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
+
+        verify(delegate).processDomainEvents(eventsCaptor.capture(), eq("proc-1"), any(), any());
+        List<DomainEvent> events = eventsCaptor.getValue().toList();
+
+        assertThat(events).hasSize(1);
+        assertThat(events.getFirst()).isInstanceOf(AgentTaskFinishedEvent.class);
+        AgentTaskFinishedEvent finishedEvent = (AgentTaskFinishedEvent) events.getFirst();
+        assertThat(finishedEvent.agenticAggregateId()).isEqualTo("agg-1");
+        assertThat(finishedEvent.agentProcessId()).isEqualTo("proc-1");
+        assertThat(finishedEvent.status()).isEqualTo(AgentProcessStatusCode.FAILED);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void missingAgentProcessForDistillationShouldEmitMemoryDistillationFailed() throws IOException {
+        var distillation = new MemoryDistillation("distiller-proc-1", Instant.now());
+        var state = new MemoryTaskState("agg-1", List.of(), List.of(), List.of(distillation));
+        byte[] payload = objectMapper.writeValueAsBytes(state);
+        var stateRecord = new AggregateStateRecord(null, "MemoryTaskState", 1, payload,
+                PayloadEncoding.JSON, "agg-1", null, 1L);
+        when(delegate.materializeState(stateRecord)).thenReturn(state);
+
+        // AgentProcess no longer exists (e.g., after restart)
+        when(agentPlatform.getAgentProcess("distiller-proc-1")).thenReturn(null);
+
+        ArgumentCaptor<Stream<DomainEvent>> eventsCaptor = ArgumentCaptor.forClass(Stream.class);
+        runtime.resumeNextAgentTask(pr -> {}, () -> stateRecord, commandBus);
+
+        verify(delegate).processDomainEvents(eventsCaptor.capture(), eq("distiller-proc-1"), any(), any());
+        List<DomainEvent> events = eventsCaptor.getValue().toList();
+
+        assertThat(events).hasSize(1);
+        assertThat(events.getFirst()).isInstanceOf(MemoryDistillationFailedEvent.class);
+        MemoryDistillationFailedEvent failedEvent = (MemoryDistillationFailedEvent) events.getFirst();
+        assertThat(failedEvent.agenticAggregateId()).isEqualTo("agg-1");
+        assertThat(failedEvent.agentProcessId()).isEqualTo("distiller-proc-1");
     }
 }
