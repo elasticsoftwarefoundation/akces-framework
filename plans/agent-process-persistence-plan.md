@@ -5,8 +5,8 @@
 Embabel's `AgentProcessRepository` interface currently only has an in-memory implementation
 (`InMemoryAgentProcessRepository`). In the Akces Framework, `AgentProcess` instances live only in memory
 within the `DefaultAgentPlatform` via this repository. When a pod restarts or crashes, all running agent
-processes are lost — any assigned tasks (`AssignedTask` entries in aggregate state) become orphans with no
-corresponding `AgentProcess` to resume.
+processes are lost — any assigned tasks (`AssignedTask` entries in aggregate state) and active memory
+distillations (`MemoryDistillation` entries) become orphans with no corresponding `AgentProcess` to resume.
 
 We need a persistent implementation of `AgentProcessRepository` that can survive restarts, while addressing
 the core challenge: **serializing and deserializing the Blackboard** (which holds arbitrary Java/Kotlin
@@ -333,25 +333,23 @@ to serialize `AgentProcess` objects directly. However:
 (what's on the blackboard, what actions ran, what's the status) and reconstructs framework references
 from the running context.
 
-### Selective Persistence: Task Processes Only
+### Universal Persistence: All AgentProcess Instances
 
-Not all `AgentProcess` instances need persistence. There are four creation points in Akces:
+All `AgentProcess` instances created by an `AgenticAggregate` are persisted — there is no selective
+filtering. There are four creation points in Akces:
 
 | Creator | Process Type | Lifecycle | Persist? |
 |---------|-------------|-----------|----------|
 | `AssignTaskCommandHandlerFunction` | Task assignment | Long-lived, tick-based | **Yes** |
 | `AgenticCommandHandlerFunctionAdapter` | Agent-handled command | Long-lived, tick-based | **Yes** |
 | `AgenticEventHandlerFunctionAdapter` | Agent-handled external event | Long-lived, tick-based | **Yes** |
-| `KafkaAgenticAggregateRuntime.distillMemories()` | Memory distillation | Short-lived, run-to-completion | **No** |
+| `KafkaAgenticAggregateRuntime.distillMemories()` | Memory distillation | Tick-based | **Yes** |
 
 The implementation uses a **decorator pattern**: `PersistentAgentProcessRepository` wraps the existing
 `InMemoryAgentProcessRepository`. On `save()`/`update()`/`delete()`, it delegates to the in-memory
-implementation AND persists to RocksDB for task processes. For short-lived processes (e.g., memory
-distillation), it delegates to in-memory only.
-
-The distinction is made by tracking which process IDs correspond to assigned tasks. When a process is
-created via `save()`, the decorator checks if the process is associated with a task (identifiable by
-the `isTaskAssignment` binding or via an explicit flag) and only persists task-related processes.
+implementation AND stages a snapshot in the pending writes buffer for all processes. This ensures that
+memory distillation processes (which also use tick-based processing) survive restarts just like task
+assignment processes.
 
 ## Implementation Phases
 
@@ -400,7 +398,7 @@ the `isTaskAssignment` binding or via an explicit flag) and only persists task-r
   `InMemoryAgentProcessRepository`
 - Embabel SPI methods (`save()`/`update()`/`delete()`/`findById()`/`findByParentId()`):
   - Delegate to the in-memory implementation immediately
-  - For persistent processes: stage snapshot in `pendingWrites` buffer (a `Map<String, AgentProcessSnapshotRecord>`;
+  - Stage snapshot in `pendingWrites` buffer for all processes (a `Map<String, AgentProcessSnapshotRecord>`;
     tombstone = null value for deletes)
 - Transaction coordination methods (called by `AgenticAggregatePartition`):
   - `sendPending(Producer<String, ProtocolRecord> producer, TopicPartition processStateTp)` — sends
@@ -477,9 +475,8 @@ processRepository.commitLocal();                                  // ◄── N
 #### Spring Wiring (in `AgenticAggregateServiceApplication`)
 
 Embabel's `AgentPlatformConfiguration` defines an `agentProcessRepository` `@Bean` method that creates
-an `InMemoryAgentProcessRepository`. This method is annotated with just `@Bean` — **no
-`@ConditionalOnMissingBean`**. To override it, Akces defines a `@Bean @Primary` method in the existing
-`AgenticAggregateServiceApplication`:
+an `InMemoryAgentProcessRepository`. To override it, Akces defines a `@Bean @Primary` method in the
+existing `AgenticAggregateServiceApplication`:
 
 ```java
 @Bean(name = "agenticServiceAgentProcessRepository")
@@ -493,11 +490,6 @@ public AgentProcessRepository agentProcessRepository(
 Since `DefaultAgentPlatform` receives `AgentProcessRepository` via constructor injection, the `@Primary`
 bean wins — the `PersistentAgentProcessRepository` (decorator over `InMemoryAgentProcessRepository` +
 RocksDB) is injected. **No custom `AgentPlatform` implementation needed.**
-
-> **Note**: Optionally propose upstream to the Embabel project that `@ConditionalOnMissingBean` be added
-> to the `agentProcessRepository()` factory method (as they already use it for `defaultLogger`,
-> `defaultColorPalette`, and `embabelJacksonObjectMapper`). This would allow clean override without
-> `@Primary`.
 
 #### `AgenticAggregatePartition` Changes
 
@@ -552,9 +544,10 @@ The following decisions were made by the architect in response to open questions
 2. **Snapshot Frequency**: **After every tick.** This ensures minimal data loss on crash. The
    performance cost is acceptable given RocksDB's fast local writes.
 
-3. **Selective Persistence**: **Only persist AgentTask processes.** Short-lived processes (e.g.,
-   `MemoryDistillerAgent` for memory distillation) are delegated to the `InMemoryAgentProcessRepository`
-   only. The decorator pattern makes this distinction transparent.
+3. **Universal Persistence**: **Persist all AgentProcess instances.** All processes created by an
+   `AgenticAggregate` are persisted, including memory distillation processes. The decorator pattern
+   applies the same write-through behavior to every `save()`/`update()`/`delete()` call regardless
+   of process type.
 
 4. **Orphan Recovery**: **Already handled.** The existing `resumeNextAgentTask()` code handles missing
    processes by logging a warning and skipping the tick. With persistent storage, this scenario should
@@ -572,9 +565,9 @@ The following decisions were made by the architect in response to open questions
    configured in `AgenticAggregateServiceApplication`.
 
 7. **Spring Wiring Strategy**: **`@Bean @Primary` in `AgenticAggregateServiceApplication`.** Embabel's
-   `AgentPlatformConfiguration.agentProcessRepository()` is annotated with just `@Bean` (no
-   `@ConditionalOnMissingBean`). Akces overrides it by declaring a `@Bean @Primary` method in the
-   existing `AgenticAggregateServiceApplication`. `DefaultAgentPlatform` receives the `@Primary` bean
+   `AgentPlatformConfiguration.agentProcessRepository()` creates an `InMemoryAgentProcessRepository`.
+   Akces overrides it by declaring a `@Bean @Primary` method in the existing
+   `AgenticAggregateServiceApplication`. `DefaultAgentPlatform` receives the `@Primary` bean
    via constructor injection — no custom `AgentPlatform` implementation needed.
 
 8. **Kafka Transaction Coordination**: **Deferred write-through pattern.** The
