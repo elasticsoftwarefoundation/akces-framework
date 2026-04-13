@@ -140,7 +140,7 @@ hierarchy. `SimpleAgentProcess extends AbstractAgentProcess implements AgentProc
 |-------|------|----------|----------|-------|
 | `worldStateDeterminer` | `WorldStateDeterminer` | No (final) | **No** — reconstructed | Created from `Agent` conditions + Blackboard on construction |
 | `planner` | `Planner` | No (final) | **No** — reconstructed | Created by `PlannerFactory.createPlanner()` |
-| `replanBlacklist` | `Set<String>` | Yes (append) | **Yes** | Action names that caused failures; prevents re-selecting them during replanning. Must be persisted to avoid repeating failed actions after restart. |
+| `replanBlacklist` | `Set<String>` | Yes (mutable contents) | **Yes** | Action names that caused failures; prevents re-selecting them during replanning. Must be persisted to avoid repeating failed actions after restart. The field reference is `final`, but the `Set` contents are mutable. |
 
 ### Key Insights
 
@@ -384,7 +384,7 @@ When a partition is assigned and we need to resume an agent process:
     - Set status from snapshot (via reflection or Embabel SPI)
     - Replay history entries (List<ActionInvocation>)
     - Set failureInfo if present
-    - Restore replanBlacklist (via reflection — private final Set<String>)
+    - Restore replanBlacklist contents (access private final Set via reflection, then addAll)
 11. Save to AgentProcessRepository so findById(id) returns it
 12. Process is ready for tick()
 ```
@@ -460,9 +460,11 @@ would generate a new ID). The rehydrator:
     platformServices, plannerFactory, createdAt)` with the original process ID
   - Restores mutable state: `_status`, `_history`, `_failureInfo`, `replanBlacklist`
   - Note: `_status` can be set via `AbstractAgentProcess.setStatus()` (protected); `_history` items
-    can be added; `replanBlacklist` is a `private final Set<String>` that requires reflection or a
-    Kotlin-friendly approach to populate. If reflection is undesirable, a feature request to Embabel
-    for a constructor or builder accepting these fields may be warranted.
+    can be added; `replanBlacklist` is a `private final` reference to a mutable `Set<String>`. On
+    rehydration, the `Set` is initially empty (created during `SimpleAgentProcess` construction).
+    To restore its contents, use reflection to access the field and add the persisted entries via
+    `Set.addAll()`. Alternatively, a feature request to Embabel for a constructor that accepts an
+    initial replan blacklist set may be warranted.
   - The `AgentProcessRepository.findById(id)` returns this recreated process when
     `AgentPlatform.getAgentProcess(id)` is called (since `getAgentProcess()` internally delegates
     to `agentProcessRepository.findById(id)`)
@@ -612,7 +614,7 @@ and the processing loop is single-threaded.
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | Rehydrated `SimpleAgentProcess` doesn't perfectly replicate original process behavior | High | Field analysis confirms all mutable state (`status`, `history`, `failureInfo`, `replanBlacklist`, `blackboard`) is captured; `WorldState`/`Goal` are auto-reconstructed on `tick()`. Comprehensive round-trip tests required. |
-| Restoring `replanBlacklist` requires reflection (private final field) | Medium | Use Kotlin reflection or Java `setAccessible`. Alternatively, request Embabel API extension for a rehydration-friendly constructor. |
+| Restoring `replanBlacklist` requires reflection (private final field reference to mutable Set) | Medium | Use reflection to access the field, then `Set.addAll()` to populate contents. Alternatively, request Embabel API extension for a rehydration-friendly constructor. |
 | User-defined blackboard objects not Jackson-serializable | Medium | Graceful degradation; log warnings; document requirement |
 | Blackboard object ordering semantics change across Embabel versions | Medium | Version the snapshot format; test against Embabel upgrades |
 | Large blackboard objects (e.g., full documents) cause storage pressure | Low | Configurable max snapshot size; evict oversized entries |
