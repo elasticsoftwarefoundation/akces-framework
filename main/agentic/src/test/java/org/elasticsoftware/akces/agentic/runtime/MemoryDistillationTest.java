@@ -64,16 +64,16 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class MemoryDistillationTest {
 
-    /** State that implements TaskAwareState, MemoryAwareState, and MemoryDistillationAwareState. */
+    /** State that implements TaskAwareState and MemoryAwareState (which now includes distillation tracking). */
     record MemoryTaskState(
             String id,
             List<AssignedTask> assignedTasks,
             List<AgenticAggregateMemory> memories,
-            MemoryDistillation memoryDistillation
-    ) implements AggregateState, TaskAwareState, MemoryAwareState, MemoryDistillationAwareState {
+            List<MemoryDistillation> memoryDistillations
+    ) implements AggregateState, TaskAwareState, MemoryAwareState {
 
         MemoryTaskState(String id, List<AssignedTask> assignedTasks, List<AgenticAggregateMemory> memories) {
-            this(id, assignedTasks, memories, null);
+            this(id, assignedTasks, memories, List.of());
         }
 
         @Override
@@ -90,14 +90,14 @@ class MemoryDistillationTest {
         public TaskAwareState withAssignedTask(AssignedTask task) {
             var newTasks = new ArrayList<>(assignedTasks);
             newTasks.add(task);
-            return new MemoryTaskState(id, List.copyOf(newTasks), memories, memoryDistillation);
+            return new MemoryTaskState(id, List.copyOf(newTasks), memories, memoryDistillations);
         }
 
         @Override
         public TaskAwareState withoutAssignedTask(String agentProcessId) {
             return new MemoryTaskState(id, assignedTasks.stream()
                     .filter(t -> !t.agentProcessId().equals(agentProcessId))
-                    .toList(), memories, memoryDistillation);
+                    .toList(), memories, memoryDistillations);
         }
 
         @Override
@@ -109,29 +109,33 @@ class MemoryDistillationTest {
         public MemoryAwareState withMemory(AgenticAggregateMemory memory) {
             var updated = new ArrayList<>(memories);
             updated.add(memory);
-            return new MemoryTaskState(id, assignedTasks, List.copyOf(updated), memoryDistillation);
+            return new MemoryTaskState(id, assignedTasks, List.copyOf(updated), memoryDistillations);
         }
 
         @Override
         public MemoryAwareState withoutMemory(String memoryId) {
             return new MemoryTaskState(id, assignedTasks, memories.stream()
                     .filter(m -> !m.memoryId().equals(memoryId))
-                    .toList(), memoryDistillation);
+                    .toList(), memoryDistillations);
         }
 
         @Override
-        public MemoryDistillation getMemoryDistillation() {
-            return memoryDistillation;
+        public List<MemoryDistillation> getMemoryDistillations() {
+            return memoryDistillations;
         }
 
         @Override
-        public MemoryDistillationAwareState withMemoryDistillation(MemoryDistillation distillation) {
-            return new MemoryTaskState(id, assignedTasks, memories, distillation);
+        public MemoryAwareState withMemoryDistillation(MemoryDistillation distillation) {
+            var updated = new ArrayList<>(memoryDistillations);
+            updated.add(distillation);
+            return new MemoryTaskState(id, assignedTasks, memories, List.copyOf(updated));
         }
 
         @Override
-        public MemoryDistillationAwareState withoutMemoryDistillation() {
-            return new MemoryTaskState(id, assignedTasks, memories, null);
+        public MemoryAwareState withoutMemoryDistillation(String agentProcessId) {
+            return new MemoryTaskState(id, assignedTasks, memories, memoryDistillations.stream()
+                    .filter(d -> !d.agentProcessId().equals(agentProcessId))
+                    .toList());
         }
     }
 
@@ -342,7 +346,7 @@ class MemoryDistillationTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void distillationShouldEnforceMaxMemoriesLimit() throws IOException {
+    void completedTaskShouldEmitDistillationStartedWithMaxMemoriesLimit() throws IOException {
         // maxTotalMemories = 5, maxMemoriesAdded = 10 — capacity is the binding constraint
         runtime = new KafkaAgenticAggregateRuntime(
                 delegate, objectMapper, MemoryTaskState.class, agentPlatform, aggregate, 5, 10);
@@ -402,8 +406,8 @@ class MemoryDistillationTest {
                 new AgenticAggregateMemory("mem-3", "s3", "f3", "c3", "r3", Instant.now())
         );
         // State has an active memory distillation and no assigned tasks
-        var distillation = new MemoryDistillation("distiller-proc-1", Instant.now());
-        var state = new MemoryTaskState("agg-1", List.of(), existingMemories, distillation);
+        var distillation = new MemoryDistillation("distiller-proc-1", null, Instant.now());
+        var state = new MemoryTaskState("agg-1", List.of(), existingMemories, List.of(distillation));
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "MemoryTaskState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", null, 1L);
@@ -441,7 +445,7 @@ class MemoryDistillationTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void distillationShouldEnforceMaxMemoriesAddedLimit() throws IOException {
+    void completedTaskShouldEmitDistillationStartedWithMaxMemoriesAddedLimit() throws IOException {
         // maxTotalMemories = 100, maxMemoriesAdded = 2 — per-distillation budget is the constraint
         runtime = new KafkaAgenticAggregateRuntime(
                 delegate, objectMapper, MemoryTaskState.class, agentPlatform, aggregate, 100, 2);
@@ -490,8 +494,8 @@ class MemoryDistillationTest {
                 delegate, objectMapper, MemoryTaskState.class, agentPlatform, aggregate, 100, 2);
 
         // State has an active distillation and no assigned tasks
-        var distillation = new MemoryDistillation("distiller-proc-1", Instant.now());
-        var state = new MemoryTaskState("agg-1", List.of(), List.of(), distillation);
+        var distillation = new MemoryDistillation("distiller-proc-1", null, Instant.now());
+        var state = new MemoryTaskState("agg-1", List.of(), List.of(), List.of(distillation));
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "MemoryTaskState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", null, 1L);
@@ -542,8 +546,8 @@ class MemoryDistillationTest {
                 new AgenticAggregateMemory("mem-4", "s4", "f4", "c4", "r4", Instant.now())
         );
         // State has an active memory distillation and no assigned tasks
-        var distillation = new MemoryDistillation("distiller-proc-1", Instant.now());
-        var state = new MemoryTaskState("agg-1", List.of(), existingMemories, distillation);
+        var distillation = new MemoryDistillation("distiller-proc-1", null, Instant.now());
+        var state = new MemoryTaskState("agg-1", List.of(), existingMemories, List.of(distillation));
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "MemoryTaskState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", null, 1L);
@@ -588,8 +592,8 @@ class MemoryDistillationTest {
                 new AgenticAggregateMemory("mem-1", "s1", "f1", "c1", "r1", Instant.now())
         );
         // State has an active distillation and no assigned tasks
-        var distillation = new MemoryDistillation("distiller-proc-1", Instant.now());
-        var state = new MemoryTaskState("agg-1", List.of(), existingMemories, distillation);
+        var distillation = new MemoryDistillation("distiller-proc-1", null, Instant.now());
+        var state = new MemoryTaskState("agg-1", List.of(), existingMemories, List.of(distillation));
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "MemoryTaskState", 1, payload,
                 PayloadEncoding.JSON, "agg-1", null, 1L);

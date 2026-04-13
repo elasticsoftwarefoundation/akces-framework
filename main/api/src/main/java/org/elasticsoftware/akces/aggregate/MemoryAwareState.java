@@ -20,13 +20,22 @@ package org.elasticsoftware.akces.aggregate;
 import java.util.List;
 
 /**
- * Implemented by aggregate states that maintain a list of {@link AgenticAggregateMemory} entries.
+ * Implemented by aggregate states that maintain a list of {@link AgenticAggregateMemory} entries
+ * and track in-progress {@link MemoryDistillation} processes.
  *
- * <p>State classes (typically Java records) must implement all three methods:
+ * <p>State classes (typically Java records) must implement all memory methods:
  * <ul>
  *   <li>{@link #getMemories()} — return the current list of memories</li>
  *   <li>{@link #withMemory(AgenticAggregateMemory)} — return a new state instance with the given memory appended</li>
  *   <li>{@link #withoutMemory(String)} — return a new state instance with the memory identified by {@code memoryId} removed</li>
+ * </ul>
+ *
+ * <p>As well as all memory distillation methods:
+ * <ul>
+ *   <li>{@link #getMemoryDistillations()} — return the current list of active distillation processes</li>
+ *   <li>{@link #withMemoryDistillation(MemoryDistillation)} — return a new state instance with the given distillation appended</li>
+ *   <li>{@link #withoutMemoryDistillation(String)} — return a new state instance with the distillation
+ *       identified by its agent process ID removed</li>
  * </ul>
  */
 public interface MemoryAwareState {
@@ -58,4 +67,33 @@ public interface MemoryAwareState {
      * @return a new state instance with the matching memory removed
      */
     MemoryAwareState withoutMemory(String memoryId);
+
+    /**
+     * Returns the list of currently active memory distillation processes.
+     *
+     * <p>Implementations should return an unmodifiable list. There can be multiple active
+     * distillation processes at the same time, analogous to how multiple
+     * {@link AssignedTask}s can be active simultaneously.
+     *
+     * @return a list of active distillation processes; never {@code null}
+     */
+    List<MemoryDistillation> getMemoryDistillations();
+
+    /**
+     * Returns a new state instance with the given distillation appended to the active
+     * distillation processes list.
+     *
+     * @param distillation the memory distillation to track; must not be {@code null}
+     * @return a new state instance with the distillation added
+     */
+    MemoryAwareState withMemoryDistillation(MemoryDistillation distillation);
+
+    /**
+     * Returns a new state instance with the distillation identified by the given
+     * {@code agentProcessId} removed from the active distillation processes list.
+     *
+     * @param agentProcessId the Embabel AgentProcess ID of the distillation to remove
+     * @return a new state instance with the matching distillation removed
+     */
+    MemoryAwareState withoutMemoryDistillation(String agentProcessId);
 }

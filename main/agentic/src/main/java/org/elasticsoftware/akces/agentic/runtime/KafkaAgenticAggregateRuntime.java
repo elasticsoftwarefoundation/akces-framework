@@ -414,51 +414,53 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
      * Built-in event-sourcing handler for {@link MemoryDistillationStartedEvent}.
      *
      * <p>Records the active {@link MemoryDistillation} in the aggregate state. The state
-     * must implement {@link MemoryDistillationAwareState}; otherwise an
+     * must implement {@link MemoryAwareState}; otherwise an
      * {@link IllegalStateException} is thrown.
      *
      * @param event the {@code MemoryDistillationStartedEvent} to apply
      * @param state the current aggregate state
      * @return a new state instance with the distillation recorded
      * @throws IllegalStateException if {@code state} does not implement
-     *         {@link MemoryDistillationAwareState}
+     *         {@link MemoryAwareState}
      */
     @SuppressWarnings("unchecked")
     public static AggregateState onMemoryDistillationStarted(MemoryDistillationStartedEvent event,
                                                               AggregateState state) {
-        if (!(state instanceof MemoryDistillationAwareState mdas)) {
+        if (!(state instanceof MemoryAwareState mas)) {
             throw new IllegalStateException(
                     "Aggregate state " + state.getClass().getName()
-                            + " does not implement MemoryDistillationAwareState");
+                            + " does not implement MemoryAwareState");
         }
         MemoryDistillation distillation = new MemoryDistillation(
                 event.agentProcessId(),
+                event.distillationInput(),
                 event.startedAt());
-        return (AggregateState) mdas.withMemoryDistillation(distillation);
+        return (AggregateState) mas.withMemoryDistillation(distillation);
     }
 
     /**
      * Built-in event-sourcing handler for {@link MemoryDistillationFinishedEvent}.
      *
-     * <p>Clears the active {@link MemoryDistillation} from the aggregate state. The state
-     * must implement {@link MemoryDistillationAwareState}; otherwise an
+     * <p>Removes the {@link MemoryDistillation} identified by
+     * {@link MemoryDistillationFinishedEvent#agentProcessId()} from the aggregate state.
+     * The state must implement {@link MemoryAwareState}; otherwise an
      * {@link IllegalStateException} is thrown.
      *
      * @param event the {@code MemoryDistillationFinishedEvent} to apply
      * @param state the current aggregate state
-     * @return a new state instance with the distillation cleared
+     * @return a new state instance with the matching distillation removed
      * @throws IllegalStateException if {@code state} does not implement
-     *         {@link MemoryDistillationAwareState}
+     *         {@link MemoryAwareState}
      */
     @SuppressWarnings("unchecked")
     public static AggregateState onMemoryDistillationFinished(MemoryDistillationFinishedEvent event,
                                                                AggregateState state) {
-        if (!(state instanceof MemoryDistillationAwareState mdas)) {
+        if (!(state instanceof MemoryAwareState mas)) {
             throw new IllegalStateException(
                     "Aggregate state " + state.getClass().getName()
-                            + " does not implement MemoryDistillationAwareState");
+                            + " does not implement MemoryAwareState");
         }
-        return (AggregateState) mdas.withoutMemoryDistillation();
+        return (AggregateState) mas.withoutMemoryDistillation(event.agentProcessId());
     }
 
     /**
@@ -515,8 +517,8 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
         if (state instanceof TaskAwareState taskAwareState && !taskAwareState.getAssignedTasks().isEmpty()) {
             return true;
         }
-        // Check for an active memory distillation process
-        if (state instanceof MemoryDistillationAwareState mdas && mdas.getMemoryDistillation() != null) {
+        // Check for active memory distillation processes
+        if (state instanceof MemoryAwareState mas && !mas.getMemoryDistillations().isEmpty()) {
             return true;
         }
         return false;
@@ -560,8 +562,8 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
         if (state instanceof TaskAwareState taskAwareState) {
             activeItems.addAll(taskAwareState.getAssignedTasks());
         }
-        if (state instanceof MemoryDistillationAwareState mdas && mdas.getMemoryDistillation() != null) {
-            activeItems.add(mdas.getMemoryDistillation());
+        if (state instanceof MemoryAwareState mas) {
+            activeItems.addAll(mas.getMemoryDistillations());
         }
 
         if (activeItems.isEmpty()) {
@@ -689,15 +691,18 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
      */
     private List<DomainEvent> startMemoryDistillation(AgentProcess completedProcess, AggregateState state,
                                                        AssignedTask task) {
+        if (!(state instanceof MemoryAwareState mas)) {
+            logger.debug("Aggregate state does not implement MemoryAwareState; skipping memory distillation");
+            return List.of();
+        }
+
         Agent memoryDistillerAgent = resolveMemoryDistillerAgent();
         if (memoryDistillerAgent == null) {
             logger.warn("MemoryDistillerAgent not deployed on the platform; skipping memory distillation");
             return List.of();
         }
 
-        List<AgenticAggregateMemory> currentMemories = state instanceof MemoryAwareState mas
-                ? mas.getMemories()
-                : List.of();
+        List<AgenticAggregateMemory> currentMemories = mas.getMemories();
 
         MemoryDistillationInput distillationInput = new MemoryDistillationInput(
                 task,

@@ -36,7 +36,7 @@ import java.time.Instant;
  * crash or restart by restoring the Blackboard state from this event.
  *
  * <p>The built-in event-sourcing handler processes this event by updating the aggregate
- * state's {@link org.elasticsoftware.akces.aggregate.MemoryDistillationAwareState} with
+ * state's {@link org.elasticsoftware.akces.aggregate.MemoryAwareState} with
  * a new {@link org.elasticsoftware.akces.aggregate.MemoryDistillation}.
  *
  * @param agenticAggregateId the identifier of the agentic aggregate

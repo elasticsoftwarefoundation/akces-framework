@@ -19,7 +19,7 @@ package org.elasticsoftware.akces.aggregate;
 
 /**
  * Common interface for state-tracked items that are associated with an Embabel
- * {@link com.embabel.agent.core.AgentProcess}.
+ * {@code AgentProcess}.
  *
  * <p>Both {@link AssignedTask} (representing a running agent task) and
  * {@link MemoryDistillation} (representing an in-progress memory distillation process)

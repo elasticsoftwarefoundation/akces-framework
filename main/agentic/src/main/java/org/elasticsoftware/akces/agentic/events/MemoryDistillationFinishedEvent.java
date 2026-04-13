@@ -33,7 +33,7 @@ import java.time.Instant;
  * of whether it produced any memory events). The built-in event-sourcing handler
  * processes this event by clearing the active
  * {@link org.elasticsoftware.akces.aggregate.MemoryDistillation} from the aggregate
- * state's {@link org.elasticsoftware.akces.aggregate.MemoryDistillationAwareState}.
+ * state's {@link org.elasticsoftware.akces.aggregate.MemoryAwareState}.
  *
  * @param agenticAggregateId the identifier of the agentic aggregate
  * @param agentProcessId     the Embabel {@code AgentProcess.getId()} value for the distillation process

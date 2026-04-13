@@ -26,16 +26,23 @@ import java.time.Instant;
  * <p>Instances are created when a {@code MemoryDistillationStartedEvent} is applied
  * and removed when the corresponding {@code MemoryDistillationFinishedEvent} is applied.
  * The {@link #agentProcessId()} links this record to the Embabel {@code AgentProcess}
- * that is running the {@link com.embabel.agent.core.Agent MemoryDistillerAgent}.
+ * that is running the {@code MemoryDistillerAgent}.
  *
  * <p>This record implements {@link AgentProcessAware} so that the tick logic can
  * uniformly operate on both {@link AssignedTask}s and memory distillation processes.
  *
- * @param agentProcessId the Embabel {@code AgentProcess} identifier for the distillation process
- * @param startedAt      the instant at which the distillation was started
+ * <p>The {@link #distillationInput()} field stores the input data that was placed on the
+ * Embabel Blackboard when the distillation process was created. This allows the distillation
+ * to be restored after a crash or restart. The field is typed as {@link Object} because the
+ * concrete type ({@code MemoryDistillationInput}) resides in the {@code agentic} module.
+ *
+ * @param agentProcessId   the Embabel {@code AgentProcess} identifier for the distillation process
+ * @param distillationInput the input data placed on the Blackboard for the distillation agent
+ * @param startedAt        the instant at which the distillation was started
  */
 public record MemoryDistillation(
         String agentProcessId,
+        Object distillationInput,
         Instant startedAt
 ) implements AgentProcessAware {
 
