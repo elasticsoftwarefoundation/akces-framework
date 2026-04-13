@@ -384,13 +384,16 @@ assignment processes.
 - Handle graceful degradation for unresolvable types
 - Unit tests for rehydration with mock AgentPlatform
 
-**Approach — Wrapper/Decorator Pattern**: Create a `RestoredAgentProcess` that wraps a freshly created
-`AgentProcess` (via `AgentPlatform.createAgentProcess()`) and implements the exact Embabel
-`AgentProcess` interface. The wrapper:
-  - Creates a new process with the restored blackboard bindings
-  - Overrides `getStatus()`, `getHistory()`, `getId()`, `getParentId()` etc. to return the snapshot values
-  - Delegates `tick()`, `run()`, `kill()` etc. to the wrapped process
+**Approach — Direct SimpleAgentProcess Creation**: Create a `SimpleAgentProcess` directly with the
+restored Blackboard contents, rather than going through `AgentPlatform.createAgentProcess()` (which
+would generate a new ID). The rehydrator:
+  - Constructs a `SimpleAgentProcess` with the original process ID, restored blackboard bindings,
+    status, history, and other snapshot metadata
+  - The `AgentProcessRepository.findById(id)` returns this recreated process when
+    `AgentPlatform.getAgentProcess(id)` is called (since `getAgentProcess()` internally delegates
+    to `agentProcessRepository.findById(id)`)
   - The planning system reconstructs `WorldState` from the Blackboard contents on the first `tick()`
+  - No wrapper/decorator needed — the `SimpleAgentProcess` is a standard Embabel process instance
 
 ### Phase 3: RocksDB-backed AgentProcessRepository (Decorator)
 
@@ -511,9 +514,12 @@ and the processing loop is single-threaded.
 - Ensure `KafkaAgenticAggregateRuntime` works correctly with rehydrated processes.
 - Handle stale processes: stored processes for tasks no longer in aggregate state → clean up on
   partition initialization.
-- Note: Orphan recovery (missing process for assigned task) is **already handled** by the existing
-  `resumeNextAgentTask()` code which logs a warning and skips the tick. With persistence, this
-  situation should be extremely rare (only if RocksDB + Kafka both lose data).
+- Note: Orphan recovery (missing process for assigned task or memory distillation) is **already
+  handled** by the existing runtime code. When `KafkaAgenticAggregateRuntime` detects a missing
+  `AgentProcess`, it emits failure events (for example `AgentTaskFinishedEvent(FAILED)` or
+  `MemoryDistillationFailedEvent`) to clear orphaned aggregate state and avoid retry loops. With
+  persistence, this situation should be extremely rare (for example, after data loss or repository
+  inconsistency), but the failure-event path remains an important safety net.
 - End-to-end integration tests.
 
 ### Phase 6: Testing and Documentation
@@ -531,7 +537,7 @@ and the processing loop is single-threaded.
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Wrapper/decorator doesn't perfectly replicate Embabel process behavior | High | Comprehensive testing; track Embabel version upgrades |
+| Rehydrated `SimpleAgentProcess` doesn't perfectly replicate original process behavior | High | Comprehensive testing; track Embabel version upgrades |
 | User-defined blackboard objects not Jackson-serializable | Medium | Graceful degradation; log warnings; document requirement |
 | Blackboard object ordering semantics change across Embabel versions | Medium | Version the snapshot format; test against Embabel upgrades |
 | Large blackboard objects (e.g., full documents) cause storage pressure | Low | Configurable max snapshot size; evict oversized entries |
@@ -541,8 +547,10 @@ and the processing loop is single-threaded.
 
 The following decisions were made by the architect in response to open questions from the initial plan:
 
-1. **Embabel API Extension**: **No.** Use a wrapper/decorator pattern implementing the exact Embabel
-   `AgentProcessRepository` interface. No API extension proposal needed.
+1. **Embabel API Extension**: **No.** Implement the `AgentProcessRepository` interface as a decorator
+   around `InMemoryAgentProcessRepository`. Rehydration creates `SimpleAgentProcess` instances
+   directly with the restored blackboard — no wrapper/decorator pattern for `AgentProcess` itself.
+   No API extension proposal needed.
 
 2. **Snapshot Frequency**: **After every tick.** This ensures minimal data loss on crash. The
    performance cost is acceptable given RocksDB's fast local writes.
@@ -552,9 +560,10 @@ The following decisions were made by the architect in response to open questions
    applies the same write-through behavior to every `save()`/`update()`/`delete()` call regardless
    of process type.
 
-4. **Orphan Recovery**: **Already handled.** The existing `resumeNextAgentTask()` code handles missing
-   processes by logging a warning and skipping the tick. With persistent storage, this scenario should
-   be extremely rare.
+4. **Orphan Recovery**: **Already handled.** The existing runtime handles missing processes by
+   emitting failure events that clear orphaned `AssignedTask` and `MemoryDistillation` entries when
+   a referenced `AgentProcess` cannot be found. With persistent storage, this scenario should be
+   extremely rare.
 
 5. **ContextRepository**: **Not in scope.** The Embabel `ContextRepository` stores `Context` objects that
    can persist state across multiple agent processes (similar to a session). Akces does not use this
