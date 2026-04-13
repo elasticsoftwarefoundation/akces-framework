@@ -144,35 +144,80 @@ The Blackboard can hold **arbitrary Java/Kotlin objects** with varying types:
 ### Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────┐
-│              AgenticAggregatePartition               │
-│                                                      │
-│  ┌──────────────────────────────────────────────┐   │
-│  │    RocksDBAgentProcessRepository             │   │
-│  │    (implements AgentProcessRepository)        │   │
-│  │                                              │   │
-│  │  Key: processId (String → bytes)             │   │
-│  │  Value: AgentProcessSnapshot (Protobuf)      │   │
-│  │                                              │   │
-│  │  ┌────────────────────────────────────────┐  │   │
-│  │  │  RocksDB TransactionDB                 │  │   │
-│  │  │  (local to partition)                  │  │   │
-│  │  └────────────────────────────────────────┘  │   │
-│  └──────────────┬───────────────────────────────┘   │
-│                 │ write-through                      │
-│  ┌──────────────▼───────────────────────────────┐   │
-│  │  Kafka Compacted Topic                       │   │
-│  │  "{RuntimeName}-AgentProcessState"           │   │
-│  │  Key: processId                              │   │
-│  │  Value: AgentProcessSnapshot (Protobuf)      │   │
-│  └──────────────────────────────────────────────┘   │
-│                                                      │
-│  On partition assignment:                            │
-│    1. Consume compacted topic to rebuild RocksDB    │
-│    2. Rehydrate AgentProcess objects on demand      │
-│                                                      │
-└─────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                    AgenticAggregatePartition                      │
+│                                                                   │
+│  Kafka Transaction (owned by partition's transactional producer) │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │  1. producer.beginTransaction()                            │  │
+│  │  2. producer.send(AggregateStateRecord → state topic)      │  │
+│  │  3. producer.send(DomainEventRecord → event topic)         │  │
+│  │  4. producer.send(AgentProcessSnapshotRecord → process     │  │
+│  │     state topic) ◄── NEW: write-through to Kafka          │  │
+│  │  5. producer.sendOffsetsToTransaction(...)                 │  │
+│  │  6. producer.commitTransaction()                           │  │
+│  └────────────────────────────────────────────────────────────┘  │
+│                                                                   │
+│  After Kafka commit:                                             │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │  7. stateRepository.commit()       → RocksDB (agg state)  │  │
+│  │  8. processRepository.commitLocal() → RocksDB (processes)  │  │
+│  └────────────────────────────────────────────────────────────┘  │
+│                                                                   │
+│  On partition assignment:                                        │
+│    1. Consume compacted topic to rebuild RocksDB                 │
+│    2. Rehydrate AgentProcess objects on demand                   │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
 ```
+
+### Kafka Transaction Coordination
+
+**Problem**: The Kafka write-through for agent process snapshots must participate in the **same
+Kafka transaction** as the aggregate state writes and domain event produces. This ensures atomicity:
+if the transaction aborts, neither aggregate state changes nor process state changes are visible
+to consumers.
+
+However, Embabel's `AgentProcessRepository` interface (`save()`/`update()`/`delete()`) is called
+by `DefaultAgentPlatform` — it does not have access to `AgenticAggregatePartition`'s transactional
+Kafka `Producer`.
+
+**Solution — Deferred Write-Through Pattern**: The `PersistentAgentProcessRepository` captures
+snapshot changes in a **pending write buffer** (similar to how `RocksDBAggregateStateRepository`
+uses `transactionStateRecordMap`). The actual Kafka send and RocksDB commit happen later, driven
+by the `AgenticAggregatePartition`:
+
+```
+AgentProcessRepository (SPI — called by DefaultAgentPlatform)
+  save()/update()/delete()
+    ├── Delegates to InMemoryAgentProcessRepository (immediate in-memory update)
+    └── Stages snapshot in pendingWrites buffer (does NOT write to Kafka/RocksDB yet)
+
+AgenticAggregatePartition (transaction coordinator)
+  Within a Kafka transaction:
+    1. producer.beginTransaction()
+    2. runtime.handleCommand() / runtime.resumeNextAgentTask()
+       └── internally calls AgentPlatform → AgentProcessRepository.save()/update()
+    3. processRepository.sendPending(producer)  ◄── sends staged records to Kafka
+    4. producer.commitTransaction()
+    5. stateRepository.commit()
+    6. processRepository.commitLocal()          ◄── writes staged records to RocksDB
+  On abort:
+    5. stateRepository.rollback()
+    6. processRepository.rollbackLocal()        ◄── discards staged records
+```
+
+This pattern mirrors the existing `AggregateStateRepository` coordination exactly:
+- `prepare()` → `sendPending()` (buffer records, send to Kafka)
+- `commit()` → `commitLocal()` (write to RocksDB after Kafka commit)
+- `rollback()` → `rollbackLocal()` (discard buffered records)
+
+The `PersistentAgentProcessRepository` exposes these additional methods (beyond the Embabel SPI)
+to the `AgenticAggregatePartition` which calls them at the appropriate transaction boundary points.
+
+**Topic**: `{RuntimeName}-AgentProcessState` (compacted, single partition matching the agentic
+aggregate's fixed partition 0). Key = `processId`, Value = `AgentProcessSnapshotRecord` (Protobuf).
+Tombstone (null value) on delete.
 
 ### Serialization Strategy: AgentProcessSnapshot
 
@@ -348,18 +393,24 @@ the `isTaskAssignment` binding or via an explicit flag) and only persists task-r
 
 ### Phase 3: RocksDB-backed AgentProcessRepository (Decorator)
 
-**Goal**: Implement the persistent repository using RocksDB with a decorator pattern.
+**Goal**: Implement the persistent repository using RocksDB with a deferred write-through pattern.
 
 **Deliverables**:
 - `PersistentAgentProcessRepository` implementing `AgentProcessRepository` as a **decorator** around
   `InMemoryAgentProcessRepository`
-- All operations delegate to the in-memory implementation first
-- `save()` and `update()` additionally persist to RocksDB for task-related processes
-- `delete()` additionally removes from RocksDB
+- Embabel SPI methods (`save()`/`update()`/`delete()`/`findById()`/`findByParentId()`):
+  - Delegate to the in-memory implementation immediately
+  - For persistent processes: stage snapshot in `pendingWrites` buffer (a `Map<String, AgentProcessSnapshotRecord>`;
+    tombstone = null value for deletes)
+- Transaction coordination methods (called by `AgenticAggregatePartition`):
+  - `sendPending(Producer<String, ProtocolRecord> producer, TopicPartition processStateTp)` — sends
+    all pending snapshot records to Kafka using the partition's transactional producer
+  - `commitLocal()` — writes all pending snapshots to RocksDB (after Kafka transaction committed)
+  - `rollbackLocal()` — discards pending writes buffer, reverts in-memory state if needed
 - `findById()` falls back to RocksDB + rehydration when not found in memory
 - `findByParentId()` combines results from memory and RocksDB
 - RocksDB database configuration (separate DB from aggregate state)
-- Snapshot after every `tick()` via the `update()` call
+- Snapshot after every `tick()` via the `update()` call from `DefaultAgentPlatform`
 - `PersistentAgentProcessRepositoryFactory` matching existing factory patterns
 - Integration tests with RocksDB
 - **This is the default implementation** (replaces InMemoryAgentProcessRepository as the default)
@@ -367,34 +418,108 @@ the `isTaskAssignment` binding or via an explicit flag) and only persists task-r
 **Design Decision**: Use a **separate RocksDB database** (not a column family in the aggregate state DB)
 to maintain separation of concerns and allow independent lifecycle management.
 
+**Design Decision**: The `PersistentAgentProcessRepository` is both an Embabel SPI implementation
+(called by `DefaultAgentPlatform`) and a transaction participant (called by `AgenticAggregatePartition`).
+This dual role mirrors how `RocksDBAggregateStateRepository` works: it implements the
+`AggregateStateRepository` interface while also providing `prepare()`/`commit()`/`rollback()` for
+the partition to coordinate Kafka transactions.
+
 ### Phase 4: Kafka Compacted Topic for Cross-Node Recovery
 
 **Goal**: Add Kafka-backed durability so process state survives node failures and partition reassignment.
+The writes to Kafka must participate in the same Kafka transaction as aggregate state and domain event
+writes.
 
 **Deliverables**:
-- New Kafka topic: `{RuntimeName}-AgentProcessState` (compacted)
-- Write-through from `RocksDBAgentProcessRepository` to Kafka on save/update
-- Tombstone records on delete
-- Partition initialization: consume compacted topic to rebuild RocksDB on assignment
-- Integration with existing `AgenticAggregatePartition` startup flow
-- Offset tracking in RocksDB (matching existing aggregate state pattern)
-- Integration tests with Kafka (TestContainers)
+- New Kafka topic: `{RuntimeName}-AgentProcessState` (compacted, single partition)
+- Update `AgenticAggregatePartition` to call `processRepository.sendPending(producer, tp)` inside
+  the Kafka transaction, **after** processing commands/events and **before** `commitTransaction()`.
+  This mirrors how `stateRepository.prepare()` stages records sent via the transactional producer.
+- Update `AgenticAggregatePartition` to call `processRepository.commitLocal()` after
+  `producer.commitTransaction()` and `stateRepository.commit()`.
+- Update `AgenticAggregatePartition` to call `processRepository.rollbackLocal()` on transaction abort.
+- Tombstone records (null value) on `delete()` to enable Kafka compaction cleanup.
+- Partition initialization: consume compacted topic to rebuild RocksDB on assignment (same pattern as
+  aggregate state topic consumption in the `LOADING_STATE` phase).
+- Offset tracking in RocksDB (matching existing aggregate state pattern).
+- Integration tests with Kafka (TestContainers).
 
-### Phase 5: Integration with Agentic Runtime
+**Transaction Flow in `processRecords()`**:
+```java
+producer.beginTransaction();
+// ... handle commands, events → produces AggregateStateRecord, DomainEventRecord
+// ... DefaultAgentPlatform internally calls processRepository.save()/update()/delete()
+//     which stages snapshots in pendingWrites buffer
+processRepository.sendPending(producer, processStatePartition);  // ◄── NEW
+producer.sendOffsetsToTransaction(offsets, consumer.groupMetadata());
+producer.commitTransaction();
+stateRepository.commit();                                         // agg state → RocksDB
+processRepository.commitLocal();                                  // ◄── NEW: process state → RocksDB
+```
+
+**Transaction Flow in `resumeAgentTasks()`**:
+```java
+producer.beginTransaction();
+runtime.resumeNextAgentTask(this::send, stateSupplier, this);
+// ... DefaultAgentPlatform internally calls processRepository.update()
+processRepository.sendPending(producer, processStatePartition);  // ◄── NEW
+producer.commitTransaction();
+stateRepository.commit();
+processRepository.commitLocal();                                  // ◄── NEW
+```
+
+### Phase 5: Integration with Agentic Runtime — Spring Wiring and Startup
 
 **Goal**: Wire the persistent repository into the existing agentic runtime flow as the default.
 
 **Deliverables**:
-- Configure `PersistentAgentProcessRepository` as the **default** `AgentProcessRepository` in
-  `AgenticAggregateServiceApplication` (replacing `InMemoryAgentProcessRepository`)
-- Update `AgenticAggregateRuntimeFactory` to create the persistent repository
-- Ensure `KafkaAgenticAggregateRuntime` works correctly with rehydrated processes
+
+#### Spring Wiring (in `AgenticAggregateServiceApplication`)
+
+Embabel's `AgentPlatformConfiguration` defines an `agentProcessRepository` `@Bean` method that creates
+an `InMemoryAgentProcessRepository`. This method is annotated with just `@Bean` — **no
+`@ConditionalOnMissingBean`**. To override it, Akces defines a `@Bean @Primary` method in the existing
+`AgenticAggregateServiceApplication`:
+
+```java
+@Bean(name = "agenticServiceAgentProcessRepository")
+@Primary
+public AgentProcessRepository agentProcessRepository(
+        @Value("${akces.rocksdb.baseDir:/tmp/akces}") String baseDir) {
+    return new PersistentAgentProcessRepositoryFactory(baseDir).create();
+}
+```
+
+Since `DefaultAgentPlatform` receives `AgentProcessRepository` via constructor injection, the `@Primary`
+bean wins — the `PersistentAgentProcessRepository` (decorator over `InMemoryAgentProcessRepository` +
+RocksDB) is injected. **No custom `AgentPlatform` implementation needed.**
+
+> **Note**: Optionally propose upstream to the Embabel project that `@ConditionalOnMissingBean` be added
+> to the `agentProcessRepository()` factory method (as they already use it for `defaultLogger`,
+> `defaultColorPalette`, and `embabelJacksonObjectMapper`). This would allow clean override without
+> `@Primary`.
+
+#### `AgenticAggregatePartition` Changes
+
+The `AgenticAggregatePartition` already receives the `AggregateStateRepositoryFactory` — it will
+additionally receive the `PersistentAgentProcessRepository` (cast from `AgentProcessRepository`) so
+it can call the transaction coordination methods (`sendPending()`/`commitLocal()`/`rollbackLocal()`)
+at the appropriate points in the transaction lifecycle.
+
+The `PersistentAgentProcessRepository` instance is **shared** between `DefaultAgentPlatform` (which
+calls the Embabel SPI methods) and `AgenticAggregatePartition` (which calls the transaction
+coordination methods). This is safe because agentic aggregates always use a single partition (partition 0)
+and the processing loop is single-threaded.
+
+#### Runtime Integration
+
+- Ensure `KafkaAgenticAggregateRuntime` works correctly with rehydrated processes.
 - Handle stale processes: stored processes for tasks no longer in aggregate state → clean up on
-  partition initialization
+  partition initialization.
 - Note: Orphan recovery (missing process for assigned task) is **already handled** by the existing
   `resumeNextAgentTask()` code which logs a warning and skips the tick. With persistence, this
-  situation should be extremely rare (only if RocksDB + Kafka both lose data)
-- End-to-end integration tests
+  situation should be extremely rare (only if RocksDB + Kafka both lose data).
+- End-to-end integration tests.
 
 ### Phase 6: Testing and Documentation
 
@@ -445,3 +570,17 @@ The following decisions were made by the architect in response to open questions
 6. **Default Configuration**: **RocksDB is the default.** The `PersistentAgentProcessRepository`
    (decorator over `InMemoryAgentProcessRepository` + RocksDB) will be the default repository
    configured in `AgenticAggregateServiceApplication`.
+
+7. **Spring Wiring Strategy**: **`@Bean @Primary` in `AgenticAggregateServiceApplication`.** Embabel's
+   `AgentPlatformConfiguration.agentProcessRepository()` is annotated with just `@Bean` (no
+   `@ConditionalOnMissingBean`). Akces overrides it by declaring a `@Bean @Primary` method in the
+   existing `AgenticAggregateServiceApplication`. `DefaultAgentPlatform` receives the `@Primary` bean
+   via constructor injection — no custom `AgentPlatform` implementation needed.
+
+8. **Kafka Transaction Coordination**: **Deferred write-through pattern.** The
+   `PersistentAgentProcessRepository` does not write to Kafka directly. Instead, it stages snapshot
+   changes in a pending buffer. The `AgenticAggregatePartition` drives the Kafka writes using its own
+   transactional `Producer` (the same one used for aggregate state and domain events), ensuring all
+   writes participate in a single Kafka transaction. After the Kafka transaction commits, the partition
+   calls `commitLocal()` to persist to RocksDB. This mirrors the existing
+   `RocksDBAggregateStateRepository` pattern of `prepare()` → Kafka send → `commit()` → RocksDB write.
