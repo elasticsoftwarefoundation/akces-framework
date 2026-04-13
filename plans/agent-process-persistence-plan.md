@@ -107,6 +107,41 @@ The Blackboard can hold **arbitrary Java/Kotlin objects** with varying types:
 | `WorldState` snapshots | Embabel internal | Complex planner state |
 | Planning artifacts | Embabel internal | Internal framework state |
 
+### SimpleAgentProcess / AbstractAgentProcess Field Analysis
+
+To ensure full state restoration, we need to understand every field in the `SimpleAgentProcess` class
+hierarchy. `SimpleAgentProcess extends AbstractAgentProcess implements AgentProcess`.
+
+#### AbstractAgentProcess fields (the superclass)
+
+| Field | Type | Mutable? | Persist? | Notes |
+|-------|------|----------|----------|-------|
+| `id` | `String` | No (final) | **Yes** | Process identity — stored as `processId` |
+| `parentId` | `String?` | No (final) | **Yes** | `null` for root processes, parent ID for child (e.g., memory distillation) |
+| `agent` | `Agent` | No (final) | **No** — resolve by name | Resolved via `agentName` from `AgentPlatform.agents()` |
+| `processOptions` | `ProcessOptions` | No (final) | **No** — use DEFAULT | Akces always uses `ProcessOptions.DEFAULT` |
+| `blackboard` | `Blackboard` | No (final) | **Yes** | Core state — serialized as `List<BlackboardEntry>` + bindings + conditions |
+| `platformServices` | `PlatformServices` | No (final) | **No** — singleton | Re-injected from `AgentPlatform.getPlatformServices()` |
+| `timestamp` | `Instant` | No (final) | **Yes** | Creation time — stored as `createdAt` |
+| `_status` | `AtomicReference<AgentProcessStatusCode>` | Yes | **Yes** | Current status (NOT_STARTED, RUNNING, COMPLETED, FAILED, etc.) |
+| `_history` | `List<ActionInvocation>` | Yes (append) | **Yes** | Action invocations — each has `actionName`, `timestamp`, `runningTime` |
+| `_failureInfo` | `Object?` | Yes | **Yes** | Nullable failure details |
+| `_lastWorldState` | `WorldState?` | Yes | **No** — reconstructed | Recomputed by `WorldStateDeterminer` from Blackboard on next `tick()` |
+| `_goal` | `Goal?` | Yes | **No** — reconstructed | Set by planner from `WorldState` on next `tick()` |
+| `_terminationRequest` | `TerminationSignal?` | Yes | **No** | Transient signal; if set, the process is being killed/terminated — a finished process state is persisted instead |
+| `_llmInvocations` | `List<LlmInvocation>` | Yes (append) | **No** | Operational telemetry only; not needed for process resumption |
+| `agenticEventListenerToolsStats` | `AgenticEventListenerToolsStats` | Yes | **No** | Telemetry aggregation; rebuilt as tools execute |
+| `processContext` | `ProcessContext` | No (final) | **No** — reconstructed | Created from `ProcessOptions` + `PlatformServices` + `AgentProcess` ref |
+| `logger` | `Logger` | No (final) | **No** | Infrastructure |
+
+#### SimpleAgentProcess additional fields
+
+| Field | Type | Mutable? | Persist? | Notes |
+|-------|------|----------|----------|-------|
+| `worldStateDeterminer` | `WorldStateDeterminer` | No (final) | **No** — reconstructed | Created from `Agent` conditions + Blackboard on construction |
+| `planner` | `Planner` | No (final) | **No** — reconstructed | Created by `PlannerFactory.createPlanner()` |
+| `replanBlacklist` | `Set<String>` | Yes (append) | **Yes** | Action names that caused failures; prevents re-selecting them during replanning. Must be persisted to avoid repeating failed actions after restart. |
+
 ### Key Insights
 
 1. **Embabel objects are NOT `java.io.Serializable`** — `AgentProcess`, `Blackboard`, `ActionInvocation`,
@@ -121,11 +156,21 @@ The Blackboard can hold **arbitrary Java/Kotlin objects** with varying types:
    Jackson-friendly.
 
 4. **Not all AgentProcess state needs to be serialized** — The `Agent`, `Planner`, `PlatformServices`,
-   `ProcessContext`, and `ProcessOptions` references can be re-injected on deserialization since they are
-   singletons or can be resolved from the Spring context.
+   `ProcessContext`, `WorldStateDeterminer`, and `ProcessOptions` references can be re-injected or
+   reconstructed on deserialization since they are singletons or derived from other restored state.
 
 5. **The process can only be resumed at tick boundaries** — Between ticks, the process is in a quiescent
-   state where only the Blackboard contents and process metadata matter.
+   state where only the Blackboard contents, process metadata, and `replanBlacklist` matter.
+
+6. **`_lastWorldState` and `_goal` are reconstructed automatically** — `AbstractAgentProcess.tick()`
+   calls `worldStateDeterminer.determineWorldState()` (which reads from the Blackboard) and stores the
+   result in `_lastWorldState`. The planner then derives `_goal` from the world state. No explicit
+   persistence needed.
+
+7. **`replanBlacklist` must be persisted** — This `Set<String>` tracks action names that caused failures
+   during the current process. Without persisting it, a rehydrated process could re-select a previously
+   failed action, causing a retry loop. This field is populated by `SimpleAgentProcess.formulateAndExecutePlan()`
+   when an action fails.
 
 ## Proposed Solution: RocksDB-backed AgentProcessRepository with Kafka Compaction Backup
 
@@ -239,7 +284,7 @@ AgentProcessSnapshot {
   
   // Process metadata
   AgentProcessStatusCode status
-  Instant createdAt
+  Instant createdAt             // Maps to AbstractAgentProcess.timestamp
   Object failureInfo            // Nullable, JSON-serializable
   
   // Blackboard state (the core challenge)
@@ -252,7 +297,8 @@ AgentProcessSnapshot {
   List<ActionInvocationSnapshot> history
   
   // Planning state
-  // WorldState is reconstructed by the planner from the Blackboard on the next tick
+  Set<String> replanBlacklist   // Action names to exclude from replanning (SimpleAgentProcess field)
+  // WorldState and Goal are reconstructed by the planner from the Blackboard on the next tick
 }
 
 BlackboardEntry {
@@ -271,14 +317,19 @@ ActionInvocationSnapshot {
 
 #### What NOT to Serialize
 
-These are re-injected from the Spring/Embabel context on rehydration:
+These are re-injected from the Spring/Embabel context or reconstructed on rehydration:
 
 - `Agent` reference → resolved by `agentName` from `AgentPlatform.agents()`
-- `Planner` reference → created by `PlannerFactory` based on agent configuration
-- `PlatformServices` → singleton, injected from `AgentPlatform`
-- `ProcessContext` → reconstructed from process ID and platform services
+- `Planner` reference → created by `PlannerFactory.createPlanner()` based on agent configuration
+- `PlatformServices` → singleton, obtained from `AgentPlatform.getPlatformServices()`
+- `ProcessContext` → reconstructed from `ProcessOptions` + `PlatformServices` + `AgentProcess` reference
 - `ProcessOptions` → use `ProcessOptions.DEFAULT` (Akces always uses DEFAULT)
+- `WorldStateDeterminer` → reconstructed from `Agent` conditions + Blackboard at construction time
+- `_lastWorldState` → recomputed from Blackboard by `WorldStateDeterminer` on next `tick()`
+- `_goal` → derived from `WorldState` by the planner on next `tick()`
+- `_terminationRequest` → transient signal; only set during active kill/terminate operations
 - `LlmInvocation` history → operational telemetry, not needed for resumption
+- `AgenticEventListenerToolsStats` → telemetry aggregation, rebuilt as tools execute
 
 #### Blackboard Entry Serialization
 
@@ -307,19 +358,35 @@ When a partition is assigned and we need to resume an agent process:
 
 ```
 1. Load AgentProcessSnapshot from RocksDB (rebuilt from Kafka if needed)
-2. Resolve Agent by name from AgentPlatform
-3. Create new InMemoryBlackboard
-4. For each BlackboardEntry (in order):
+2. Resolve Agent by name from AgentPlatform.agents()
+3. Obtain PlatformServices from AgentPlatform.getPlatformServices()
+4. Obtain PlannerFactory from Spring context
+5. Create new Blackboard (via BlackboardProvider or InMemoryBlackboard)
+6. For each BlackboardEntry (in order):
    a. Resolve Class<?> from typeName
    b. Deserialize payload using ObjectMapper
    c. Add to blackboard via addObject()
    d. If entry has named binding, bind it
-5. Restore hidden objects
-6. Restore conditions
-7. Create AgentProcess via AgentPlatform.createAgentProcess()
-   with restored blackboard contents as bindings
-8. Restore status, history, and other metadata
-9. Return process ready for tick()
+7. Restore hidden objects
+8. Restore conditions
+9. Create SimpleAgentProcess directly:
+   new SimpleAgentProcess(
+     snapshot.processId,      // original ID preserved
+     snapshot.parentId,       // parent relationship preserved
+     resolvedAgent,           // resolved from AgentPlatform
+     ProcessOptions.DEFAULT,  // Akces always uses DEFAULT
+     restoredBlackboard,      // rebuilt from snapshot entries
+     platformServices,        // from AgentPlatform
+     plannerFactory,          // from Spring context
+     snapshot.createdAt       // original creation timestamp
+   )
+10. Restore mutable state:
+    - Set status from snapshot (via reflection or Embabel SPI)
+    - Replay history entries (List<ActionInvocation>)
+    - Set failureInfo if present
+    - Restore replanBlacklist (via reflection — private final Set<String>)
+11. Save to AgentProcessRepository so findById(id) returns it
+12. Process is ready for tick()
 ```
 
 ### Alternative Considered: Direct AgentProcess Serialization via Kotlin Serialization
@@ -387,12 +454,19 @@ assignment processes.
 **Approach — Direct SimpleAgentProcess Creation**: Create a `SimpleAgentProcess` directly with the
 restored Blackboard contents, rather than going through `AgentPlatform.createAgentProcess()` (which
 would generate a new ID). The rehydrator:
-  - Constructs a `SimpleAgentProcess` with the original process ID, restored blackboard bindings,
-    status, history, and other snapshot metadata
+  - Resolves `Agent` by name from `AgentPlatform.agents()` and obtains `PlatformServices` and
+    `PlannerFactory` from the platform/Spring context
+  - Constructs a `SimpleAgentProcess(id, parentId, agent, ProcessOptions.DEFAULT, blackboard,
+    platformServices, plannerFactory, createdAt)` with the original process ID
+  - Restores mutable state: `_status`, `_history`, `_failureInfo`, `replanBlacklist`
+  - Note: `_status` can be set via `AbstractAgentProcess.setStatus()` (protected); `_history` items
+    can be added; `replanBlacklist` is a `private final Set<String>` that requires reflection or a
+    Kotlin-friendly approach to populate. If reflection is undesirable, a feature request to Embabel
+    for a constructor or builder accepting these fields may be warranted.
   - The `AgentProcessRepository.findById(id)` returns this recreated process when
     `AgentPlatform.getAgentProcess(id)` is called (since `getAgentProcess()` internally delegates
     to `agentProcessRepository.findById(id)`)
-  - The planning system reconstructs `WorldState` from the Blackboard contents on the first `tick()`
+  - `WorldState` and `Goal` are reconstructed by the planner from the Blackboard on the first `tick()`
   - No wrapper/decorator needed — the `SimpleAgentProcess` is a standard Embabel process instance
 
 ### Phase 3: RocksDB-backed AgentProcessRepository (Decorator)
@@ -537,7 +611,8 @@ and the processing loop is single-threaded.
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Rehydrated `SimpleAgentProcess` doesn't perfectly replicate original process behavior | High | Comprehensive testing; track Embabel version upgrades |
+| Rehydrated `SimpleAgentProcess` doesn't perfectly replicate original process behavior | High | Field analysis confirms all mutable state (`status`, `history`, `failureInfo`, `replanBlacklist`, `blackboard`) is captured; `WorldState`/`Goal` are auto-reconstructed on `tick()`. Comprehensive round-trip tests required. |
+| Restoring `replanBlacklist` requires reflection (private final field) | Medium | Use Kotlin reflection or Java `setAccessible`. Alternatively, request Embabel API extension for a rehydration-friendly constructor. |
 | User-defined blackboard objects not Jackson-serializable | Medium | Graceful degradation; log warnings; document requirement |
 | Blackboard object ordering semantics change across Embabel versions | Medium | Version the snapshot format; test against Embabel upgrades |
 | Large blackboard objects (e.g., full documents) cause storage pressure | Low | Configurable max snapshot size; evict oversized entries |
@@ -549,8 +624,11 @@ The following decisions were made by the architect in response to open questions
 
 1. **Embabel API Extension**: **No.** Implement the `AgentProcessRepository` interface as a decorator
    around `InMemoryAgentProcessRepository`. Rehydration creates `SimpleAgentProcess` instances
-   directly with the restored blackboard — no wrapper/decorator pattern for `AgentProcess` itself.
-   No API extension proposal needed.
+   directly with the original process ID, restored blackboard, and all mutable state (`status`,
+   `history`, `failureInfo`, `replanBlacklist`). `WorldState` and `Goal` are auto-reconstructed
+   on the first `tick()`. No wrapper/decorator pattern needed. Note: restoring `replanBlacklist`
+   (private final `Set<String>`) may require reflection; if this proves fragile, an Embabel API
+   extension for a rehydration-friendly constructor may be warranted as a follow-up.
 
 2. **Snapshot Frequency**: **After every tick.** This ensures minimal data loss on crash. The
    performance cost is acceptable given RocksDB's fast local writes.
