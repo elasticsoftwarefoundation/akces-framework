@@ -127,11 +127,6 @@ public class TradingAdvisorIntegrationTest {
             Files.walk(Paths.get("/tmp/akces"))
                     .sorted(Comparator.reverseOrder())
                     .map(Path::toFile)
-                    .filter(File::isDirectory)
-                    .forEach(file -> System.out.println(file.getAbsolutePath()));
-            Files.walk(Paths.get("/tmp/akces"))
-                    .sorted(Comparator.reverseOrder())
-                    .map(Path::toFile)
                     .forEach(File::delete);
         }
     }
