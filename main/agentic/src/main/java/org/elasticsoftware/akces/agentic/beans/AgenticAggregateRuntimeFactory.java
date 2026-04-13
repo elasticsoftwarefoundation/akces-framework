@@ -48,6 +48,9 @@ import java.util.List;
 import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.AGENT_TASK_ASSIGNED_TYPE;
 import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.AGENT_TASK_FINISHED_TYPE;
 import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.ASSIGN_TASK_COMMAND_TYPE;
+import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.MEMORY_DISTILLATION_FAILED_TYPE;
+import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.MEMORY_DISTILLATION_FINISHED_TYPE;
+import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.MEMORY_DISTILLATION_STARTED_TYPE;
 import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.MEMORY_REVOKED_TYPE;
 import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.MEMORY_STORED_TYPE;
 
@@ -261,6 +264,15 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
         runtimeBuilder
                 .addEventSourcingHandler(AGENT_TASK_FINISHED_TYPE, KafkaAgenticAggregateRuntime::handleBuiltInEvent)
                 .addDomainEvent(AGENT_TASK_FINISHED_TYPE);
+        runtimeBuilder
+                .addEventSourcingHandler(MEMORY_DISTILLATION_STARTED_TYPE, KafkaAgenticAggregateRuntime::handleBuiltInEvent)
+                .addDomainEvent(MEMORY_DISTILLATION_STARTED_TYPE);
+        runtimeBuilder
+                .addEventSourcingHandler(MEMORY_DISTILLATION_FINISHED_TYPE, KafkaAgenticAggregateRuntime::handleBuiltInEvent)
+                .addDomainEvent(MEMORY_DISTILLATION_FINISHED_TYPE);
+        runtimeBuilder
+                .addEventSourcingHandler(MEMORY_DISTILLATION_FAILED_TYPE, KafkaAgenticAggregateRuntime::handleBuiltInEvent)
+                .addDomainEvent(MEMORY_DISTILLATION_FAILED_TYPE);
 
         // Collect agent-produced error types for registration and inclusion in adapters.
         List<DomainEventType<?>> agentProducedErrorTypes =
