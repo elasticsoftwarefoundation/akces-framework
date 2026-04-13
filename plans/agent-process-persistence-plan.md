@@ -63,11 +63,14 @@ Blackboard (InMemoryBlackboard)
    via `agentPlatform.getAgentProcess(taskId)`, calls `tick()`, drains `DomainEvent` objects from
    the blackboard via `AgentProcessResultTranslator.collectEvents()`, and processes them.
 
-3. **Completion**: When `agentProcess.getFinished()` returns true, the runtime runs memory distillation
-   (if applicable), emits `AgentTaskFinishedEvent`, and the task is removed from aggregate state.
+3. **Completion**: When `agentProcess.getFinished()` returns true, the runtime may start memory
+   distillation (if applicable), emits `AgentTaskFinishedEvent` when the task lifecycle is complete,
+   and removes the finished task from aggregate state.
 
-4. **Memory Distillation**: Creates a separate short-lived `AgentProcess` for `MemoryDistillerAgent`,
-   runs it to completion, and extracts `MemoryDistillationResult` from its blackboard.
+4. **Memory Distillation**: Creates a separate `AgentProcess` for `MemoryDistillerAgent`. Instead of
+   running it to completion immediately, the runtime starts it and advances it via the same tick
+   mechanism used for other agent processes until it finishes, at which point it extracts
+   `MemoryDistillationResult` from the distillation process blackboard.
 
 ### Storage Engines Available in Akces
 
