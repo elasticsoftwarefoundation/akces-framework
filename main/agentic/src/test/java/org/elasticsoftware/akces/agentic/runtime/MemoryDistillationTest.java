@@ -227,7 +227,6 @@ class MemoryDistillationTest {
         MemoryDistillationStartedEvent startedEvent = (MemoryDistillationStartedEvent) events.get(1);
         assertThat(startedEvent.agenticAggregateId()).isEqualTo("agg-1");
         assertThat(startedEvent.agentProcessId()).isEqualTo("distiller-proc-1");
-        assertThat(startedEvent.distillationInput()).isNotNull();
 
         // Verify distiller process was NOT run to completion (tick-based now)
         verify(distillerProcess, never()).run();
@@ -406,7 +405,7 @@ class MemoryDistillationTest {
                 new AgenticAggregateMemory("mem-3", "s3", "f3", "c3", "r3", Instant.now())
         );
         // State has an active memory distillation and no assigned tasks
-        var distillation = new MemoryDistillation("distiller-proc-1", null, Instant.now());
+        var distillation = new MemoryDistillation("distiller-proc-1", Instant.now());
         var state = new MemoryTaskState("agg-1", List.of(), existingMemories, List.of(distillation));
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "MemoryTaskState", 1, payload,
@@ -494,7 +493,7 @@ class MemoryDistillationTest {
                 delegate, objectMapper, MemoryTaskState.class, agentPlatform, aggregate, 100, 2);
 
         // State has an active distillation and no assigned tasks
-        var distillation = new MemoryDistillation("distiller-proc-1", null, Instant.now());
+        var distillation = new MemoryDistillation("distiller-proc-1", Instant.now());
         var state = new MemoryTaskState("agg-1", List.of(), List.of(), List.of(distillation));
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "MemoryTaskState", 1, payload,
@@ -546,7 +545,7 @@ class MemoryDistillationTest {
                 new AgenticAggregateMemory("mem-4", "s4", "f4", "c4", "r4", Instant.now())
         );
         // State has an active memory distillation and no assigned tasks
-        var distillation = new MemoryDistillation("distiller-proc-1", null, Instant.now());
+        var distillation = new MemoryDistillation("distiller-proc-1", Instant.now());
         var state = new MemoryTaskState("agg-1", List.of(), existingMemories, List.of(distillation));
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "MemoryTaskState", 1, payload,
@@ -592,7 +591,7 @@ class MemoryDistillationTest {
                 new AgenticAggregateMemory("mem-1", "s1", "f1", "c1", "r1", Instant.now())
         );
         // State has an active distillation and no assigned tasks
-        var distillation = new MemoryDistillation("distiller-proc-1", null, Instant.now());
+        var distillation = new MemoryDistillation("distiller-proc-1", Instant.now());
         var state = new MemoryTaskState("agg-1", List.of(), existingMemories, List.of(distillation));
         byte[] payload = objectMapper.writeValueAsBytes(state);
         var stateRecord = new AggregateStateRecord(null, "MemoryTaskState", 1, payload,

@@ -19,7 +19,6 @@ package org.elasticsoftware.akces.agentic.events;
 
 import jakarta.annotation.Nonnull;
 import jakarta.validation.constraints.NotNull;
-import org.elasticsoftware.akces.agentic.embabel.MemoryDistillationInput;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -31,17 +30,12 @@ import java.time.Instant;
  * {@link org.elasticsoftware.akces.aggregate.AgenticAggregate}.
  *
  * <p>This event is produced after an {@link AgentTaskFinishedEvent} with status
- * {@code COMPLETED}. It carries the {@link MemoryDistillationInput} that was placed
- * on the Embabel Blackboard, allowing the distillation process to be resumed after a
- * crash or restart by restoring the Blackboard state from this event.
- *
- * <p>The built-in event-sourcing handler processes this event by updating the aggregate
- * state's {@link org.elasticsoftware.akces.aggregate.MemoryAwareState} with
- * a new {@link org.elasticsoftware.akces.aggregate.MemoryDistillation}.
+ * {@code COMPLETED}. The built-in event-sourcing handler processes this event by
+ * updating the aggregate state's {@link org.elasticsoftware.akces.aggregate.MemoryAwareState}
+ * with a new {@link org.elasticsoftware.akces.aggregate.MemoryDistillation}.
  *
  * @param agenticAggregateId the identifier of the agentic aggregate
  * @param agentProcessId     the Embabel {@code AgentProcess.getId()} value for the distillation process
- * @param distillationInput  the input data placed on the Blackboard for the distillation agent
  * @param startedAt          the instant at which the distillation was started
  */
 @DomainEventInfo(type = "MemoryDistillationStarted", version = 1,
@@ -49,7 +43,6 @@ import java.time.Instant;
 public record MemoryDistillationStartedEvent(
         @AggregateIdentifier String agenticAggregateId,
         @NotNull String agentProcessId,
-        @NotNull MemoryDistillationInput distillationInput,
         @NotNull Instant startedAt
 ) implements DomainEvent {
 

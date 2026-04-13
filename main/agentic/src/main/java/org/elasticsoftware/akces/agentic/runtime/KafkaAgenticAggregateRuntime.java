@@ -433,7 +433,6 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
         }
         MemoryDistillation distillation = new MemoryDistillation(
                 event.agentProcessId(),
-                event.distillationInput(),
                 event.startedAt());
         return (AggregateState) mas.withMemoryDistillation(distillation);
     }
@@ -722,7 +721,6 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
             MemoryDistillationStartedEvent startedEvent = new MemoryDistillationStartedEvent(
                     state.getAggregateId(),
                     distillerProcess.getId(),
-                    distillationInput,
                     Instant.now());
 
             logger.info("Started memory distillation (processId={}) for aggregate {}",

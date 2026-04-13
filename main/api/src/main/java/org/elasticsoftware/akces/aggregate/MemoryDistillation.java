@@ -31,18 +31,11 @@ import java.time.Instant;
  * <p>This record implements {@link AgentProcessAware} so that the tick logic can
  * uniformly operate on both {@link AssignedTask}s and memory distillation processes.
  *
- * <p>The {@link #distillationInput()} field stores the input data that was placed on the
- * Embabel Blackboard when the distillation process was created. This allows the distillation
- * to be restored after a crash or restart. The field is typed as {@link Object} because the
- * concrete type ({@code MemoryDistillationInput}) resides in the {@code agentic} module.
- *
- * @param agentProcessId   the Embabel {@code AgentProcess} identifier for the distillation process
- * @param distillationInput the input data placed on the Blackboard for the distillation agent
- * @param startedAt        the instant at which the distillation was started
+ * @param agentProcessId the Embabel {@code AgentProcess} identifier for the distillation process
+ * @param startedAt      the instant at which the distillation was started
  */
 public record MemoryDistillation(
         String agentProcessId,
-        Object distillationInput,
         Instant startedAt
 ) implements AgentProcessAware {
 
