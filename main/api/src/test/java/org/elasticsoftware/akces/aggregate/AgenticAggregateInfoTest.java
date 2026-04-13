@@ -44,6 +44,14 @@ class AgenticAggregateInfoTest {
         }
     }
 
+    /** Stub create event used to satisfy the {@link AgenticAggregate#getCreateDomainEvent()} contract. */
+    record StubCreateEvent(String aggregateId) implements DomainEvent {
+        @Override
+        public String getAggregateId() {
+            return aggregateId;
+        }
+    }
+
     /** Test aggregate annotated with default settings. */
     @AgenticAggregateInfo(value = "TestAgentic", stateClass = TestState.class)
     static class DefaultAgenticAggregate implements AgenticAggregate<TestState> {
@@ -51,29 +59,53 @@ class AgenticAggregateInfoTest {
         public Class<TestState> getStateClass() {
             return TestState.class;
         }
+
+        @Override
+        public DomainEvent getCreateDomainEvent() {
+            return new StubCreateEvent(getName());
+        }
     }
 
-    /** Test aggregate annotated with a custom maxMemories value. */
-    @AgenticAggregateInfo(value = "CustomAgentic", stateClass = TestState.class, maxMemories = 50)
+    /** Test aggregate annotated with custom maxTotalMemories and maxMemoriesAdded values. */
+    @AgenticAggregateInfo(value = "CustomAgentic", stateClass = TestState.class, maxTotalMemories = 50, maxMemoriesAdded = 5)
     static class CustomMaxMemoriesAggregate implements AgenticAggregate<TestState> {
         @Override
         public Class<TestState> getStateClass() {
             return TestState.class;
         }
+
+        @Override
+        public DomainEvent getCreateDomainEvent() {
+            return new StubCreateEvent(getName());
+        }
     }
 
     @Test
-    void defaultMaxMemoriesShouldBe100() {
+    void defaultMaxMemoriesShouldBe50() {
         AgenticAggregateInfo info = DefaultAgenticAggregate.class.getAnnotation(AgenticAggregateInfo.class);
         assertThat(info).isNotNull();
-        assertThat(info.maxMemories()).isEqualTo(100);
+        assertThat(info.maxTotalMemories()).isEqualTo(50);
+    }
+
+    @Test
+    void defaultMaxMemoriesAddedShouldBe5() {
+        AgenticAggregateInfo info = DefaultAgenticAggregate.class.getAnnotation(AgenticAggregateInfo.class);
+        assertThat(info).isNotNull();
+        assertThat(info.maxMemoriesAdded()).isEqualTo(5);
     }
 
     @Test
     void customMaxMemoriesShouldBeHonored() {
         AgenticAggregateInfo info = CustomMaxMemoriesAggregate.class.getAnnotation(AgenticAggregateInfo.class);
         assertThat(info).isNotNull();
-        assertThat(info.maxMemories()).isEqualTo(50);
+        assertThat(info.maxTotalMemories()).isEqualTo(50);
+    }
+
+    @Test
+    void customMaxMemoriesAddedShouldBeHonored() {
+        AgenticAggregateInfo info = CustomMaxMemoriesAggregate.class.getAnnotation(AgenticAggregateInfo.class);
+        assertThat(info).isNotNull();
+        assertThat(info.maxMemoriesAdded()).isEqualTo(5);
     }
 
     @Test
@@ -164,6 +196,11 @@ class AgenticAggregateInfoTest {
         @Override
         public Class<TestState> getStateClass() {
             return TestState.class;
+        }
+
+        @Override
+        public DomainEvent getCreateDomainEvent() {
+            return new StubCreateEvent(getName());
         }
     }
 

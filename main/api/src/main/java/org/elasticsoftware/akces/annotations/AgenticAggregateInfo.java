@@ -43,9 +43,12 @@ import java.lang.annotation.Target;
  *       processing (registered for schema validation and service discovery)</li>
  * </ul>
  *
- * <p>Every {@code AgenticAggregate} must also have at least one deterministic
- * {@code @CommandHandler(create = true)} method so that the aggregate can be created
- * before the AI agent handles subsequent commands.
+ * <p>Every {@code AgenticAggregate} must implement
+ * {@link org.elasticsoftware.akces.aggregate.AgenticAggregate#getCreateDomainEvent()
+ * getCreateDomainEvent()} to provide the domain event that creates the initial aggregate
+ * state. The framework calls this method automatically when the singleton aggregate has no
+ * state yet. The returned event must have a corresponding
+ * {@code @EventSourcingHandler(create = true)} method.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE})
@@ -62,7 +65,17 @@ public @interface AgenticAggregateInfo {
      * The sliding-window capacity of the memory system. When the number of stored memories
      * exceeds this limit the oldest entries are evicted to make room for new ones.
      */
-    int maxMemories() default 100;
+    int maxTotalMemories() default 50;
+
+    /**
+     * The maximum number of net new memories that the {@code MemoryDistillerAgent} may add
+     * in a single distillation pass (i.e.&nbsp;{@code stored − revoked ≤ maxMemoriesAdded}).
+     *
+     * <p>This acts as a per-distillation budget, independent of {@link #maxTotalMemories()}.
+     * Set to a low value to avoid overwhelming the memory store with many entries in a single
+     * agent run.
+     */
+    int maxMemoriesAdded() default 5;
 
     /**
      * Command classes to be processed by the AI agent instead of a deterministic

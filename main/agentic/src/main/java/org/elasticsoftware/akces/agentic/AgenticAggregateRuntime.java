@@ -20,17 +20,26 @@ package org.elasticsoftware.akces.agentic;
 import com.embabel.agent.core.AgentPlatform;
 import org.elasticsoftware.akces.agentic.commands.AssignTaskCommand;
 import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
+import org.elasticsoftware.akces.agentic.events.AgentTaskFinishedEvent;
+import org.elasticsoftware.akces.agentic.events.MemoryDistillationFailedEvent;
+import org.elasticsoftware.akces.agentic.events.MemoryDistillationFinishedEvent;
+import org.elasticsoftware.akces.agentic.events.MemoryDistillationStartedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryRevokedEvent;
 import org.elasticsoftware.akces.agentic.events.MemoryStoredEvent;
 import org.elasticsoftware.akces.aggregate.AgenticAggregateMemory;
 import org.elasticsoftware.akces.aggregate.AggregateRuntime;
 import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
+import org.elasticsoftware.akces.aggregate.IndexParams;
 import org.elasticsoftware.akces.aggregate.MemoryAwareState;
 import org.elasticsoftware.akces.protocol.AggregateStateRecord;
+import org.elasticsoftware.akces.protocol.DomainEventRecord;
+import org.elasticsoftware.akces.protocol.ProtocolRecord;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Extended runtime interface for {@link org.elasticsoftware.akces.aggregate.AgenticAggregate}s.
@@ -67,6 +76,22 @@ public interface AgenticAggregateRuntime extends AggregateRuntime {
     DomainEventType<AgentTaskAssignedEvent> AGENT_TASK_ASSIGNED_TYPE = new DomainEventType<>(
             "AgentTaskAssigned", 1, AgentTaskAssignedEvent.class, false, false, false, false);
 
+    /** Built-in domain event type for {@link AgentTaskFinishedEvent}. */
+    DomainEventType<AgentTaskFinishedEvent> AGENT_TASK_FINISHED_TYPE = new DomainEventType<>(
+            "AgentTaskFinished", 1, AgentTaskFinishedEvent.class, false, false, false, false);
+
+    /** Built-in domain event type for {@link MemoryDistillationStartedEvent}. */
+    DomainEventType<MemoryDistillationStartedEvent> MEMORY_DISTILLATION_STARTED_TYPE = new DomainEventType<>(
+            "MemoryDistillationStarted", 1, MemoryDistillationStartedEvent.class, false, false, false, false);
+
+    /** Built-in domain event type for {@link MemoryDistillationFinishedEvent}. */
+    DomainEventType<MemoryDistillationFinishedEvent> MEMORY_DISTILLATION_FINISHED_TYPE = new DomainEventType<>(
+            "MemoryDistillationFinished", 1, MemoryDistillationFinishedEvent.class, false, false, false, false);
+
+    /** Built-in domain event type for {@link MemoryDistillationFailedEvent}. */
+    DomainEventType<MemoryDistillationFailedEvent> MEMORY_DISTILLATION_FAILED_TYPE = new DomainEventType<>(
+            "MemoryDistillationFailed", 1, MemoryDistillationFailedEvent.class, false, false, false, false);
+
     /**
      * Returns the Embabel {@link AgentPlatform} used to create and run agent processes.
      *
@@ -89,4 +114,64 @@ public interface AgenticAggregateRuntime extends AggregateRuntime {
      * @throws IOException if deserialization fails
      */
     List<AgenticAggregateMemory> getMemories(AggregateStateRecord stateRecord) throws IOException;
+
+    /**
+     * Resumes the next assigned agent task for the singleton aggregate instance.
+     *
+     * <p>Selects the next task in round-robin order from the aggregate state (which must
+     * implement {@link org.elasticsoftware.akces.aggregate.TaskAwareState}), looks up the
+     * existing {@link com.embabel.agent.core.AgentProcess} for that task via the
+     * {@link AgentPlatform}, performs a single tick, and processes any resulting domain
+     * events through the aggregate's event-sourcing pipeline.
+     *
+     * <p>If the state is {@code null}, does not implement
+     * {@link org.elasticsoftware.akces.aggregate.TaskAwareState}, has no assigned tasks, or
+     * no existing agent process can be obtained for the selected task, this method returns
+     * without doing anything.
+     *
+     * @param protocolRecordConsumer consumer that receives produced protocol records
+     *                               (domain-event records and state records)
+     * @param stateRecordSupplier    supplier for the current aggregate state record
+     * @param commandBus             currently unused by this method; retained in the API for
+     *                               consistency with other runtime operations
+     * @throws IOException if state or event serialization/deserialization fails
+     */
+    void resumeNextAgentTask(java.util.function.Consumer<org.elasticsoftware.akces.protocol.ProtocolRecord> protocolRecordConsumer,
+                             java.util.function.Supplier<AggregateStateRecord> stateRecordSupplier,
+                             org.elasticsoftware.akces.commands.CommandBus commandBus) throws IOException;
+
+    /**
+     * Checks whether the aggregate currently has any active (assigned) agent tasks.
+     *
+     * <p>Deserializes the state from the supplied record and checks whether it implements
+     * {@link org.elasticsoftware.akces.aggregate.TaskAwareState} with a non-empty list of
+     * assigned tasks.
+     *
+     * <p>This method is intended as a fast-path check before opening a Kafka transaction
+     * in the idle-poll cycle, avoiding unnecessary transaction overhead when there are no
+     * tasks to resume.
+     *
+     * @param stateRecordSupplier supplier for the current aggregate state record
+     * @return {@code true} if the state has at least one assigned task; {@code false} otherwise
+     * @throws IOException if state deserialization fails
+     */
+    boolean hasActiveAgentTasks(java.util.function.Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException;
+  
+    /**
+     * Initializes the singleton aggregate state by invoking the aggregate's
+     * {@link org.elasticsoftware.akces.aggregate.AgenticAggregate#getCreateDomainEvent()
+     * getCreateDomainEvent()} hook and applying the resulting event through the event-sourcing
+     * create handler.
+     *
+     * <p>This method is called by the partition when it detects that no state exists yet
+     * for the agentic aggregate. The produced {@link AggregateStateRecord} and
+     * {@link DomainEventRecord} are written to the Kafka topics via the provided consumers.
+     *
+     * @param protocolRecordConsumer consumer for the produced state and domain-event records
+     * @param domainEventIndexer     indexer callback for optional secondary indexing
+     * @throws IOException if serialisation fails
+     */
+    void initializeState(Consumer<ProtocolRecord> protocolRecordConsumer,
+                         BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer)
+            throws IOException;
 }

@@ -20,6 +20,7 @@ package org.elasticsoftware.akces.agentic.runtime;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
 import org.elasticsoftware.akces.agentic.commands.AssignTaskCommand;
 import org.elasticsoftware.akces.agentic.events.AgentTaskAssignedEvent;
+import org.elasticsoftware.akces.agentic.events.AgentTaskFinishedEvent;
 import org.elasticsoftware.akces.aggregate.CommandType;
 import org.elasticsoftware.akces.aggregate.DomainEventType;
 import org.junit.jupiter.api.Test;
@@ -49,5 +50,14 @@ class AssignTaskTypeConstantsTest {
         assertThat(type.typeName()).isEqualTo("AgentTaskAssigned");
         assertThat(type.version()).isEqualTo(1);
         assertThat(type.typeClass()).isEqualTo(AgentTaskAssignedEvent.class);
+    }
+
+    @Test
+    void agentTaskFinishedTypeShouldBeConfiguredCorrectly() {
+        DomainEventType<AgentTaskFinishedEvent> type = AgenticAggregateRuntime.AGENT_TASK_FINISHED_TYPE;
+
+        assertThat(type.typeName()).isEqualTo("AgentTaskFinished");
+        assertThat(type.version()).isEqualTo(1);
+        assertThat(type.typeClass()).isEqualTo(AgentTaskFinishedEvent.class);
     }
 }

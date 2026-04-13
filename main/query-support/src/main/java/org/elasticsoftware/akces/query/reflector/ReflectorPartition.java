@@ -124,7 +124,7 @@ public class ReflectorPartition implements Runnable, AutoCloseable, CommandBus {
                     runtime.getName() + "Reflector-partition-" + id + "-" + HostUtils.getHostName());
             // resolve the external event partitions
             Set<String> distinctTopics = externalDomainEventTypes.stream()
-                    .map(akcesRegistry::resolveTopic)
+                    .flatMap(domainEventType -> akcesRegistry.resolveTopics(domainEventType).stream())
                     .collect(Collectors.toSet());
             externalEventPartitions.addAll(distinctTopics.stream()
                     .map(topic -> new TopicPartition(topic, id))
@@ -184,7 +184,7 @@ public class ReflectorPartition implements Runnable, AutoCloseable, CommandBus {
         }
         CommandType<?> commandType = akcesRegistry.resolveType(command.getClass());
         if (commandType != null) {
-            String topic = akcesRegistry.resolveTopic(commandType);
+            String topic = akcesRegistry.resolveTopic(commandType, command);
             byte[] payload;
             try {
                 payload = objectMapper.writeValueAsBytes(command);
@@ -201,7 +201,7 @@ public class ReflectorPartition implements Runnable, AutoCloseable, CommandBus {
                     command.getAggregateId(),
                     null,
                     null); // don't send a response
-            Integer partition = akcesRegistry.resolvePartition(command.getAggregateId());
+            Integer partition = akcesRegistry.resolvePartition(commandType, command);
             KafkaSender.send(producer, new ProducerRecord<>(topic, partition, commandRecord.id(), commandRecord));
         }
     }

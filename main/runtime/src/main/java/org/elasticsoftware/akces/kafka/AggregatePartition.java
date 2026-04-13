@@ -136,8 +136,8 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
             this.producer = producerFactory.createProducer(runtime.getName() + "Aggregate-partition-" + id + "-" + HostUtils.getHostName());
             // resolve the external event partitions
             externalDomainEventTypes.forEach(domainEventType -> {
-                String topic = ackesRegistry.resolveTopic(domainEventType);
-                externalEventPartitions.add(new TopicPartition(topic, id));
+                List<String> topics = ackesRegistry.resolveTopics(domainEventType);
+                topics.forEach(topic -> externalEventPartitions.add(new TopicPartition(topic, id)));
             });
             // make a hard assignment, only assign the gdprKeyPartition if needed
             consumer.assign(Stream.concat(Stream.concat(
@@ -210,8 +210,8 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
         }
 
         if (commandType != null) {
-            // now we need to find the topic
-            String topic = ackesRegistry.resolveTopic(commandType);
+            // now we need to find the topic (pass command to handle AGENTIC routing)
+            String topic = ackesRegistry.resolveTopic(commandType, command);
             // and send the command to the topic: TODO propagate tenantId and correlationId
             CommandRecord commandRecord = new CommandRecord(
                     null,
@@ -223,7 +223,7 @@ public class AggregatePartition implements Runnable, AutoCloseable, CommandBus {
                     null,
                     null); // don't send a response
             // we should not use the local partition id but that of the aggregate
-            Integer partition = ackesRegistry.resolvePartition(command.getAggregateId());
+            Integer partition = ackesRegistry.resolvePartition(commandType, command);
             KafkaSender.send(producer, new ProducerRecord<>(topic, partition, commandRecord.id(), commandRecord));
         }
     }

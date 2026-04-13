@@ -14,15 +14,24 @@ name: "CodeQL Advanced"
 on:
   push:
     branches: [ "main" ]
-    paths-ignore:
-      - "plans/**"
+    paths:
+      - bom/**
+      - main/**
+      - services/**
+      - test-apps/**
+      - pom.xml
   pull_request:
     # The branches below must be a subset of the branches above
     branches: [ "main" ]
-    paths-ignore:
-      - "plans/**"
+    paths:
+      - bom/**
+      - main/**
+      - services/**
+      - test-apps/**
+      - pom.xml
   schedule:
     - cron: '34 13 * * 0'
+
 
 jobs:
   analyze:

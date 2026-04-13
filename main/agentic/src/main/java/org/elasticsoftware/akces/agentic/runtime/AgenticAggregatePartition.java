@@ -64,6 +64,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsoftware.akces.kafka.AggregatePartitionState.INITIALIZING;
+import static org.elasticsoftware.akces.kafka.AggregatePartitionState.INITIALIZING_STATE;
 import static org.elasticsoftware.akces.kafka.AggregatePartitionState.LOADING_STATE;
 import static org.elasticsoftware.akces.kafka.AggregatePartitionState.PROCESSING;
 import static org.elasticsoftware.akces.kafka.AggregatePartitionState.SHUTTING_DOWN;
@@ -165,16 +166,18 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
             // external topic so that no events are missed regardless of which partition they
             // were produced on.
             externalDomainEventTypes.forEach(domainEventType -> {
-                String topic = ackesRegistry.resolveTopic(domainEventType);
-                List<PartitionInfo> partitionInfos = consumer.partitionsFor(topic);
-                if (partitionInfos == null || partitionInfos.isEmpty()) {
-                    logger.warn("No partition info found for external topic '{}'; skipping subscription", topic);
-                } else {
-                    partitionInfos.forEach(pi ->
-                            externalEventPartitions.add(new TopicPartition(topic, pi.partition())));
-                    logger.info("Subscribing to {} partition(s) of external topic '{}'",
-                            partitionInfos.size(), topic);
-                }
+                List<String> topics = ackesRegistry.resolveTopics(domainEventType);
+                topics.forEach(topic -> {
+                    List<PartitionInfo> partitionInfos = consumer.partitionsFor(topic);
+                    if (partitionInfos == null || partitionInfos.isEmpty()) {
+                        logger.warn("No partition info found for external topic '{}'; skipping subscription", topic);
+                    } else {
+                        partitionInfos.forEach(pi ->
+                                externalEventPartitions.add(new TopicPartition(topic, pi.partition())));
+                        logger.info("Subscribing to {} partition(s) of external topic '{}'",
+                                partitionInfos.size(), topic);
+                    }
+                });
             });
 
             // Hard-assign all partitions — no consumer group rebalancing needed
@@ -232,7 +235,7 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
     public void send(Command command) {
         var commandType = ackesRegistry.resolveType(command.getClass());
         if (commandType != null) {
-            String topic = ackesRegistry.resolveTopic(commandType);
+            String topic = ackesRegistry.resolveTopic(commandType, command);
             CommandRecord commandRecord = new CommandRecord(
                     null,
                     commandType.typeName(),
@@ -242,7 +245,7 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
                     command.getAggregateId(),
                     null,
                     null); // no response routing for system-originated commands
-            Integer partition = ackesRegistry.resolvePartition(command.getAggregateId());
+            Integer partition = ackesRegistry.resolvePartition(commandType, command);
             KafkaSender.send(producer, new ProducerRecord<>(topic, partition, commandRecord.id(), commandRecord));
         }
     }
@@ -257,6 +260,8 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
                 ConsumerRecords<String, ProtocolRecord> records = consumer.poll(Duration.ofMillis(10));
                 if (!records.isEmpty()) {
                     processRecords(records);
+                } else {
+                    resumeAgentTasks();
                 }
             } else if (processState == LOADING_STATE) {
                 ConsumerRecords<String, ProtocolRecord> stateRecords = consumer.poll(Duration.ofMillis(10));
@@ -285,10 +290,11 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
                 }
                 Map<TopicPartition, Long> endOffsets = consumer.endOffsets(List.of(statePartition));
                 if (endOffsets.getOrDefault(statePartition, 0L) == 0L) {
-                    // No existing state — start processing immediately
-                    logger.info("No existing state for {}Aggregate AgenticPartition, starting PROCESSING",
-                            runtime.getName());
-                    processState = PROCESSING;
+                    // No existing state — transition to INITIALIZING_STATE to auto-create
+                    // the singleton aggregate state in the next poll cycle.
+                    logger.info("No existing state for {}Aggregate AgenticPartition, " +
+                            "switching to INITIALIZING_STATE", runtime.getName());
+                    processState = INITIALIZING_STATE;
                 } else {
                     // Pause command/event/external topics while loading state
                     List<TopicPartition> toPause = new ArrayList<>(
@@ -296,6 +302,28 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
                     toPause.addAll(externalEventPartitions);
                     consumer.pause(toPause);
                     processState = LOADING_STATE;
+                }
+            } else if (processState == INITIALIZING_STATE) {
+                logger.info("Auto-creating initial state for {}Aggregate AgenticPartition",
+                        runtime.getName());
+                try {
+                    producer.beginTransaction();
+                    runtime.initializeState(this::send, this::index);
+                    producer.commitTransaction();
+                    stateRepository.commit();
+                    processState = PROCESSING;
+                    logger.info("Successfully auto-created initial state for {}Aggregate, " +
+                            "switching to PROCESSING", runtime.getName());
+                } catch (Exception e) {
+                    logger.error("Failed to auto-create initial state for {}Aggregate — " +
+                            "shutting down", runtime.getName(), e);
+                    try {
+                        producer.abortTransaction();
+                    } catch (KafkaException ae) {
+                        logger.error("Failed to abort transaction", ae);
+                    }
+                    stateRepository.rollback();
+                    processState = SHUTTING_DOWN;
                 }
             }
         } catch (WakeupException | InterruptException ignore) {
@@ -431,6 +459,51 @@ public class AgenticAggregatePartition implements Runnable, AutoCloseable, Comma
                     this);
         } catch (IOException e) {
             logger.error("Error handling external event {}", eventRecord.name(), e);
+        }
+    }
+
+    /**
+     * Resumes agent tasks for the singleton aggregate when no records are available
+     * from the Kafka poll.
+     *
+     * <p>This method is called from the main processing loop when the partition is in
+     * the {@code PROCESSING} state and the consumer poll returns no records. It first
+     * checks whether the aggregate has any active agent tasks and only opens a Kafka
+     * transaction when there is work to do, avoiding unnecessary transaction overhead
+     * when idle.
+     */
+    private void resumeAgentTasks() {
+        try {
+            if (!runtime.hasActiveAgentTasks(() -> stateRepository.get(runtime.getName()))) {
+                return;
+            }
+
+            producer.beginTransaction();
+
+            runtime.resumeNextAgentTask(
+                    this::send,
+                    () -> stateRepository.get(runtime.getName()),
+                    this);
+
+            producer.commitTransaction();
+            stateRepository.commit();
+        } catch (KafkaException e) {
+            logger.error("Transaction failed during resumeAgentTasks for {}Aggregate — aborting",
+                    runtime.getName(), e);
+            try {
+                producer.abortTransaction();
+            } catch (KafkaException ae) {
+                logger.error("Failed to abort transaction", ae);
+            }
+            stateRepository.rollback();
+        } catch (IOException e) {
+            logger.error("Error resuming agent tasks for {}Aggregate", runtime.getName(), e);
+            try {
+                producer.abortTransaction();
+            } catch (KafkaException ae) {
+                logger.error("Failed to abort transaction", ae);
+            }
+            stateRepository.rollback();
         }
     }
 

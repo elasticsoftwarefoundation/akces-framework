@@ -17,6 +17,7 @@
 
 package org.elasticsoftware.akces.aggregate;
 
+import org.elasticsoftware.akces.events.DomainEvent;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -35,8 +36,13 @@ class MemoryAwareStateTest {
     /** Concrete MemoryAwareState implementation for testing. */
     record TestMemoryState(
             String id,
-            List<AgenticAggregateMemory> memories
+            List<AgenticAggregateMemory> memories,
+            List<MemoryDistillation> memoryDistillations
     ) implements AggregateState, MemoryAwareState {
+
+        TestMemoryState(String id, List<AgenticAggregateMemory> memories) {
+            this(id, memories, List.of());
+        }
 
         @Override
         public String getAggregateId() {
@@ -52,7 +58,7 @@ class MemoryAwareStateTest {
         public MemoryAwareState withMemory(AgenticAggregateMemory memory) {
             var updated = new ArrayList<>(memories);
             updated.add(memory);
-            return new TestMemoryState(id, List.copyOf(updated));
+            return new TestMemoryState(id, List.copyOf(updated), memoryDistillations);
         }
 
         @Override
@@ -60,7 +66,26 @@ class MemoryAwareStateTest {
             var updated = memories.stream()
                     .filter(m -> !m.memoryId().equals(memoryId))
                     .toList();
-            return new TestMemoryState(id, updated);
+            return new TestMemoryState(id, updated, memoryDistillations);
+        }
+
+        @Override
+        public List<MemoryDistillation> getMemoryDistillations() {
+            return memoryDistillations;
+        }
+
+        @Override
+        public MemoryAwareState withMemoryDistillation(MemoryDistillation distillation) {
+            var updated = new ArrayList<>(memoryDistillations);
+            updated.add(distillation);
+            return new TestMemoryState(id, memories, List.copyOf(updated));
+        }
+
+        @Override
+        public MemoryAwareState withoutMemoryDistillation(String agentProcessId) {
+            return new TestMemoryState(id, memories, memoryDistillations.stream()
+                    .filter(d -> !d.agentProcessId().equals(agentProcessId))
+                    .toList());
         }
     }
 
@@ -78,6 +103,16 @@ class MemoryAwareStateTest {
         public Class<TestMemoryState> getStateClass() {
             return TestMemoryState.class;
         }
+
+        @Override
+        public DomainEvent getCreateDomainEvent() {
+            return new DomainEvent() {
+                @Override
+                public String getAggregateId() {
+                    return getName();
+                }
+            };
+        }
     }
 
     /** Test AgenticAggregate that uses a plain (non-MemoryAwareState) state. */
@@ -85,6 +120,16 @@ class MemoryAwareStateTest {
         @Override
         public Class<PlainState> getStateClass() {
             return PlainState.class;
+        }
+
+        @Override
+        public DomainEvent getCreateDomainEvent() {
+            return new DomainEvent() {
+                @Override
+                public String getAggregateId() {
+                    return getName();
+                }
+            };
         }
     }
 

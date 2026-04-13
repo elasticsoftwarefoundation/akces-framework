@@ -17,6 +17,8 @@
 
 package org.elasticsoftware.akces.agentic.runtime;
 
+import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hashing;
 import jakarta.annotation.Nonnull;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -74,6 +76,8 @@ import static org.elasticsoftware.akces.kafka.KafkaAggregateRuntime.normalizeDes
 import static org.elasticsoftware.akces.kafka.PartitionUtils.COMMANDS_SUFFIX;
 import static org.elasticsoftware.akces.kafka.PartitionUtils.DOMAINEVENTS_SUFFIX;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 /**
  * Lifecycle manager and {@link AkcesRegistry} for a single-partition
  * {@link org.elasticsoftware.akces.aggregate.AgenticAggregate} service.
@@ -92,9 +96,12 @@ import static org.elasticsoftware.akces.kafka.PartitionUtils.DOMAINEVENTS_SUFFIX
  * </ol>
  *
  * <p>This class implements {@link AkcesRegistry} so that the partition can resolve
- * topics and partitions without any external registry. Because agentic aggregates
- * are always single-partition services, {@link #resolvePartition(String)} always
- * returns {@code 0}.
+ * topics and partitions without any external registry. For commands targeting
+ * {@link AggregateServiceType#AGENTIC AGENTIC} services,
+ * {@link #resolvePartition(CommandType, Command)} returns {@code 0}; for
+ * {@link AggregateServiceType#STANDARD STANDARD} services hash-based partitioning
+ * is used, consistent with
+ * {@link org.elasticsoftware.akces.AkcesAggregateController}.
  *
  * <p>Unlike the previous design, this class is responsible for creating the
  * {@link AgenticAggregatePartition} internally during {@link #run()}, removing the
@@ -123,7 +130,11 @@ public class AkcesAgenticAggregateController extends Thread
     private static final List<DomainEventType<?>> BUILTIN_EVENT_TYPES = List.of(
             AgenticAggregateRuntime.MEMORY_STORED_TYPE,
             AgenticAggregateRuntime.MEMORY_REVOKED_TYPE,
-            AgenticAggregateRuntime.AGENT_TASK_ASSIGNED_TYPE
+            AgenticAggregateRuntime.AGENT_TASK_ASSIGNED_TYPE,
+            AgenticAggregateRuntime.AGENT_TASK_FINISHED_TYPE,
+            AgenticAggregateRuntime.MEMORY_DISTILLATION_STARTED_TYPE,
+            AgenticAggregateRuntime.MEMORY_DISTILLATION_FINISHED_TYPE,
+            AgenticAggregateRuntime.MEMORY_DISTILLATION_FAILED_TYPE
     );
 
     /** Built-in command types provided by the agentic framework. */
@@ -145,11 +156,15 @@ public class AkcesAgenticAggregateController extends Thread
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
     private final CountDownLatch doneLatch = new CountDownLatch(1);
     private final Map<String, AggregateServiceRecord> aggregateServices = new ConcurrentHashMap<>();
+    private final HashFunction hashFunction = Hashing.murmur3_32_fixed();
 
     /** The partition instance created in {@link #run()}; {@code null} until then. */
     private volatile AgenticAggregatePartition partition;
 
     private volatile SchemaRegistry schemaRegistry;
+
+    /** Number of partitions on the Akces-Control topic, used for hash-based command routing. */
+    private Integer partitions = null;
 
     /** Spring {@link ApplicationContext} injected by {@link #setApplicationContext(ApplicationContext)}. */
     private ApplicationContext applicationContext;
@@ -392,6 +407,7 @@ public class AkcesAgenticAggregateController extends Thread
                 logger.warn("Akces-Control topic not found; no external aggregate services loaded");
                 return;
             }
+            partitions = controlDesc.partitions().size();
             List<TopicPartition> allPartitions = controlDesc.partitions().stream()
                     .map(p -> new TopicPartition("Akces-Control", p.partition()))
                     .toList();
@@ -437,8 +453,13 @@ public class AkcesAgenticAggregateController extends Thread
                 + "-agentic-control";
         try (Producer<String, AkcesControlRecord> controlProducer =
                      controlProducerFactory.createProducer(transactionalId)) {
-            // Collect aggregate command types for the service record
+            // Collect aggregate command types for the service record (built-in + aggregate-specific)
             List<AggregateServiceCommandType> allCommands = new ArrayList<>();
+            BUILTIN_COMMAND_TYPES.forEach(ct ->
+                    allCommands.add(new AggregateServiceCommandType(
+                            ct.typeName(), ct.version(), ct.create(),
+                            "commands." + ct.typeName(),
+                            normalizeDescription(ct.typeClass().getAnnotation(CommandInfo.class).description()))));
             aggregateRuntime.getLocalCommandTypes().forEach(ct ->
                     allCommands.add(new AggregateServiceCommandType(
                             ct.typeName(), ct.version(), ct.create(),
@@ -577,8 +598,10 @@ public class AkcesAgenticAggregateController extends Thread
     /**
      * Resolves the {@link CommandType} for the given command class.
      *
-     * <p>Command types are resolved from the underlying
-     * {@link AgenticAggregateRuntime}'s local command types.
+     * <p>First checks this aggregate's own local command types; if not found, consults
+     * the {@link AggregateServiceRecord}s loaded from the {@code Akces-Control} topic.
+     * This mirrors the resolution logic of
+     * {@link org.elasticsoftware.akces.AkcesAggregateController#resolveType(Class)}.
      *
      * @param commandClass the command class to resolve
      * @return the corresponding {@link CommandType}
@@ -590,85 +613,122 @@ public class AkcesAgenticAggregateController extends Thread
         var commandInfo = commandClass.getAnnotation(
                 org.elasticsoftware.akces.annotations.CommandInfo.class);
         if (commandInfo != null) {
+            // Check local command types first
             CommandType<?> localType = aggregateRuntime.getLocalCommandType(
                     commandInfo.type(), commandInfo.version());
             if (localType != null) {
                 return localType;
             }
+            // Fall back to external aggregate services
+            List<AggregateServiceRecord> services = aggregateServices.values().stream()
+                    .filter(s -> supportsCommand(s.supportedCommands(), commandInfo))
+                    .toList();
+            if (!services.isEmpty()) {
+                return new CommandType<>(commandInfo.type(),
+                        commandInfo.version(),
+                        commandClass,
+                        false,
+                        true,
+                        false);
+            }
+            throw new IllegalStateException(
+                    "Cannot determine where to send command " + commandClass.getName());
+        } else {
+            throw new IllegalStateException(
+                    "Command class " + commandClass.getName()
+                            + " is not annotated with @CommandInfo");
         }
-        throw new IllegalStateException(
-                "Cannot resolve CommandType for class: " + commandClass.getName());
     }
 
     /**
-     * Resolves the command topic for the given command class.
+     * {@inheritDoc}
      *
-     * <p>All commands for an agentic aggregate are routed to
-     * {@code {aggregateName}-Commands}.
-     *
-     * @param commandClass the command class
-     * @return the command topic name
+     * <p>When multiple services advertise the same command type (typically built-in agentic
+     * commands), the command's {@link Command#getAggregateId() aggregateId} is matched
+     * against the {@link AggregateServiceRecord#aggregateName()} of
+     * {@link AggregateServiceType#AGENTIC AGENTIC} services to select the correct target.
      */
     @Override
     @Nonnull
-    public String resolveTopic(@Nonnull Class<? extends Command> commandClass) {
-        return aggregateRuntime.getName() + COMMANDS_SUFFIX;
+    public String resolveTopic(@Nonnull CommandType<?> commandType, @Nonnull Command command) {
+        List<AggregateServiceRecord> services = aggregateServices.values().stream()
+                .filter(s -> supportsCommand(s.supportedCommands(), commandType))
+                .toList();
+        if (services.size() == 1) {
+            return services.getFirst().commandTopic();
+        } else if (services.size() > 1) {
+            AggregateServiceRecord target = AggregateServiceRecord.resolveAgenticTarget(
+                    services, command.getAggregateId());
+            if (target != null) {
+                return target.commandTopic();
+            }
+            throw new IllegalStateException("Cannot determine where to send command "
+                    + commandType.typeName() + " v" + commandType.version()
+                    + " for aggregateId " + command.getAggregateId());
+        } else {
+            throw new IllegalStateException("Cannot determine where to send command "
+                    + commandType.typeName() + " v" + commandType.version());
+        }
     }
 
     /**
-     * Resolves the command topic for the given {@link CommandType}.
-     *
-     * <p>All commands for an agentic aggregate are routed to
-     * {@code {aggregateName}-Commands}.
-     *
-     * @param commandType the command type
-     * @return the command topic name
-     */
-    @Override
-    @Nonnull
-    public String resolveTopic(@Nonnull CommandType<?> commandType) {
-        return aggregateRuntime.getName() + COMMANDS_SUFFIX;
-    }
-
-    /**
-     * Resolves the domain-event topic for the given {@link DomainEventType} by looking up the
+     * Resolves the domain-event topic(s) for the given {@link DomainEventType} by looking up the
      * registered {@link AggregateServiceRecord}s loaded from the {@code Akces-Control} topic.
      *
-     * <p>If no matching record is found, falls back to this aggregate's own domain-event topic
-     * and logs a warning.
+     * <p>Built-in agentic events may be produced by multiple agentic aggregates, so more
+     * than one topic can match. If no matching record is found, falls back to this
+     * aggregate's own domain-event topic and logs a warning.
      *
      * @param externalDomainEventType the domain event type to resolve
-     * @return the domain-event topic name for the aggregate that produces this event type
+     * @return a list of domain-event topic names that produce this event type
      */
     @Override
     @Nonnull
-    public String resolveTopic(@Nonnull DomainEventType<?> externalDomainEventType) {
+    public List<String> resolveTopics(@Nonnull DomainEventType<?> externalDomainEventType) {
         List<AggregateServiceRecord> services = aggregateServices.values().stream()
-                .filter(s -> s.producedEvents().stream().anyMatch(
-                        e -> e.typeName().equals(externalDomainEventType.typeName())
-                                && e.version() == externalDomainEventType.version()))
+                .filter(s -> producesDomainEvent(s.producedEvents(), externalDomainEventType))
                 .toList();
         if (!services.isEmpty()) {
-            return services.getFirst().domainEventTopic();
+            return services.stream().map(AggregateServiceRecord::domainEventTopic).toList();
         }
         logger.warn("Cannot resolve domain event topic for type '{}' version {}; falling back to own topic",
                 externalDomainEventType.typeName(), externalDomainEventType.version());
-        return aggregateRuntime.getName() + DOMAINEVENTS_SUFFIX;
+        return List.of(aggregateRuntime.getName() + DOMAINEVENTS_SUFFIX);
     }
 
     /**
-     * Resolves the partition for the given aggregate ID.
+     * {@inheritDoc}
      *
-     * <p>Agentic aggregates are always single-partition services, so this method
-     * always returns {@code 0}.
-     *
-     * @param aggregateId the aggregate identifier (unused)
-     * @return always {@code 0}
+     * <p>For {@link AggregateServiceType#AGENTIC AGENTIC} services (which are always
+     * single-partition), this method returns {@code 0}. For
+     * {@link AggregateServiceType#STANDARD STANDARD} services the partition is determined
+     * by hashing the aggregate identifier.
      */
     @Override
     @Nonnull
-    public Integer resolvePartition(@Nonnull String aggregateId) {
-        return AgenticAggregatePartition.AGENTIC_PARTITION;
+    public Integer resolvePartition(@Nonnull CommandType<?> commandType, @Nonnull Command command) {
+        String aggregateId = command.getAggregateId();
+        // Check whether the target service is AGENTIC; if so, always route to partition 0.
+        List<AggregateServiceRecord> services = aggregateServices.values().stream()
+                .filter(s -> supportsCommand(s.supportedCommands(), commandType))
+                .toList();
+        if (services.size() == 1) {
+            if (services.getFirst().effectiveType() == AggregateServiceType.AGENTIC) {
+                return 0;
+            }
+        } else if (services.size() > 1) {
+            AggregateServiceRecord target = AggregateServiceRecord.resolveAgenticTarget(
+                    services, aggregateId);
+            if (target != null && target.effectiveType() == AggregateServiceType.AGENTIC) {
+                return 0;
+            }
+        }
+        // Default: hash-based partitioning for STANDARD services
+        if (partitions == null) {
+            throw new IllegalStateException("Partition count not yet initialised; "
+                    + "Akces-Control topic may not have been loaded");
+        }
+        return Math.abs(hashFunction.hashString(aggregateId, UTF_8).asInt()) % partitions;
     }
 
     /**
@@ -698,5 +758,42 @@ public class AkcesAgenticAggregateController extends Thread
     public boolean isRunning() {
         AgenticAggregatePartition localPartition = this.partition;
         return localPartition != null && localPartition.isProcessing();
+    }
+
+    // -------------------------------------------------------------------------
+    // Helper methods for AkcesRegistry
+    // -------------------------------------------------------------------------
+
+    private boolean supportsCommand(List<AggregateServiceCommandType> supportedCommands,
+                                    CommandInfo commandInfo) {
+        for (AggregateServiceCommandType supportedCommand : supportedCommands) {
+            if (supportedCommand.typeName().equals(commandInfo.type())
+                    && supportedCommand.version() == commandInfo.version()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean supportsCommand(List<AggregateServiceCommandType> supportedCommands,
+                                    CommandType<?> commandType) {
+        for (AggregateServiceCommandType supportedCommand : supportedCommands) {
+            if (supportedCommand.typeName().equals(commandType.typeName())
+                    && supportedCommand.version() == commandType.version()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean producesDomainEvent(List<AggregateServiceDomainEventType> producedEvents,
+                                        DomainEventType<?> externalDomainEventType) {
+        for (AggregateServiceDomainEventType producedEvent : producedEvents) {
+            if (producedEvent.typeName().equals(externalDomainEventType.typeName())
+                    && producedEvent.version() == externalDomainEventType.version()) {
+                return true;
+            }
+        }
+        return false;
     }
 }

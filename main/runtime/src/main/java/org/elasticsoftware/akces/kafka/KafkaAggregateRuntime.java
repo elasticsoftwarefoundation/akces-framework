@@ -300,6 +300,53 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
         }
     }
 
+    /**
+     * Handles an auto-create domain event for singleton aggregates that do not require a
+     * command to trigger state creation.
+     *
+     * <p>This method follows the same flow as {@code handleCreateCommand} but skips command
+     * materialisation. The provided {@code createEvent} is applied directly to the
+     * event-sourcing create handler to produce the initial aggregate state.
+     *
+     * @param createEvent           the domain event that creates the initial state
+     * @param protocolRecordConsumer consumer for the produced {@link AggregateStateRecord} and
+     *                               {@link DomainEventRecord}
+     * @param domainEventIndexer     indexer callback for optional secondary indexing
+     * @throws IOException if serialisation fails
+     */
+    public void handleAutoCreateDomainEvent(DomainEvent createEvent,
+                                            Consumer<ProtocolRecord> protocolRecordConsumer,
+                                            BiConsumer<DomainEventRecord, IndexParams> domainEventIndexer) throws IOException {
+        DomainEventType<?> domainEventType = getDomainEventType(createEvent.getClass());
+        // create the state using the event sourcing create handler
+        AggregateState state = (createStateHandler.getEventType().equals(domainEventType))
+                ? createStateHandler.apply(createEvent, null)
+                : createStateHandler.apply(upcast(createEvent, domainEventType), null);
+        // store the state, generation is 1 because it is the first record
+        AggregateStateRecord stateRecord = new AggregateStateRecord(
+                null,  // no tenant for auto-created singletons
+                stateType.typeName(),
+                stateType.version(),
+                serialize(state),
+                getEncoding(stateType),
+                state.getAggregateId(),
+                null,  // no correlation ID for auto-create
+                1L);
+        protocolRecordConsumer.accept(stateRecord);
+        // store the domain event
+        DomainEventRecord eventRecord = new DomainEventRecord(
+                null,  // no tenant
+                domainEventType.typeName(),
+                domainEventType.version(),
+                serialize(createEvent),
+                getEncoding(domainEventType),
+                createEvent.getAggregateId(),
+                null,  // no correlation ID
+                stateRecord.generation());
+        protocolRecordConsumer.accept(eventRecord);
+        indexDomainEventIfRequired(eventRecord, state, domainEventIndexer, true);
+    }
+
     private void handleCommand(CommandType<?> commandType,
                                CommandRecord commandRecord,
                                Consumer<ProtocolRecord> protocolRecordConsumer,
@@ -503,6 +550,34 @@ public class KafkaAggregateRuntime implements AggregateRuntime {
                 }
             }
         } // ignore if we don't have an external domainevent registered
+    }
+
+    @Override
+    public void processDomainEvents(java.util.stream.Stream<DomainEvent> events,
+                                    String correlationId,
+                                    Consumer<ProtocolRecord> protocolRecordConsumer,
+                                    Supplier<AggregateStateRecord> stateRecordSupplier) throws IOException {
+        AggregateStateRecord currentStateRecord = stateRecordSupplier.get();
+        if (currentStateRecord == null) {
+            return;
+        }
+        try (events) {
+            Iterator<DomainEvent> iterator = events.iterator();
+            while (iterator.hasNext()) {
+                DomainEvent domainEvent = iterator.next();
+                currentStateRecord = processDomainEvent(
+                        correlationId,
+                        protocolRecordConsumer,
+                        (der, ip) -> { }, // no indexing for agent-tick-produced events
+                        currentStateRecord,
+                        domainEvent);
+            }
+        }
+    }
+
+    @Override
+    public AggregateState materializeState(AggregateStateRecord stateRecord) throws IOException {
+        return materialize(stateRecord);
     }
 
     @Nullable

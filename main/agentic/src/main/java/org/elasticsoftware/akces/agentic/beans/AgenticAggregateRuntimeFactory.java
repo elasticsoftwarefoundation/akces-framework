@@ -21,6 +21,7 @@ import com.embabel.agent.core.AgentPlatform;
 import org.elasticsoftware.akces.agentic.AgenticAggregateRuntime;
 import org.elasticsoftware.akces.agentic.runtime.AgenticCommandHandlerFunctionAdapter;
 import org.elasticsoftware.akces.agentic.runtime.AgenticEventHandlerFunctionAdapter;
+import org.elasticsoftware.akces.agentic.runtime.AssignTaskCommandHandlerFunction;
 import org.elasticsoftware.akces.agentic.runtime.KafkaAgenticAggregateRuntime;
 import org.elasticsoftware.akces.aggregate.*;
 import org.elasticsoftware.akces.aggregate.AgenticAggregate;
@@ -45,7 +46,11 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.AGENT_TASK_ASSIGNED_TYPE;
+import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.AGENT_TASK_FINISHED_TYPE;
 import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.ASSIGN_TASK_COMMAND_TYPE;
+import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.MEMORY_DISTILLATION_FAILED_TYPE;
+import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.MEMORY_DISTILLATION_FINISHED_TYPE;
+import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.MEMORY_DISTILLATION_STARTED_TYPE;
 import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.MEMORY_REVOKED_TYPE;
 import static org.elasticsoftware.akces.agentic.AgenticAggregateRuntime.MEMORY_STORED_TYPE;
 
@@ -132,7 +137,8 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
 
         KafkaAggregateRuntime kafkaRuntime = createRuntime(agenticInfo, aggregate, agentPlatform);
         return new KafkaAgenticAggregateRuntime(
-                kafkaRuntime, objectMapper, agenticInfo.stateClass(), agentPlatform);
+                kafkaRuntime, objectMapper, agenticInfo.stateClass(), agentPlatform, aggregate,
+                agenticInfo.maxTotalMemories(), agenticInfo.maxMemoriesAdded());
     }
 
     @Override
@@ -255,19 +261,41 @@ public class AgenticAggregateRuntimeFactory<S extends AggregateState>
         runtimeBuilder
                 .addEventSourcingHandler(AGENT_TASK_ASSIGNED_TYPE, KafkaAgenticAggregateRuntime::handleBuiltInEvent)
                 .addDomainEvent(AGENT_TASK_ASSIGNED_TYPE);
-
-        // Register built-in AssignTask command handler using a single-dispatch handler on
-        // KafkaAgenticAggregateRuntime. The handler resolves the agent from the platform,
-        // creates an AgentProcess, and emits AgentTaskAssignedEvent.
         runtimeBuilder
-                .addCommandHandler(ASSIGN_TASK_COMMAND_TYPE,
-                        KafkaAgenticAggregateRuntime.builtInCommandHandler(agentPlatform, agenticInfo.value()))
-                .addCommand(ASSIGN_TASK_COMMAND_TYPE);
+                .addEventSourcingHandler(AGENT_TASK_FINISHED_TYPE, KafkaAgenticAggregateRuntime::handleBuiltInEvent)
+                .addDomainEvent(AGENT_TASK_FINISHED_TYPE);
+        runtimeBuilder
+                .addEventSourcingHandler(MEMORY_DISTILLATION_STARTED_TYPE, KafkaAgenticAggregateRuntime::handleBuiltInEvent)
+                .addDomainEvent(MEMORY_DISTILLATION_STARTED_TYPE);
+        runtimeBuilder
+                .addEventSourcingHandler(MEMORY_DISTILLATION_FINISHED_TYPE, KafkaAgenticAggregateRuntime::handleBuiltInEvent)
+                .addDomainEvent(MEMORY_DISTILLATION_FINISHED_TYPE);
+        runtimeBuilder
+                .addEventSourcingHandler(MEMORY_DISTILLATION_FAILED_TYPE, KafkaAgenticAggregateRuntime::handleBuiltInEvent)
+                .addDomainEvent(MEMORY_DISTILLATION_FAILED_TYPE);
 
         // Collect agent-produced error types for registration and inclusion in adapters.
         List<DomainEventType<?>> agentProducedErrorTypes =
                 buildAgentProducedErrorTypes(agenticInfo.agentProducedErrors());
         agentProducedErrorTypes.forEach(runtimeBuilder::addDomainEvent);
+
+        // Register built-in AssignTask command handler using a dedicated
+        // AssignTaskCommandHandlerFunction. The handler resolves the agent from the
+        // platform, creates an AgentProcess, and emits AgentTaskAssignedEvent.
+        // The process is NOT ticked here; resumeAgentTasks drives all advancement.
+        List<DomainEventType<?>> assignTaskErrorTypes = new ArrayList<>(COMMAND_HANDLER_SYSTEM_ERRORS);
+        assignTaskErrorTypes.addAll(agentProducedErrorTypes);
+        AssignTaskCommandHandlerFunction assignTaskHandler = new AssignTaskCommandHandlerFunction(
+                aggregate,
+                agenticInfo.value(),
+                agentPlatform,
+                List.of(AGENT_TASK_ASSIGNED_TYPE),
+                assignTaskErrorTypes,
+                // TODO: wire aggregateServicesSupplier from AkcesAgenticAggregateController (Phase 3)
+                Collections::emptyList);
+        runtimeBuilder
+                .addCommandHandler(ASSIGN_TASK_COMMAND_TYPE, assignTaskHandler)
+                .addCommand(ASSIGN_TASK_COMMAND_TYPE);
 
         // Process agentHandledCommands — register AgenticCommandHandlerFunctionAdapter
         for (Class<? extends Command> commandClass : agenticInfo.agentHandledCommands()) {
