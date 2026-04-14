@@ -28,3 +28,4 @@ release.properties
 # Maven environment-specific configuration files
 settings.xml
 toolchains.xml
+META-INF/
