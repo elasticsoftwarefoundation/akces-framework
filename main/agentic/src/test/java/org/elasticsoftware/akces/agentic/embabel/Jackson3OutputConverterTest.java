@@ -104,5 +104,6 @@ class Jackson3OutputConverterTest {
         TestOutput result = converter.convert("{\"name\": \"test\", \"value\": 42,}");
         assertThat(result).isNotNull();
         assertThat(result.name()).isEqualTo("test");
+        assertThat(result.value()).isEqualTo(42);
     }
 }

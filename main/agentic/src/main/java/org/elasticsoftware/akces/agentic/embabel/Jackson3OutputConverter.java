@@ -117,16 +117,14 @@ public class Jackson3OutputConverter<T> implements StructuredOutputConverter<T> 
                     JacksonOption.RESPECT_JSONPROPERTY_ORDER));
             configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
 
-            // Apply field filter if present
-            if (fieldFilter != null) {
-                configBuilder.forFields().withIgnoreCheck(fieldScope -> {
-                    java.lang.reflect.Member rawMember = fieldScope.getMember().getRawMember();
-                    if (rawMember instanceof Field field) {
-                        return !fieldFilter.test(field);
-                    }
-                    return false;
-                });
-            }
+            // Apply field filter to exclude fields from schema
+            configBuilder.forFields().withIgnoreCheck(fieldScope -> {
+                java.lang.reflect.Member rawMember = fieldScope.getMember().getRawMember();
+                if (rawMember instanceof Field field) {
+                    return !fieldFilter.test(field);
+                }
+                return false;
+            });
 
             SchemaGenerator generator = new SchemaGenerator(configBuilder.build());
             tools.jackson.databind.node.ObjectNode schemaNode = generator.generateSchema(type);
@@ -163,6 +161,15 @@ public class Jackson3OutputConverter<T> implements StructuredOutputConverter<T> 
     }
 
     private String fixMalformedEscapedQuotes(String text) {
-        return text.replace("\\\"", "\"");
+        // Fix escaped quotes in specific structural positions (matching Embabel's behavior):
+        // 1. After colon (value start):  :\s*\\" → : "
+        String result = text.replaceAll(":\\s*\\\\\"", ": \"");
+        // 2. Before comma:  \\", → ",
+        result = result.replace("\\\",", "\",");
+        // 3. Before closing brace:  \\"(\s*}) → "$1
+        result = result.replaceAll("\\\\\"(\\s*})", "\"$1");
+        // 4. Before closing bracket:  \\"(\s*]) → "$1
+        result = result.replaceAll("\\\\\"(\\s*])", "\"$1");
+        return result;
     }
 }
