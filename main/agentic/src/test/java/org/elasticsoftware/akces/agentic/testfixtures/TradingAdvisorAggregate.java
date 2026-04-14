@@ -31,20 +31,25 @@ import java.util.List;
  * <p>This aggregate is used for integration testing of the agentic layer. It:
  * <ul>
  *   <li>Auto-creates its singleton state via {@link #getCreateDomainEvent()}</li>
- *   <li>Declares {@link AnalyzeMarketCommand} as an agent-handled command</li>
  *   <li>Defines an {@code @EventSourcingHandler} for {@link MarketAnalysisCompletedEvent}</li>
  * </ul>
  */
 @AgenticAggregateInfo(
         value = "TradingAdvisor",
-        stateClass = TradingAdvisorState.class,
-        agentHandledCommands = {AnalyzeMarketCommand.class}
+        stateClass = TradingAdvisorState.class
 )
 public class TradingAdvisorAggregate implements AgenticAggregate<TradingAdvisorState> {
+
+    private static final String AGGREGATE_ID = "TradingAdvisor";
 
     @Override
     public Class<TradingAdvisorState> getStateClass() {
         return TradingAdvisorState.class;
+    }
+
+    @Override
+    public String getName() {
+        return AGGREGATE_ID;
     }
 
     @Override

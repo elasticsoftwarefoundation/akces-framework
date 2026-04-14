@@ -304,7 +304,17 @@ public class TradingAdvisorIntegrationTest {
                     "akces.rocksdb.baseDir=/tmp/akces",
                     "spring.kafka.enabled=true",
                     "spring.kafka.bootstrap-servers=" + kafka.getBootstrapServers(),
-                    "spring.ai.anthropic.api-key=" + (apiKey != null ? apiKey : "")
+                    "spring.ai.anthropic.api-key=" + (apiKey != null ? apiKey : ""),
+                    // Only enable the Anthropic chat model; provide dummy OpenAI key
+                    // required by Embabel's bundled agent-application.properties
+                    "spring.ai.model.chat=anthropic",
+                    "spring.ai.openai.api-key=unused",
+                    // Embabel model configuration — must be set explicitly since
+                    // @PropertySource on the application class may not be processed
+                    // early enough for the AgentPlatformConfiguration bean factory.
+                    "embabel.models.default-llm=claude-sonnet-4-6",
+                    "embabel.models.llms.best=claude-sonnet-4-6",
+                    "embabel.models.llms.cheapest=claude-sonnet-4-6"
             );
         }
     }

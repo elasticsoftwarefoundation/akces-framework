@@ -17,13 +17,30 @@
 
 package org.elasticsoftware.akces.agentic.testfixtures;
 
+import com.embabel.agent.spi.LlmService;
+import com.embabel.agent.spi.support.springai.SpringAiLlmService;
+import org.springframework.ai.anthropic.AnthropicChatModel;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Test configuration for the TradingAdvisor integration tests.
+ *
+ * <p>Registers the Embabel {@link LlmService} bean that wraps the Spring AI
+ * {@link AnthropicChatModel} so that Embabel's {@code ConfigurableModelProvider}
+ * can resolve the default LLM by name. This is normally provided by
+ * {@code embabel-agent-starter-anthropic}, which is incompatible with the
+ * Spring AI version used by this project.
+ */
 @Configuration
 @ComponentScan(basePackages = {
         "org.elasticsoftware.akces.agentic.testfixtures",
 })
 public class TradingAdvisorConfiguration {
 
+    @Bean
+    public LlmService<?> anthropicLlmService(AnthropicChatModel chatModel) {
+        return new SpringAiLlmService("claude-sonnet-4-6", "Anthropic", chatModel);
+    }
 }
