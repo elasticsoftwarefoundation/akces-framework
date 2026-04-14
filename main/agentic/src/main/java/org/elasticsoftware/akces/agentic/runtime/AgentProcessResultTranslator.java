@@ -24,7 +24,10 @@ import org.elasticsoftware.akces.events.ErrorEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -33,12 +36,11 @@ import java.util.stream.Collectors;
  *
  * <p>After each agent tick (or after the process reaches an end state), call
  * {@link #collectEvents(Blackboard, Collection)} to drain new {@link DomainEvent} objects
- * from the blackboard. Already-collected events are tracked using an identity-based set
- * stored on the blackboard under the key {@value #PROCESSED_EVENTS_KEY}, so subsequent
- * calls to this method will not return the same events again. Unlike the previous
- * approach of hiding events via {@link Blackboard#hide(Object)}, events remain visible
- * on the blackboard so that the Embabel planner can still evaluate goal achievement
- * based on the full event stream.
+ * from the blackboard. A cursor (the index of the last processed object) is stored on
+ * the blackboard under the key {@value #PROCESSED_INDEX_KEY}, so subsequent calls skip
+ * objects that have already been collected. Events remain visible on the blackboard so
+ * that the Embabel planner can still evaluate goal achievement based on the full event
+ * stream.
  *
  * <p>Unknown {@link ErrorEvent} types (not declared in {@code agentProducedErrors} and
  * therefore not registered as {@link DomainEventType}s in the runtime) are logged at
@@ -54,9 +56,11 @@ public final class AgentProcessResultTranslator {
     private static final Logger logger = LoggerFactory.getLogger(AgentProcessResultTranslator.class);
 
     /**
-     * Blackboard key under which the set of already-processed events is stored.
+     * Blackboard key under which the index of the last processed object is stored.
+     * The value is an {@code int[1]} array holding the index (into
+     * {@link Blackboard#getObjects()}) up to which events have already been collected.
      */
-    static final String PROCESSED_EVENTS_KEY = "_akces_processedDomainEvents";
+    static final String PROCESSED_INDEX_KEY = "_akces_processedIndex";
 
     private AgentProcessResultTranslator() {
         // utility class
@@ -68,10 +72,11 @@ public final class AgentProcessResultTranslator {
      * passed to the runtime's {@code processDomainEvent()} method.
      *
      * <p>Events remain on the blackboard (they are <em>not</em> hidden) so the Embabel
-     * planner can still evaluate goal achievement from the full event stream. An
-     * identity-based set stored on the blackboard under key
-     * {@value #PROCESSED_EVENTS_KEY} tracks which events have already been collected to
-     * prevent double-processing.
+     * planner can still evaluate goal achievement from the full event stream. A cursor
+     * stored on the blackboard under key {@value #PROCESSED_INDEX_KEY} tracks how far
+     * we have already read. Because {@link Blackboard#getObjects()} returns objects in
+     * insertion order, storing just the index is sufficient and more economical than
+     * maintaining a full set of processed events.
      *
      * <p>For every collected event:
      * <ul>
@@ -93,36 +98,34 @@ public final class AgentProcessResultTranslator {
      * @return an unmodifiable list of domain events that are safe to pass to the runtime;
      *         never {@code null}, may be empty
      */
-    @SuppressWarnings("unchecked")
     public static List<DomainEvent> collectEvents(Blackboard blackboard,
                                                   Collection<DomainEventType<?>> registeredEventTypes) {
         Set<Class<?>> registeredClasses = registeredEventTypes.stream()
                 .map(DomainEventType::typeClass)
                 .collect(Collectors.toSet());
 
-        // Retrieve or create the identity-based set of already-processed events.
-        // Using IdentityHashMap-backed set so that reference equality is used — each
-        // DomainEvent instance placed on the blackboard is tracked by identity, not
-        // by value equality. This is important because two structurally equal events
-        // (e.g. same record fields) placed at different times must be treated as
-        // separate events.
-        Set<DomainEvent> processedEvents = (Set<DomainEvent>) blackboard.get(PROCESSED_EVENTS_KEY);
-        if (processedEvents == null) {
-            processedEvents = Collections.newSetFromMap(new IdentityHashMap<>());
-            blackboard.set(PROCESSED_EVENTS_KEY, processedEvents);
+        // Retrieve or initialise the cursor.  We use a single-element int array so
+        // the value is mutable across calls without needing to call set() again.
+        int[] cursor = (int[]) blackboard.get(PROCESSED_INDEX_KEY);
+        if (cursor == null) {
+            cursor = new int[]{0};
+            blackboard.set(PROCESSED_INDEX_KEY, cursor);
         }
 
-        List<DomainEvent> allEvents = blackboard.getObjects().stream()
-                .filter(o -> o instanceof DomainEvent)
-                .map(o -> (DomainEvent) o)
-                .toList();
+        List<Object> allObjects = blackboard.getObjects();
+        int size = allObjects.size();
+        int startIndex = cursor[0];
 
-        List<DomainEvent> result = new ArrayList<>(allEvents.size());
-        for (DomainEvent event : allEvents) {
-            if (processedEvents.contains(event)) {
-                continue; // already collected in a previous call
+        if (startIndex >= size) {
+            return List.of(); // nothing new
+        }
+
+        List<DomainEvent> result = new ArrayList<>(size - startIndex);
+        for (int i = startIndex; i < size; i++) {
+            Object obj = allObjects.get(i);
+            if (!(obj instanceof DomainEvent event)) {
+                continue;
             }
-            processedEvents.add(event);
             if (event instanceof ErrorEvent && !registeredClasses.contains(event.getClass())) {
                 logger.warn(
                         "Agent produced undeclared error event of type '{}' which is not registered " +
@@ -134,6 +137,10 @@ public final class AgentProcessResultTranslator {
                 result.add(event);
             }
         }
+
+        // Advance the cursor past all objects we just scanned.
+        cursor[0] = size;
+
         return List.copyOf(result);
     }
 }
