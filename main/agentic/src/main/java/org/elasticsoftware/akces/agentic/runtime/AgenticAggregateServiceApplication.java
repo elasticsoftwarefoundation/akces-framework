@@ -17,6 +17,10 @@
 
 package org.elasticsoftware.akces.agentic.runtime;
 
+import com.embabel.agent.api.models.AnthropicModels;
+import com.embabel.agent.spi.LlmService;
+import com.embabel.agent.spi.support.springai.SpringAiLlmService;
+import io.micrometer.observation.ObservationRegistry;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -34,10 +38,12 @@ import org.elasticsoftware.akces.serialization.SchemaRecordSerde;
 import org.elasticsoftware.akces.state.AggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.state.RocksDBAggregateStateRepositoryFactory;
 import org.elasticsoftware.akces.util.EnvironmentPropertiesPrinter;
+import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.jackson.autoconfigure.JsonMapperBuilderCustomizer;
 import org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration;
@@ -73,7 +79,8 @@ import java.util.Set;
  * }</pre>
  * or supply one or more package names as {@code args} to enable additional component scanning.
  */
-@SpringBootApplication(exclude = KafkaAutoConfiguration.class)
+@SpringBootApplication(exclude = KafkaAutoConfiguration.class,
+                       scanBasePackages = "org.elasticsoftware.akces.agentic.embabel")
 @EnableConfigurationProperties(KafkaProperties.class)
 @PropertySource("classpath:akces-agenticservice.properties")
 public class AgenticAggregateServiceApplication {
@@ -273,5 +280,25 @@ public class AgenticAggregateServiceApplication {
     @Bean(name = "agenticEnvironmentPropertiesPrinter")
     public EnvironmentPropertiesPrinter environmentPropertiesPrinter() {
         return new EnvironmentPropertiesPrinter();
+    }
+
+    @Bean(name = "agenticServiceObservationRegistry")
+    public ObservationRegistry getObservationRegistry() {
+        return ObservationRegistry.NOOP;
+    }
+
+    @Bean
+    public LlmService<?> anthropicClaudeSonnet46(AnthropicChatModel chatModel) {
+        return new SpringAiLlmService(AnthropicModels.CLAUDE_SONNET_4_6, AnthropicModels.PROVIDER, chatModel);
+    }
+
+    @Bean
+    public LlmService<?> anthropicClaudeOpus46(AnthropicChatModel chatModel) {
+        return new SpringAiLlmService(AnthropicModels.CLAUDE_OPUS_4_6, AnthropicModels.PROVIDER, chatModel);
+    }
+
+    @Bean
+    public LlmService<?> anthropicClaudeHaiku45(AnthropicChatModel chatModel) {
+        return new SpringAiLlmService(AnthropicModels.CLAUDE_HAIKU_4_5, AnthropicModels.PROVIDER, chatModel);
     }
 }

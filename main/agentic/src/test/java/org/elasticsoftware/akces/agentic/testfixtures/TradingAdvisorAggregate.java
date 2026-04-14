@@ -35,12 +35,12 @@ import java.util.List;
  * </ul>
  */
 @AgenticAggregateInfo(
-        value = "TradingAdvisor",
+        value = TradingAdvisorAggregate.AGGREGATE_ID,
         stateClass = TradingAdvisorState.class
 )
 public class TradingAdvisorAggregate implements AgenticAggregate<TradingAdvisorState> {
 
-    private static final String AGGREGATE_ID = "TradingAdvisor";
+    public static final String AGGREGATE_ID = "TradingAdvisor";
 
     @Override
     public Class<TradingAdvisorState> getStateClass() {

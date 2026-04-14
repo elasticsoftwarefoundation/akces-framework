@@ -22,6 +22,7 @@ import com.embabel.agent.api.annotation.Action;
 import com.embabel.agent.api.annotation.Agent;
 import com.embabel.agent.api.common.ActionContext;
 import com.embabel.agent.api.common.PlannerType;
+import com.embabel.agent.core.CoreToolGroups;
 import org.elasticsoftware.akces.agentic.commands.AssignTaskCommand;
 
 /**
@@ -37,9 +38,9 @@ import org.elasticsoftware.akces.agentic.commands.AssignTaskCommand;
  * (injected by the framework when the task is assigned) along with the current aggregate
  * state, and produces a domain event that will be applied to the aggregate.
  */
-@Agent(name = "TradingAdvisorAgent",
+@Agent(name = TradingAdvisorAggregate.AGGREGATE_ID,
         description = "AI-powered trading advisor that analyzes markets and produces trading insights",
-        planner = PlannerType.UTILITY)
+        planner = PlannerType.GOAP)
 public class TradingAdvisorAgent {
 
     /**
@@ -72,12 +73,10 @@ public class TradingAdvisorAgent {
                 command.taskDescription(),
                 command.agenticAggregateId());
 
-        String analysis = context.ai()
+        return context.ai()
                 .withDefaultLlm()
-                .createObject(prompt, String.class);
+                .withToolGroup(CoreToolGroups.WEB)
+                .createObject(prompt, MarketAnalysisCompletedEvent.class);
 
-        return new MarketAnalysisCompletedEvent(
-                command.agenticAggregateId(),
-                analysis);
     }
 }

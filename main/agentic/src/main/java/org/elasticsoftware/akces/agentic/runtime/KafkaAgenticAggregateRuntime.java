@@ -674,6 +674,12 @@ public class KafkaAgenticAggregateRuntime implements AgenticAggregateRuntime {
                                      Consumer<ProtocolRecord> protocolRecordConsumer,
                                      Supplier<AggregateStateRecord> stateRecordSupplier)
             throws IOException {
+        if(agentProcess.getStatus().equals(AgentProcessStatusCode.STUCK)) {
+            logger.warn("Agent process (processId={}) for task '{}' on aggregate {} is stuck); forcing finish",
+                    agentProcess.getId(), task.taskDescription(), getName());
+            agentProcess.terminateAgent("AgentProcess Stuck");
+        }
+
         Stream<DomainEvent> tickEvents =
                 AgentProcessSingleTickRunner.tick(agentProcess, delegate.getAllDomainEventTypes());
 

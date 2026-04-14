@@ -20,6 +20,7 @@ package org.elasticsoftware.akces.agentic.testfixtures;
 import com.embabel.agent.spi.LlmService;
 import com.embabel.agent.spi.support.springai.SpringAiLlmService;
 import org.springframework.ai.anthropic.AnthropicChatModel;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
@@ -38,9 +39,4 @@ import org.springframework.context.annotation.Configuration;
         "org.elasticsoftware.akces.agentic.testfixtures",
 })
 public class TradingAdvisorConfiguration {
-
-    @Bean
-    public LlmService<?> anthropicLlmService(AnthropicChatModel chatModel) {
-        return new SpringAiLlmService("claude-sonnet-4-6", "Anthropic", chatModel);
-    }
 }

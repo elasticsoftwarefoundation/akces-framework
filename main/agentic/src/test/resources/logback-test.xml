@@ -50,6 +50,10 @@
         <appender-ref ref="CONSOLE"/>
     </logger>
 
+    <logger name="com.embabel.agent" level="info" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
     <root level="info">
         <appender-ref ref="CONSOLE"/>
     </root>

@@ -84,8 +84,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @ContextConfiguration(initializers = TradingAdvisorIntegrationTest.DataSourceInitializer.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @DirtiesContext
-@EnabledIfEnvironmentVariable(named = "ANTHROPIC_API_KEY", matches = ".+",
-        disabledReason = "ANTHROPIC_API_KEY environment variable must be set to run agentic integration tests")
 public class TradingAdvisorIntegrationTest {
 
     private static final String CONFLUENT_PLATFORM_VERSION = "7.8.7";
@@ -166,6 +164,15 @@ public class TradingAdvisorIntegrationTest {
     @Order(3)
     @DisplayName("Auto-created state should produce TradingAdvisorCreated event in DomainEvents topic")
     void testAutoCreateState() {
+        assertNotNull(tradingAdvisorController);
+        // Wait for the controller to fully start (auto-create included)
+        long deadline = System.currentTimeMillis() + 60_000;
+        while (!tradingAdvisorController.isRunning()) {
+            if (System.currentTimeMillis() > deadline) {
+                fail("TradingAdvisor controller did not start within 60 seconds");
+            }
+            Thread.onSpinWait();
+        }
         // The controller auto-creates the singleton state on startup.
         // Verify the TradingAdvisorCreated event is in the DomainEvents topic.
         TopicPartition domainEventsPartition = new TopicPartition("TradingAdvisor-DomainEvents", 0);
@@ -175,7 +182,7 @@ public class TradingAdvisorIntegrationTest {
         testConsumer.seekToBeginning(testConsumer.assignment());
 
         List<DomainEventRecord> domainEvents = new ArrayList<>();
-        long deadline = System.currentTimeMillis() + 30_000;
+        deadline = System.currentTimeMillis() + 30_000;
         while (domainEvents.isEmpty() && System.currentTimeMillis() < deadline) {
             ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(500));
             records.records(domainEventsPartition).forEach(record -> {
@@ -196,6 +203,15 @@ public class TradingAdvisorIntegrationTest {
     @Order(4)
     @DisplayName("AssignTask command should produce AgentTaskAssigned event")
     void testAssignTaskCommand() {
+        assertNotNull(tradingAdvisorController);
+        // Wait for the controller to fully start (auto-create included)
+        long deadline = System.currentTimeMillis() + 60_000;
+        while (!tradingAdvisorController.isRunning()) {
+            if (System.currentTimeMillis() > deadline) {
+                fail("TradingAdvisor controller did not start within 60 seconds");
+            }
+            Thread.onSpinWait();
+        }
         Producer<String, ProtocolRecord> testProducer = producerFactory.createProducer("test-assign");
 
         // Send an AssignTask command
@@ -228,7 +244,7 @@ public class TradingAdvisorIntegrationTest {
         testConsumer.seekToBeginning(testConsumer.assignment());
 
         List<DomainEventRecord> allEvents = new ArrayList<>();
-        long deadline = System.currentTimeMillis() + 30_000;
+        deadline = System.currentTimeMillis() + 30_000;
         while (System.currentTimeMillis() < deadline) {
             ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(500));
             records.records(domainEventsPartition).forEach(record -> {
@@ -248,10 +264,21 @@ public class TradingAdvisorIntegrationTest {
                         allEvents.stream().map(DomainEventRecord::name).toList());
     }
 
+    @EnabledIfEnvironmentVariable(named = "ANTHROPIC_API_KEY", matches = ".+",
+            disabledReason = "ANTHROPIC_API_KEY environment variable must be set to run agentic integration tests")
     @Test
     @Order(5)
     @DisplayName("Agent should complete the task and produce AgentTaskFinished event with analysis")
     void testAgentTaskCompletion() {
+        assertNotNull(tradingAdvisorController);
+        // Wait for the controller to fully start (auto-create included)
+        long deadline = System.currentTimeMillis() + 60_000;
+        while (!tradingAdvisorController.isRunning()) {
+            if (System.currentTimeMillis() > deadline) {
+                fail("TradingAdvisor controller did not start within 60 seconds");
+            }
+            Thread.onSpinWait();
+        }
         // Wait for the agent to complete the task assigned in the previous test.
         // The agent process is ticked during the partition's idle-poll cycle.
         TopicPartition domainEventsPartition = new TopicPartition("TradingAdvisor-DomainEvents", 0);
@@ -261,7 +288,7 @@ public class TradingAdvisorIntegrationTest {
 
         List<DomainEventRecord> allEvents = new ArrayList<>();
         // Agent processing may take longer due to LLM calls — allow up to 120 seconds
-        long deadline = System.currentTimeMillis() + 120_000;
+        deadline = System.currentTimeMillis() + 120_000;
         boolean taskFinished = false;
         boolean analysisCompleted = false;
 
@@ -313,8 +340,8 @@ public class TradingAdvisorIntegrationTest {
                     // @PropertySource on the application class may not be processed
                     // early enough for the AgentPlatformConfiguration bean factory.
                     "embabel.models.default-llm=claude-sonnet-4-6",
-                    "embabel.models.llms.best=claude-sonnet-4-6",
-                    "embabel.models.llms.cheapest=claude-sonnet-4-6"
+                    "embabel.models.llms.best=claude-opus-4-6",
+                    "embabel.models.llms.cheapest=claude-haiku-4-5"
             );
         }
     }
