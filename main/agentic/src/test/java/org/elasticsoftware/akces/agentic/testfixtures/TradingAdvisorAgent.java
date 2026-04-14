@@ -24,86 +24,31 @@ import com.embabel.agent.api.common.ActionContext;
 import com.embabel.agent.api.common.PlannerType;
 import com.embabel.agent.core.CoreToolGroups;
 import org.elasticsoftware.akces.agentic.commands.AssignTaskCommand;
-import org.elasticsoftware.akces.aggregate.AgenticAggregate;
-import org.elasticsoftware.akces.annotations.AgenticAggregateInfo;
-import org.elasticsoftware.akces.annotations.EventSourcingHandler;
-import org.elasticsoftware.akces.events.DomainEvent;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
- * A test agentic aggregate and Embabel agent combined in a single class.
+ * Embabel agent that handles tasks for the {@link TradingAdvisorAggregate}.
  *
- * <p>This class serves as both:
- * <ul>
- *   <li>An {@link AgenticAggregate} that auto-creates its singleton state via
- *       {@link #getCreateDomainEvent()} and defines {@code @EventSourcingHandler}s
- *       for its domain events.</li>
- *   <li>An Embabel {@link Agent} that handles tasks assigned to the aggregate.
- *       The {@code @Action} method uses the Anthropic LLM to analyze market data
- *       and produces a {@link MarketAnalysisCompletedEvent}.</li>
- * </ul>
+ * <p>This agent is resolved by the framework via the {@code TradingAdvisorAgent} suffix
+ * convention (aggregate name "TradingAdvisor" + "Agent" suffix). It uses the Anthropic LLM
+ * to analyze market data based on the assigned task description and produces a
+ * {@link MarketAnalysisCompletedEvent} as the result.
  *
- * <p>Used for integration testing of the agentic layer with Testcontainers Kafka.
+ * <p>The agent uses the GOAP planner which makes it suitable for goal-oriented action plans.
+ * The {@code @Action} method receives the {@link AssignTaskCommand} from the blackboard
+ * (injected by the framework when the task is assigned) along with the current aggregate
+ * state, and produces a domain event that will be applied to the aggregate.
  */
-@AgenticAggregateInfo(
-        value = TradingAdvisor.AGGREGATE_ID,
-        stateClass = TradingAdvisorState.class
-)
-@Agent(name = TradingAdvisor.AGGREGATE_ID,
+@Agent(name = TradingAdvisorAggregate.AGGREGATE_ID,
         description = "AI-powered trading advisor that analyzes markets and produces trading insights",
         planner = PlannerType.GOAP)
-public class TradingAdvisor implements AgenticAggregate<TradingAdvisorState> {
-
-    public static final String AGGREGATE_ID = "TradingAdvisor";
-
-    // -------------------------------------------------------------------------
-    // AgenticAggregate implementation
-    // -------------------------------------------------------------------------
-
-    @Override
-    public Class<TradingAdvisorState> getStateClass() {
-        return TradingAdvisorState.class;
-    }
-
-    @Override
-    public String getName() {
-        return AGGREGATE_ID;
-    }
-
-    @Override
-    public DomainEvent getCreateDomainEvent() {
-        return new TradingAdvisorCreatedEvent(getName());
-    }
-
-    @EventSourcingHandler(create = true)
-    public TradingAdvisorState create(TradingAdvisorCreatedEvent event, TradingAdvisorState isNull) {
-        return new TradingAdvisorState(event.advisorId());
-    }
-
-    @EventSourcingHandler
-    public TradingAdvisorState apply(MarketAnalysisCompletedEvent event, TradingAdvisorState state) {
-        var analyses = new ArrayList<>(state.analyses());
-        analyses.add(event.analysis());
-        return new TradingAdvisorState(
-                state.id(),
-                state.memories(),
-                state.memoryDistillations(),
-                state.assignedTasks(),
-                List.copyOf(analyses));
-    }
-
-    // -------------------------------------------------------------------------
-    // Embabel Agent action
-    // -------------------------------------------------------------------------
+public class TradingAdvisorAgent {
 
     /**
      * Analyzes a market based on the assigned task and produces a market analysis event.
      *
      * <p>The LLM is used to generate a concise market analysis based on the task description.
      * The result is wrapped in a {@link MarketAnalysisCompletedEvent} which will be applied
-     * to the aggregate state via the {@code @EventSourcingHandler} on this class.
+     * to the aggregate state via the {@code @EventSourcingHandler} on the aggregate.
      *
      * @param command the AssignTask command containing the task description and aggregate id
      * @param context the Embabel action context providing access to AI capabilities
