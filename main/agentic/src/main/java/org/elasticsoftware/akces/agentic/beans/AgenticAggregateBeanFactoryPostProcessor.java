@@ -112,7 +112,7 @@ public class AgenticAggregateBeanFactoryPostProcessor
                 final Class<? extends AgenticAggregate<?>> aggregateClass =
                         (Class<? extends AgenticAggregate<?>>) Class.forName(bd.getBeanClassName());
                 AgenticAggregateInfo agenticInfo = aggregateClass.getAnnotation(AgenticAggregateInfo.class);
-                AggregateValidator validator = new AggregateValidator(aggregateClass, agenticInfo.stateClass());
+                AggregateValidator validator = new AggregateValidator(aggregateClass, agenticInfo.stateClass(), true);
 
                 List<Method> commandHandlers = Arrays.stream(aggregateClass.getMethods())
                         .filter(m -> m.isAnnotationPresent(CommandHandler.class))
@@ -161,15 +161,6 @@ public class AgenticAggregateBeanFactoryPostProcessor
                     beanFactory.containsBeanDefinition("agenticServiceSchemaConsumerFactory") &&
                     beanFactory.containsBeanDefinition("agenticServiceSchemaProducerFactory") &&
                     beanFactory.containsBeanDefinition("agenticServiceAggregateStateRepositoryFactory")) {
-
-                AgenticAggregateInfo agenticInfo = null;
-                try {
-                    agenticInfo = Class.forName(
-                            beanFactory.getBeanDefinition(beanName).getBeanClassName())
-                            .getAnnotation(AgenticAggregateInfo.class);
-                } catch (ClassNotFoundException e) {
-                    throw new ApplicationContextException("Unable to load class for bean " + beanName, e);
-                }
 
                 // AkcesAgenticAggregateController (Thread — started via init method, closed via destroy method)
                 // The partition is created internally by the controller, so no separate partition bean is needed.

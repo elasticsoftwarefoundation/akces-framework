@@ -35,10 +35,16 @@ public class AggregateValidator {
     private final List<UpcastingHandler> stateUpcastingHandlers = new ArrayList<>();
     private final Set<DomainEventType<?>> producedDomainEventTypes = new HashSet<>();
     private final Set<DomainEventType<?>> errorEventTypes = new HashSet<>();
+    private final Boolean autoCreate;
 
     public AggregateValidator(Class<? extends Aggregate<?>> aggregateClass, Class<? extends AggregateState> stateClass) {
+        this(aggregateClass, stateClass, false);
+    }
+
+    public AggregateValidator(Class<? extends Aggregate<?>> aggregateClass, Class<? extends AggregateState> stateClass, boolean autoCreate) {
         this.aggregateClass = aggregateClass;
         this.stateClass = stateClass;
+        this.autoCreate = autoCreate;
     }
 
     public void validate() {
@@ -53,7 +59,7 @@ public class AggregateValidator {
     }
 
     private void ensureCreateHandler() {
-        if (commandHandlers.stream().noneMatch(CommandType::create) && eventHandlers.stream().noneMatch(DomainEventType::create)) {
+        if (!autoCreate && commandHandlers.stream().noneMatch(CommandType::create) && eventHandlers.stream().noneMatch(DomainEventType::create)) {
             throw new IllegalStateException("No create handler registered for aggregate " + aggregateClass.getName());
         }
 
@@ -68,7 +74,7 @@ public class AggregateValidator {
 
     private void ensureCreateEvent() {
         // we should have exactly one create event in the produced events
-        if (producedDomainEventTypes.stream().filter(DomainEventType::create).count() != 1) {
+        if (!autoCreate && producedDomainEventTypes.stream().filter(DomainEventType::create).count() != 1) {
             throw new IllegalStateException("Exactly one create event should be produced by aggregate " + aggregateClass.getName());
         }
     }

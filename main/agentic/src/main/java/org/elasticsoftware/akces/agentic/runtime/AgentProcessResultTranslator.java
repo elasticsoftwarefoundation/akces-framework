@@ -35,10 +35,12 @@ import java.util.stream.Collectors;
  * into Akces {@link DomainEvent} instances.
  *
  * <p>After each agent tick (or after the process reaches an end state), call
- * {@link #collectEvents(Blackboard, Collection)} to drain {@link DomainEvent} objects
- * from the blackboard. Events are marked as hidden on the blackboard after collection,
- * so subsequent calls to this method will not return the same events again — this
- * supports both tick-to-completion and future incremental-tick processing patterns.
+ * {@link #collectEvents(Blackboard, Collection)} to drain new {@link DomainEvent} objects
+ * from the blackboard. A cursor (the index of the last processed object) is stored on
+ * the blackboard under the key {@value #PROCESSED_INDEX_KEY}, so subsequent calls skip
+ * objects that have already been collected. Events remain visible on the blackboard so
+ * that the Embabel planner can still evaluate goal achievement based on the full event
+ * stream.
  *
  * <p>Unknown {@link ErrorEvent} types (not declared in {@code agentProducedErrors} and
  * therefore not registered as {@link DomainEventType}s in the runtime) are logged at
@@ -53,15 +55,28 @@ public final class AgentProcessResultTranslator {
 
     private static final Logger logger = LoggerFactory.getLogger(AgentProcessResultTranslator.class);
 
+    /**
+     * Blackboard key under which the index of the last processed object is stored.
+     * The value is an {@code int[1]} array holding the index (into
+     * {@link Blackboard#getObjects()}) up to which events have already been collected.
+     */
+    static final String PROCESSED_INDEX_KEY = "_akces_processedIndex";
+
     private AgentProcessResultTranslator() {
         // utility class
     }
 
     /**
-     * Collects all {@link DomainEvent} objects currently visible on the blackboard,
-     * removes them from visible scope (via {@link Blackboard#hide(Object)}), and returns
-     * the subset that can safely be passed to the runtime's {@code processDomainEvent()}
-     * method.
+     * Collects all <em>new</em> {@link DomainEvent} objects currently on the blackboard
+     * that have not been collected before, and returns the subset that can safely be
+     * passed to the runtime's {@code processDomainEvent()} method.
+     *
+     * <p>Events remain on the blackboard (they are <em>not</em> hidden) so the Embabel
+     * planner can still evaluate goal achievement from the full event stream. A cursor
+     * stored on the blackboard under key {@value #PROCESSED_INDEX_KEY} tracks how far
+     * we have already read. Because {@link Blackboard#getObjects()} returns objects in
+     * insertion order, storing just the index is sufficient and more economical than
+     * maintaining a full set of processed events.
      *
      * <p>For every collected event:
      * <ul>
@@ -89,14 +104,28 @@ public final class AgentProcessResultTranslator {
                 .map(DomainEventType::typeClass)
                 .collect(Collectors.toSet());
 
-        List<DomainEvent> allEvents = blackboard.getObjects().stream()
-                .filter(o -> o instanceof DomainEvent)
-                .map(o -> (DomainEvent) o)
-                .toList();
+        // Retrieve or initialize the cursor.  We use a single-element int array so
+        // the value is mutable across calls without needing to call set() again.
+        int[] cursor = (int[]) blackboard.get(PROCESSED_INDEX_KEY);
+        if (cursor == null) {
+            cursor = new int[]{0};
+            blackboard.set(PROCESSED_INDEX_KEY, cursor);
+        }
 
-        List<DomainEvent> result = new ArrayList<>(allEvents.size());
-        for (DomainEvent event : allEvents) {
-            blackboard.hide(event);
+        List<Object> allObjects = blackboard.getObjects();
+        int size = allObjects.size();
+        int startIndex = cursor[0];
+
+        if (startIndex >= size) {
+            return List.of(); // nothing new
+        }
+
+        List<DomainEvent> result = new ArrayList<>(size - startIndex);
+        for (int i = startIndex; i < size; i++) {
+            Object obj = allObjects.get(i);
+            if (!(obj instanceof DomainEvent event)) {
+                continue;
+            }
             if (event instanceof ErrorEvent && !registeredClasses.contains(event.getClass())) {
                 logger.warn(
                         "Agent produced undeclared error event of type '{}' which is not registered " +
@@ -108,6 +137,10 @@ public final class AgentProcessResultTranslator {
                 result.add(event);
             }
         }
+
+        // Advance the cursor past all objects we just scanned.
+        cursor[0] = size;
+
         return List.copyOf(result);
     }
 }

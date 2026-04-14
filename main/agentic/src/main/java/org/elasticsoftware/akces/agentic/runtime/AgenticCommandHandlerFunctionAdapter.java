@@ -17,10 +17,7 @@
 
 package org.elasticsoftware.akces.agentic.runtime;
 
-import com.embabel.agent.core.Agent;
-import com.embabel.agent.core.AgentPlatform;
-import com.embabel.agent.core.AgentProcess;
-import com.embabel.agent.core.ProcessOptions;
+import com.embabel.agent.core.*;
 import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.agentic.embabel.DefaultAgent;
 import org.elasticsoftware.akces.aggregate.*;
@@ -157,7 +154,7 @@ public class AgenticCommandHandlerFunctionAdapter<S extends AggregateState, C ex
         logger.debug("Resolved agent '{}' for aggregate '{}'",
                 resolvedAgent.getName(), aggregateName);
         AgentProcess agentProcess = agentPlatform.createAgentProcess(
-                resolvedAgent, ProcessOptions.DEFAULT, bindings);
+                resolvedAgent, ProcessOptions.DEFAULT.withVerbosity(Verbosity.DEFAULT.withShowPlanning(true)), bindings);
 
         logger.debug("Created AgentProcess with id={} for command {} on aggregate {}",
                 agentProcess.getId(), commandType.typeName(), aggregateName);

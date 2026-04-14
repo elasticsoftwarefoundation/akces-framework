@@ -97,7 +97,7 @@ class AssignTaskCommandHandlerTest {
         var command = new AssignTaskCommand("agg-1", "Analyze data", party, Map.of("key", "value"));
         var state = new TestState("agg-1");
 
-        when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any()))
+        when(agentPlatform.createAgentProcess(eq(agent), any(ProcessOptions.class), any()))
                 .thenReturn(agentProcess);
         when(agentProcess.getId()).thenReturn("embabel-proc-42");
 
@@ -115,7 +115,7 @@ class AssignTaskCommandHandlerTest {
         assertThat(event.taskMetadata()).isEqualTo(Map.of("key", "value"));
         assertThat(event.assignedAt()).isNotNull();
 
-        verify(agentPlatform).createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any());
+        verify(agentPlatform).createAgentProcess(eq(agent), any(ProcessOptions.class), any());
         verify(agentProcess).getId();
     }
 
@@ -126,7 +126,7 @@ class AssignTaskCommandHandlerTest {
         var command = new AssignTaskCommand("agg-1", "Process task", party, null);
         var state = new TestState("agg-1");
 
-        when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any()))
+        when(agentPlatform.createAgentProcess(eq(agent), any(ProcessOptions.class), any()))
                 .thenReturn(agentProcess);
         when(agentProcess.getId()).thenReturn("proc-abc");
 
@@ -144,7 +144,7 @@ class AssignTaskCommandHandlerTest {
         var command = new AssignTaskCommand("agg-1", "Simple task", party, null);
         var state = new TestState("agg-1");
 
-        when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any()))
+        when(agentPlatform.createAgentProcess(eq(agent), any(ProcessOptions.class), any()))
                 .thenReturn(agentProcess);
         when(agentProcess.getId()).thenReturn("proc-xyz");
 
@@ -171,7 +171,7 @@ class AssignTaskCommandHandlerTest {
         Agent defaultAgent = mock(Agent.class);
         when(defaultAgent.getName()).thenReturn(DefaultAgent.AGENT_NAME);
         when(agentPlatform.agents()).thenReturn(List.of(defaultAgent));
-        when(agentPlatform.createAgentProcess(eq(defaultAgent), eq(ProcessOptions.DEFAULT), any()))
+        when(agentPlatform.createAgentProcess(eq(defaultAgent), any(ProcessOptions.class), any()))
                 .thenReturn(agentProcess);
         when(agentProcess.getId()).thenReturn("proc-default");
 
@@ -183,7 +183,7 @@ class AssignTaskCommandHandlerTest {
 
         assertThat(events).hasSize(1);
         assertThat(events.getFirst()).isInstanceOf(AgentTaskAssignedEvent.class);
-        verify(agentPlatform).createAgentProcess(eq(defaultAgent), eq(ProcessOptions.DEFAULT), any());
+        verify(agentPlatform).createAgentProcess(eq(defaultAgent), any(ProcessOptions.class), any());
     }
 
     @Test

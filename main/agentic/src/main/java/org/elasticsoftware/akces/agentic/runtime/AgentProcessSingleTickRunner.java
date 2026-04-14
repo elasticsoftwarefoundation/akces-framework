@@ -30,8 +30,9 @@ import java.util.stream.Stream;
  * {@link com.embabel.agent.core.Blackboard Blackboard}, returning them as a {@link Stream}.
  *
  * <p>After each tick, events are drained from the blackboard via
- * {@link AgentProcessResultTranslator#collectEvents} and marked as hidden so that
- * subsequent calls do not return the same events again.
+ * {@link AgentProcessResultTranslator#collectEvents} and tracked so that
+ * subsequent calls do not return the same events again. Events remain visible on
+ * the blackboard so the Embabel planner can still evaluate goal achievement.
  *
  * <p>This utility is the building block for the idle-poll resume path in
  * {@link KafkaAgenticAggregateRuntime#resumeNextAgentTask resumeNextAgentTask},

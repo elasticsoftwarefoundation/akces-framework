@@ -90,7 +90,7 @@ public class MemoryDistillerAgent {
      * @return a {@link MemoryDistillationResult} with memories to store and revoke
      */
     @Action(description = "Distill relevant memories from a completed agent process")
-    @AchievesGoal(description = "Distill and manage memories from completed agent processes")
+    @AchievesGoal(description = "Distill and manage memories from completed agent process")
     public MemoryDistillationResult distillMemories(MemoryDistillationInput input, ActionContext context) {
         int currentCount = input.existingMemories().size();
         int capacityLeft = Math.max(0, input.maxTotalMemories() - currentCount);

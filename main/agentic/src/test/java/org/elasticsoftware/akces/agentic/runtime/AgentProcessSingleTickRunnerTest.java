@@ -67,6 +67,8 @@ class AgentProcessSingleTickRunnerTest {
         when(agentProcess.getBlackboard()).thenReturn(blackboard);
         TestEvent event = new TestEvent("agg-1");
         when(blackboard.getObjects()).thenReturn(List.of(event));
+        // The cursor is lazily created on first call
+        when(blackboard.get(AgentProcessResultTranslator.PROCESSED_INDEX_KEY)).thenReturn(null);
 
         Collection<DomainEventType<?>> registeredTypes = List.of(
                 new DomainEventType<>("TestEvent", 1, TestEvent.class, false, false, false, false));
@@ -79,13 +81,16 @@ class AgentProcessSingleTickRunnerTest {
 
         verify(agentProcess).tick();
         verify(agentProcess).getBlackboard();
-        verify(blackboard).hide(event);
+        // Events are tracked via an index cursor stored on the blackboard, not hidden
+        verify(blackboard).set(eq(AgentProcessResultTranslator.PROCESSED_INDEX_KEY), any());
+        verify(blackboard, never()).hide(any());
     }
 
     @Test
     void tickShouldReturnEmptyStreamWhenNoEventsProduced() {
         when(agentProcess.getBlackboard()).thenReturn(blackboard);
         when(blackboard.getObjects()).thenReturn(List.of());
+        when(blackboard.get(AgentProcessResultTranslator.PROCESSED_INDEX_KEY)).thenReturn(null);
 
         Stream<DomainEvent> result = AgentProcessSingleTickRunner.tick(agentProcess, List.of());
         List<DomainEvent> events = result.toList();
@@ -100,6 +105,7 @@ class AgentProcessSingleTickRunnerTest {
         TestEvent normalEvent = new TestEvent("agg-1");
         TestErrorEvent errorEvent = new TestErrorEvent("agg-1");
         when(blackboard.getObjects()).thenReturn(List.of(normalEvent, errorEvent));
+        when(blackboard.get(AgentProcessResultTranslator.PROCESSED_INDEX_KEY)).thenReturn(null);
 
         // Only register the normal event type, not the error event type
         Collection<DomainEventType<?>> registeredTypes = List.of(
@@ -118,6 +124,7 @@ class AgentProcessSingleTickRunnerTest {
         when(agentProcess.getBlackboard()).thenReturn(blackboard);
         TestErrorEvent errorEvent = new TestErrorEvent("agg-1");
         when(blackboard.getObjects()).thenReturn(List.of(errorEvent));
+        when(blackboard.get(AgentProcessResultTranslator.PROCESSED_INDEX_KEY)).thenReturn(null);
 
         // Register the error event type
         Collection<DomainEventType<?>> registeredTypes = List.of(
@@ -136,6 +143,7 @@ class AgentProcessSingleTickRunnerTest {
         TestEvent event1 = new TestEvent("agg-1");
         TestEvent event2 = new TestEvent("agg-2");
         when(blackboard.getObjects()).thenReturn(List.of(event1, event2));
+        when(blackboard.get(AgentProcessResultTranslator.PROCESSED_INDEX_KEY)).thenReturn(null);
 
         Collection<DomainEventType<?>> registeredTypes = List.of(
                 new DomainEventType<>("TestEvent", 1, TestEvent.class, false, false, false, false));

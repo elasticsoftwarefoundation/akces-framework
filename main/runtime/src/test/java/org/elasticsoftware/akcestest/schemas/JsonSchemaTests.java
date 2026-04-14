@@ -56,6 +56,7 @@ public class JsonSchemaTests {
                 JakartaValidationOption.NOT_NULLABLE_FIELD_IS_REQUIRED));
         configBuilder.with(new JacksonSchemaModule());
         configBuilder.with(Option.FORBIDDEN_ADDITIONAL_PROPERTIES_BY_DEFAULT);
+        configBuilder.with(Option.MAP_VALUES_AS_ADDITIONAL_PROPERTIES);
         configBuilder.with(Option.NULLABLE_FIELDS_BY_DEFAULT);
         configBuilder.with(Option.NULLABLE_METHOD_RETURN_VALUES_BY_DEFAULT);
         // we need to override the default behavior of the generator to write BigDecimal as type = number

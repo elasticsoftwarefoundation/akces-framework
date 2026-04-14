@@ -101,7 +101,7 @@ class AgenticCommandHandlerFunctionAdapterTest {
         Agent agent = mock(Agent.class);
         when(agent.getName()).thenReturn("TestAggregate");
         when(agentPlatform.agents()).thenReturn(List.of(agent));
-        when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any(Map.class)))
+        when(agentPlatform.createAgentProcess(eq(agent), any(ProcessOptions.class), any(Map.class)))
                 .thenReturn(agentProcess);
 
         var adapter = new AgenticCommandHandlerFunctionAdapter<>(
@@ -111,7 +111,7 @@ class AgenticCommandHandlerFunctionAdapterTest {
         Stream<DomainEvent> result = adapter.apply(new TestCommand("agg-1"), new TestState("agg-1"));
 
         assertThat(result).isEmpty();
-        verify(agentPlatform).createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any(Map.class));
+        verify(agentPlatform).createAgentProcess(eq(agent), any(ProcessOptions.class), any(Map.class));
     }
 
     // -------------------------------------------------------------------------
@@ -123,7 +123,7 @@ class AgenticCommandHandlerFunctionAdapterTest {
         Agent agent = mock(Agent.class);
         when(agent.getName()).thenReturn("TestAggregateAgent");
         when(agentPlatform.agents()).thenReturn(List.of(agent));
-        when(agentPlatform.createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any(Map.class)))
+        when(agentPlatform.createAgentProcess(eq(agent), any(ProcessOptions.class), any(Map.class)))
                 .thenReturn(agentProcess);
 
         var adapter = new AgenticCommandHandlerFunctionAdapter<>(
@@ -133,7 +133,7 @@ class AgenticCommandHandlerFunctionAdapterTest {
         Stream<DomainEvent> result = adapter.apply(new TestCommand("agg-1"), new TestState("agg-1"));
 
         assertThat(result).isEmpty();
-        verify(agentPlatform).createAgentProcess(eq(agent), eq(ProcessOptions.DEFAULT), any(Map.class));
+        verify(agentPlatform).createAgentProcess(eq(agent), any(ProcessOptions.class), any(Map.class));
     }
 
     // -------------------------------------------------------------------------
@@ -145,7 +145,7 @@ class AgenticCommandHandlerFunctionAdapterTest {
         Agent defaultAgent = mock(Agent.class);
         when(defaultAgent.getName()).thenReturn(DefaultAgent.AGENT_NAME);
         when(agentPlatform.agents()).thenReturn(List.of(defaultAgent));
-        when(agentPlatform.createAgentProcess(eq(defaultAgent), eq(ProcessOptions.DEFAULT), any(Map.class)))
+        when(agentPlatform.createAgentProcess(eq(defaultAgent), any(ProcessOptions.class), any(Map.class)))
                 .thenReturn(agentProcess);
 
         var adapter = new AgenticCommandHandlerFunctionAdapter<>(
@@ -155,7 +155,7 @@ class AgenticCommandHandlerFunctionAdapterTest {
         Stream<DomainEvent> result = adapter.apply(new TestCommand("agg-1"), new TestState("agg-1"));
 
         assertThat(result).isEmpty();
-        verify(agentPlatform).createAgentProcess(eq(defaultAgent), eq(ProcessOptions.DEFAULT), any(Map.class));
+        verify(agentPlatform).createAgentProcess(eq(defaultAgent), any(ProcessOptions.class), any(Map.class));
     }
 
     @Test
@@ -201,7 +201,7 @@ class AgenticCommandHandlerFunctionAdapterTest {
         lenient().when(suffixAgent.getName()).thenReturn("MyAggregateAgent");
 
         when(agentPlatform.agents()).thenReturn(List.of(suffixAgent, exactAgent));
-        when(agentPlatform.createAgentProcess(eq(exactAgent), eq(ProcessOptions.DEFAULT), any(Map.class)))
+        when(agentPlatform.createAgentProcess(eq(exactAgent), any(ProcessOptions.class), any(Map.class)))
                 .thenReturn(agentProcess);
 
         var adapter = new AgenticCommandHandlerFunctionAdapter<>(
@@ -210,7 +210,7 @@ class AgenticCommandHandlerFunctionAdapterTest {
 
         adapter.apply(new TestCommand("agg-1"), new TestState("agg-1"));
 
-        verify(agentPlatform).createAgentProcess(eq(exactAgent), eq(ProcessOptions.DEFAULT), any(Map.class));
+        verify(agentPlatform).createAgentProcess(eq(exactAgent), any(ProcessOptions.class), any(Map.class));
     }
 
     // -------------------------------------------------------------------------
