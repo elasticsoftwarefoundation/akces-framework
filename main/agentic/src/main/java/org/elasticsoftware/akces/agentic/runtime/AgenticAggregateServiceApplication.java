@@ -287,6 +287,15 @@ public class AgenticAggregateServiceApplication {
         return ObservationRegistry.NOOP;
     }
 
+    /**
+     *
+     * <p>Registers the Embabel {@link LlmService} beansx that wraps the Spring AI
+     * {@link AnthropicChatModel} so that Embabel's {@code ConfigurableModelProvider}
+     * can resolve the default LLM by name. This is normally provided by
+     * {@code embabel-agent-starter-anthropic}, which is incompatible with the
+     * Spring AI version used by this project.
+     */
+
     @Bean
     public LlmService<?> anthropicClaudeSonnet46(AnthropicChatModel chatModel) {
         return new SpringAiLlmService(AnthropicModels.CLAUDE_SONNET_4_6, AnthropicModels.PROVIDER, chatModel);

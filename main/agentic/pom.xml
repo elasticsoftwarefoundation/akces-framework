@@ -83,23 +83,23 @@
             <artifactId>embabel-agent-starter</artifactId>
         </dependency>
 
-        <!-- Test dependencies -->
+        <!-- Need for Spring AI v2+ and Embabel 0.3,x to work together -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-jackson2</artifactId>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.retry</groupId>
             <artifactId>spring-retry</artifactId>
             <version>2.0.12</version>
-            <scope>test</scope>
         </dependency>
+
+        <!-- Test dependencies -->
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
