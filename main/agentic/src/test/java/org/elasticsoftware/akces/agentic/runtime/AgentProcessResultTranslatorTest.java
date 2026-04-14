@@ -33,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Unit tests for {@link AgentProcessResultTranslator}, verifying event collection,
- * blackboard draining, and handling of registered vs. unregistered error events.
+ * processed-event tracking, and handling of registered vs. unregistered error events.
  */
 class AgentProcessResultTranslatorTest {
 
@@ -106,16 +106,32 @@ class AgentProcessResultTranslatorTest {
     }
 
     @Test
-    void collectEventsShouldHideEventsAfterCollection() {
+    void collectEventsShouldNotReturnAlreadyCollectedEvents() {
         TestStateChangedEvent event = new TestStateChangedEvent("agg-1");
         blackboard.addObject(event);
 
         AgentProcessResultTranslator.collectEvents(blackboard, List.of(STATE_CHANGED_TYPE));
 
-        // Second call should return nothing — events were hidden on first call
+        // Second call should return nothing — events were tracked on first call
         List<DomainEvent> second = AgentProcessResultTranslator.collectEvents(
                 blackboard, List.of(STATE_CHANGED_TYPE));
         assertThat(second).isEmpty();
+    }
+
+    @Test
+    void collectEventsShouldKeepEventsVisibleOnBlackboard() {
+        TestStateChangedEvent event = new TestStateChangedEvent("agg-1");
+        blackboard.addObject(event);
+
+        AgentProcessResultTranslator.collectEvents(blackboard, List.of(STATE_CHANGED_TYPE));
+
+        // Events should still be visible on the blackboard (not hidden)
+        // so the Embabel planner can evaluate goal achievement
+        List<DomainEvent> visibleEvents = blackboard.getObjects().stream()
+                .filter(o -> o instanceof DomainEvent)
+                .map(o -> (DomainEvent) o)
+                .toList();
+        assertThat(visibleEvents).containsExactly(event);
     }
 
     @Test
@@ -179,14 +195,14 @@ class AgentProcessResultTranslatorTest {
     }
 
     @Test
-    void collectEventsShouldHideUnregisteredErrorEventSoItIsNotReturnedAgain() {
+    void collectEventsShouldTrackUnregisteredErrorEventSoItIsNotReturnedAgain() {
         TestUnregisteredErrorEvent unknownError = new TestUnregisteredErrorEvent("agg-1");
         blackboard.addObject(unknownError);
 
         AgentProcessResultTranslator.collectEvents(
                 blackboard, List.of(STATE_CHANGED_TYPE, REGISTERED_ERROR_TYPE));
 
-        // The unknown error was hidden — second call also returns nothing
+        // The unknown error was tracked — second call also returns nothing
         List<DomainEvent> second = AgentProcessResultTranslator.collectEvents(
                 blackboard, List.of(STATE_CHANGED_TYPE, REGISTERED_ERROR_TYPE));
         assertThat(second).isEmpty();

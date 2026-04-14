@@ -24,10 +24,7 @@ import org.elasticsoftware.akces.events.ErrorEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -35,10 +32,13 @@ import java.util.stream.Collectors;
  * into Akces {@link DomainEvent} instances.
  *
  * <p>After each agent tick (or after the process reaches an end state), call
- * {@link #collectEvents(Blackboard, Collection)} to drain {@link DomainEvent} objects
- * from the blackboard. Events are marked as hidden on the blackboard after collection,
- * so subsequent calls to this method will not return the same events again — this
- * supports both tick-to-completion and future incremental-tick processing patterns.
+ * {@link #collectEvents(Blackboard, Collection)} to drain new {@link DomainEvent} objects
+ * from the blackboard. Already-collected events are tracked using an identity-based set
+ * stored on the blackboard under the key {@value #PROCESSED_EVENTS_KEY}, so subsequent
+ * calls to this method will not return the same events again. Unlike the previous
+ * approach of hiding events via {@link Blackboard#hide(Object)}, events remain visible
+ * on the blackboard so that the Embabel planner can still evaluate goal achievement
+ * based on the full event stream.
  *
  * <p>Unknown {@link ErrorEvent} types (not declared in {@code agentProducedErrors} and
  * therefore not registered as {@link DomainEventType}s in the runtime) are logged at
@@ -53,15 +53,25 @@ public final class AgentProcessResultTranslator {
 
     private static final Logger logger = LoggerFactory.getLogger(AgentProcessResultTranslator.class);
 
+    /**
+     * Blackboard key under which the set of already-processed events is stored.
+     */
+    static final String PROCESSED_EVENTS_KEY = "_akces_processedDomainEvents";
+
     private AgentProcessResultTranslator() {
         // utility class
     }
 
     /**
-     * Collects all {@link DomainEvent} objects currently visible on the blackboard,
-     * removes them from visible scope (via {@link Blackboard#hide(Object)}), and returns
-     * the subset that can safely be passed to the runtime's {@code processDomainEvent()}
-     * method.
+     * Collects all <em>new</em> {@link DomainEvent} objects currently on the blackboard
+     * that have not been collected before, and returns the subset that can safely be
+     * passed to the runtime's {@code processDomainEvent()} method.
+     *
+     * <p>Events remain on the blackboard (they are <em>not</em> hidden) so the Embabel
+     * planner can still evaluate goal achievement from the full event stream. An
+     * identity-based set stored on the blackboard under key
+     * {@value #PROCESSED_EVENTS_KEY} tracks which events have already been collected to
+     * prevent double-processing.
      *
      * <p>For every collected event:
      * <ul>
@@ -83,11 +93,24 @@ public final class AgentProcessResultTranslator {
      * @return an unmodifiable list of domain events that are safe to pass to the runtime;
      *         never {@code null}, may be empty
      */
+    @SuppressWarnings("unchecked")
     public static List<DomainEvent> collectEvents(Blackboard blackboard,
                                                   Collection<DomainEventType<?>> registeredEventTypes) {
         Set<Class<?>> registeredClasses = registeredEventTypes.stream()
                 .map(DomainEventType::typeClass)
                 .collect(Collectors.toSet());
+
+        // Retrieve or create the identity-based set of already-processed events.
+        // Using IdentityHashMap-backed set so that reference equality is used — each
+        // DomainEvent instance placed on the blackboard is tracked by identity, not
+        // by value equality. This is important because two structurally equal events
+        // (e.g. same record fields) placed at different times must be treated as
+        // separate events.
+        Set<DomainEvent> processedEvents = (Set<DomainEvent>) blackboard.get(PROCESSED_EVENTS_KEY);
+        if (processedEvents == null) {
+            processedEvents = Collections.newSetFromMap(new IdentityHashMap<>());
+            blackboard.set(PROCESSED_EVENTS_KEY, processedEvents);
+        }
 
         List<DomainEvent> allEvents = blackboard.getObjects().stream()
                 .filter(o -> o instanceof DomainEvent)
@@ -96,7 +119,10 @@ public final class AgentProcessResultTranslator {
 
         List<DomainEvent> result = new ArrayList<>(allEvents.size());
         for (DomainEvent event : allEvents) {
-            blackboard.hide(event);
+            if (processedEvents.contains(event)) {
+                continue; // already collected in a previous call
+            }
+            processedEvents.add(event);
             if (event instanceof ErrorEvent && !registeredClasses.contains(event.getClass())) {
                 logger.warn(
                         "Agent produced undeclared error event of type '{}' which is not registered " +
