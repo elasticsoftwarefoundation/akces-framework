@@ -199,6 +199,8 @@ public class TradingAdvisorIntegrationTest {
         assertEquals("TradingAdvisorCreated", firstEvent.name());
     }
 
+    @EnabledIfEnvironmentVariable(named = "ANTHROPIC_API_KEY", matches = ".+",
+            disabledReason = "ANTHROPIC_API_KEY environment variable must be set to run agentic integration tests")
     @Test
     @Order(4)
     @DisplayName("AssignTask command should produce AgentTaskAssigned event")
