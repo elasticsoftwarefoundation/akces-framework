@@ -203,8 +203,8 @@ public class TradingAdvisorIntegrationTest {
             disabledReason = "ANTHROPIC_API_KEY environment variable must be set to run agentic integration tests")
     @Test
     @Order(4)
-    @DisplayName("AssignTask command should produce AgentTaskAssigned event")
-    void testAssignTaskCommand() {
+    @DisplayName("Agent should complete the task and produce AgentTaskFinished event with analysis")
+    void testAssignTaskCommandAndAgentTaskCompletion() {
         assertNotNull(tradingAdvisorController);
         // Wait for the controller to fully start (auto-create included)
         long deadline = System.currentTimeMillis() + 60_000;
@@ -238,49 +238,6 @@ public class TradingAdvisorIntegrationTest {
                 "TradingAdvisor-Commands", 0, commandRecord.aggregateId(), commandRecord));
         testProducer.commitTransaction();
         testProducer.close();
-
-        // Wait for events to appear on the DomainEvents topic
-        TopicPartition domainEventsPartition = new TopicPartition("TradingAdvisor-DomainEvents", 0);
-        Consumer<String, ProtocolRecord> testConsumer = consumerFactory.createConsumer("Test-AssignTask", "test-assign-task");
-        testConsumer.assign(List.of(domainEventsPartition));
-        testConsumer.seekToBeginning(testConsumer.assignment());
-
-        List<DomainEventRecord> allEvents = new ArrayList<>();
-        deadline = System.currentTimeMillis() + 30_000;
-        while (System.currentTimeMillis() < deadline) {
-            ConsumerRecords<String, ProtocolRecord> records = testConsumer.poll(Duration.ofMillis(500));
-            records.records(domainEventsPartition).forEach(record -> {
-                if (record.value() instanceof DomainEventRecord der) {
-                    allEvents.add(der);
-                }
-            });
-            // Check if we have the AgentTaskAssigned event
-            if (allEvents.stream().anyMatch(e -> "AgentTaskAssigned".equals(e.name()))) {
-                break;
-            }
-        }
-        testConsumer.close();
-
-        assertTrue(allEvents.stream().anyMatch(e -> "AgentTaskAssigned".equals(e.name())),
-                "Expected AgentTaskAssigned event. Events received: " +
-                        allEvents.stream().map(DomainEventRecord::name).toList());
-    }
-
-    @EnabledIfEnvironmentVariable(named = "ANTHROPIC_API_KEY", matches = ".+",
-            disabledReason = "ANTHROPIC_API_KEY environment variable must be set to run agentic integration tests")
-    @Test
-    @Order(5)
-    @DisplayName("Agent should complete the task and produce AgentTaskFinished event with analysis")
-    void testAgentTaskCompletion() {
-        assertNotNull(tradingAdvisorController);
-        // Wait for the controller to fully start (auto-create included)
-        long deadline = System.currentTimeMillis() + 60_000;
-        while (!tradingAdvisorController.isRunning()) {
-            if (System.currentTimeMillis() > deadline) {
-                fail("TradingAdvisor controller did not start within 60 seconds");
-            }
-            Thread.onSpinWait();
-        }
         // Wait for the agent to complete the task assigned in the previous test.
         // The agent process is ticked during the partition's idle-poll cycle.
         TopicPartition domainEventsPartition = new TopicPartition("TradingAdvisor-DomainEvents", 0);

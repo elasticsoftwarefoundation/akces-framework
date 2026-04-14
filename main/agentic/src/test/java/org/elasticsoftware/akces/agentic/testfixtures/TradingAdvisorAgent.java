@@ -51,15 +51,13 @@ public class TradingAdvisorAgent {
      * to the aggregate state via the {@code @EventSourcingHandler} on the aggregate.
      *
      * @param command the AssignTask command containing the task description and aggregate id
-     * @param state   the current TradingAdvisor state (injected from blackboard)
      * @param context the Embabel action context providing access to AI capabilities
      * @return a {@link MarketAnalysisCompletedEvent} with the analysis result
      */
     @Action(description = "Analyze market data based on the assigned task and produce a market analysis")
-    @AchievesGoal(description = "Complete the assigned task")
+    @AchievesGoal(description = "Analyze a Crypto Market")
     public MarketAnalysisCompletedEvent analyzeMarket(
             AssignTaskCommand command,
-            TradingAdvisorState state,
             ActionContext context) {
 
         String prompt = """
