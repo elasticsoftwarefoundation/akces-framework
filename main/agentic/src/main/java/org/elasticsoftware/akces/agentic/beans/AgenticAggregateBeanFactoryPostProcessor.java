@@ -162,15 +162,6 @@ public class AgenticAggregateBeanFactoryPostProcessor
                     beanFactory.containsBeanDefinition("agenticServiceSchemaProducerFactory") &&
                     beanFactory.containsBeanDefinition("agenticServiceAggregateStateRepositoryFactory")) {
 
-                AgenticAggregateInfo agenticInfo = null;
-                try {
-                    agenticInfo = Class.forName(
-                            beanFactory.getBeanDefinition(beanName).getBeanClassName())
-                            .getAnnotation(AgenticAggregateInfo.class);
-                } catch (ClassNotFoundException e) {
-                    throw new ApplicationContextException("Unable to load class for bean " + beanName, e);
-                }
-
                 // AkcesAgenticAggregateController (Thread — started via init method, closed via destroy method)
                 // The partition is created internally by the controller, so no separate partition bean is needed.
                 bdr.registerBeanDefinition(beanName + "AgenticRuntime",
