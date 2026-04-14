@@ -32,6 +32,7 @@ import org.springframework.core.annotation.MergedAnnotations;
 import org.springframework.stereotype.Component;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -169,6 +170,6 @@ class TradingAdvisorAgentLoadingTest {
                 .isSameAs(tradingAdvisor);
 
         // Verify the agent was deployed to the platform
-        verify(mockPlatform).deploy(org.mockito.ArgumentMatchers.any(AgentScope.class));
+        verify(mockPlatform).deploy(any(AgentScope.class));
     }
 }
