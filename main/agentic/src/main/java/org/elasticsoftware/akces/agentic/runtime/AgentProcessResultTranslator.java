@@ -104,7 +104,7 @@ public final class AgentProcessResultTranslator {
                 .map(DomainEventType::typeClass)
                 .collect(Collectors.toSet());
 
-        // Retrieve or initialise the cursor.  We use a single-element int array so
+        // Retrieve or initialize the cursor.  We use a single-element int array so
         // the value is mutable across calls without needing to call set() again.
         int[] cursor = (int[]) blackboard.get(PROCESSED_INDEX_KEY);
         if (cursor == null) {
