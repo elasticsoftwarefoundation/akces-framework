@@ -166,6 +166,7 @@ class ResumeNextAgentTaskTest {
         when(delegate.materializeState(stateRecord)).thenReturn(state);
 
         when(agentPlatform.getAgentProcess("proc-42")).thenReturn(agentProcess);
+        when(agentProcess.getStatus()).thenReturn(AgentProcessStatusCode.RUNNING);
         when(agentProcess.getBlackboard()).thenReturn(blackboard);
         when(blackboard.getObjects()).thenReturn(List.of());
         when(delegate.getAllDomainEventTypes()).thenReturn(List.of());
@@ -189,6 +190,7 @@ class ResumeNextAgentTaskTest {
         when(delegate.materializeState(stateRecord)).thenReturn(state);
 
         when(agentPlatform.getAgentProcess(anyString())).thenReturn(agentProcess);
+        when(agentProcess.getStatus()).thenReturn(AgentProcessStatusCode.RUNNING);
         when(agentProcess.getBlackboard()).thenReturn(blackboard);
         when(blackboard.getObjects()).thenReturn(List.of());
         when(delegate.getAllDomainEventTypes()).thenReturn(List.of());
@@ -319,6 +321,7 @@ class ResumeNextAgentTaskTest {
         when(delegate.materializeState(stateRecord)).thenReturn(state);
 
         when(agentPlatform.getAgentProcess("proc-42")).thenReturn(agentProcess);
+        when(agentProcess.getStatus()).thenReturn(AgentProcessStatusCode.RUNNING);
         when(agentProcess.getBlackboard()).thenReturn(blackboard);
         when(blackboard.getObjects()).thenReturn(List.of());
         when(delegate.getAllDomainEventTypes()).thenReturn(List.of());
