@@ -112,7 +112,7 @@ public class AgenticAggregateBeanFactoryPostProcessor
                 final Class<? extends AgenticAggregate<?>> aggregateClass =
                         (Class<? extends AgenticAggregate<?>>) Class.forName(bd.getBeanClassName());
                 AgenticAggregateInfo agenticInfo = aggregateClass.getAnnotation(AgenticAggregateInfo.class);
-                AggregateValidator validator = new AggregateValidator(aggregateClass, agenticInfo.stateClass());
+                AggregateValidator validator = new AggregateValidator(aggregateClass, agenticInfo.stateClass(), true);
 
                 List<Method> commandHandlers = Arrays.stream(aggregateClass.getMethods())
                         .filter(m -> m.isAnnotationPresent(CommandHandler.class))
