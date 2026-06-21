@@ -96,7 +96,7 @@ public class Jackson3OutputConverter<T> implements StructuredOutputConverter<T> 
         try {
             return lenientMapper.readValue(unwrapped, lenientMapper.constructType(type));
         } catch (JsonProcessingException e) {
-            logger.error("Could not parse the given text to the desired target type: \"{}\" into {}", unwrapped, type);
+            logger.error("Could not parse model output into {}", type, e);
             throw new RuntimeException(e);
         }
     }
