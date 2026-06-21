@@ -1,6 +1,7 @@
 # Implementation Plan: [FEATURE]
 
 **Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
+
 **Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
@@ -17,15 +18,23 @@
   the iteration process.
 -->
 
-**Language/Version**: Java 25  
-**Primary Dependencies**: Spring Boot 4.x, Apache Kafka (kafka-clients/kafka-streams/spring-kafka), RocksDB, victools (JSON Schema), Confluent Schema Registry  
-**AI/Agent Layer**: Embabel Agent Framework (agentic module only)  
-**Storage**: RocksDB (aggregate state), Kafka (event log), JDBC/JPA (query/database models)  
-**Testing**: JUnit Jupiter + Mockito + AssertJ + Testcontainers (Kafka); run with `mvn test`  
-**Target Platform**: JVM / Kubernetes (AggregateService, CommandService, QueryService CRDs)  
-**Performance Goals**: [domain-specific, e.g., throughput per Kafka partition or NEEDS CLARIFICATION]  
-**Constraints**: All handlers must be non-blocking and deterministic; schema changes must be backward-compatible  
-**Scale/Scope**: [e.g., number of aggregates, event volume, or NEEDS CLARIFICATION]
+**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]
+
+**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
+
+**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
+
+**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]
+
+**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
+
+**Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]
+
+**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]
+
+**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]
+
+**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
 
 ## Constitution Check
 
@@ -50,48 +59,49 @@ specs/[###-feature]/
 ### Source Code (repository root)
 <!--
   ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Map new types to the correct Akces Framework modules.
-  Delete unused options and expand the chosen structure with real paths.
+  for this feature. Delete unused options and expand the chosen structure with
+  real paths (e.g., apps/admin, packages/something). The delivered plan must
+  not include Option labels.
 -->
 
 ```text
-# Option A: New feature within an existing module (MOST COMMON)
-main/[module]/src/main/java/org/elasticsoftware/akces/[package]/
-├── [FeatureName]Aggregate.java          # or extends existing aggregate
-├── commands/
-│   └── [FeatureName]Command.java
-├── events/
-│   ├── [FeatureName]Event.java
-│   └── [FeatureName]ErrorEvent.java
-└── state/
-    └── [FeatureName]State.java          # or updated existing *State record
+# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
+src/
+├── models/
+├── services/
+├── cli/
+└── lib/
 
-main/[module]/src/test/java/org/elasticsoftware/[package]/
-└── [FeatureName]Test.java               # JUnit Jupiter + Testcontainers
+tests/
+├── contract/
+├── integration/
+└── unit/
 
-# Option B: New cross-cutting capability spanning multiple modules
-main/api/src/main/java/org/elasticsoftware/akces/
-└── [new-package]/                        # New interface/annotation (no framework deps)
+# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
+backend/
+├── src/
+│   ├── models/
+│   ├── services/
+│   └── api/
+└── tests/
 
-main/shared/src/main/java/org/elasticsoftware/akces/
-└── [new-package]/                        # New shared utility/protocol type
+frontend/
+├── src/
+│   ├── components/
+│   ├── pages/
+│   └── services/
+└── tests/
 
-main/runtime/src/main/java/org/elasticsoftware/akces/
-└── [new-package]/                        # Runtime implementation
+# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
+api/
+└── [same as backend above]
 
-# Option C: New module (requires new pom.xml + parent registration)
-main/[new-module]/
-├── pom.xml
-└── src/main/java/org/elasticsoftware/akces/[new-module]/
-
-# Option D: Agentic feature (uses Embabel Agent Framework)
-main/agentic/src/main/java/org/elasticsoftware/akces/agentic/
-├── commands/[FeatureName]Command.java
-├── events/[FeatureName]Event.java
-└── runtime/[FeatureName]Handler.java
+ios/ or android/
+└── [platform-specific structure: feature modules, UI flows, platform tests]
 ```
 
-**Structure Decision**: [Document the selected option and list the real file paths for this feature]
+**Structure Decision**: [Document the selected structure and reference the real
+directories captured above]
 
 ## Complexity Tracking
 

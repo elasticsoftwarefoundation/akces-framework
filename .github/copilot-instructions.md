@@ -551,3 +551,8 @@ When contributing:
 
 For questions or issues, refer to the project's GitHub repository at:
 https://github.com/elasticsoftwarefoundation/akces-framework
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->
