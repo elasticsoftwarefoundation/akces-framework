@@ -139,7 +139,7 @@
             <dependency>
                 <groupId>com.hubspot.immutables</groupId>
                 <artifactId>immutables-exceptions</artifactId>
-                <version>1.9</version>
+                <version>1.11.4</version>
             </dependency>
             <dependency>
                 <groupId>com.google.re2j</groupId>
