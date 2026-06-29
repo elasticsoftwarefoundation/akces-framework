@@ -19,26 +19,26 @@ package org.elasticsoftware.cryptotrading.services.coinbase;
 
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 
 public record Product(
-        @NotNull @JsonProperty("id") String id,
-        @NotNull @JsonProperty("base_currency") String baseCurrency,
-        @NotNull @JsonProperty("quote_currency") String quoteCurrency,
-        @NotNull @JsonProperty("quote_increment") String quoteIncrement,
-        @NotNull @JsonProperty("base_increment") String baseIncrement,
-        @NotNull @JsonProperty("display_name") String displayName,
-        @NotNull @JsonProperty("min_market_funds") String minMarketFunds,
-        @NotNull @JsonProperty("margin_enabled") Boolean marginEnabled,
-        @NotNull @JsonProperty("post_only") Boolean postOnly,
-        @NotNull @JsonProperty("limit_only") Boolean limitOnly,
-        @NotNull @JsonProperty("cancel_only") Boolean cancelOnly,
-        @NotNull @JsonProperty("status") String status,
-        @NotNull @JsonProperty("status_message") String statusMessage,
+        @Nonnull @JsonProperty("id") String id,
+        @Nonnull @JsonProperty("base_currency") String baseCurrency,
+        @Nonnull @JsonProperty("quote_currency") String quoteCurrency,
+        @Nonnull @JsonProperty("quote_increment") String quoteIncrement,
+        @Nonnull @JsonProperty("base_increment") String baseIncrement,
+        @Nonnull @JsonProperty("display_name") String displayName,
+        @Nonnull @JsonProperty("min_market_funds") String minMarketFunds,
+        @Nonnull @JsonProperty("margin_enabled") Boolean marginEnabled,
+        @Nonnull @JsonProperty("post_only") Boolean postOnly,
+        @Nonnull @JsonProperty("limit_only") Boolean limitOnly,
+        @Nonnull @JsonProperty("cancel_only") Boolean cancelOnly,
+        @Nonnull @JsonProperty("status") String status,
+        @Nonnull @JsonProperty("status_message") String statusMessage,
         @JsonProperty("trading_disabled") Boolean tradingDisabled,
         @JsonProperty("fx_stablecoin") Boolean fxStablecoin,
         @JsonProperty("max_slippage_percentage") String maxSlippagePercentage,
-        @NotNull @JsonProperty("auction_mode") Boolean auctionMode,
+        @Nonnull @JsonProperty("auction_mode") Boolean auctionMode,
         @JsonProperty("high_bid_limit_percentage") String highBidLimitPercentage
 ) {
 }

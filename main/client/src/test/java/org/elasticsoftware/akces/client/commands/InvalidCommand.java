@@ -17,12 +17,12 @@
 
 package org.elasticsoftware.akces.client.commands;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.commands.Command;
 
 public record InvalidCommand(String id) implements Command {
     @Override
-    public @NotNull String getAggregateId() {
+    public @Nonnull String getAggregateId() {
         return id();
     }
 }

@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akcestest.aggregate.wallet;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.AggregateStateInfo;
@@ -27,7 +27,7 @@ import java.util.List;
 
 @AggregateStateInfo(type = "Wallet", version = 1)
 public record WalletState(
-        @AggregateIdentifier @NotNull String id,
+        @AggregateIdentifier @Nonnull String id,
         List<Balance> balances
 ) implements AggregateState {
     @Override
@@ -36,11 +36,11 @@ public record WalletState(
     }
 
     public record Balance(String currency, BigDecimal amount, BigDecimal reservedAmount) {
-        public Balance(@NotNull String currency) {
+        public Balance(@Nonnull String currency) {
             this(currency, BigDecimal.ZERO, BigDecimal.ZERO);
         }
 
-        public Balance(@NotNull String currency, @NotNull BigDecimal amount) {
+        public Balance(@Nonnull String currency, @Nonnull BigDecimal amount) {
             this(currency, amount, BigDecimal.ZERO);
         }
 

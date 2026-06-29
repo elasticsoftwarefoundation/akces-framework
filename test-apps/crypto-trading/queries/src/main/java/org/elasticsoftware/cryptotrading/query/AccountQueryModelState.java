@@ -18,17 +18,16 @@
 package org.elasticsoftware.cryptotrading.query;
 
 import jakarta.annotation.Nonnull;
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.PIIData;
 import org.elasticsoftware.akces.annotations.QueryModelStateInfo;
 import org.elasticsoftware.akces.query.QueryModelState;
 
 @QueryModelStateInfo(type = "AccountQueryModel")
-public record AccountQueryModelState(@NotNull String accountId,
-                                     @NotNull String country,
-                                     @NotNull @PIIData String firstName,
-                                     @NotNull @PIIData String lastName,
-                                     @NotNull @PIIData String email) implements QueryModelState {
+public record AccountQueryModelState(@Nonnull String accountId,
+                                     @Nonnull String country,
+                                     @Nonnull @PIIData String firstName,
+                                     @Nonnull @PIIData String lastName,
+                                     @Nonnull @PIIData String email) implements QueryModelState {
     @Override @Nonnull
     public String getIndexKey() {
         return accountId();

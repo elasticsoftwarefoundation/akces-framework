@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akcestest.old;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.commands.Command;
 
@@ -25,7 +25,7 @@ public record CreateWalletCommand(
         @AggregateIdentifier String id,
         String currency
 ) implements Command {
-    @NotNull
+    @Nonnull
     @Override
     public String getAggregateId() {
         return id();

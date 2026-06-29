@@ -17,11 +17,11 @@
 
 package org.elasticsoftware.akcestest.aggregate.account;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.PIIData;
 
-public record PreviousAccountState(@NotNull String userId,
-                                   @NotNull String country,
-                                   @NotNull @PIIData String firstName,
-                                   @NotNull @PIIData String lastName,
-                                   @NotNull @PIIData String email) {}
+public record PreviousAccountState(@Nonnull String userId,
+                                   @Nonnull String country,
+                                   @Nonnull @PIIData String firstName,
+                                   @Nonnull @PIIData String lastName,
+                                   @Nonnull @PIIData String email) {}

@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.orders.events;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 
@@ -26,13 +26,13 @@ import java.math.BigDecimal;
 
 @DomainEventInfo(type = "BuyOrderFilled", version = 1)
 public record BuyOrderFilledEvent(
-        @NotNull String userId,
-        @NotNull String orderId,
-        @NotNull String counterpartyId,
-        @NotNull BigDecimal price,
-        @NotNull BigDecimal quantity,
-        @NotNull String baseCurrency,
-        @NotNull String quoteCurrency
+        @Nonnull String userId,
+        @Nonnull String orderId,
+        @Nonnull String counterpartyId,
+        @Nonnull BigDecimal price,
+        @Nonnull BigDecimal quantity,
+        @Nonnull String baseCurrency,
+        @Nonnull String quoteCurrency
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {

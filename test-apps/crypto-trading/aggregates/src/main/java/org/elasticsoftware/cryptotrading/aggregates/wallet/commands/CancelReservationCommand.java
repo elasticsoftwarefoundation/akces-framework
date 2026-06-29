@@ -17,15 +17,15 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.wallet.commands;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
 @CommandInfo(type = "CancelReservation", version = 1)
 public record CancelReservationCommand(
-    @NotNull String userId,
-    @NotNull String currency,
-    @NotNull String referenceId
+    @Nonnull String userId,
+    @Nonnull String currency,
+    @Nonnull String referenceId
 ) implements Command {
     @Override
     public String getAggregateId() {

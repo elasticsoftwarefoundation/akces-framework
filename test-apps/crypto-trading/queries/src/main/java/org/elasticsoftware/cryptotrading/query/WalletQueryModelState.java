@@ -18,7 +18,7 @@
 package org.elasticsoftware.cryptotrading.query;
 
 import tools.jackson.databind.annotation.JsonSerialize;
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.QueryModelStateInfo;
 import org.elasticsoftware.akces.query.QueryModelState;
 import org.elasticsoftware.akces.serialization.BigDecimalSerializer;
@@ -36,11 +36,11 @@ public record WalletQueryModelState(String walletId, List<Balance> balances) imp
     public record Balance(String currency, 
                          @JsonSerialize(using = BigDecimalSerializer.class) BigDecimal amount, 
                          @JsonSerialize(using = BigDecimalSerializer.class) BigDecimal reservedAmount) {
-        public Balance(@NotNull String currency) {
+        public Balance(@Nonnull String currency) {
             this(currency, BigDecimal.ZERO, BigDecimal.ZERO);
         }
 
-        public Balance(@NotNull String currency, @NotNull BigDecimal amount) {
+        public Balance(@Nonnull String currency, @Nonnull BigDecimal amount) {
             this(currency, amount, BigDecimal.ZERO);
         }
 

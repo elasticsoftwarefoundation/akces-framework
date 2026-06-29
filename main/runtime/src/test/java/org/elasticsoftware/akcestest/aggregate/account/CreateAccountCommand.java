@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akcestest.aggregate.account;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.annotations.PIIData;
@@ -25,14 +25,14 @@ import org.elasticsoftware.akces.commands.Command;
 
 @CommandInfo(type = "CreateAccount")
 public record CreateAccountCommand(
-        @AggregateIdentifier @NotNull String userId,
-        @NotNull String country,
-        @NotNull @PIIData String firstName,
-        @NotNull @PIIData String lastName,
-        @NotNull @PIIData String email
+        @AggregateIdentifier @Nonnull String userId,
+        @Nonnull String country,
+        @Nonnull @PIIData String firstName,
+        @Nonnull @PIIData String lastName,
+        @Nonnull @PIIData String email
 ) implements Command {
     @Override
-    @NotNull
+    @Nonnull
     public String getAggregateId() {
         return userId();
     }

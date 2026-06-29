@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akcestest.aggregate.wallet;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
@@ -26,11 +26,11 @@ import java.math.BigDecimal;
 
 @CommandInfo(type = "CreditWallet", version = 1)
 public record CreditWalletCommand(
-        @AggregateIdentifier @NotNull String id,
-        @NotNull String currency,
-        @NotNull BigDecimal amount
+        @AggregateIdentifier @Nonnull String id,
+        @Nonnull String currency,
+        @Nonnull BigDecimal amount
 ) implements Command {
-    @NotNull
+    @Nonnull
     @Override
     public String getAggregateId() {
         return id();

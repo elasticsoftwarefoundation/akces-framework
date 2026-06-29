@@ -18,7 +18,6 @@
 package org.elasticsoftware.akces.agentic.events;
 
 import jakarta.annotation.Nonnull;
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.aggregate.RequestingParty;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
@@ -52,12 +51,12 @@ import java.util.Map;
 @DomainEventInfo(type = "AgentTaskAssigned", version = 1,
         description = "Emitted when a task has been assigned to an agentic aggregate and an AgentProcess has been created")
 public record AgentTaskAssignedEvent(
-        @AggregateIdentifier String agenticAggregateId,
-        @NotNull String agentProcessId,
-        @NotNull String taskDescription,
-        @NotNull RequestingParty requestingParty,
+        @AggregateIdentifier @Nonnull String agenticAggregateId,
+        @Nonnull String agentProcessId,
+        @Nonnull String taskDescription,
+        @Nonnull RequestingParty requestingParty,
         Map<String, String> taskMetadata,
-        @NotNull Instant assignedAt
+        @Nonnull Instant assignedAt
 ) implements DomainEvent {
 
     /**

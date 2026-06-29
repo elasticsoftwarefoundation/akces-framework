@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.wallet;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.annotations.*;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -62,19 +62,19 @@ public final class Wallet implements Aggregate<WalletStateV2> {
     }
 
     @EventHandler(create = true, produces = WalletCreatedEvent.class, errors = {})
-    public @NotNull Stream<DomainEvent> create(@NotNull AccountCreatedEvent event, WalletStateV2 isNull) {
+    public @Nonnull Stream<DomainEvent> create(@Nonnull AccountCreatedEvent event, WalletStateV2 isNull) {
         log.info("EventHandler: Creating wallet from AccountCreatedEvent for userId={}", event.getAggregateId());
         return Stream.of(new WalletCreatedEvent(event.getAggregateId()), new BalanceCreatedEvent(event.getAggregateId(), "EUR"));
     }
 
     @CommandHandler(create = true, produces = WalletCreatedEvent.class, errors = {})
-    public @NotNull Stream<DomainEvent> create(@NotNull CreateWalletCommand cmd, WalletStateV2 isNull) {
+    public @Nonnull Stream<DomainEvent> create(@Nonnull CreateWalletCommand cmd, WalletStateV2 isNull) {
         log.info("CommandHandler: Creating wallet for id={}, currency={}", cmd.id(), cmd.currency());
         return Stream.of(new WalletCreatedEvent(cmd.id()), new BalanceCreatedEvent(cmd.id(), cmd.currency()));
     }
 
     @CommandHandler(produces = BalanceCreatedEvent.class, errors = {BalanceAlreadyExistsErrorEvent.class})
-    public @NotNull Stream<DomainEvent> createBalance(@NotNull CreateBalanceCommand cmd, @NotNull WalletStateV2 currentState) {
+    public @Nonnull Stream<DomainEvent> createBalance(@Nonnull CreateBalanceCommand cmd, @Nonnull WalletStateV2 currentState) {
         log.info("CommandHandler: Creating balance for walletId={}, currency={}", cmd.id(), cmd.currency());
         boolean balanceExists = currentState.balances().stream()
                 .anyMatch(balance -> balance.currency().equals(cmd.currency()));
@@ -86,8 +86,8 @@ public final class Wallet implements Aggregate<WalletStateV2> {
     }
 
     @CommandHandler(produces = WalletCreditedEvent.class, errors = {InvalidCryptoCurrencyErrorEvent.class, InvalidAmountErrorEvent.class})
-    @NotNull
-    public Stream<DomainEvent> credit(@NotNull CreditWalletCommand cmd, @NotNull WalletStateV2 currentState) {
+    @Nonnull
+    public Stream<DomainEvent> credit(@Nonnull CreditWalletCommand cmd, @Nonnull WalletStateV2 currentState) {
         log.info("CommandHandler: Crediting wallet for walletId={}, currency={}, amount={}", cmd.id(), cmd.currency(), cmd.amount());
         WalletStateV2.Balance balance = currentState.balances().stream().filter(b -> b.currency().equals(cmd.currency())).findFirst().orElse(null);
         if (balance == null) {
@@ -104,8 +104,8 @@ public final class Wallet implements Aggregate<WalletStateV2> {
     }
 
     @CommandHandler(produces = WalletDebitedEvent.class, errors = {InvalidCryptoCurrencyErrorEvent.class, InvalidAmountErrorEvent.class, InsufficientFundsErrorEvent.class})
-    @NotNull
-    public Stream<DomainEvent> debit(@NotNull DebitWalletCommand cmd, @NotNull WalletStateV2 currentState) {
+    @Nonnull
+    public Stream<DomainEvent> debit(@Nonnull DebitWalletCommand cmd, @Nonnull WalletStateV2 currentState) {
         log.info("CommandHandler: Debiting wallet for walletId={}, currency={}, amount={}", cmd.id(), cmd.currency(), cmd.amount());
         WalletStateV2.Balance balance = currentState.balances().stream()
                 .filter(b -> b.currency().equals(cmd.currency()))
@@ -197,19 +197,19 @@ public final class Wallet implements Aggregate<WalletStateV2> {
     }
 
     @EventSourcingHandler(create = true)
-    public @NotNull WalletStateV2 create(@NotNull WalletCreatedEvent event, WalletStateV2 isNull) {
+    public @Nonnull WalletStateV2 create(@Nonnull WalletCreatedEvent event, WalletStateV2 isNull) {
         return new WalletStateV2(event.id(), new ArrayList<>());
     }
 
     @EventSourcingHandler
-    public @NotNull WalletStateV2 createBalance(@NotNull BalanceCreatedEvent event, WalletStateV2 state) {
+    public @Nonnull WalletStateV2 createBalance(@Nonnull BalanceCreatedEvent event, WalletStateV2 state) {
         List<WalletStateV2.Balance> balances = new ArrayList<>(state.balances());
         balances.add(new WalletStateV2.Balance(event.currency(), BigDecimal.ZERO));
         return new WalletStateV2(state.id(), balances);
     }
 
     @EventSourcingHandler
-    public @NotNull WalletStateV2 credit(@NotNull WalletCreditedEvent event, @NotNull WalletStateV2 state) {
+    public @Nonnull WalletStateV2 credit(@Nonnull WalletCreditedEvent event, @Nonnull WalletStateV2 state) {
         return new WalletStateV2(state.id(), state.balances().stream().map(b -> {
             if (b.currency().equals(event.currency())) {
                 return new WalletStateV2.Balance(b.currency(), b.amount().add(event.amount()));
@@ -220,7 +220,7 @@ public final class Wallet implements Aggregate<WalletStateV2> {
     }
 
     @EventSourcingHandler
-    public @NotNull WalletStateV2 debit(@NotNull WalletDebitedEvent event, @NotNull WalletStateV2 state) {
+    public @Nonnull WalletStateV2 debit(@Nonnull WalletDebitedEvent event, @Nonnull WalletStateV2 state) {
         return new WalletStateV2(state.id(), state.balances().stream().map(b -> {
             if (b.currency().equals(event.currency())) {
                 return new WalletStateV2.Balance(b.currency(), event.newBalance(), b.reservations());
@@ -232,7 +232,7 @@ public final class Wallet implements Aggregate<WalletStateV2> {
 
 
     @EventSourcingHandler
-    public @NotNull WalletStateV2 reserveAmount(@NotNull AmountReservedEvent event, @NotNull WalletStateV2 state) {
+    public @Nonnull WalletStateV2 reserveAmount(@Nonnull AmountReservedEvent event, @Nonnull WalletStateV2 state) {
         return new WalletStateV2(state.id(), state.balances().stream().map(b -> {
             if (b.currency().equals(event.currency())) {
                 List<WalletStateV2.Reservation> reservations = new ArrayList<>(b.reservations());
@@ -245,7 +245,7 @@ public final class Wallet implements Aggregate<WalletStateV2> {
     }
 
     @EventSourcingHandler
-    public @NotNull WalletStateV2 cancelReservation(@NotNull ReservationCancelledEvent event, @NotNull WalletStateV2 state) {
+    public @Nonnull WalletStateV2 cancelReservation(@Nonnull ReservationCancelledEvent event, @Nonnull WalletStateV2 state) {
         return new WalletStateV2(state.id(), state.balances().stream().map(b -> {
             if (b.currency().equals(event.currency())) {
                 List<WalletStateV2.Reservation> reservations = b.reservations().stream()

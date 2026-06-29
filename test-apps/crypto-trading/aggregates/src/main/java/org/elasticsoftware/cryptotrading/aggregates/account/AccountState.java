@@ -17,17 +17,17 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.account;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.annotations.AggregateStateInfo;
 import org.elasticsoftware.akces.annotations.PIIData;
 
 @AggregateStateInfo(type = "Account", version = 1)
-public record AccountState(@NotNull String userId,
-                           @NotNull String country,
-                           @NotNull @PIIData String firstName,
-                           @NotNull @PIIData String lastName,
-                           @NotNull @PIIData String email) implements AggregateState {
+public record AccountState(@Nonnull String userId,
+                           @Nonnull String country,
+                           @Nonnull @PIIData String firstName,
+                           @Nonnull @PIIData String lastName,
+                           @Nonnull @PIIData String email) implements AggregateState {
     @Override
     public String getAggregateId() {
         return userId();

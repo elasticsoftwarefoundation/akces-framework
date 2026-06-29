@@ -17,12 +17,12 @@
 
 package org.elasticsoftware.cryptotrading.web.dto;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.cryptotrading.aggregates.orders.data.CryptoMarket;
 
 import java.math.BigDecimal;
 
-public record OrderInput(@NotNull CryptoMarket market,
-                         @NotNull BigDecimal amount,
-                         @NotNull String clientReference) {
+public record OrderInput(@Nonnull CryptoMarket market,
+                         @Nonnull BigDecimal amount,
+                         @Nonnull String clientReference) {
 }

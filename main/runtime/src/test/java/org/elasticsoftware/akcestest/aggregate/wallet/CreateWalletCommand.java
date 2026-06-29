@@ -17,17 +17,17 @@
 
 package org.elasticsoftware.akcestest.aggregate.wallet;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
 @CommandInfo(type = "CreateWallet", version = 1)
 public record CreateWalletCommand(
-        @AggregateIdentifier @NotNull String id,
-        @NotNull String currency
+        @AggregateIdentifier @Nonnull String id,
+        @Nonnull String currency
 ) implements Command {
-    @NotNull
+    @Nonnull
     @Override
     public String getAggregateId() {
         return id();

@@ -18,15 +18,14 @@
 package org.elasticsoftware.akces.errors;
 
 import jakarta.annotation.Nonnull;
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.ErrorEvent;
 
 @DomainEventInfo(type = "CommandExecutionError")
 public record CommandExecutionErrorEvent(
-        @NotNull String id,
-        @NotNull String aggregateName,
-        @NotNull String commandName,
+        @Nonnull String id,
+        @Nonnull String aggregateName,
+        @Nonnull String commandName,
         String errorDescription
 ) implements ErrorEvent {
     @Override

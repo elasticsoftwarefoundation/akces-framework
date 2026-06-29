@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akcestest.aggregate.orders;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
@@ -26,14 +26,14 @@ import java.math.BigDecimal;
 
 @CommandInfo(type = "PlaceBuyOrder", version = 1)
 public record PlaceBuyOrderCommand(
-        @NotNull @AggregateIdentifier String userId,
-        @NotNull FxMarket market,
-        @NotNull BigDecimal quantity,
-        @NotNull BigDecimal limitPrice,
-        @NotNull String clientReference
+        @Nonnull @AggregateIdentifier String userId,
+        @Nonnull FxMarket market,
+        @Nonnull BigDecimal quantity,
+        @Nonnull BigDecimal limitPrice,
+        @Nonnull String clientReference
 ) implements Command {
     @Override
-    @NotNull
+    @Nonnull
     public String getAggregateId() {
         return userId();
     }

@@ -18,18 +18,17 @@
 package org.elasticsoftware.akcestest.aggregate.wallet;
 
 import jakarta.annotation.Nonnull;
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.ErrorEvent;
 
 @DomainEventInfo(type = "InvalidCurrencyError")
 public record InvalidCurrencyErrorEvent(
-        @NotNull @AggregateIdentifier String walletId,
-        @NotNull String currency,
+        @Nonnull @AggregateIdentifier String walletId,
+        @Nonnull String currency,
         String referenceId
 ) implements ErrorEvent {
-    public InvalidCurrencyErrorEvent(@NotNull String walletId, @NotNull String currency) {
+    public InvalidCurrencyErrorEvent(@Nonnull String walletId, @Nonnull String currency) {
         this(walletId, currency, null);
     }
 

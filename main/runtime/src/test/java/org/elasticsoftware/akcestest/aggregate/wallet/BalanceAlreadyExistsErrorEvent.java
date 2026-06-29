@@ -17,14 +17,14 @@
 
 package org.elasticsoftware.akcestest.aggregate.wallet;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.ErrorEvent;
 
 @DomainEventInfo(type = "BalanceAlreadyExistsError")
-public record BalanceAlreadyExistsErrorEvent(@AggregateIdentifier @NotNull String walletId,
-                                             @NotNull String currency) implements ErrorEvent {
+public record BalanceAlreadyExistsErrorEvent(@AggregateIdentifier @Nonnull String walletId,
+                                             @Nonnull String currency) implements ErrorEvent {
     @Override
     public String getAggregateId() {
         return walletId();

@@ -17,13 +17,13 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.orders.events;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 @DomainEventInfo(type = "UserOrderProcessesCreated", version = 1)
-public record UserOrderProcessesCreatedEvent(@NotNull @AggregateIdentifier String userId) implements DomainEvent {
+public record UserOrderProcessesCreatedEvent(@Nonnull @AggregateIdentifier String userId) implements DomainEvent {
     @Override
     public String getAggregateId() {
         return userId();

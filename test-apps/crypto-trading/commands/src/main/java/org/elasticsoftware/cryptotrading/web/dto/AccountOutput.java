@@ -17,11 +17,11 @@
 
 package org.elasticsoftware.cryptotrading.web.dto;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 
-public record AccountOutput(@NotNull String userId,
-                            @NotNull String country,
-                            @NotNull String firstName,
-                            @NotNull String lastName,
-                            @NotNull String email) {
+public record AccountOutput(@Nonnull String userId,
+                            @Nonnull String country,
+                            @Nonnull String firstName,
+                            @Nonnull String lastName,
+                            @Nonnull String email) {
 }

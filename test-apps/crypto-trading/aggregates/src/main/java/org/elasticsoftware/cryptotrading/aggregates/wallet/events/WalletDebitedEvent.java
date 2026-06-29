@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.wallet.events;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 
@@ -25,10 +25,10 @@ import java.math.BigDecimal;
 
 @DomainEventInfo(type = "WalletDebited", version = 1)
 public record WalletDebitedEvent(
-    @NotNull String id,
-    @NotNull String currency,
-    @NotNull BigDecimal amount,
-    @NotNull BigDecimal newBalance
+    @Nonnull String id,
+    @Nonnull String currency,
+    @Nonnull BigDecimal amount,
+    @Nonnull BigDecimal newBalance
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {

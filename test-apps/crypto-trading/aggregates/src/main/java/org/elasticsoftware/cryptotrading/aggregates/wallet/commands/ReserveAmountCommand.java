@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.wallet.commands;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
@@ -26,13 +26,13 @@ import java.math.BigDecimal;
 
 @CommandInfo(type = "ReserveAmount", version = 1)
 public record ReserveAmountCommand(
-        @NotNull @AggregateIdentifier String userId,
-        @NotNull String currency,
-        @NotNull BigDecimal amount,
-        @NotNull String referenceId
+        @Nonnull @AggregateIdentifier String userId,
+        @Nonnull String currency,
+        @Nonnull BigDecimal amount,
+        @Nonnull String referenceId
 ) implements Command {
     @Override
-    @NotNull
+    @Nonnull
     public String getAggregateId() {
         return userId();
     }

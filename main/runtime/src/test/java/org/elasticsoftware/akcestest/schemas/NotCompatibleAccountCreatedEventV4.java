@@ -17,14 +17,14 @@
 
 package org.elasticsoftware.akcestest.schemas;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 @DomainEventInfo(type = "AccountCreatedEvent", version = 4)
 public record NotCompatibleAccountCreatedEventV4(
-        @NotNull String userId,
-        @NotNull String lastName,
+        @Nonnull String userId,
+        @Nonnull String lastName,
         String firstName,
         String country,
         String city

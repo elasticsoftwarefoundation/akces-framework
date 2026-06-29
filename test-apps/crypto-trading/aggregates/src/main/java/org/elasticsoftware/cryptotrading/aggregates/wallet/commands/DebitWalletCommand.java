@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.wallet.commands;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
@@ -25,9 +25,9 @@ import java.math.BigDecimal;
 
 @CommandInfo(type = "DebitWallet", version = 1)
 public record DebitWalletCommand(
-    @NotNull String id,
-    @NotNull String currency,
-    @NotNull BigDecimal amount
+    @Nonnull String id,
+    @Nonnull String currency,
+    @Nonnull BigDecimal amount
 ) implements Command {
     @Override
     public String getAggregateId() {

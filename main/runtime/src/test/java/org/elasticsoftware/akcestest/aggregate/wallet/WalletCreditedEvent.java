@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akcestest.aggregate.wallet;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
@@ -26,10 +26,10 @@ import java.math.BigDecimal;
 
 @DomainEventInfo(type = "WalletCredited")
 public record WalletCreditedEvent(
-        @AggregateIdentifier @NotNull String id,
-        @NotNull String currency,
-        @NotNull BigDecimal amount,
-        @NotNull BigDecimal balance
+        @AggregateIdentifier @Nonnull String id,
+        @Nonnull String currency,
+        @Nonnull BigDecimal amount,
+        @Nonnull BigDecimal balance
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {

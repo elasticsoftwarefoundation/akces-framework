@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.cryptomarket.events;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.cryptotrading.aggregates.cryptomarket.data.Side;
@@ -26,10 +26,10 @@ import java.math.BigDecimal;
 
 @DomainEventInfo(type = "MarketOrderPlaced", version = 1)
 public record MarketOrderPlacedEvent(
-        @NotNull String marketId,
-        @NotNull String orderId,
-        @NotNull String ownerId,
-        @NotNull Side side,
+        @Nonnull String marketId,
+        @Nonnull String orderId,
+        @Nonnull String ownerId,
+        @Nonnull Side side,
         BigDecimal funds,
         BigDecimal size
 ) implements DomainEvent {

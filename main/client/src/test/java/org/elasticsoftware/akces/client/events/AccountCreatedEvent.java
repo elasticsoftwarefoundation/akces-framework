@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akces.client.events;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.annotations.PIIData;
@@ -26,7 +26,7 @@ import org.elasticsoftware.akces.events.DomainEvent;
 
 @DomainEventInfo(type = "AccountCreated")
 public record AccountCreatedEvent(
-        @AggregateIdentifier @NotNull String userId,
+        @AggregateIdentifier @Nonnull String userId,
         String country,
         @PIIData String firstName,
         @PIIData String lastName,

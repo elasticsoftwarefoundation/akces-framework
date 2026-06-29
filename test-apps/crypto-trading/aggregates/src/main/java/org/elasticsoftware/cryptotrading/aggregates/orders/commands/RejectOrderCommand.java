@@ -17,18 +17,18 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.orders.commands;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
 @CommandInfo(type = "RejectOrder", version = 1)
 public record RejectOrderCommand(
-        @NotNull @AggregateIdentifier String userId,
-        @NotNull String orderId
+        @Nonnull @AggregateIdentifier String userId,
+        @Nonnull String orderId
 ) implements Command {
     @Override
-    @NotNull
+    @Nonnull
     public String getAggregateId() {
         return userId();
     }

@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.account;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.aggregate.Aggregate;
 import org.elasticsoftware.akces.annotations.AggregateInfo;
 import org.elasticsoftware.akces.annotations.CommandHandler;
@@ -56,8 +56,8 @@ public final class Account implements Aggregate<AccountState> {
     }
 
     @EventSourcingHandler(create = true)
-    @NotNull
-    public AccountState create(@NotNull AccountCreatedEvent event, AccountState isNull) {
+    @Nonnull
+    public AccountState create(@Nonnull AccountCreatedEvent event, AccountState isNull) {
         return new AccountState(event.userId(), event.country(), event.firstName(), event.lastName(), event.email());
     }
 }

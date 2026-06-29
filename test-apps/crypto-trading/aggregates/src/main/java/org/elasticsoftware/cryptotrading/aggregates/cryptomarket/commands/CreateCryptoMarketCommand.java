@@ -17,18 +17,18 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.cryptomarket.commands;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
 
 @CommandInfo(type = "CreateCryptoMarket", version = 1, description = "Create a new crypto market")
 public record CreateCryptoMarketCommand(
-        @NotNull String id,
-        @NotNull String baseCurrency,
-        @NotNull String quoteCurrency,
-        @NotNull String baseIncrement,
-        @NotNull String quoteIncrement,
-        @NotNull String defaultCounterPartyId
+        @Nonnull String id,
+        @Nonnull String baseCurrency,
+        @Nonnull String quoteCurrency,
+        @Nonnull String baseIncrement,
+        @Nonnull String quoteIncrement,
+        @Nonnull String defaultCounterPartyId
 ) implements Command {
     @Override
     public String getAggregateId() {

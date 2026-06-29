@@ -19,7 +19,6 @@ package org.elasticsoftware.akcestest.aggregate.wallet;
 
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
-import jakarta.validation.constraints.NotNull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.ErrorEvent;
@@ -28,10 +27,10 @@ import java.math.BigDecimal;
 
 @DomainEventInfo(type = "InsufficientFundsError")
 public record InsufficientFundsErrorEvent(
-        @NotNull @AggregateIdentifier String walletId,
-        @NotNull String currency,
-        @NotNull BigDecimal availableAmount,
-        @NotNull BigDecimal requestedAmount,
+        @Nonnull @AggregateIdentifier String walletId,
+        @Nonnull String currency,
+        @Nonnull BigDecimal availableAmount,
+        @Nonnull BigDecimal requestedAmount,
         @Nullable String referenceId
 ) implements ErrorEvent {
     @Override

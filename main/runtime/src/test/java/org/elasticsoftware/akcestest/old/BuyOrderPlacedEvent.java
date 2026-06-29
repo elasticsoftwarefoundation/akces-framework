@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.akcestest.old;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.events.DomainEvent;
 import org.elasticsoftware.akcestest.aggregate.orders.FxMarket;
@@ -25,7 +25,7 @@ import org.elasticsoftware.akcestest.aggregate.orders.FxMarket;
 import java.math.BigDecimal;
 
 public record BuyOrderPlacedEvent(
-        @NotNull @AggregateIdentifier String userId,
+        @Nonnull @AggregateIdentifier String userId,
         String orderId,
         FxMarket market,
         BigDecimal quantity,

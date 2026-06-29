@@ -17,17 +17,17 @@
 
 package org.elasticsoftware.akcestest.aggregate.account;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.aggregate.AggregateState;
 import org.elasticsoftware.akces.annotations.AggregateStateInfo;
 import org.elasticsoftware.akces.annotations.PIIData;
 
 @AggregateStateInfo(type = "Account", version = 1)
-public record AccountState(@NotNull String userId,
-                           @NotNull String country,
-                           @NotNull @PIIData String firstName,
-                           @NotNull @PIIData String lastName,
-                           @NotNull @PIIData String email,
+public record AccountState(@Nonnull String userId,
+                           @Nonnull String country,
+                           @Nonnull @PIIData String firstName,
+                           @Nonnull @PIIData String lastName,
+                           @Nonnull @PIIData String email,
                            Boolean twoFactorEnabled) implements AggregateState {
     // Compact constructor to handle possible null values from deserialization
     public AccountState {
@@ -37,11 +37,11 @@ public record AccountState(@NotNull String userId,
     }
 
     // Default constructor with false for twoFactorEnabled
-    public AccountState(@NotNull String userId,
-                       @NotNull String country,
-                       @NotNull String firstName,
-                       @NotNull String lastName,
-                       @NotNull String email) {
+    public AccountState(@Nonnull String userId,
+                       @Nonnull String country,
+                       @Nonnull String firstName,
+                       @Nonnull String lastName,
+                       @Nonnull String email) {
         this(userId, country, firstName, lastName, email, false);
     }
 

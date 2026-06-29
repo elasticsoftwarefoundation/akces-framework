@@ -17,7 +17,7 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.orders.commands;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.CommandInfo;
 import org.elasticsoftware.akces.commands.Command;
@@ -27,13 +27,13 @@ import java.math.BigDecimal;
 
 @CommandInfo(type = "PlaceSellOrder", version = 1)
 public record PlaceSellOrderCommand(
-        @NotNull @AggregateIdentifier String userId,
-        @NotNull CryptoMarket market,
-        @NotNull BigDecimal quantity,
-        @NotNull String clientReference
+        @Nonnull @AggregateIdentifier String userId,
+        @Nonnull CryptoMarket market,
+        @Nonnull BigDecimal quantity,
+        @Nonnull String clientReference
 ) implements Command {
     @Override
-    @NotNull
+    @Nonnull
     public String getAggregateId() {
         return userId();
     }

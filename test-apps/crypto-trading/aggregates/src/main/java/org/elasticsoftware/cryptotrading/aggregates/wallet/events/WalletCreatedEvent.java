@@ -17,14 +17,14 @@
 
 package org.elasticsoftware.cryptotrading.aggregates.wallet.events;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.annotation.Nonnull;
 import org.elasticsoftware.akces.annotations.AggregateIdentifier;
 import org.elasticsoftware.akces.annotations.DomainEventInfo;
 import org.elasticsoftware.akces.events.DomainEvent;
 
 @DomainEventInfo(type = "WalletCreated")
 public record WalletCreatedEvent(
-        @AggregateIdentifier @NotNull String id
+        @AggregateIdentifier @Nonnull String id
 ) implements DomainEvent {
     @Override
     public String getAggregateId() {
