@@ -72,6 +72,7 @@
         <module>aggregates</module>
         <module>commands</module>
         <module>queries</module>
+        <module>auth</module>
     </modules>
 
     <build>
